@@ -3,7 +3,7 @@
 > Choose the columns and values that a query gives back, and the table they come from.
 
 - Category: Querying
-- Keywords: query, read rows, columns, *, table.*, AS, alias, column name, FROM, DISTINCT, unique rows, SELECT without FROM, calculator, missing comma, select, from, distinct
+- Keywords: query, read rows, columns, \*, table.\*, AS, alias, column name, FROM, DISTINCT, unique rows, SELECT without FROM, calculator, missing comma, select, from, distinct
 - See also: [WHERE](where.md), [ORDER BY, LIMIT, OFFSET](order-by-limit.md), [GROUP BY and HAVING](group-by.md), [Joins](joins.md), [UNION and subqueries](union-subqueries.md), [Views](views.md)
 
 `SELECT` reads data. You say which values you want (the **select list**), and from which table (`FROM`).

@@ -3,7 +3,7 @@
 > How a program or the console proves who it is - the access token, HTTP Basic, POST /api/login - and the 401, 403 and 429 answers.
 
 - Category: HTTP API
-- Keywords: login, logout, api/login, api/logout, api/me, api/session, whoami, token, --token, Bearer, Authorization, HTTP Basic, curl -u, cookie, kdb_login, kdb_auth, kdb_token, CSRF, X-KDB-CSRF, remember me, HttpOnly, SameSite, 401, 403, 429, Retry-After, WWW-Authenticate, roles, read, write, admin, password, session token, failed logins
+- Keywords: login, logout, api/login, api/logout, api/me, api/session, whoami, token, --token, Bearer, Authorization, HTTP Basic, curl -u, cookie, kdb\_login, kdb\_auth, kdb\_token, CSRF, X-KDB-CSRF, remember me, HttpOnly, SameSite, 401, 403, 429, Retry-After, WWW-Authenticate, roles, read, write, admin, password, session token, failed logins
 - See also: [Users and roles](users-and-roles.md), [Keeping kdb serve safe](server-security.md), [HTTP API overview (auth)](http-overview.md#auth), [kdb user](cli-users.md), [PostgreSQL protocol (port 8832) (passwords)](postgres-protocol.md#passwords)
 
 A server can be open, need a **token**, or need a **user login**. This page shows how to send each one over HTTP.

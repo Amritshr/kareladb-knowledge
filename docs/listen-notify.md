@@ -3,7 +3,7 @@
 > Send a message to every client that listens on a channel when a transaction commits - over the PostgreSQL port (LISTEN) or HTTP (GET /listen, server-sent events).
 
 - Category: Postgres protocol
-- Keywords: LISTEN, NOTIFY, UNLISTEN, UNLISTEN *, pg_notify, notification, notifications, pub/sub, pubsub, publish, subscribe, PUBLISH, SUBSCRIBE, PSUBSCRIBE, pattern, pmessage, redis, push, event, events, channel, payload, NotificationResponse, GET /listen, /listen, server-sent events, SSE, EventSource, text/event-stream, payload string too long, channel name cannot be empty, 54000, trigger notify, LISTEN needs a connection that stays open
+- Keywords: LISTEN, NOTIFY, UNLISTEN, UNLISTEN \*, pg\_notify, notification, notifications, pub/sub, pubsub, publish, subscribe, PUBLISH, SUBSCRIBE, PSUBSCRIBE, pattern, pmessage, redis, push, event, events, channel, payload, NotificationResponse, GET /listen, /listen, server-sent events, SSE, EventSource, text/event-stream, payload string too long, channel name cannot be empty, 54000, trigger notify, LISTEN needs a connection that stays open
 - See also: [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Triggers](triggers.md), [Transactions](transactions.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [CREATE TABLE (row-ttl)](create-table.md#row-ttl), [Key-value store (Redis-like) (kv-pubsub)](kv.md#kv-pubsub)
 
 `NOTIFY` sends a short message on a **channel**. Every client that listens on that channel gets it, the moment the sending transaction commits. It works as in PostgreSQL 14, and web pages can listen over HTTP too.

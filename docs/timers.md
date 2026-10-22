@@ -3,7 +3,7 @@
 > Let the server run a procedure, a function or any SQL by itself at set times, so a table stays up to date.
 
 - Category: Stored procedures
-- Keywords: timer, timers, schedule, scheduled job, job, cron, every, hourly, daily, weekdays, sun-thu, mon-fri, trading week, trading days, holidays, trading nepse 15:05, catch up, skipped, monthly, retention, keep data for, run on time, back to back, timer_workers, --timer-workers, KDB_TIMER_WORKERS, GET /api/timers, POST /api/timers, POST /api/timers/<name>/run, _timers
+- Keywords: timer, timers, schedule, scheduled job, job, cron, every, hourly, daily, weekdays, sun-thu, mon-fri, trading week, trading days, holidays, trading nepse 15:05, catch up, skipped, monthly, retention, keep data for, run on time, back to back, timer\_workers, --timer-workers, KDB\_TIMER\_WORKERS, GET /api/timers, POST /api/timers, POST /api/timers/\<name\>/run, \_timers
 - See also: [Stored procedures](procedures.md), [Saved functions](saved-functions.md), [Triggers](triggers.md), [Trading calendars](calendars.md), [Backups on a schedule](backup-schedule.md), [HTTP API overview](http-overview.md)
 
 A **timer** is saved SQL that the server runs by itself at set times, inside one database. Most timers call a [procedure](procedures.md), so a table of totals, candles or reports is kept up to date without a cron job outside KDB.

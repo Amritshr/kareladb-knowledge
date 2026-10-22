@@ -3,7 +3,7 @@
 > Name a check, the trading hours or the dedup choice of a table once, and KDB applies it to every row written - saying which rule refused a row and why.
 
 - Category: Tables
-- Keywords: rule, rules, CREATE RULE, ALTER RULE, DROP RULE, SHOW RULES, kdb_rules, price guard, value range, session hours, trading hours, ON FAIL SKIP, ON FAIL REJECT, dedup_keep, keep first, check rule
+- Keywords: rule, rules, CREATE RULE, ALTER RULE, DROP RULE, SHOW RULES, kdb\_rules, price guard, value range, session hours, trading hours, ON FAIL SKIP, ON FAIL REJECT, dedup\_keep, keep first, check rule
 - See also: [CREATE TABLE](create-table.md), [Trading calendars](calendars.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md), [Time and time zones](time-and-time-zones.md)
 
 A **rule** is a named check or setting of one table. It applies to every row written to the table - `INSERT`, `UPDATE`, `COPY`, `/imp`, `/write` and line protocol - and a row it refuses says **which rule and why**. Rules are listed by `SHOW RULES`, switched off and on by `ALTER RULE`, and saved with the table.

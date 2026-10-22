@@ -3,7 +3,7 @@
 > Put many charts on one page, each from its own query, with pickers such as $symbol at the top and an automatic refresh. Dashboards are saved in the database.
 
 - Category: Web console
-- Keywords: dashboard, dashboards, Dashboard page, panel, chart panel, text note, Add panel, Add to dashboard, Edit, Variables, $symbol, $from, variable, picker, Auto refresh, refresh, Save, _dashboards, Export JSON, Import JSON, Copy JSON, Duplicate, example dashboards, Market overview, Stock view, Portfolio, today-30d
+- Keywords: dashboard, dashboards, Dashboard page, panel, chart panel, text note, Add panel, Add to dashboard, Edit, Variables, $symbol, $from, variable, picker, Auto refresh, refresh, Save, \_dashboards, Export JSON, Import JSON, Copy JSON, Duplicate, example dashboards, Market overview, Stock view, Portfolio, today-30d
 - See also: [Web console](web-console.md), [View data page (browse and edit rows)](console-data-page.md), [Monitor panel (memory, processor, caches)](console-monitor.md), [SELECT](select.md), [Users and roles](users-and-roles.md)
 
 The **Dashboard** page of the [web console](web-console.md) (Home menu) shows many charts on one page. Each chart is a **panel**: one `SELECT` and the chart settings for it. The panels refresh by themselves, and pickers at the top (a symbol, a date range) change every panel at once.

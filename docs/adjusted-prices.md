@@ -3,7 +3,7 @@
 > Read a price table as if every split and bonus share had always been there - a chart without the jump on the ex-date - while the table keeps the traded prices.
 
 - Category: Time-series
-- Keywords: ADJUSTED BY, adjusted prices, adjusted close, adjusted candles, adjust, split, stock split, bonus share, bonus shares, right share, corporate action, corporate actions, ex_date, ex-date, factor, adjustment factor, back-adjusted, unadjusted, PRICES, VOLUMES, NEPSE
+- Keywords: ADJUSTED BY, adjusted prices, adjusted close, adjusted candles, adjust, split, stock split, bonus share, bonus shares, right share, corporate action, corporate actions, ex\_date, ex-date, factor, adjustment factor, back-adjusted, unadjusted, PRICES, VOLUMES, NEPSE
 - See also: [Candles cookbook](candles-cookbook.md), [Trading calendars](calendars.md), [SELECT](select.md), [Views](views.md), [Joins](joins.md)
 
 When a company gives a **bonus share** or **splits** its shares, the price falls on the **ex-date**: one old share became more shares, each worth less. A chart of the traded prices then shows a jump that was never a loss. An **adjusted** price divides every price before the ex-date by the same factor, so the history lines up with today's shares.

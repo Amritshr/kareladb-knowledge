@@ -3,7 +3,7 @@
 > CREATE DATABASE x WITH (encryption = on) - every file, log record and backup of it is encrypted; without the master key a copied disk shows nothing.
 
 - Category: Users & security
-- Keywords: encryption, encrypted, encryption at rest, at rest, encrypt, AES, AES-256, AES-256-GCM, GCM, ChaCha20, ChaCha20-Poly1305, master key, data key, key file, KDB_MASTER_KEY, KDB_MASTER_KEY_FILE, KDB_MASTER_KEY_PREVIOUS, KDB_MASTER_KEY_PREVIOUS_FILE, _encryption.key, kdb key, key rotation, rotate key, WITH (encryption , TDE, stolen disk, snapshot
+- Keywords: encryption, encrypted, encryption at rest, at rest, encrypt, AES, AES-256, AES-256-GCM, GCM, ChaCha20, ChaCha20-Poly1305, master key, data key, key file, KDB\_MASTER\_KEY, KDB\_MASTER\_KEY\_FILE, KDB\_MASTER\_KEY\_PREVIOUS, KDB\_MASTER\_KEY\_PREVIOUS\_FILE, \_encryption.key, kdb key, key rotation, rotate key, WITH (encryption , TDE, stolen disk, snapshot
 - See also: [Databases and the data folder](databases.md), [TLS (https and sslmode=require)](tls.md), [Keeping kdb serve safe](server-security.md), [Backup, check, repair and restore](backup-and-safety.md), [kdb info, check, repair, dump-file](cli-maintenance.md)
 
 An **encrypted database** keeps every file on disk encrypted: the tables, the log, the manifests and its backups. Someone who copies the disk, a VPS snapshot or a backup sees only random bytes. Only a KDB server that has the **master key** can read it.

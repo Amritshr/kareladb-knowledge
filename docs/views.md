@@ -3,7 +3,7 @@
 > Save a query with a name, and select from it like a table.
 
 - Category: Views
-- Keywords: VIEW, VIEWS, CREATE VIEW, CACHED, CACHED VIEW, CREATE CACHED VIEW, REFRESH, REFRESH ON COMMIT, REFRESH VIEW, REFRESH MATERIALIZED VIEW, CREATE MATERIALIZED VIEW, DROP MATERIALIZED VIEW, REFRESH ON INSERT, SAMPLE BY view, REFRESH MATERIALIZED VIEW CONCURRENTLY, materialized_views(), views(), candles from ticks, REFRESH IMMEDIATE, WITH BASE, continuous aggregate, incremental refresh, summary table, DROP VIEW, SHOW VIEWS, IF NOT EXISTS, IF EXISTS, saved query, virtual table, materialized view, CREATE OR REPLACE VIEW, OR REPLACE, ALTER VIEW, change a view, kept the old definition
+- Keywords: VIEW, VIEWS, CREATE VIEW, CACHED, CACHED VIEW, CREATE CACHED VIEW, REFRESH, REFRESH ON COMMIT, REFRESH VIEW, REFRESH MATERIALIZED VIEW, CREATE MATERIALIZED VIEW, DROP MATERIALIZED VIEW, REFRESH ON INSERT, SAMPLE BY view, REFRESH MATERIALIZED VIEW CONCURRENTLY, materialized\_views(), views(), candles from ticks, REFRESH IMMEDIATE, WITH BASE, continuous aggregate, incremental refresh, summary table, DROP VIEW, SHOW VIEWS, IF NOT EXISTS, IF EXISTS, saved query, virtual table, materialized view, CREATE OR REPLACE VIEW, OR REPLACE, ALTER VIEW, change a view, kept the old definition
 - See also: [SELECT (from)](select.md#from), [UNION and subqueries (from-subquery)](union-subqueries.md#from-subquery), [SAMPLE BY (sample-by)](sample-by.md#sample-by), [EXPLAIN (explain)](explain.md#explain), [Users and roles](users-and-roles.md)
 
 A **view** is a saved `SELECT` with a name. You use the name in `FROM` like a table. Every time you select from the view, KDB runs its query again, so the view always shows the newest rows.

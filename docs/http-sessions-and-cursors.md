@@ -3,7 +3,7 @@
 > Keep a transaction open over several HTTP requests with a session, and read a big result a part at a time with a cursor.
 
 - Category: HTTP API
-- Keywords: session, /session, X-KDB-Session, transaction over HTTP, BEGIN COMMIT over HTTP, idle_timeout_ms, cursor, /cursor, fetch, done, big result, paging, read in parts, snapshot, database is busy, 503
+- Keywords: session, /session, X-KDB-Session, transaction over HTTP, BEGIN COMMIT over HTTP, idle\_timeout\_ms, cursor, /cursor, fetch, done, big result, paging, read in parts, snapshot, database is busy, 503
 - See also: [Transactions](transactions.md), [Cursors](cursors.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [HTTP API overview](http-overview.md)
 
 Normally every HTTP request stands alone: a `BEGIN` in one `/exec` request cannot be finished by a `COMMIT` in the next one. Two tools help:

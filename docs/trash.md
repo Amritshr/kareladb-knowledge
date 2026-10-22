@@ -3,7 +3,7 @@
 > DROP TABLE keeps the table hidden for some days; UNDROP TABLE brings it back with its rows and indexes.
 
 - Category: Tables
-- Keywords: trash, undo drop, undrop, UNDROP, restore table, dropped table, recover table, DROPPED, _dropped_, --trash-days, PurgeDroppedTables
+- Keywords: trash, undo drop, undrop, UNDROP, restore table, dropped table, recover table, DROPPED, \_dropped\_, --trash-days, PurgeDroppedTables
 - See also: [CREATE TABLE](create-table.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Backup, check, repair and restore](backup-and-safety.md), [Databases and the data folder](databases.md)
 
 `DROP TABLE` is easy to type by mistake. With the trash, the table is only hidden: its rows stay where they are, and `UNDROP TABLE` brings it back. After the keep time (7 days by default) KDB removes it for good.

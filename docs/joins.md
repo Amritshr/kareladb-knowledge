@@ -3,7 +3,7 @@
 > Put rows of two or more tables side by side: JOIN, LEFT / RIGHT / FULL JOIN, USING, CROSS JOIN, and ASOF / LT / SPLICE JOIN for time series.
 
 - Category: Querying
-- Keywords: join, JOIN, hash join, join speed, key lookup, index lookup, index nested loop join, KDB_NO_COLUMN_JOIN, engine: column (hash join), GROUP BY over a join, join another database, INNER JOIN, INNER, ON, LEFT JOIN, LEFT OUTER JOIN, LEFT, OUTER, CROSS JOIN, CROSS, ASOF JOIN, ASOF, as of, time join, table alias, self join, join subquery, RIGHT JOIN, RIGHT OUTER JOIN, FULL JOIN, FULL OUTER JOIN, USING, JOIN USING, LT JOIN, SPLICE JOIN, RIGHT, FULL, LT, SPLICE, comma join, ambiguous column, join, left join, asof, cross join
+- Keywords: join, JOIN, hash join, join speed, key lookup, index lookup, index nested loop join, KDB\_NO\_COLUMN\_JOIN, engine: column (hash join), GROUP BY over a join, join another database, INNER JOIN, INNER, ON, LEFT JOIN, LEFT OUTER JOIN, LEFT, OUTER, CROSS JOIN, CROSS, ASOF JOIN, ASOF, as of, time join, table alias, self join, join subquery, RIGHT JOIN, RIGHT OUTER JOIN, FULL JOIN, FULL OUTER JOIN, USING, JOIN USING, LT JOIN, SPLICE JOIN, RIGHT, FULL, LT, SPLICE, comma join, ambiguous column, join, left join, asof, cross join
 - See also: [SELECT (from)](select.md#from), [WHERE](where.md), [GROUP BY and HAVING](group-by.md), [UNION and subqueries (correlated)](union-subqueries.md#correlated), [LATEST ON](latest-on.md), [EXPLAIN](explain.md)
 
 A **join** puts rows of two tables side by side. For example, a trade in `trade_log` has only the broker number (`buyer = 58`); a join with `brokers` adds the broker's name.

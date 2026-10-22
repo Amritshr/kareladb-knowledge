@@ -3,7 +3,7 @@
 > Keep only the rows you want, with comparisons, IN, BETWEEN, LIKE, IS NULL and time ranges.
 
 - Category: Querying
-- Keywords: filter, condition, rows, AND, OR, NOT, , , !, <>, <, <, >, >, BETWEEN, NOT BETWEEN, IN, NOT IN, time IN, interval, LIKE, NOT LIKE, %, _, escape, ILIKE, NOT ILIKE, IS NULL, IS NOT NULL, NULL, row comparison, tuple IN, (a, b) IN, composite key, IN VALUES, keyset paging, seek paging, fast conditions, column engine, row engine, where, like, ilike, SIMILAR TO, NOT SIMILAR TO, similar to, similar_to_escape, between
+- Keywords: filter, condition, rows, AND, OR, NOT, , , !, \<\>, \<, \<, \>, \>, BETWEEN, NOT BETWEEN, IN, NOT IN, time IN, interval, LIKE, NOT LIKE, %, \_, escape, ILIKE, NOT ILIKE, IS NULL, IS NOT NULL, NULL, row comparison, tuple IN, (a, b) IN, composite key, IN VALUES, keyset paging, seek paging, fast conditions, column engine, row engine, where, like, ilike, SIMILAR TO, NOT SIMILAR TO, similar to, similar\_to\_escape, between
 - See also: [SELECT](select.md), [Operators](operators.md), [ORDER BY, LIMIT, OFFSET (paging)](order-by-limit.md#paging), [Time and time zones](time-and-time-zones.md), [Conditional and NULL functions](functions-conditional.md), [Regular expressions](functions-regex.md)
 
 `WHERE` keeps the rows where the condition is **true**. Rows where it is false or `NULL` are left out.

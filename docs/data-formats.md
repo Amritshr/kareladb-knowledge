@@ -3,7 +3,7 @@
 > A short tour of the files in a KDB database folder - data files, blocks and checksums, the log, the manifest and backups.
 
 - Category: Data formats
-- Keywords: file format, on-disk format, files, folder, kdb.lock, _manifest.a, _manifest.b, manifest, wal, wal_archive, _trash, WAL, write-ahead log, log segment, LSN, checkpoint, block, CRC32C, checksum, digest, copy-on-write, version, partition file, column file, backup.kdb, .partial, timeline, FORMAT.md, little-endian, manifest keys, removed manifest keys, column stats
+- Keywords: file format, on-disk format, files, folder, kdb.lock, \_manifest.a, \_manifest.b, manifest, wal, wal\_archive, \_trash, WAL, write-ahead log, log segment, LSN, checkpoint, block, CRC32C, checksum, digest, copy-on-write, version, partition file, column file, backup.kdb, .partial, timeline, FORMAT.md, little-endian, manifest keys, removed manifest keys, column stats
 - See also: [Backup, check, repair and restore](backup-and-safety.md), [kdb info, check, repair, dump-file](cli-maintenance.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md), [Limits (disk-memory)](limits.md#disk-memory)
 
 This page explains, in simple words, what KDB writes to the disk and why. You do not need it to use KDB. It helps to understand `kdb info`, `kdb check` and the messages about damage.

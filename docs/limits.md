@@ -3,7 +3,7 @@
 > The sizes and counts KDB allows, what happens at each limit, and the features that are not there yet.
 
 - Category: Limits
-- Keywords: limit, limits, maximum, max, how big, how many, too big, too many, nested too deeply, 16 MB, 64 MB, 10 million, DECIMAL scale, name length, too many open cursors, lock timeout, database is busy, table is busy, deadlock, idle transaction, request body, 10,000 rows, truncated, disk full, 507, 53100, statement timeout, max-queries-per-user, max-groups, max-result-memory, max_spill_bytes, KDB_NO_ZONE_MAPS, KDB_NO_COLUMN_MASK, KDB_NO_UNION_PUSHDOWN, switches, reader yield, not supported, missing features, known limitations, not available
+- Keywords: limit, limits, maximum, max, how big, how many, too big, too many, nested too deeply, 16 MB, 64 MB, 10 million, DECIMAL scale, name length, too many open cursors, lock timeout, database is busy, table is busy, deadlock, idle transaction, request body, 10,000 rows, truncated, disk full, 507, 53100, statement timeout, max-queries-per-user, max-groups, max-result-memory, max\_spill\_bytes, KDB\_NO\_ZONE\_MAPS, KDB\_NO\_COLUMN\_MASK, KDB\_NO\_UNION\_PUSHDOWN, switches, reader yield, not supported, missing features, known limitations, not available
 - See also: [Performance tips](performance-tips.md), [Cursors (limits)](cursors.md#limits), [Transactions](transactions.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [How KDB stores data](data-formats.md), [Protection - timeouts, limits, safe updates, read-only](protection.md)
 
 These are the limits of KDB `0.2.0-dev` (September 2026). Most of them are there to protect memory and to give a clear error instead of a crash.

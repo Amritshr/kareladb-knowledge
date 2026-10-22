@@ -3,7 +3,7 @@
 > A second KDB server that copies every database of a primary from its log, a moment behind, and serves reads.
 
 - Category: Backup, check, repair, restore
-- Keywords: standby, hot standby, replica, read replica, replication, failover, --standby-of, --standby-token, KDB_STANDBY_OF, KDB_STANDBY_TOKEN, GET /api/wal, api/wal, GET /api/standby, api/standby, in_hot_standby, wal, log shipping, lsn, kdb promote, POST /api/promote, api/promote, promote, failover, lag, replication lag, kdb_standby_lag_seconds, 25006, read_only_sql_transaction
+- Keywords: standby, hot standby, replica, read replica, replication, failover, --standby-of, --standby-token, KDB\_STANDBY\_OF, KDB\_STANDBY\_TOKEN, GET /api/wal, api/wal, GET /api/standby, api/standby, in\_hot\_standby, wal, log shipping, lsn, kdb promote, POST /api/promote, api/promote, promote, failover, lag, replication lag, kdb\_standby\_lag\_seconds, 25006, read\_only\_sql\_transaction
 - See also: [Backup, check, repair and restore](backup-and-safety.md), [Change stream and live subscriptions: changes('t'), GET /api/changes, GET /api/subscribe](change-stream.md), [kdb serve](cli-serve.md), [Databases and the data folder](databases.md)
 
 A **standby** is a second `kdb serve` that keeps a copy of every database of another server, the **primary**. It reads the primary's log (the WAL) over HTTP and applies each transaction in order, so the copy is a moment behind the primary. Users of the standby can read; every change is made on the primary.

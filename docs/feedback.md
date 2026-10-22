@@ -3,7 +3,7 @@
 > How people who use a KDB server send comments, suggestions and problem reports, and how its admins read them.
 
 - Category: Web console
-- Keywords: feedback, comment, comments, suggestion, suggestions, problem report, bug report, send feedback, contact, POST /api/feedback, GET /api/feedback, POST /api/feedback/<id>, _feedback
+- Keywords: feedback, comment, comments, suggestion, suggestions, problem report, bug report, send feedback, contact, POST /api/feedback, GET /api/feedback, POST /api/feedback/\<id\>, \_feedback
 - See also: [Web console](web-console.md), [Logins, tokens and roles over HTTP](http-login.md), [Users and roles](users-and-roles.md), [About KDB](about-kdb.md)
 
 Anyone who may use a KDB server can send its admins a **comment**, a **suggestion** or a **problem** report. The message is saved on that server, in the table `_feedback`, so it survives restarts and is part of every backup.

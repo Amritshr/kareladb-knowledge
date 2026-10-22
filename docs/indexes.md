@@ -3,7 +3,7 @@
 > Make WHERE and ORDER BY ... LIMIT fast with an index, and keep values unique with a UNIQUE index.
 
 - Category: Indexes & search
-- Keywords: index, secondary index, bitmap, USING BITMAP, bitmap index, roaring, low cardinality, IF NOT EXISTS, IF EXISTS, SHOW INDEX, SHOW INDEXES FROM, SHOW INDEXES ON, UNIQUE, duplicate value, keyset pagination, OFFSET pages, slow query, use index, built, memory_bytes, index_memory_bytes, warm, built at open, warm-indexes, KDB_WARM_INDEXES, building
+- Keywords: index, secondary index, bitmap, USING BITMAP, bitmap index, roaring, low cardinality, IF NOT EXISTS, IF EXISTS, SHOW INDEX, SHOW INDEXES FROM, SHOW INDEXES ON, UNIQUE, duplicate value, keyset pagination, OFFSET pages, slow query, use index, built, memory\_bytes, index\_memory\_bytes, warm, built at open, warm-indexes, KDB\_WARM\_INDEXES, building
 - See also: [Full-text search](full-text-search.md), [EXPLAIN](explain.md), [Constraints](constraints.md), [Performance tips](performance-tips.md), [Limits](limits.md), [ALTER, RENAME and DROP TABLE](alter-table.md)
 
 An **index** is a second, sorted list of some columns of a table. Each entry points to its row. It works like the index at the back of a book: KDB finds the rows at once and does not read the whole table.

@@ -3,7 +3,7 @@
 > Every column type, its range, how NULL is kept, and which values it accepts.
 
 - Category: Tables
-- Keywords: data type, type, types, column type, conversion, convert value, range, overflow, out of range, NULL storage, money, exact, precision, BOOL, BOOLEAN, BYTE, SHORT, INT, INTEGER, LONG, BIGINT, FLOAT, DOUBLE, DECIMAL, NUMERIC, DATE, TIMESTAMP, SYMBOL, STRING, VARCHAR, TEXT, JSON, JSONB, BYTES, BYTEA, BLOB, UUID, gen_random_uuid, ENUM, CREATE TYPE, ALTER TYPE, DROP TYPE, pg_enum, label, hex, utf-8, time zone, +05:45, milliseconds
+- Keywords: data type, type, types, column type, conversion, convert value, range, overflow, out of range, NULL storage, money, exact, precision, BOOL, BOOLEAN, BYTE, SHORT, INT, INTEGER, LONG, BIGINT, FLOAT, DOUBLE, DECIMAL, NUMERIC, DATE, TIMESTAMP, SYMBOL, STRING, VARCHAR, TEXT, JSON, JSONB, BYTES, BYTEA, BLOB, UUID, gen\_random\_uuid, ENUM, CREATE TYPE, ALTER TYPE, DROP TYPE, pg\_enum, label, hex, utf-8, time zone, +05:45, milliseconds
 - See also: [CREATE TABLE](create-table.md), [INSERT](insert.md), [Conversion functions](functions-conversion.md), [Time and time zones](time-and-time-zones.md), [SQL basics](sql-basics.md)
 
 Every column has a **type**. The type says what values the column holds, and how much space one value takes. When a row is written, KDB **converts** each value to the column type, or refuses the row with a clear message.

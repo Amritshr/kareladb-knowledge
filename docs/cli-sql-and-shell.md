@@ -3,7 +3,7 @@
 > Run SQL from the command line once (kdb sql) or type it at a prompt (kdb shell).
 
 - Category: Command line
-- Keywords: run SQL, script, stdin, pipe, .sql file, output format, CSV, JSON, prompt, REPL, dot command, .help, .tables, .schema, .format, .maxrows, .check, .backup, .exit, .quit, exit, quit, ...>
+- Keywords: run SQL, script, stdin, pipe, .sql file, output format, CSV, JSON, prompt, REPL, dot command, .help, .tables, .schema, .format, .maxrows, .check, .backup, .exit, .quit, exit, quit, ...\>
 - See also: [The kdb program](cli-overview.md), [kdb serve](cli-serve.md), [Transactions](transactions.md), [Backup, check, repair and restore (backup-database)](backup-and-safety.md#backup-database), [Loading many rows](loading-data.md)
 
 `kdb sql` opens a database, runs SQL, prints the results and closes the database. It is good for scripts.

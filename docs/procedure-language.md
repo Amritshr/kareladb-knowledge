@@ -3,7 +3,7 @@
 > Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body.
 
 - Category: Stored procedures
-- Keywords: variable, variables, loop, THEN, DO, IN, INTO, OPEN, FOUND, EXECUTE, dynamic SQL, EXECUTE format, USING, INTO STRICT, table name in a variable, sp_executesql, PREPARE, END IF, END WHILE, END FOR, FETCH INTO, OPEN cursor, declared twice, column name wins, WHILE loop ran, body, procedure body, trigger body
+- Keywords: variable, variables, loop, THEN, DO, IN, INTO, OPEN, FOUND, EXECUTE, dynamic SQL, EXECUTE format, USING, INTO STRICT, table name in a variable, sp\_executesql, PREPARE, END IF, END WHILE, END FOR, FETCH INTO, OPEN cursor, declared twice, column name wins, WHILE loop ran, body, procedure body, trigger body
 - See also: [Stored procedures](procedures.md), [Triggers](triggers.md), [Cursors](cursors.md), [Transactions](transactions.md), [13. Functions, procedures and triggers](../tutorial/13-functions-procedures-triggers.md)
 
 These statements work only inside the body (`BEGIN ... END`) of a [procedure](procedures.md) or a [trigger](triggers.md).

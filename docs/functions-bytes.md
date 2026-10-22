@@ -3,7 +3,7 @@
 > Store raw bytes (hashes, keys, small images) and turn them into hex or base64 text and back.
 
 - Category: Functions — JSON and bytes
-- Keywords: BYTES, BYTEA, BLOB, binary, hex, base64, \x, hash, file hash, image, avatar, bytes to text, X', convert_to, convert_from, encoding, UTF8, LATIN1, escape format
+- Keywords: BYTES, BYTEA, BLOB, binary, hex, base64, \\x, hash, file hash, image, avatar, bytes to text, X', convert\_to, convert\_from, encoding, UTF8, LATIN1, escape format
 - See also: [JSON functions](functions-json.md), [Security functions](functions-security.md), [Column types](column-types.md), [Text functions](functions-text.md)
 
 A `BYTES` value holds raw bytes: any byte from 0 to 255, also zero bytes. Good uses are a file hash (SHA-256 is 32 bytes), a key, a signature or a very small image.

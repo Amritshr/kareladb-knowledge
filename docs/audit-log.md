@@ -3,7 +3,7 @@
 > KDB writes security events (logins, users, DDL, backups, refused rights) and, for chosen tables, every changed row with who, when, old and new values.
 
 - Category: Users & security
-- Keywords: audit, audit log, audit trail, hash chain, tamper, tamper-evident, SHOW AUDIT VERIFY, verify, user agent, User-Agent, application_name, agent, --token-name, KDB_TOKEN_NAME, who changed, history of changes, login history, failed logins, lockout, _audit_log, AUDIT, SET AUDIT ON, SET AUDIT OFF, old values, new values, accounting, compliance, --audit, --audit-keep-days, retention, erase user, delete user data, right to be forgotten, GDPR, privacy, personal data, erasure
+- Keywords: audit, audit log, audit trail, hash chain, tamper, tamper-evident, SHOW AUDIT VERIFY, verify, user agent, User-Agent, application\_name, agent, --token-name, KDB\_TOKEN\_NAME, who changed, history of changes, login history, failed logins, lockout, \_audit\_log, AUDIT, SET AUDIT ON, SET AUDIT OFF, old values, new values, accounting, compliance, --audit, --audit-keep-days, retention, erase user, delete user data, right to be forgotten, GDPR, privacy, personal data, erasure
 - See also: [Protection - timeouts, limits, safe updates, read-only](protection.md), [Users and roles](users-and-roles.md), [Keeping kdb serve safe](server-security.md), [Table rights - GRANT ON TABLE](table-rights.md), [Two-factor login (TOTP)](two-factor-login.md), [Logins, tokens and roles over HTTP](http-login.md)
 
 The audit log is a table named `_audit_log`. KDB writes it; nobody can change, delete or drop its rows (it is **append-only**). It goes through the log like any change, so it survives crashes, and backups hold it.

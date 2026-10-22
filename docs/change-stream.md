@@ -3,7 +3,7 @@
 > Every committed INSERT, UPDATE and DELETE of a table as an ordered stream you can resume from its LSN, in SQL or over HTTP, and queries that push their changed rows.
 
 - Category: HTTP API
-- Keywords: change stream, changes, cdc, change data capture, GET /api/changes, api/changes, GET /api/subscribe, api/subscribe, subscribe, SUBSCRIBE, live query, push, server-sent events, sse, EventSource, Last-Event-ID, lsn, resume, exactly once, wal_archive
+- Keywords: change stream, changes, cdc, change data capture, GET /api/changes, api/changes, GET /api/subscribe, api/subscribe, subscribe, SUBSCRIBE, live query, push, server-sent events, sse, EventSource, Last-Event-ID, lsn, resume, exactly once, wal\_archive
 - See also: [Change revisions: GET /api/rev and kdb_rev()](revisions.md), [Backup, check, repair and restore](backup-and-safety.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Databases and the data folder](databases.md)
 
 Every committed change of a table is already in KDB's log, in commit order, numbered by a **log sequence number** (LSN). The change stream reads it back:

@@ -3,7 +3,7 @@
 > Save many SQL steps under one name and run them with CALL, as one transaction.
 
 - Category: Stored procedures
-- Keywords: procedure, stored procedure, CALL, PROCEDURES, DEBUG, WITH DEBUG, debug, print result, CREATE OR REPLACE PROCEDURE, one transaction, call each other too deeply, READ ONLY, read-only procedure, cannot be READ ONLY, --read-only-calls, KDB_READ_ONLY_CALLS, rounding, 6 decimals, match old system
+- Keywords: procedure, stored procedure, CALL, PROCEDURES, DEBUG, WITH DEBUG, debug, print result, CREATE OR REPLACE PROCEDURE, one transaction, call each other too deeply, READ ONLY, read-only procedure, cannot be READ ONLY, --read-only-calls, KDB\_READ\_ONLY\_CALLS, rounding, 6 decimals, match old system
 - See also: [The procedure language](procedure-language.md), [Triggers](triggers.md), [Transactions](transactions.md), [Saved functions](saved-functions.md), [13. Functions, procedures and triggers](../tutorial/13-functions-procedures-triggers.md)
 
 A **stored procedure** (or just "procedure") is a list of SQL statements with a name. You run it with `CALL name(...)`.

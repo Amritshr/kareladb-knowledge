@@ -3,7 +3,7 @@
 > Read a table as it was at an earlier time or commit, undo a bad change with one query, and make a full writable copy of a database in a moment, without copying its files.
 
 - Category: Databases & folders
-- Keywords: AS OF, AS OF TIMESTAMP, AS OF LSN, AS OF SYSTEM TIME, FOR SYSTEM_TIME AS OF, time travel, flashback, read the past, table as it was, undo, undo a bad import, point in time, BRANCH OF, branch, clone, copy database, zero-copy, test copy, hard link, keep_versions, KDB_KEEP_VERSIONS, no longer kept
+- Keywords: AS OF, AS OF TIMESTAMP, AS OF LSN, AS OF SYSTEM TIME, FOR SYSTEM\_TIME AS OF, time travel, flashback, read the past, table as it was, undo, undo a bad import, point in time, BRANCH OF, branch, clone, copy database, zero-copy, test copy, hard link, keep\_versions, KDB\_KEEP\_VERSIONS, no longer kept
 - See also: [Databases and the data folder](databases.md), [Change stream and live subscriptions: changes('t'), GET /api/changes, GET /api/subscribe](change-stream.md), [Backup, check, repair and restore](backup-and-safety.md), [kdb serve](cli-serve.md), [The trash - UNDROP TABLE](trash.md)
 
 KDB never changes a data file once it is written. Each checkpoint writes the changed files anew and keeps the older versions for a while. With those and the log, KDB can show a table **as it was**, and make a new database from another one **without copying** its files.

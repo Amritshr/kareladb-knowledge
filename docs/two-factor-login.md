@@ -3,7 +3,7 @@
 > A database user can log in to the console and POST /api/login with a password and a 6-digit code from an authenticator app.
 
 - Category: Users & security
-- Keywords: two-factor, 2FA, TOTP, step-up, step_up_actions, step_up_minutes, X-KDB-TOTP, /api/step-up, step_up_required, one-time code, authenticator app, Google Authenticator, Microsoft Authenticator, otpauth, ENABLE TOTP, DISABLE TOTP, code, lost phone, reset-2fa, password policy, password rules, 12 characters
+- Keywords: two-factor, 2FA, TOTP, step-up, step\_up\_actions, step\_up\_minutes, X-KDB-TOTP, /api/step-up, step\_up\_required, one-time code, authenticator app, Google Authenticator, Microsoft Authenticator, otpauth, ENABLE TOTP, DISABLE TOTP, code, lost phone, reset-2fa, password policy, password rules, 12 characters
 - See also: [Users and roles](users-and-roles.md), [Logins, tokens and roles over HTTP](http-login.md), [Keeping kdb serve safe](server-security.md), [kdb user](cli-users.md), [Audit log](audit-log.md)
 
 With two-factor login, a stolen password is not enough: the login also needs the 6-digit code that an authenticator app on the phone shows (it changes every 30 seconds, RFC 6238).

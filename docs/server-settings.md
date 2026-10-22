@@ -3,7 +3,7 @@
 > One list of the server's settings behind pg_settings, SHOW ALL, SHOW PARAMETERS and GET /api/settings; SET for a session, ALTER SYSTEM and pg_reload_conf() for the server.
 
 - Category: Postgres protocol
-- Keywords: settings, pg_settings, SHOW ALL, SHOW PARAMETERS, SET, RESET, ALTER SYSTEM, pg_reload_conf, current_setting, work_mem, max_parallel_workers_per_gather, enable_hashjoin, enable_nestloop, enable_indexscan, log_statement, plan_cache_mode, plan cache, kdb.conf, kdb_settings, QuestDB, parameters, txn_spill_mb, memory_limit
+- Keywords: settings, pg\_settings, SHOW ALL, SHOW PARAMETERS, SET, RESET, ALTER SYSTEM, pg\_reload\_conf, current\_setting, work\_mem, max\_parallel\_workers\_per\_gather, enable\_hashjoin, enable\_nestloop, enable\_indexscan, log\_statement, plan\_cache\_mode, plan cache, kdb.conf, kdb\_settings, QuestDB, parameters, txn\_spill\_mb, memory\_limit
 - See also: [PostgreSQL protocol (port 8832)](postgres-protocol.md), [PostgreSQL-compatible functions](functions-postgres.md), [kdb serve](cli-serve.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md), [Limits](limits.md), [Joins](joins.md), [Indexes](indexes.md)
 
 KDB keeps **one list** of its settings. The same list is behind:

@@ -3,7 +3,7 @@
 > Named, revocable secrets for apps - each acts as one user, and DROP TOKEN stops it at once.
 
 - Category: Users & security
-- Keywords: API token, api tokens, token, tokens, CREATE TOKEN, DROP TOKEN, SHOW TOKENS, revoke, revoke token, kdbt_, Bearer, Authorization, EXPIRES, personal access token, service token, app token, 401
+- Keywords: API token, api tokens, token, tokens, CREATE TOKEN, DROP TOKEN, SHOW TOKENS, revoke, revoke token, kdbt\_, Bearer, Authorization, EXPIRES, personal access token, service token, app token, 401
 - See also: [Users and roles](users-and-roles.md), [Logins, tokens and roles over HTTP](http-login.md), [Keeping kdb serve safe](server-security.md), [Protection - timeouts, limits, safe updates, read-only](protection.md)
 
 An **API token** is a long secret an app sends with every request, like the server's `--token`. The difference: you can have **many**, each has a **name**, each acts as **one user** (with that user's rights), and you can **remove one** without touching the others.

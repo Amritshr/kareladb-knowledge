@@ -3,7 +3,7 @@
 > Encrypt both ports with one certificate - https:// for the HTTP API and the console, sslmode=require for PostgreSQL clients.
 
 - Category: Users & security
-- Keywords: TLS, SSL, https, certificate, cert, key, PEM, self-signed, --tls-cert, --tls-key, --tls-required, KDB_TLS_CERT, KDB_TLS_KEY, KDB_TLS_REQUIRED, tls_cert, tls_key, sslmode, require, verify-full, sslrootcert, sslnegotiation, direct, encryption, 28000, Secure cookie, curl -k, Lets Encrypt, openssl
+- Keywords: TLS, SSL, https, certificate, cert, key, PEM, self-signed, --tls-cert, --tls-key, --tls-required, KDB\_TLS\_CERT, KDB\_TLS\_KEY, KDB\_TLS\_REQUIRED, tls\_cert, tls\_key, sslmode, require, verify-full, sslrootcert, sslnegotiation, direct, encryption, 28000, Secure cookie, curl -k, Lets Encrypt, openssl
 - See also: [Keeping kdb serve safe](server-security.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [kdb serve](cli-serve.md), [Logins, tokens and roles over HTTP](http-login.md), [API tokens](api-tokens.md)
 
 With TLS on, everything between a client and KDB is encrypted: passwords, tokens and data. One certificate serves **both** ports.

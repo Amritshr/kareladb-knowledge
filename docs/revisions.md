@@ -3,7 +3,7 @@
 > A cheap number per table and per symbol that changes when committed rows change, so a chart polls it and reads its candles again only when they changed.
 
 - Category: HTTP API
-- Keywords: revision, revisions, rev, GET /api/rev, api/rev, kdb_rev, candle rev, candle-rev, change signal, did it change, poll, polling, chart refresh, table_rev, boot, rev column, per-symbol revision
+- Keywords: revision, revisions, rev, GET /api/rev, api/rev, kdb\_rev, candle rev, candle-rev, change signal, did it change, poll, polling, chart refresh, table\_rev, boot, rev column, per-symbol revision
 - See also: [Performance tips (result-cache)](performance-tips.md#result-cache), [Pinned queries](pinned-queries.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [CREATE TABLE](create-table.md)
 
 A chart that shows NABIL's candles does not need to read them every few seconds. It can ask for NABIL's **revision** instead, and read the candles again only when the revision changed.

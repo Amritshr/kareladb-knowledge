@@ -3,7 +3,7 @@
 > A new KDB opens the data of an older KDB. An older KDB refuses the data of a newer KDB with "needs a newer KDB" and changes nothing.
 
 - Category: Backup, check, repair, restore
-- Keywords: version, versions, upgrade, kdb upgrade, kdb version, SHOW VERSION, VERSION, feature list, stored-format feature, needs a newer KDB, newer KDB, older KDB, old data, compatibility, exit code 3, Newer format, 0A000, KDB_TEST_HIDE_FEATURES, partition_format_2, block_stats, auto_meta, table_grants, pg_catalog_parts, batched_log_sync, database_settings, dedup_change, plpgsql_triggers, symbol_partitions, round_time_zone, no feature name, catalog part, downgrade, kdb downgrade, kdb features, going back, older version, go back to an older KDB, rollback
+- Keywords: version, versions, upgrade, kdb upgrade, kdb version, SHOW VERSION, VERSION, feature list, stored-format feature, needs a newer KDB, newer KDB, older KDB, old data, compatibility, exit code 3, Newer format, 0A000, KDB\_TEST\_HIDE\_FEATURES, partition\_format\_2, block\_stats, auto\_meta, table\_grants, pg\_catalog\_parts, batched\_log\_sync, database\_settings, dedup\_change, plpgsql\_triggers, symbol\_partitions, round\_time\_zone, no feature name, catalog part, downgrade, kdb downgrade, kdb features, going back, older version, go back to an older KDB, rollback
 - See also: [Backup, check, repair and restore](backup-and-safety.md), [kdb info, check, repair, dump-file](cli-maintenance.md), [The kdb program (exit-codes)](cli-overview.md#exit-codes), [How KDB stores data](data-formats.md), [Versions and upgrades (downgrade)](versions.md#downgrade)
 
 The rule:

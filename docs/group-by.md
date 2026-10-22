@@ -3,7 +3,7 @@
 > Make one row per group (per symbol, per broker, per account) with totals like count, sum and max, and filter the groups with HAVING.
 
 - Category: Querying
-- Keywords: group, groups, spill, ROLLUP, CUBE, GROUPING SETS, GROUPING, grand total, rollup, cube, grouping sets, subtotals, temporary files, many groups, max_groups, window with GROUP BY, GROUP BY, HAVING, aggregate, totals, subtotal, summary, report, implicit GROUP BY, group key, not grouped, count per, sum per, group by, having, implicit
+- Keywords: group, groups, spill, ROLLUP, CUBE, GROUPING SETS, GROUPING, grand total, rollup, cube, grouping sets, subtotals, temporary files, many groups, max\_groups, window with GROUP BY, GROUP BY, HAVING, aggregate, totals, subtotal, summary, report, implicit GROUP BY, group key, not grouped, count per, sum per, group by, having, implicit
 - See also: [Aggregate functions](functions-aggregate.md), [SAMPLE BY](sample-by.md), [SELECT (distinct)](select.md#distinct), [ORDER BY, LIMIT, OFFSET](order-by-limit.md), [Window and series functions](functions-window.md), [Joins](joins.md)
 
 `GROUP BY` puts the rows that have the same value (for example the same symbol) into one **group**, and gives **one output row per group**.

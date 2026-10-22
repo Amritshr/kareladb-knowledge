@@ -3,7 +3,7 @@
 > Pin a SELECT so its result is always ready in the result cache - computed when the database opens, never pushed out, computed again after a write.
 
 - Category: HTTP API
-- Keywords: pin, pinned query, pinned statement, pins, keep a result ready, warm cache, preload, dashboard slow query, GET /api/pins, POST /api/pins, DELETE /api/pins, _pinned_queries, cache_pinned
+- Keywords: pin, pinned query, pinned statement, pins, keep a result ready, warm cache, preload, dashboard slow query, GET /api/pins, POST /api/pins, DELETE /api/pins, \_pinned\_queries, cache\_pinned
 - See also: [Performance tips (result-cache)](performance-tips.md#result-cache), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Timers](timers.md), [Indexes (warm)](indexes.md#warm), [Monitor panel (memory, processor, caches)](console-monitor.md)
 
 A **pinned query** is a `SELECT` the server keeps ready. Pin the slow question a dashboard asks on every load, and from then on every request for it is answered from the [result cache](performance-tips.md#result-cache):

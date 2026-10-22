@@ -3,7 +3,7 @@
 > Hash and check passwords, make SHA-256 hashes, random tokens and random ids (UUIDs), and encrypt data with PostgreSQL's pgcrypto functions.
 
 - Category: Functions — security
-- Keywords: security, password, hash, salt, pbkdf2, login, register, sign up, session, session token, api key, reset link, uuid, random, crypto, pgcrypto, SHA2, HMAC, webhook signature, digest, sha224, sha384, sha512, sha256 bytea, encode sha256 hex, encrypt, decrypt, encryption, pgp, openpgp, gpg, pgp_sym_encrypt, pgp_sym_decrypt, crypt, gen_salt, bcrypt, gen_random_bytes, armor, dearmor, aes, base64
+- Keywords: security, password, hash, salt, pbkdf2, login, register, sign up, session, session token, api key, reset link, uuid, random, crypto, pgcrypto, SHA2, HMAC, webhook signature, digest, sha224, sha384, sha512, sha256 bytea, encode sha256 hex, encrypt, decrypt, encryption, pgp, openpgp, gpg, pgp\_sym\_encrypt, pgp\_sym\_decrypt, crypt, gen\_salt, bcrypt, gen\_random\_bytes, armor, dearmor, aes, base64
 - See also: [Users and roles](users-and-roles.md), [Keeping kdb serve safe](server-security.md), [Bytes, hex and base64](functions-bytes.md), [Constraints](constraints.md), [UPDATE and DELETE](update-delete.md)
 
 These functions help your **app** keep its users safe: people who register and log in to your web site or mobile app.

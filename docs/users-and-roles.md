@@ -3,7 +3,7 @@
 > Database users with passwords, and the roles read, write, ddl and admin for every database or for one.
 
 - Category: Users & security
-- Keywords: ALTER USER SET timezone, user time zone, user, users, database user, role, roles, rights, permissions, privileges, GRANT, REVOKE, PASSWORD, ROLE, USER, USERS, IF NOT EXISTS, IF EXISTS, WITH, ALL, admin, ddl, write, read, none, DDL right, schema changes, migrations, _system, last admin, REVOKE ALL ON DATABASE, 403, permission denied, SET ROLE, RESET ROLE, SET ROLE NONE, current_user, session_user
+- Keywords: ALTER USER SET timezone, user time zone, user, users, database user, role, roles, rights, permissions, privileges, GRANT, REVOKE, PASSWORD, ROLE, USER, USERS, IF NOT EXISTS, IF EXISTS, WITH, ALL, admin, ddl, write, read, none, DDL right, schema changes, migrations, \_system, last admin, REVOKE ALL ON DATABASE, 403, permission denied, SET ROLE, RESET ROLE, SET ROLE NONE, current\_user, session\_user
 - See also: [Keeping kdb serve safe](server-security.md), [Security functions](functions-security.md), [kdb user](cli-users.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases and the data folder](databases.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md)
 
 **Database users** are the people and programs that connect to a running `kdb serve`: you in the web console, your app's backend, a report script. Each user has a password and a **role** (what it may do).

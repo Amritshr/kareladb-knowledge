@@ -3,7 +3,7 @@
 > What the kdb program is, how it finds your databases, and what its exit codes mean.
 
 - Category: Command line
-- Keywords: command line, CLI, kdb.exe, usage, exit code, $LASTEXITCODE, data folder, KDB_DATA_DIR, --data-dir, --config, kdb.conf, database name, folder path, --help, -h, --version, kdb help, kdb help tutorial
+- Keywords: command line, CLI, kdb.exe, usage, exit code, $LASTEXITCODE, data folder, KDB\_DATA\_DIR, --data-dir, --config, kdb.conf, database name, folder path, --help, -h, --version, kdb help, kdb help tutorial
 - See also: [kdb sql and kdb shell](cli-sql-and-shell.md), [kdb serve](cli-serve.md), [kdb info, check, repair, dump-file](cli-maintenance.md), [kdb user](cli-users.md), [Backup, check, repair and restore](backup-and-safety.md), [Databases and the data folder](databases.md)
 
 `kdb` is the one program you need. It runs SQL, the interactive shell, the server, backups and repairs.

@@ -3,7 +3,7 @@
 > Every operator of KDB SQL, which one is done first, and what NULL does to each of them.
 
 - Category: Querying
-- Keywords: operator, precedence, order of operations, parentheses, +, -, *, /, %, ||, concat, join text, ->, ->>, ::, cast, , !, <>, NULL rules, three-valued logic, unary minus, precedence, ||, ::, ->, ->>, int_division, integer division, integer division, int_division, 7 / 2
+- Keywords: operator, precedence, order of operations, parentheses, +, -, \*, /, %, ||, concat, join text, -\>, -\>\>, ::, cast, , !, \<\>, NULL rules, three-valued logic, unary minus, precedence, ||, ::, -\>, -\>\>, int\_division, integer division, integer division, int\_division, 7 / 2
 - See also: [WHERE](where.md), [Math functions (operators)](functions-math.md#operators), [Conversion functions](functions-conversion.md), [JSON functions](functions-json.md), [Conditional and NULL functions](functions-conditional.md), [Text functions](functions-text.md)
 
 An **operator** is a sign or a word between values, like `+`, `=`, `AND` or `||`.

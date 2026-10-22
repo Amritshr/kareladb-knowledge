@@ -3,7 +3,7 @@
 > Put rows into time buckets (1 minute, 15 minutes, 1 hour, 1 day, 1 week, 1 month) and make candles.
 
 - Category: Time-series
-- Keywords: SAMPLE, candles, candle, OHLC, time bucket, bucket, resample, downsample, interval, 1m, 5m, 15m, 1h, 1d, 1w, 1M, 1y, ms, minute, hour, day, week, month, year, FILL, NONE, FILL per column, FROM, TO, FROM TO, PREV, LINEAR, empty buckets, gaps, ALIGN, CALENDAR, FIRST OBSERVATION, OBSERVATION, TIME ZONE, ZONE, Asia/Kathmandu, Nepal time, WITH OFFSET, WITH, WEEK START, WEEK, START, SUNDAY, MONDAY, timestamp_floor, QuestDB
+- Keywords: SAMPLE, candles, candle, OHLC, time bucket, bucket, resample, downsample, interval, 1m, 5m, 15m, 1h, 1d, 1w, 1M, 1y, ms, minute, hour, day, week, month, year, FILL, NONE, FILL per column, FROM, TO, FROM TO, PREV, LINEAR, empty buckets, gaps, ALIGN, CALENDAR, FIRST OBSERVATION, OBSERVATION, TIME ZONE, ZONE, Asia/Kathmandu, Nepal time, WITH OFFSET, WITH, WEEK START, WEEK, START, SUNDAY, MONDAY, timestamp\_floor, QuestDB
 - See also: [Candles cookbook](candles-cookbook.md), [LATEST ON](latest-on.md), [Time and time zones](time-and-time-zones.md), [GROUP BY and HAVING (implicit-group-by)](group-by.md#implicit-group-by), [Aggregate functions](functions-aggregate.md), [Technical indicators](functions-indicators.md)
 
 `SAMPLE BY` cuts time into equal pieces called **buckets** (for example 15 minutes) and makes one result row for each bucket. With `first`, `max`, `min`, `last` and `sum` this makes **candles** (open, high, low, close, volume).

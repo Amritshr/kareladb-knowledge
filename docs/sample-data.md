@@ -3,7 +3,7 @@
 > The small made-up stock market dataset that most help examples use, with a few rows of each.
 
 - Category: Getting started
-- Keywords: sample, fixture, demo data, example data, stock market, tutorial data, schema.sql, sample-data.sql, securities, brokers, ochl_day, ochl_minutes, trade_log, live_data, candles, trades
+- Keywords: sample, fixture, demo data, example data, stock market, tutorial data, schema.sql, sample-data.sql, securities, brokers, ochl\_day, ochl\_minutes, trade\_log, live\_data, candles, trades
 - See also: [Quick start](quick-start.md), [CREATE TABLE](create-table.md), [SAMPLE BY](sample-by.md), [LATEST ON](latest-on.md), [Joins](joins.md)
 
 Most examples in this help use a small **made-up** stock market dataset: companies, brokers, price candles, trades and live prices. The names and prices only look real. It is just one example of what KDB stores; the same SQL works for sensor readings, logs and metrics, accounting, users and logins, or any app's data. The examples call it the fixture `sample`. Every example starts with a fresh copy, so an example that changes rows does not change the next one.

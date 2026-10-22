@@ -3,7 +3,7 @@
 > List the tables of a database, the columns of a table, its partitions, and the full CREATE TABLE statement - also with QuestDB's tables() and table_columns().
 
 - Category: Tables
-- Keywords: show tables, list tables, show columns, describe, describe table, table columns, schema, show create table, table definition, DDL, .tables, .schema, information_schema, show partitions, partitions, QuestDB, tables(), table_columns, table_partitions, wal_tables, upsertKey, designatedTimestamp
+- Keywords: show tables, list tables, show columns, describe, describe table, table columns, schema, show create table, table definition, DDL, .tables, .schema, information\_schema, show partitions, partitions, QuestDB, tables(), table\_columns, table\_partitions, wal\_tables, upsertKey, designatedTimestamp
 - See also: [CREATE TABLE](create-table.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [Databases and the data folder](databases.md), [Views](views.md), [Indexes](indexes.md), [Saved functions](saved-functions.md), [Stored procedures](procedures.md), [Triggers](triggers.md), [Users and roles](users-and-roles.md)
 
 These statements show what is **in** a database: which tables there are, which columns a table has, and how a table was made. They only read; they never change anything.

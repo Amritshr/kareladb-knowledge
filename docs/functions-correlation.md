@@ -3,7 +3,7 @@
 > Do two series move together? corr, covariance, a straight trend line (regr_slope, regr_intercept, regr_r2), and the beta and alpha of a share against the market.
 
 - Category: Functions — statistics
-- Keywords: correlation, correlation coefficient, Pearson, pearson, correl, covariance, covar, covariance_samp, covariance_pop, regression, linear regression, least squares, trend line, line of best fit, slope, intercept, r squared, R2, rsq, coefficient of determination, beta, market beta, systematic risk, alpha, Jensen's alpha, excess return, market index, diversification, pairs, y and x
+- Keywords: correlation, correlation coefficient, Pearson, pearson, correl, covariance, covar, covariance\_samp, covariance\_pop, regression, linear regression, least squares, trend line, line of best fit, slope, intercept, r squared, R2, rsq, coefficient of determination, beta, market beta, systematic risk, alpha, Jensen's alpha, excess return, market index, diversification, pairs, y and x
 - See also: [Statistics functions](functions-statistics.md), [Returns and risk](functions-returns-risk.md), [Trend indicators (linearreg)](functions-indicators-trend.md#linearreg), [Window and series functions (aggregates)](functions-window.md#aggregates), [Joins](joins.md)
 
 These aggregates look at **pairs** of numbers: one `y` and one `x` on each row, for example the return of CITY and the return of a market index on the same day. They answer two questions:

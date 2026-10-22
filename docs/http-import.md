@@ -3,7 +3,7 @@
 > Send a CSV file to kdb serve and it loads the rows, making the table from the file when it is new - QuestDB's /imp.
 
 - Category: HTTP API
-- Keywords: /imp, imp, CSV import, timings, Server-Timing, parse_ms, lock_wait_ms, wal_ms, apply_ms, durable_ms, durable, queued, gzip upload, import CSV, upload CSV, load a file, QuestDB import, multipart, form-data, overwrite, atomicity, skipCol, skipRow, abort, forceHeader, partitionBy, delimiter, fmt, rowsImported, rowsRejected, schema
+- Keywords: /imp, imp, CSV import, timings, Server-Timing, parse\_ms, lock\_wait\_ms, wal\_ms, apply\_ms, durable\_ms, durable, queued, gzip upload, import CSV, upload CSV, load a file, QuestDB import, multipart, form-data, overwrite, atomicity, skipCol, skipRow, abort, forceHeader, partitionBy, delimiter, fmt, rowsImported, rowsRejected, schema
 - See also: [Line protocol (POST /write)](line-protocol.md), [Loading many rows](loading-data.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [HTTP API overview](http-overview.md), [CREATE TABLE](create-table.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md)
 
 `POST /imp` loads a **CSV file** into a table. It is QuestDB's import route, so a QuestDB script or the QuestDB web console can send here without changes.

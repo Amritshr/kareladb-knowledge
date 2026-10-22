@@ -3,7 +3,7 @@
 > Use KDB inside your own program with no server - open a folder, run SQL, read rows as text or native numbers - through the C header include/kdb.h and the kdb_c library.
 
 - Category: C API
-- Keywords: C API, kdb.h, kdb_c, kdb.dll, libkdb.so, libkdb.dylib, embedded, embed, library, shared library, cgo, Go, golang, go-embedded, MinGW, database/sql, Rust, Python, ctypes, C#, P/Invoke, Swift, kdb_open, kdb_close, kdb_exec, kdb_exec_values, kdb_append, kdb_result, kdb_result_free, kdb_errmsg, kdb_sqlstate, kdb_last_error, kdb_session_open, SQLSTATE, KDB_BUILD_C_API, thread safety
+- Keywords: C API, kdb.h, kdb\_c, kdb.dll, libkdb.so, libkdb.dylib, embedded, embed, library, shared library, cgo, Go, golang, go-embedded, MinGW, database/sql, Rust, Python, ctypes, C#, P/Invoke, Swift, kdb\_open, kdb\_close, kdb\_exec, kdb\_exec\_values, kdb\_append, kdb\_result, kdb\_result\_free, kdb\_errmsg, kdb\_sqlstate, kdb\_last\_error, kdb\_session\_open, SQLSTATE, KDB\_BUILD\_C\_API, thread safety
 - See also: [SQL basics](sql-basics.md), [Transactions](transactions.md), [INSERT](insert.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md)
 
 The C API puts the whole KDB engine inside your own program. There is no server, no port and no token: your program opens a database folder and runs SQL on it directly. The same SQL works as over HTTP or the PostgreSQL port.

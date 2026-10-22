@@ -3,7 +3,7 @@
 > Keep the server on 127.0.0.1, use users or a token, put HTTPS in front, and pick strong passwords.
 
 - Category: Users & security
-- Keywords: security, safe, secure, KDB_TOKEN, Docker, internet, vps, firewall, --bind, --token, bind address, 0.0.0.0, 127.0.0.1, localhost, access token, login, log in, logout, HTTP Basic, Bearer, cookie, kdb_login, kdb_auth, X-KDB-CSRF, HTTPS, TLS, SSL, certificate, reverse proxy, Caddy, nginx, SSH tunnel, X-Forwarded-Proto, failed logins, too many failed logins, 429, 401, 403, cross-site, CSRF, DNS rebinding, password rules, SCRAM, checklist
+- Keywords: security, safe, secure, KDB\_TOKEN, Docker, internet, vps, firewall, --bind, --token, bind address, 0.0.0.0, 127.0.0.1, localhost, access token, login, log in, logout, HTTP Basic, Bearer, cookie, kdb\_login, kdb\_auth, X-KDB-CSRF, HTTPS, TLS, SSL, certificate, reverse proxy, Caddy, nginx, SSH tunnel, X-Forwarded-Proto, failed logins, too many failed logins, 429, 401, 403, cross-site, CSRF, DNS rebinding, password rules, SCRAM, checklist
 - See also: [Users and roles](users-and-roles.md), [Security functions](functions-security.md), [kdb serve](cli-serve.md), [kdb user](cli-users.md), [Logins, tokens and roles over HTTP](http-login.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Backup, check, repair and restore](backup-and-safety.md)
 
 `kdb serve` gives full access to your data over the network: the HTTP API, the web console and the PostgreSQL port. This page says how to keep strangers out.

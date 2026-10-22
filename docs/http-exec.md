@@ -3,7 +3,7 @@
 > Run SQL with GET or POST /exec and get JSON, or download the rows of a SELECT as CSV with /exp.
 
 - Category: HTTP API
-- Keywords: exec, /exec, exp, /exp, query, limit, compat, compat, cache, result cache, benchmark, SET result_cache, cache_now_ms, result_cache_now_ms, truncated, dataset, columns, count, timings, rows_affected, QuestDB, CSV export, download CSV, filename, Content-Disposition, form field, many statements, results array, error line column, --data-binary, --data-urlencode, NaN, nan, Infinity, timestamp as text, epoch milliseconds, statement failed, partial success, atomic, atomic, X-KDB-Atomic, all or nothing, rolled_back, saved, sqlstate, constraint, error code
+- Keywords: exec, /exec, exp, /exp, query, limit, compat, compat, cache, result cache, benchmark, SET result\_cache, cache\_now\_ms, result\_cache\_now\_ms, truncated, dataset, columns, count, timings, rows\_affected, QuestDB, CSV export, download CSV, filename, Content-Disposition, form field, many statements, results array, error line column, --data-binary, --data-urlencode, NaN, nan, Infinity, timestamp as text, epoch milliseconds, statement failed, partial success, atomic, atomic, X-KDB-Atomic, all or nothing, rolled\_back, saved, sqlstate, constraint, error code
 - See also: [HTTP API overview](http-overview.md), [Sessions and cursors over HTTP](http-sessions-and-cursors.md), [Databases over HTTP (/api/databases)](http-databases.md), [SELECT](select.md), [Transactions](transactions.md), [How KDB stores data](data-formats.md)
 
 `/exec` runs SQL and answers with **JSON**. `/exp` runs a SELECT and answers with a **CSV file** (text with one row per line and commas between the values, which Excel opens).

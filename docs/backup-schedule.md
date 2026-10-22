@@ -3,7 +3,7 @@
 > kdb serve makes a verified backup of every database at set times, checks a second copy on another disk, runs your command to copy each backup off the server, and warns when the last good backup is old.
 
 - Category: Backup, check, repair, restore
-- Keywords: backup schedule, scheduled backup, nightly backup, daily backup, automatic backup, second copy, copy to another disk, offsite, off-site, S3, rclone, scp, remote storage, backup command, backup status, backup warning, default backup folder, _backups, KDB_BACKUP_DIR, KDB_BACKUP_SCHEDULE, KDB_BACKUP_COMMAND, KDB_BACKUP_KEEP_DAILY, KDB_BACKUP_KEEP_WEEKLY, backup_dir, backup_schedule, backup_command, --backups, --backup-schedule, --backup-copy, --backup-command, --backup-warn-hours, --keep-daily, --keep-weekly, daily, hourly, every
+- Keywords: backup schedule, scheduled backup, nightly backup, daily backup, automatic backup, second copy, copy to another disk, offsite, off-site, S3, rclone, scp, remote storage, backup command, backup status, backup warning, default backup folder, \_backups, KDB\_BACKUP\_DIR, KDB\_BACKUP\_SCHEDULE, KDB\_BACKUP\_COMMAND, KDB\_BACKUP\_KEEP\_DAILY, KDB\_BACKUP\_KEEP\_WEEKLY, backup\_dir, backup\_schedule, backup\_command, --backups, --backup-schedule, --backup-copy, --backup-command, --backup-warn-hours, --keep-daily, --keep-weekly, daily, hourly, every
 - See also: [Backup, check, repair and restore](backup-and-safety.md), [kdb serve](cli-serve.md), [kdb info, check, repair, dump-file](cli-maintenance.md), [Health, info, check and backup over HTTP](http-server-info.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Audit log](audit-log.md)
 
 You do not need a scheduled task outside KDB: `kdb serve` makes the backups itself.

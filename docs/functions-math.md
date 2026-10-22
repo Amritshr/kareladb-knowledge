@@ -3,7 +3,7 @@
 > Round and cut numbers, take powers, roots and logarithms, divide safely, put values in buckets, and make random numbers.
 
 - Category: Functions — math
-- Keywords: math, number, rounding, %, +, -, *, /, arithmetic, division by zero, truncate, cut decimals, cube root, log base 2, greatest common divisor, highest common factor, hcf, least common multiple, n!, combinations, histogram, bucket, bin, limit to a range, circuit limit, between bounds, divide by zero, ifnull division, zero if division by zero, ratio, percentage, banker's rounding, round half to even, NaN, not a number, infinity, inf, rand, random sample, shuffle, seed
+- Keywords: math, number, rounding, %, +, -, \*, /, arithmetic, division by zero, truncate, cut decimals, cube root, log base 2, greatest common divisor, highest common factor, hcf, least common multiple, n!, combinations, histogram, bucket, bin, limit to a range, circuit limit, between bounds, divide by zero, ifnull division, zero if division by zero, ratio, percentage, banker's rounding, round half to even, NaN, not a number, infinity, inf, rand, random sample, shuffle, seed
 - See also: [Trigonometry and probability](functions-math-more.md), [Finance and price functions](functions-finance.md), [Conversion functions](functions-conversion.md), [Aggregate functions](functions-aggregate.md)
 
 These functions work on numbers: `INT`, `LONG`, `DOUBLE`, `DECIMAL` and the other number types. Sine, cosine and the normal distribution are in [trigonometry and probability](functions-math-more.md); money functions (interest, loans, NPV) are in [finance functions](functions-finance.md).

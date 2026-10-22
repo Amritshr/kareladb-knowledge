@@ -3,7 +3,7 @@
 > http_get and http_post call a web address from SQL, a procedure or a timer. Off until an admin lists the hosts they may call.
 
 - Category: Stored procedures
-- Keywords: http_get, http_post, http, https, web service, webhook, call url, rest api, outbound, http_functions, http_timeout_ms, KDB_HTTP_FUNCTIONS, allowlist, fetch, curl
+- Keywords: http\_get, http\_post, http, https, web service, webhook, call url, rest api, outbound, http\_functions, http\_timeout\_ms, KDB\_HTTP\_FUNCTIONS, allowlist, fetch, curl
 - See also: [Stored procedures](procedures.md), [Timers](timers.md), [Triggers](triggers.md), [JSON functions](functions-json.md), [Users and roles](users-and-roles.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md)
 
 `http_get` and `http_post` let SQL call another service. A procedure can tell a settlement service that a day is done. A timer can ask a checker every hour.

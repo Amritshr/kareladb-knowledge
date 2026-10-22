@@ -3,7 +3,7 @@
 > Give a user rights on one table (GRANT SELECT ON TABLE prices), on some of its columns (GRANT SELECT (id, name) ON staff) or on some of its rows (CREATE POLICY), or take some rights of the role away (REVOKE UPDATE, DELETE ON TABLE ledger).
 
 - Category: Users & security
-- Keywords: table rights, table privileges, per-table grant, column rights, column privileges, GRANT SELECT (, column_privileges, has_column_privilege, hide a column, permissions, GRANT SELECT, GRANT INSERT, REVOKE DELETE, REVOKE UPDATE, PRIVILEGES, DEFAULT, append-only table, ledger rights, read one table, row rights, row-level security, RLS, CREATE POLICY, DROP POLICY, ENABLE ROW LEVEL SECURITY, pg_policies, row_security, multi-tenant, own rows only
+- Keywords: table rights, table privileges, per-table grant, column rights, column privileges, GRANT SELECT (, column\_privileges, has\_column\_privilege, hide a column, permissions, GRANT SELECT, GRANT INSERT, REVOKE DELETE, REVOKE UPDATE, PRIVILEGES, DEFAULT, append-only table, ledger rights, read one table, row rights, row-level security, RLS, CREATE POLICY, DROP POLICY, ENABLE ROW LEVEL SECURITY, pg\_policies, row\_security, multi-tenant, own rows only
 - See also: [Users and roles](users-and-roles.md), [Audit log](audit-log.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Keeping kdb serve safe](server-security.md)
 
 A user's [role](users-and-roles.md#roles) gives rights on a whole database. Table rights change that for one table of the current database:

@@ -3,7 +3,7 @@
 > Say which days a market trades - its weekdays, how they changed over the years, and its holidays - and ask it in SQL and in timers.
 
 - Category: Time-series
-- Keywords: missing days, gaps, data gaps, missing bars, missing_bars, calendar, calendars, trading calendar, trading day, trading days, market days, business days, working days, holiday, holidays, era, eras, trading week, sun-thu, mon-fri, week change, NEPSE, CREATE CALENDAR, ALTER CALENDAR, DROP CALENDAR, ADD HOLIDAY, ADD TRADING DAY, is_trading_day, next_trading_day, prev_trading_day, trading_days_between, suggest_calendar_eras, kdb_calendars, trading nepse 15:05
+- Keywords: missing days, gaps, data gaps, missing bars, missing\_bars, calendar, calendars, trading calendar, trading day, trading days, market days, business days, working days, holiday, holidays, era, eras, trading week, sun-thu, mon-fri, week change, NEPSE, CREATE CALENDAR, ALTER CALENDAR, DROP CALENDAR, ADD HOLIDAY, ADD TRADING DAY, is\_trading\_day, next\_trading\_day, prev\_trading\_day, trading\_days\_between, suggest\_calendar\_eras, kdb\_calendars, trading nepse 15:05
 - See also: [Date and time functions](functions-date-time.md), [Timers](timers.md), [Time and time zones](time-and-time-zones.md), [SAMPLE BY](sample-by.md)
 
 A **trading calendar** says which days a market trades. It lives in one database, next to its tables, and SQL functions and [timers](timers.md) read it.

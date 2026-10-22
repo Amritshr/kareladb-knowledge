@@ -3,7 +3,7 @@
 > List the databases of a server, create a new one, and drop one (its folder moves to _trash).
 
 - Category: HTTP API
-- Keywords: api/databases, list databases, create database, drop database, _trash, can_create, data_dir, default database, --data-dir, --db, 409, name rules
+- Keywords: api/databases, list databases, create database, drop database, \_trash, can\_create, data\_dir, default database, --data-dir, --db, 409, name rules
 - See also: [Databases and the data folder](databases.md), [HTTP API overview (database)](http-overview.md#database), [Health, info, check and backup over HTTP](http-server-info.md), [kdb serve](cli-serve.md)
 
 A server started for a **data folder** (`kdb serve`, or `kdb serve --data-dir <folder>`) serves every database in that folder. A **database** is one folder with its own tables. These routes list, create and drop them.

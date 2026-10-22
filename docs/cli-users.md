@@ -3,7 +3,7 @@
 > Add, list and remove the users of the KDB server, set their passwords and roles, from the command line.
 
 - Category: Command line
-- Keywords: users, user management, reset-2fa, two-factor, add user, password, change password, reset password, role, admin, ddl, write, read, none, list users, remove user, delete user, first user, last admin, --role, pipe password, _system
+- Keywords: users, user management, reset-2fa, two-factor, add user, password, change password, reset password, role, admin, ddl, write, read, none, list users, remove user, delete user, first user, last admin, --role, pipe password, \_system
 - See also: [Users and roles](users-and-roles.md), [Keeping kdb serve safe](server-security.md), [kdb serve](cli-serve.md), [Logins, tokens and roles over HTTP](http-login.md)
 
 `kdb user` manages the **users of the server**: the people and programs that log in to `kdb serve` (the web console, the HTTP API, the PostgreSQL port).

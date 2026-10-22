@@ -3,7 +3,7 @@
 > Change case, cut, trim, pad, search and join text. A letter of any language (Nepali, Chinese, ...) counts as one character.
 
 - Category: Functions — text
-- Keywords: text, string, STRING, ascii, chr, translate, overlay, PLACING, normalize, NFC, NFD, NFKC, NFKD, U&, to_ascii, remove accents, bit_length, to_hex, parse_ident, string_to_table, number format, format a number, VARCHAR, UTF-8, Unicode, Nepali, Devanagari, characters, letters, bytes, upper case, lower case, cut text, clean text, ||, join text, concatenate, lcase, ucase, len, mid, instr, locate, position IN, lengthb, format, sprintf, printf, string format, quote a name, quote a value, quote_ident, quote_literal, quote_nullable, SQL injection
+- Keywords: text, string, STRING, ascii, chr, translate, overlay, PLACING, normalize, NFC, NFD, NFKC, NFKD, U&, to\_ascii, remove accents, bit\_length, to\_hex, parse\_ident, string\_to\_table, number format, format a number, VARCHAR, UTF-8, Unicode, Nepali, Devanagari, characters, letters, bytes, upper case, lower case, cut text, clean text, ||, join text, concatenate, lcase, ucase, len, mid, instr, locate, position IN, lengthb, format, sprintf, printf, string format, quote a name, quote a value, quote\_ident, quote\_literal, quote\_nullable, SQL injection
 - See also: [Regular expressions](functions-regex.md), [WHERE](where.md), [Conversion functions](functions-conversion.md), [Bytes, hex and base64](functions-bytes.md), [Full-text search](full-text-search.md)
 
 These functions work on text (`STRING`). KDB keeps text as **UTF-8**. UTF-8 is the usual way to store the letters of every language. An English letter takes 1 byte; a Nepali letter like `न` takes 3 bytes.

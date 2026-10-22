@@ -3,7 +3,7 @@
 > Find, count, cut out and replace text with patterns like \d+ (one or more digits).
 
 - Category: Functions — text
-- Keywords: regex, regexp, regular expression, pattern, pattern matching, flags, capture group, groups, back reference, look-ahead, lazy, greedy, ~, RLIKE, REGEXP, regexp_match, regexp_matches, regexp_split_to_array, regexp_split_to_table, split with a pattern, regexp_instr, validate email, Nepali digits
+- Keywords: regex, regexp, regular expression, pattern, pattern matching, flags, capture group, groups, back reference, look-ahead, lazy, greedy, ~, RLIKE, REGEXP, regexp\_match, regexp\_matches, regexp\_split\_to\_array, regexp\_split\_to\_table, split with a pattern, regexp\_instr, validate email, Nepali digits
 - See also: [Text functions](functions-text.md), [WHERE](where.md), [Full-text search](full-text-search.md)
 
 A **regular expression** (regex) is a small pattern that describes text. `\d+` means "one or more digits". `^[A-Z]{2,8}$` means "only 2 to 8 capital letters". Use them to check what a user typed, to find numbers in a news article, or to clean text.

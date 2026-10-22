@@ -3,7 +3,7 @@
 > How KDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.
 
 - Category: Getting started
-- Keywords: syntax, statement, semicolon, ;, case, upper case, lower case, identifier, name, quoted name, double quotes, string, text, single quote, escape quote, number, integer, float, scientific notation, boolean, constant, comment, --, /*, error message, line and column, syntax error, reserved word, keyword, three-valued logic, IS NULL, IS NOT NULL, unknown, alias
+- Keywords: syntax, statement, semicolon, ;, case, upper case, lower case, identifier, name, quoted name, double quotes, string, text, single quote, escape quote, number, integer, float, scientific notation, boolean, constant, comment, --, /\*, error message, line and column, syntax error, reserved word, keyword, three-valued logic, IS NULL, IS NOT NULL, unknown, alias
 - See also: [Quick start](quick-start.md), [Operators](operators.md), [Conditional and NULL functions](functions-conditional.md), [Column types](column-types.md), [SELECT](select.md), [WHERE](where.md)
 
 **SQL** is the language you use to talk to KDB. A **statement** is one command, like `SELECT` or `INSERT`. This page shows the small rules that every statement follows.

@@ -3,7 +3,7 @@
 > How to talk to kdb serve over HTTP - the address, choosing the database, JSON answers, errors, safety rules and limits.
 
 - Category: HTTP API
-- Keywords: HTTP, API, REST, Idempotency-Key, idempotent, retry, Idempotent-Replayed, 422, route, URL, base URL, port 9900, X-KDB-Database, db, JSON, error, status code, 304, 404, 405, 413, 431, 408, 501, 503, 507, disk full, CORS, OPTIONS, HEAD, Cache-Control, ETag, gzip, Content-Encoding, Accept-Encoding, compressed answers, --http-gzip, KDB_HTTP_GZIP, Vary, worker threads, poller, curl, Invoke-RestMethod, fetch, requests, web console, help page
+- Keywords: HTTP, API, REST, Idempotency-Key, idempotent, retry, Idempotent-Replayed, 422, route, URL, base URL, port 9900, X-KDB-Database, db, JSON, error, status code, 304, 404, 405, 413, 431, 408, 501, 503, 507, disk full, CORS, OPTIONS, HEAD, Cache-Control, ETag, gzip, Content-Encoding, Accept-Encoding, compressed answers, --http-gzip, KDB\_HTTP\_GZIP, Vary, worker threads, poller, curl, Invoke-RestMethod, fetch, requests, web console, help page
 - See also: [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases over HTTP (/api/databases)](http-databases.md), [Health, info, check and backup over HTTP](http-server-info.md), [Line protocol (POST /write)](line-protocol.md), [Keeping kdb serve safe](server-security.md), [kdb serve](cli-serve.md), [Limits](limits.md)
 
 `kdb serve` starts a small web server. Programs send it **HTTP requests** (the messages a browser or `curl` sends) and get **JSON** answers (text like `{"name": "value"}` that every language can read).
