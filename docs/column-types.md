@@ -6,7 +6,7 @@
 - Keywords: data type, type, types, column type, conversion, convert value, range, overflow, out of range, NULL storage, money, exact, precision, BOOL, BOOLEAN, BYTE, SHORT, INT, INTEGER, LONG, BIGINT, FLOAT, DOUBLE, DECIMAL, NUMERIC, DATE, TIMESTAMP, SYMBOL, STRING, VARCHAR, TEXT, JSON, JSONB, BYTES, BYTEA, BLOB, UUID, gen\_random\_uuid, ENUM, CREATE TYPE, ALTER TYPE, DROP TYPE, pg\_enum, label, hex, utf-8, time zone, +05:45, milliseconds
 - See also: [CREATE TABLE](create-table.md), [INSERT](insert.md), [Conversion functions](functions-conversion.md), [Time and time zones](time-and-time-zones.md), [SQL basics](sql-basics.md)
 
-Every column has a **type**. The type says what values the column holds, and how much space one value takes. When a row is written, KDB **converts** each value to the column type, or refuses the row with a clear message.
+Every column has a **type**. The type says what values the column holds, and how much space one value takes. When a row is written, KarelaDB **converts** each value to the column type, or refuses the row with a clear message.
 
 | Type | Also written | Size | Values | Use it for |
 |---|---|---|---|---|
@@ -640,7 +640,7 @@ An **exact** number with `scale` digits after the point. `DECIMAL(2)` is right f
 | Value written | Stored as (`DECIMAL(2)`) |
 |---|---|
 | `1500.25`, `12`, `'99.5'`, `'1.500'` | `1500.25`, `12.00`, `99.50`, `1.50` |
-| more digits after the point: `10.555` | **error**: KDB never rounds money by itself |
+| more digits after the point: `10.555` | **error**: KarelaDB never rounds money by itself |
 | more than 18 digits: `123456789012345678.12` | error (`numeric value out of range`): use `NUMERIC(24,2)` |
 
 - **NULL:** a `DECIMAL(s)` keeps it as the smallest `LONG`; a 16-byte `NUMERIC` keeps a flag.
@@ -953,7 +953,7 @@ Syntax:
 column TIMESTAMP [ROUND interval]
 ```
 
-A moment in time, stored as milliseconds since 1970-01-01 **UTC**, in 8 bytes. KDB always shows it in UTC with a `Z`: `2026-09-10T05:15:00.000Z`.
+A moment in time, stored as milliseconds since 1970-01-01 **UTC**, in 8 bytes. KarelaDB always shows it in UTC with a `Z`: `2026-09-10T05:15:00.000Z`.
 
 | Value written | Read as |
 |---|---|
@@ -1279,7 +1279,7 @@ Any text in UTF-8 (any language: English, Nepali, Chinese, emoji), up to 16 MB p
 
 - Accepts anything; a number, `BOOL` or time is written as its text (`12` becomes `'12'`, a time becomes `'2026-09-10T00:00:00.000Z'`).
 - **NULL:** `NULL` is allowed; it is kept as a special length. The empty text `''` is not `NULL`.
-- **Notes:** KDB has no length limit on text. `VARCHAR(255)` is **read and the number ignored**, so a PostgreSQL script runs; nothing is cut at 255. Keep PDF files and images outside the database, and store their path or URL.
+- **Notes:** KarelaDB has no length limit on text. `VARCHAR(255)` is **read and the number ignored**, so a PostgreSQL script runs; nothing is cut at 255. Keep PDF files and images outside the database, and store their path or URL.
 
 **Example: A news article in two languages**
 
@@ -1346,7 +1346,7 @@ column JSON
 column JSONB
 ```
 
-A JSON document (objects, arrays, text, numbers, `true`, `false`, `null`), up to 16 MB. `JSONB` is the same type. KDB checks that the text is valid JSON and removes the spaces between the parts.
+A JSON document (objects, arrays, text, numbers, `true`, `false`, `null`), up to 16 MB. `JSONB` is the same type. KarelaDB checks that the text is valid JSON and removes the spaces between the parts.
 
 | Value written | Stored as |
 |---|---|
@@ -1471,7 +1471,7 @@ Any bytes, also zero bytes, up to 16 MB. `BYTEA` and `BLOB` are the same type. G
 | a number | error |
 
 - **NULL:** `NULL` is allowed (kept as a special length). `X''` is zero bytes, not `NULL`.
-- **Notes:** KDB **shows** bytes as `\x` and hex (`\x0a0b`), in the shell, in CSV and in the HTTP API, like PostgreSQL. On `BYTES`, `length()` counts bytes. Functions: `hex()`, `unhex()`, `to_base64()`, `from_base64()`.
+- **Notes:** KarelaDB **shows** bytes as `\x` and hex (`\x0a0b`), in the shell, in CSV and in the HTTP API, like PostgreSQL. On `BYTES`, `length()` counts bytes. Functions: `hex()`, `unhex()`, `to_base64()`, `from_base64()`.
 
 **Example: The SHA-256 hash of a report PDF**
 
@@ -1576,7 +1576,7 @@ A UUID, kept in **16 bytes** (as text it would take 36 characters and more). It 
 - **NULL:** `NULL` is allowed (kept in a flag, not in the 16 bytes).
 - **Compare and find:** `id = 'A0EEBC99-...'` finds the row in any spelling. `ORDER BY` sorts like the text. A `PRIMARY KEY`, `DEDUP KEY` or index on a UUID column works like on text.
 - **Convert:** `CAST(id AS TEXT)` or `id::text` gives the text; `'...'::uuid` reads any spelling and gives the lower-case text.
-- **Older data:** a `UUID` column made before 2026-10-02 stays a text column with the UUID rule; it reads and compares the same. `ALTER TABLE t ALTER COLUMN c TYPE UUID` moves it to 16 bytes. A KDB build before 2026-10-02 cannot open a table with a 16-byte `UUID` column ([versions](versions.md)).
+- **Older data:** a `UUID` column made before 2026-10-02 stays a text column with the UUID rule; it reads and compares the same. `ALTER TABLE t ALTER COLUMN c TYPE UUID` moves it to 16 bytes. A KarelaDB build before 2026-10-02 cannot open a table with a 16-byte `UUID` column ([versions](versions.md)).
 - **From text:** `ALTER TABLE t ALTER COLUMN c TYPE UUID` also turns a `TEXT` column of UUIDs into a `UUID` column. Every value is checked first: if one is no UUID, the error names it and the column stays as it was.
 - **Postgres port:** a UUID column, `x::uuid` and an older UUID text column go out as type `uuid` (OID 2950), in text or binary (16 bytes). Drivers like pgx, JDBC and psycopg read them as their own UUID type and can send a `uuid` parameter or `COPY ... (FORMAT binary)` the same way.
 - **Loading:** `/imp` (CSV) and `POST /write` (line protocol: a tag or a string field) read any spelling into a UUID column. A value that is no UUID counts as a bad value, like any other. A new table made by `/imp` or `/write` keeps such a column as `STRING`; make the table first to get `UUID`.

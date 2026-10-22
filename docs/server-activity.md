@@ -3,7 +3,7 @@
 > See who is connected and what runs now (pg_stat_activity, query_activity(), GET /api/sessions), stop a statement or close a connection (pg_cancel_backend, pg_terminate_backend, CANCEL QUERY, DELETE /api/sessions/<pid>), close idle and vanished clients (idle_session_timeout, tcp_keepalives_*), and see the totals of every statement shape (pg_stat_statements).
 
 - Category: Postgres protocol
-- Keywords: query\_activity, CANCEL QUERY, cancel\_query, pg\_sleep, idle\_session\_timeout, client\_connection\_check\_interval, tcp\_keepalives\_idle, tcp\_keepalives\_interval, tcp\_keepalives\_count, keepalive, 57P01, 57P05, 57014, /api/sessions, CLIENT LIST, CLIENT KILL, kill session, pg\_stat\_activity, pg\_stat\_statements, pg\_stat\_statements\_reset, pg\_cancel\_backend, pg\_terminate\_backend, pg\_backend\_pid, running queries, running statements, idle in transaction, wait\_event, wait\_event\_type, kill query, kill connection, terminate connection, statement statistics, query statistics, slow statements, query totals, --stat-statements, KDB\_STAT\_STATEMENTS, queryid, mean\_exec\_time, total\_exec\_time, 42501
+- Keywords: query\_activity, CANCEL QUERY, cancel\_query, pg\_sleep, idle\_session\_timeout, client\_connection\_check\_interval, tcp\_keepalives\_idle, tcp\_keepalives\_interval, tcp\_keepalives\_count, keepalive, 57P01, 57P05, 57014, /api/sessions, CLIENT LIST, CLIENT KILL, kill session, pg\_stat\_activity, pg\_stat\_statements, pg\_stat\_statements\_reset, pg\_cancel\_backend, pg\_terminate\_backend, pg\_backend\_pid, running queries, running statements, idle in transaction, wait\_event, wait\_event\_type, kill query, kill connection, terminate connection, statement statistics, query statistics, slow statements, query totals, --stat-statements, KARELADB\_STAT\_STATEMENTS, queryid, mean\_exec\_time, total\_exec\_time, 42501
 - See also: [Protection - timeouts, limits, safe updates, read-only (cancel)](protection.md#cancel), [EXPLAIN (explain-analyze)](explain.md#explain-analyze), [Health, info, check and backup over HTTP (slow-queries)](http-server-info.md#slow-queries), [Monitor panel (memory, processor, caches)](console-monitor.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Sessions and cursors over HTTP](http-sessions-and-cursors.md)
 
 These are the views and functions PostgreSQL tools use to watch a server. They work the same over the [Postgres port](postgres-protocol.md) and over HTTP (`POST /exec`), and they show both kinds of client.
@@ -21,7 +21,7 @@ These are the views and functions PostgreSQL tools use to watch a server. They w
 | `pg_stat_statements_reset()` | starts the totals again |
 | `pg_locks`, `pg_blocking_pids(pid)` | the table locks held and waited for, with the same pids; who a waiting pid waits for ([LOCK TABLE and pg_locks](transactions.md#lock-table)) |
 
-`kdb sql` and `kdb shell` have no server around them: there the views are empty and the functions answer `false`.
+`kareladb sql` and `kareladb shell` have no server around them: there the views are empty and the functions answer `false`.
 
 <a id="pg-stat-activity"></a>
 
@@ -40,7 +40,7 @@ The columns are PostgreSQL 14's, in its order.
 | Column | Meaning |
 |---|---|
 | `pid` | the backend's number. A Postgres connection's is its `pg_backend_pid()` (the key of its cancel requests). An HTTP request without a session gets one of its own, from 1073741824 up |
-| `datname`, `usename` | the database and the user (for a login without KDB users: the login name) |
+| `datname`, `usename` | the database and the user (for a login without KarelaDB users: the login name) |
 | `application_name` | the Postgres `application_name`, or the HTTP `User-Agent` |
 | `client_addr` | the client's address (`client_port` and `client_hostname` are NULL) |
 | `backend_start`, `xact_start`, `query_start`, `state_change` | when the connection opened, its transaction began, its statement began, its state last changed |
@@ -55,7 +55,7 @@ The columns are PostgreSQL 14's, in its order.
   - `datid` and `usesysid` are the oids `pg_database` and `pg_roles` show; use `datname` and `usename`.
   - The same list, as JSON, is in [`GET /api/stats`](http-server-info.md) (`running`), which the console's Monitor panel shows.
 
-**Example: Without a server (kdb sql) nobody else is connected**
+**Example: Without a server (kareladb sql) nobody else is connected**
 
 ```sql
 SELECT count(*) AS others FROM pg_stat_activity WHERE pid <> pg_backend_pid();
@@ -137,13 +137,13 @@ QuestDB's way to see and stop running statements. `query_activity()` has one row
 | `username`, `query` | who runs it, and its text (up to 1024 characters) |
 | `query_start`, `state_change` | when it started |
 | `state` | `active`, or `cancelled` while a stopped statement winds down |
-| `is_wal` | always `false`: KDB applies a commit before it returns, so it has no WAL apply jobs |
+| `is_wal` | always `false`: KarelaDB applies a commit before it returns, so it has no WAL apply jobs |
 
 - **Returns:** `CANCEL QUERY` answers `true` or fails with `query to cancel not found in registry [id=...]` (SQLSTATE `42704`) when no statement runs with that id. `cancel_query(id)` answers `true` when it stopped one, `false` when none runs with that id, NULL for NULL.
 - **Rights:** an admin sees and stops every statement; other users see only their own and may stop only their own (otherwise SQLSTATE `42501`, HTTP 403).
 - **Notes:** the stopped statement ends with `canceling statement due to user request` (`57014`); its connection stays. `pg_stat_activity`'s own `query_id` column is PostgreSQL's (a number for the statement's shape) and stays NULL.
 
-**Example: Without a server (kdb sql) nothing else runs**
+**Example: Without a server (kareladb sql) nothing else runs**
 
 ```sql
 SELECT count(*) AS running FROM query_activity();
@@ -217,7 +217,7 @@ SET client_connection_check_interval = '5s'    -- 0 = off (the default)
 SET tcp_keepalives_idle = 60                   -- seconds; 0 = the server's
 SET tcp_keepalives_interval = 10
 SET tcp_keepalives_count = 5
-kdb serve --tcp-keepalives-idle 60 --tcp-keepalives-interval 10 --tcp-keepalives-count 5
+kareladb serve --tcp-keepalives-idle 60 --tcp-keepalives-interval 10 --tcp-keepalives-count 5
 ```
 
 PostgreSQL 14's settings, for one Postgres connection.
@@ -226,7 +226,7 @@ PostgreSQL 14's settings, for one Postgres connection.
 |---|---|
 | `idle_session_timeout` | A connection that waits longer than this for its next query, **outside** a transaction, is closed with `FATAL: terminating connection due to idle-session timeout` (SQLSTATE `57P05`). An open `BEGIN` counts under `idle_in_transaction_session_timeout` instead ([idle transactions](transactions.md#idle-timeout)). Milliseconds as a number, or `'2s'`, `'5min'`. |
 | `client_connection_check_interval` | While a statement runs, the server looks this often whether the client is still there, and stops the statement when it went away, so a long query does not run on for nobody. At most about 5 times a second. |
-| `tcp_keepalives_idle`, `_interval`, `_count` | TCP keepalive of this connection: seconds without traffic before the first probe, seconds between probes, probes before the connection is given up. `SHOW` reads the value back from the socket. `0` = the server's (the `--tcp-keepalives-*` flags, `KDB_TCP_KEEPALIVES_*`, `tcp_keepalives_*` in `kdb.conf`), else the system's. |
+| `tcp_keepalives_idle`, `_interval`, `_count` | TCP keepalive of this connection: seconds without traffic before the first probe, seconds between probes, probes before the connection is given up. `SHOW` reads the value back from the socket. `0` = the server's (the `--tcp-keepalives-*` flags, `KARELADB_TCP_KEEPALIVES_*`, `tcp_keepalives_*` in `kareladb.conf`), else the system's. |
 
 - **Notes:**
   - Keepalive is on for every HTTP and Postgres connection, as in PostgreSQL, so a client that vanished without closing (a laptop shut, a NAT that forgot it) is noticed and its locks are given back. The server flags set the timings for both ports.
@@ -253,8 +253,8 @@ DELETE /api/sessions/<pid>
 Syntax:
 
 ```sql
-curl -H "Authorization: Bearer $KDB_TOKEN" http://localhost:9900/api/sessions
-curl -X DELETE -H "Authorization: Bearer $KDB_TOKEN" http://localhost:9900/api/sessions/42
+curl -H "Authorization: Bearer $KARELADB_TOKEN" http://localhost:9900/api/sessions
+curl -X DELETE -H "Authorization: Bearer $KARELADB_TOKEN" http://localhost:9900/api/sessions/42
 ```
 
 <a id="pg-stat-statements"></a>
@@ -267,7 +267,7 @@ Syntax:
 SELECT query, calls, total_exec_time, mean_exec_time, max_exec_time, rows
 FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 10
 pg_stat_statements_reset([userid, dbid, queryid])
-kdb serve --stat-statements on|off          (env KDB_STAT_STATEMENTS; default on)
+kareladb serve --stat-statements on|off          (env KARELADB_STAT_STATEMENTS; default on)
 ```
 
 The totals of every statement **shape** the server ran: the statement with each literal replaced by `$1`, `$2`, ..., so `WHERE id = 5` and `WHERE id = 7` count together. Spacing, comments and the case of words do not make a new shape. No extension needs to be created.
@@ -278,8 +278,8 @@ The totals of every statement **shape** the server ran: the statement with each 
 | `query` | the shape, as its user first sent it (up to 1024 characters) |
 | `calls`, `rows` | how often it ran, and the rows it returned or changed in all |
 | `total_exec_time`, `min_exec_time`, `max_exec_time`, `mean_exec_time`, `stddev_exec_time` | milliseconds |
-| `usename`, `datname` | KDB's own columns: the user and the database (`userid` and `dbid` are the same oid for everyone) |
-| `plans`, `*_plan_time`, `shared_blks_*`, `local_blks_*`, `temp_blks_*`, `blk_*_time`, `wal_*` | PostgreSQL's columns KDB does not count: 0 |
+| `usename`, `datname` | KarelaDB's own columns: the user and the database (`userid` and `dbid` are the same oid for everyone) |
+| `plans`, `*_plan_time`, `shared_blks_*`, `local_blks_*`, `temp_blks_*`, `blk_*_time`, `wal_*` | PostgreSQL's columns KarelaDB does not count: 0 |
 
 - **Returns:** one row per user, database and shape.
 - **Notes:**
@@ -290,7 +290,7 @@ The totals of every statement **shape** the server ran: the statement with each 
   - Other users' shapes show `<insufficient privilege>` instead of the text to a user who is not an admin.
   - `pg_stat_statements_reset()` needs an admin. With a `queryid` (the third argument, `0` = all) only that shape starts again.
 
-**Example: Without a server (kdb sql) nothing is counted**
+**Example: Without a server (kareladb sql) nothing is counted**
 
 ```sql
 SELECT count(*) AS shapes FROM pg_stat_statements;

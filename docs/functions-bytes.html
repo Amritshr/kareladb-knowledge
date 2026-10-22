@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bytes, hex and base64 - KDB (KARELA DataBase) docs</title>
+<title>Bytes, hex and base64 - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Store raw bytes (hashes, keys, small images) and turn them into hex or base64 text and back.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-bytes.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-bytes.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/functions-bytes.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-bytes.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="bytes-hex-and-base64">Bytes, hex and base64</h1>
 <blockquote><p>Store raw bytes (hashes, keys, small images) and turn them into hex or base64 text and back.</p></blockquote>
 <ul><li>Category: Functions — JSON and bytes</li><li>Keywords: BYTES, BYTEA, BLOB, binary, hex, base64, \x, hash, file hash, image, avatar, bytes to text, X&#39;, convert_to, convert_from, encoding, UTF8, LATIN1, escape format</li><li>See also: <a href="functions-json.html">JSON functions</a>, <a href="functions-security.html">Security functions</a>, <a href="column-types.html">Column types</a>, <a href="functions-text.html">Text functions</a></li></ul>
 <p>A <code>BYTES</code> value holds raw bytes: any byte from 0 to 255, also zero bytes. Good uses are a file hash (SHA-256 is 32 bytes), a key, a signature or a very small image.
 <code>BYTEA</code> and <code>BLOB</code> are other names for the same column type (see <a href="column-types.html">column types</a>). One value can be at most 16 MB; keep big files outside the database and save their path and hash.</p>
-<ul><li><strong>Hex</strong> writes every byte as two digits <code>0-9 a-f</code>: the bytes 0, 255, 16 are <code>00ff10</code>.</li><li><strong>Base64</strong> writes 3 bytes as 4 letters: the same bytes are <code>AP8Q</code>. It is shorter than hex, and is often used in JSON and HTTP.</li><li>KDB <strong>shows</strong> <code>BYTES</code> as <code>\x</code> and hex (<code>\x00ff10</code>), like PostgreSQL. This is the same in the shell, CSV and HTTP answers.</li><li>On <code>BYTES</code>, <code>length()</code>, <code>octet_length()</code>, <code>substr()</code> and <code>reverse()</code> work on bytes, not letters (see <a href="functions-text.html">text functions</a>).</li></ul>
+<ul><li><strong>Hex</strong> writes every byte as two digits <code>0-9 a-f</code>: the bytes 0, 255, 16 are <code>00ff10</code>.</li><li><strong>Base64</strong> writes 3 bytes as 4 letters: the same bytes are <code>AP8Q</code>. It is shorter than hex, and is often used in JSON and HTTP.</li><li>KarelaDB <strong>shows</strong> <code>BYTES</code> as <code>\x</code> and hex (<code>\x00ff10</code>), like PostgreSQL. This is the same in the shell, CSV and HTTP answers.</li><li>On <code>BYTES</code>, <code>length()</code>, <code>octet_length()</code>, <code>substr()</code> and <code>reverse()</code> work on bytes, not letters (see <a href="functions-text.html">text functions</a>).</li></ul>
 <p>Setup used by the examples below:</p>
 <pre><code class="language-sql">CREATE TABLE reports (
   id LONG PRIMARY KEY AUTO,
@@ -30,7 +30,7 @@ INSERT INTO reports (symbol, fiscal_year, pdf_url, pdf_sha256) VALUES
   (&#39;CITY&#39;, &#39;2082/83&#39;, &#39;https://files.example.com/city/2082-83-q4.pdf&#39;,
    X&#39;9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08&#39;),
   (&#39;VOLT&#39;, &#39;2082/83&#39;, &#39;https://files.example.com/volt/2082-83-q4.pdf&#39;, NULL);</code></pre>
-<p><strong>Example: A report PDF stays outside; KDB keeps its SHA-256 hash</strong></p>
+<p><strong>Example: A report PDF stays outside; KarelaDB keeps its SHA-256 hash</strong></p>
 <pre><code class="language-sql">SELECT symbol,
        pdf_sha256,
        length(pdf_sha256) AS bytes,
@@ -240,7 +240,7 @@ WHERE symbol = &#39;CITY&#39;;</code></pre>
 <pre><code class="language-sql">convert_to(text, encoding)</code></pre>
 <p>The bytes of a text in an encoding (PostgreSQL). <code>convert_to(token, &#39;UTF8&#39;)</code> is how PostgreSQL code turns a text into bytes before hashing it.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td><code>STRING</code></td><td>the text</td></tr><tr><td><code>encoding</code></td><td><code>STRING</code></td><td><code>&#39;UTF8&#39;</code> (also <code>&#39;UTF-8&#39;</code>), <code>&#39;LATIN1&#39;</code> or <code>&#39;SQL_ASCII&#39;</code></td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> KDB keeps text as UTF-8, so <code>&#39;UTF8&#39;</code> gives those bytes as they are. <code>&#39;LATIN1&#39;</code> gives one byte per character; a character LATIN1 does not have (like Nepali letters) is an error, never a <code>?</code>. Other encodings are an error.</li></ul>
+<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> KarelaDB keeps text as UTF-8, so <code>&#39;UTF8&#39;</code> gives those bytes as they are. <code>&#39;LATIN1&#39;</code> gives one byte per character; a character LATIN1 does not have (like Nepali letters) is an error, never a <code>?</code>. Other encodings are an error.</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT convert_to(&#39;CITY&#39;, &#39;UTF8&#39;) AS utf8_bytes,
        convert_to(&#39;नेपाल&#39;, &#39;UTF8&#39;) AS nepali_bytes,
@@ -269,6 +269,6 @@ WHERE symbol = &#39;CITY&#39;;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: convert_from: invalid byte sequence for encoding &quot;UTF8&quot;: 0xff</code></p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-bytes.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-bytes.md">This page as markdown</a>.</footer>
 </body>
 </html>

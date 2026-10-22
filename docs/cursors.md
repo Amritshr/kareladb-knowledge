@@ -424,8 +424,8 @@ Error: `cursor 'b' is not open`
 Syntax:
 
 ```sql
-kdb sql db "DECLARE ...; FETCH ...; CLOSE ..."     -- one text
-kdb shell db                                        -- one session: many lines
+kareladb sql db "DECLARE ...; FETCH ...; CLOSE ..."     -- one text
+kareladb shell db                                        -- one session: many lines
 POST /session, then X-KDB-Session on POST /exec     -- one HTTP session: many requests
 ```
 
@@ -433,8 +433,8 @@ A cursor belongs to the text or the session that declared it.
 
 | Where | The cursor lives until |
 |---|---|
-| one text: `kdb sql`, `POST /exec` without a session, the web console | `CLOSE`, or the end of that text |
-| `kdb shell` | `CLOSE`, or the end of the shell |
+| one text: `kareladb sql`, `POST /exec` without a session, the web console | `CLOSE`, or the end of that text |
+| `kareladb shell` | `CLOSE`, or the end of the shell |
 | an HTTP session ([`POST /session`](http-sessions-and-cursors.md)) | `CLOSE`, or the end of the session |
 | a procedure body (`OPEN`) | the end of the procedure |
 | an HTTP cursor (`POST /cursor`) | `DELETE /cursor/<id>` |
@@ -442,19 +442,19 @@ A cursor belongs to the text or the session that declared it.
 All of them also close after **10 minutes** without `FETCH`. Another session cannot see your cursor, even with the same name.
 
 - **Notes:**
-  - When a statement of one text fails, the cursors of that text are closed too. In `kdb shell` and in an HTTP session, cursors stay open after an error.
+  - When a statement of one text fails, the cursors of that text are closed too. In `kareladb shell` and in an HTTP session, cursors stay open after an error.
   - `ROLLBACK` does not close cursors: their rows were already read at `DECLARE`.
 
-**Command line: Two kdb sql commands: the cursor of the first is gone** (sample data: sample; shows an error)
+**Command line: Two kareladb sql commands: the cursor of the first is gone** (sample data: sample; shows an error)
 
 ```bash
-kdb sql market "DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id; FETCH NEXT 2 FROM b"
-kdb sql market "FETCH NEXT 2 FROM b"
+kareladb sql market "DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id; FETCH NEXT 2 FROM b"
+kareladb sql market "FETCH NEXT 2 FROM b"
 ```
 
 Output:
 
-`> kdb sql market "DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id; FETCH NEXT 2 FROM b"`
+`> kareladb sql market "DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id; FETCH NEXT 2 FROM b"`
 
 ```text
 cursor 'b' declared: 5 row(s)
@@ -467,7 +467,7 @@ id | name
 2 row(s) fetched, 3 left
 ```
 
-`> kdb sql market "FETCH NEXT 2 FROM b"`
+`> kareladb sql market "FETCH NEXT 2 FROM b"`
 
 ```text
 error: cursor 'b' is not open (DECLARE b CURSOR FOR SELECT ... first; an unused cursor closes after 10 minutes)
@@ -475,10 +475,10 @@ error: cursor 'b' is not open (DECLARE b CURSOR FOR SELECT ... first; an unused 
 
 exit code 1
 
-**Command line: kdb shell: the cursor stays from one line to the next** (sample data: sample)
+**Command line: kareladb shell: the cursor stays from one line to the next** (sample data: sample)
 
 ```bash
-kdb shell market
+kareladb shell market
 > DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id;
 > FETCH NEXT 2 FROM b;
 > FETCH NEXT 2 FROM b;
@@ -490,28 +490,28 @@ kdb shell market
 Output:
 
 ```text
-KDB 0.2.0-dev shell on market
+KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> cursor 'b' declared: 5 row(s)
-kdb> id | name               
+kareladb> cursor 'b' declared: 5 row(s)
+kareladb> id | name               
 ---+--------------------
  1 | Keystone Securities
 34 | Vision Securities  
 (2 rows, 0.0 ms)
 2 row(s) fetched, 3 left
-kdb> id | name               
+kareladb> id | name               
 ---+--------------------
 45 | Imperial Securities
 49 | Online Securities  
 (2 rows, 0.0 ms)
 2 row(s) fetched, 1 left
-kdb> id | name                
+kareladb> id | name                
 ---+---------------------
 58 | Northgate Securities
 (1 row, 0.0 ms)
 1 row(s) fetched, no more rows
-kdb> cursor 'b' closed
-kdb>
+kareladb> cursor 'b' closed
+kareladb>
 ```
 
 **HTTP: An HTTP session: DECLARE in one request, FETCH in the next** (sample data: sample)
@@ -540,7 +540,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "bc2b748660dfa76d2a145ccd793a280b", "idle_timeout_ms": 600000}
+{"session": "60a7aca009b4eca5fc5855ebc739788b", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -559,13 +559,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "cursor 'b' declared: 5 row(s)",
-      "timings": {"parse_us": 48, "execute_us": 295}
+      "timings": {"parse_us": 35, "execute_us": 4566}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 48, "execute_us": 295}
+  "timings": {"parse_us": 35, "execute_us": 4566}
 }
 ```
 
@@ -592,7 +592,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "3 row(s) fetched, 2 left",
-      "timings": {"parse_us": 20, "execute_us": 8}
+      "timings": {"parse_us": 7, "execute_us": 7}
     }
   ],
   "columns": [
@@ -605,7 +605,7 @@ HTTP 200 (application/json)
     [45, "Imperial Securities"]
   ],
   "count": 3,
-  "timings": {"parse_us": 20, "execute_us": 8}
+  "timings": {"parse_us": 7, "execute_us": 7}
 }
 ```
 
@@ -614,7 +614,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "bc2b748660dfa76d2a145ccd793a280b", "closed": true}
+{"session": "60a7aca009b4eca5fc5855ebc739788b", "closed": true}
 ```
 
 <a id="http"></a>
@@ -663,7 +663,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "d8c238e3eace8c6c",
+  "cursor": "0a99766808a6fc19",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -680,7 +680,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "d8c238e3eace8c6c",
+  "cursor": "0a99766808a6fc19",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -703,7 +703,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "d8c238e3eace8c6c",
+  "cursor": "0a99766808a6fc19",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -725,7 +725,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "d8c238e3eace8c6c", "closed": true}
+{"cursor": "0a99766808a6fc19", "closed": true}
 ```
 
 `GET /cursor/{{cursor}}?fetch=3`
@@ -733,7 +733,7 @@ HTTP 200 (application/json)
 HTTP 404 (application/json)
 
 ```text
-{"error": "cursor 'd8c238e3eace8c6c' does not exist (an unused cursor closes after 10 minutes)"}
+{"error": "cursor '0a99766808a6fc19' does not exist (an unused cursor closes after 10 minutes)"}
 ```
 
 <a id="limits"></a>

@@ -8,7 +8,7 @@
 
 A **subquery** is a `SELECT` inside another statement, always in `( )`. `UNION ALL` puts the rows of two or more `SELECT`s one after the other.
 
-- A subquery that uses no column of the outer query runs **once**, before the outer query. Then KDB uses the result like a fixed value, a fixed list or a small table.
+- A subquery that uses no column of the outer query runs **once**, before the outer query. Then KarelaDB uses the result like a fixed value, a fixed list or a small table.
 - A subquery **may use columns of the outer query** (a "correlated" subquery): see [Correlated subqueries](union-subqueries.md#correlated).
 - Subqueries work in `SELECT`, `INSERT`, `UPDATE` and `DELETE` (also inside `CREATE VIEW` and `EXPLAIN`).
 - Subqueries and views can be nested at most 16 levels deep.
@@ -62,7 +62,7 @@ Runs each `SELECT` and puts all their rows into one result. Rows that are the sa
 - **NULL:** NULL values are kept like any other value.
 - **Notes:**
   - Every part must have the same number of columns.
-  - KDB does not check that the column types match. Put the same kind of value in the same position, or the column mixes numbers and text.
+  - KarelaDB does not check that the column types match. Put the same kind of value in the same position, or the column mixes numbers and text.
   - `ORDER BY` after `UNION ALL` can only use a result column name, an alias of the first part, or a position (`ORDER BY 2`). An expression like `ORDER BY amount * 2` is an error.
   - One part cannot have its own `ORDER BY` or `LIMIT`. Wrap that part in `FROM (SELECT ... LIMIT n) t` (example below).
   - `UNION` (without ALL) removes rows that are the same. `INTERSECT` keeps rows found in both parts, `EXCEPT` rows of the first part that are not in the second. With `ALL` they count copies. `INTERSECT` goes before `UNION` and `EXCEPT`.
@@ -189,7 +189,7 @@ Result:
 
 (3 rows)
 
-**Example: Different values in the same column: KDB does not stop you**
+**Example: Different values in the same column: KarelaDB does not stop you**
 
 ```sql
 SELECT 1 AS n, 'a' AS t
@@ -295,7 +295,7 @@ A subquery in `( )` where a value is expected: in the `SELECT` list, in `WHERE`,
 - **NULL:** when the subquery returns no row, the value is `NULL`.
 - **Notes:**
   - More than one row is an error: `subquery returned 3 rows; a value needs exactly one (add LIMIT 1?)`.
-  - With more than one column, KDB uses the **first** column and does not complain. Select only one column.
+  - With more than one column, KarelaDB uses the **first** column and does not complain. Select only one column.
   - The subquery runs once, so every row of the outer query gets the same value.
 
 **Example: Each close next to the best close of the day** (sample data: sample)
@@ -414,9 +414,9 @@ True when the value is (or is not) one of the values the subquery returns. It wo
 - **NULL:** a `NULL` on the left gives `NULL`. When the value is not found and the list has a `NULL`, the result is `NULL` too, so `NOT IN` keeps **no** rows. Add `WHERE column IS NOT NULL` inside the subquery.
 - **Notes:**
   - An empty subquery gives an empty list: `IN` is false for every row, `NOT IN` is true.
-  - With more than one column, KDB uses the **first** column. To match two columns at once, write `(a, b) IN (SELECT x, y FROM ...)` (see [row IN](where.md#row-in)).
+  - With more than one column, KarelaDB uses the **first** column. To match two columns at once, write `(a, b) IN (SELECT x, y FROM ...)` (see [row IN](where.md#row-in)).
   - The subquery can use `UNION ALL`, `GROUP BY`, `ORDER BY` and `LIMIT`.
-  - For a symbol column, `IN (SELECT ...)` still lets KDB read only the rows of those symbols (see [EXPLAIN](explain.md#explain)).
+  - For a symbol column, `IN (SELECT ...)` still lets KarelaDB read only the rows of those symbols (see [EXPLAIN](explain.md#explain)).
   - In `UPDATE` and `DELETE` too: in `SET` and in the `WHERE`.
 
 **Example: Securities with a trade of 1000 shares or more** (sample data: sample)
@@ -810,7 +810,7 @@ SELECT ... FROM t1 LEFT JOIN LATERAL (SELECT ... WHERE t2.col = t1.col) x ON TRU
 
 A **correlated** subquery uses a column of the outer query (`t1.col` above).
 
-- **Speed:** KDB does not run it again for every outer row. When the subquery joins the outer row with `=` (`t2.col = t1.col`), it runs once per **different** outer value first, with that value as a constant, so an index on `t2.col` answers it. Once the outer query has asked for more values than that pays for (one value per 256 rows of `t2` when `col` has an index or is the primary key, at least 8; 8 without an index), KDB reads `t2` once, builds a hash table by `col` and looks every further outer row up in it. So a page about one user costs a few index lookups (0.4 ms where the old plan took 930 ms on 300,000 logins), and a report over every user costs one pass over `t2`. Other subqueries run once per different outer value.
+- **Speed:** KarelaDB does not run it again for every outer row. When the subquery joins the outer row with `=` (`t2.col = t1.col`), it runs once per **different** outer value first, with that value as a constant, so an index on `t2.col` answers it. Once the outer query has asked for more values than that pays for (one value per 256 rows of `t2` when `col` has an index or is the primary key, at least 8; 8 without an index), KarelaDB reads `t2` once, builds a hash table by `col` and looks every further outer row up in it. So a page about one user costs a few index lookups (0.4 ms where the old plan took 930 ms on 300,000 logins), and a report over every user costs one pass over `t2`. Other subqueries run once per different outer value.
 - **Returns:** a value subquery gives NULL when no row matches (`count(*)` gives 0). It is an error when it finds more than one row; add `LIMIT 1` or an aggregate.
 - **Notes:** a join with `GROUP BY` or a window function (`lag(x) OVER (PARTITION BY ...)`) gives the same answers and is often easier to read.
 

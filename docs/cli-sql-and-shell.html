@@ -3,40 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>kdb sql and kdb shell - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="Run SQL from the command line once (kdb sql) or type it at a prompt (kdb shell).">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/cli-sql-and-shell.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-sql-and-shell.md">
+<title>kareladb sql and kareladb shell - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="Run SQL from the command line once (kareladb sql) or type it at a prompt (kareladb shell).">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/cli-sql-and-shell.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cli-sql-and-shell.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
-<h1 id="kdb-sql-and-kdb-shell">kdb sql and kdb shell</h1>
-<blockquote><p>Run SQL from the command line once (kdb sql) or type it at a prompt (kdb shell).</p></blockquote>
-<ul><li>Category: Command line</li><li>Keywords: run SQL, script, stdin, pipe, .sql file, output format, CSV, JSON, prompt, REPL, dot command, .help, .tables, .schema, .format, .maxrows, .check, .backup, .exit, .quit, exit, quit, ...&gt;</li><li>See also: <a href="cli-overview.html">The kdb program</a>, <a href="cli-serve.html">kdb serve</a>, <a href="transactions.html">Transactions</a>, <a href="backup-and-safety.html#backup-database">Backup, check, repair and restore (backup-database)</a>, <a href="loading-data.html">Loading many rows</a></li></ul>
-<p><code>kdb sql</code> opens a database, runs SQL, prints the results and closes the database. It is good for scripts.
-<code>kdb shell</code> opens a prompt. You type SQL, and it stays open until you quit.</p>
-<p>Both open the database <strong>files directly</strong>. So only one program may use the database: while <code>kdb serve</code> runs on it, use the server&#39;s console or HTTP API instead. Neither asks for a login (see <a href="users-and-roles.html">users and roles</a>).</p>
-<h2 id="kdb-sql">kdb sql</h2>
+<h1 id="kareladb-sql-and-kareladb-shell"><span class="old-id" id="kdb-sql-and-kdb-shell"></span>kareladb sql and kareladb shell</h1>
+<blockquote><p>Run SQL from the command line once (kareladb sql) or type it at a prompt (kareladb shell).</p></blockquote>
+<ul><li>Category: Command line</li><li>Keywords: run SQL, script, stdin, pipe, .sql file, output format, CSV, JSON, prompt, REPL, dot command, .help, .tables, .schema, .format, .maxrows, .check, .backup, .exit, .quit, exit, quit, ...&gt;</li><li>See also: <a href="cli-overview.html">The kareladb program</a>, <a href="cli-serve.html">kareladb serve</a>, <a href="transactions.html">Transactions</a>, <a href="backup-and-safety.html#backup-database">Backup, check, repair and restore (backup-database)</a>, <a href="loading-data.html">Loading many rows</a></li></ul>
+<p><code>kareladb sql</code> opens a database, runs SQL, prints the results and closes the database. It is good for scripts.
+<code>kareladb shell</code> opens a prompt. You type SQL, and it stays open until you quit.</p>
+<p>Both open the database <strong>files directly</strong>. So only one program may use the database: while <code>kareladb serve</code> runs on it, use the server&#39;s console or HTTP API instead. Neither asks for a login (see <a href="users-and-roles.html">users and roles</a>).</p>
+<h2 id="kareladb-sql"><span class="old-id" id="kdb-sql"></span>kareladb sql</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb sql &lt;db&gt; &quot;SQL&quot; [--format table|csv|json] [--max-rows N] [--backups &lt;dir&gt;] [--memory &lt;MB&gt;] [--trash-days N] [--data-dir &lt;folder&gt;]
-kdb sql &lt;db&gt; - [options]        -- read the SQL from stdin (a pipe or a file)</code></pre>
+<pre><code class="language-sql">kareladb sql &lt;db&gt; &quot;SQL&quot; [--format table|csv|json] [--max-rows N] [--backups &lt;dir&gt;] [--memory &lt;MB&gt;] [--trash-days N] [--data-dir &lt;folder&gt;]
+kareladb sql &lt;db&gt; - [options]        -- read the SQL from stdin (a pipe or a file)</code></pre>
 <p>Runs one or more SQL statements and prints one result per statement. Separate statements with <code>;</code>.
 <code>&lt;db&gt;</code> is a database name in the data folder or a folder path (see <a href="cli-overview.html#db-argument">&lt;db&gt;</a>).</p>
-<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&quot;SQL&quot;</code></td><td>The SQL text. Use <code>-</code> to read it from stdin (a pipe).</td><td>required</td></tr><tr><td><code>--format table</code></td><td>A text table for people. Numbers are right-aligned. Text longer than 48 characters is cut (<code>...</code>).</td><td><code>table</code></td></tr><tr><td><code>--format csv</code></td><td>CSV for Excel and scripts. The first line has the column names.</td><td></td></tr><tr><td><code>--format json</code></td><td>One JSON array, one object per statement, for programs.</td><td></td></tr><tr><td><code>--max-rows N</code></td><td>At most <code>N</code> rows per statement. <code>0</code> = no limit.</td><td><code>1000</code> for <code>table</code>, no limit for <code>csv</code> and <code>json</code></td></tr><tr><td><code>--backups &lt;dir&gt;</code></td><td>Backup folder. Needed for <code>BACKUP DATABASE</code>. Also used to repair damaged files when the database opens.</td><td>not set</td></tr><tr><td><code>--memory &lt;MB&gt;</code></td><td>Memory for table data kept loaded.</td><td><code>512</code></td></tr><tr><td><code>--trash-days N</code></td><td><code>DROP TABLE</code> keeps the table this many days for <code>UNDROP TABLE</code> (<a href="trash.html">trash</a>). <code>0</code> = remove at once.</td><td><code>7</code></td></tr><tr><td><code>--data-dir &lt;folder&gt;</code></td><td>The data folder (see <a href="cli-overview.html#data-folder">the data folder</a>).</td><td><code>KDB_DATA_DIR</code>, else <code>data</code> next to kdb</td></tr></tbody></table></div>
-<ul><li><strong>Exit code:</strong> <code>0</code> when every statement worked. <code>1</code> when a statement failed (wrong SQL, duplicate key, ...) or the database is open in another program. <code>2</code> when a data file is damaged.</li><li><strong>Stops at the first error.</strong> The statements before it are done and saved. The statements after it do not run. The error goes to stderr.</li><li><strong>Opens a new database:</strong> a name or path that does not exist becomes a new, empty database. A typing mistake gives <code>table ... does not exist</code>.</li><li>Every run opens and closes the database. For many small queries in a loop, one <code>kdb serve</code> and HTTP is faster.</li><li>The <code>(3 rows, 0.4 ms)</code> line in table format is the time KDB needed (parse and run).</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&quot;SQL&quot;</code></td><td>The SQL text. Use <code>-</code> to read it from stdin (a pipe).</td><td>required</td></tr><tr><td><code>--format table</code></td><td>A text table for people. Numbers are right-aligned. Text longer than 48 characters is cut (<code>...</code>).</td><td><code>table</code></td></tr><tr><td><code>--format csv</code></td><td>CSV for Excel and scripts. The first line has the column names.</td><td></td></tr><tr><td><code>--format json</code></td><td>One JSON array, one object per statement, for programs.</td><td></td></tr><tr><td><code>--max-rows N</code></td><td>At most <code>N</code> rows per statement. <code>0</code> = no limit.</td><td><code>1000</code> for <code>table</code>, no limit for <code>csv</code> and <code>json</code></td></tr><tr><td><code>--backups &lt;dir&gt;</code></td><td>Backup folder. Needed for <code>BACKUP DATABASE</code>. Also used to repair damaged files when the database opens.</td><td>not set</td></tr><tr><td><code>--memory &lt;MB&gt;</code></td><td>Memory for table data kept loaded.</td><td><code>512</code></td></tr><tr><td><code>--trash-days N</code></td><td><code>DROP TABLE</code> keeps the table this many days for <code>UNDROP TABLE</code> (<a href="trash.html">trash</a>). <code>0</code> = remove at once.</td><td><code>7</code></td></tr><tr><td><code>--data-dir &lt;folder&gt;</code></td><td>The data folder (see <a href="cli-overview.html#data-folder">the data folder</a>).</td><td><code>KARELADB_DATA_DIR</code>, else <code>data</code> next to kareladb</td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code> when every statement worked. <code>1</code> when a statement failed (wrong SQL, duplicate key, ...) or the database is open in another program. <code>2</code> when a data file is damaged.</li><li><strong>Stops at the first error.</strong> The statements before it are done and saved. The statements after it do not run. The error goes to stderr.</li><li><strong>Opens a new database:</strong> a name or path that does not exist becomes a new, empty database. A typing mistake gives <code>table ... does not exist</code>.</li><li>Every run opens and closes the database. For many small queries in a loop, one <code>kareladb serve</code> and HTTP is faster.</li><li>The <code>(3 rows, 0.4 ms)</code> line in table format is the time KarelaDB needed (parse and run).</li></ul>
 <p><strong>Command line: One query</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39; ORDER BY close DESC&quot;</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39; ORDER BY close DESC&quot;</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">symbol | close
 -------+------
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.4 ms)</code></pre>
+(3 rows, 0.3 ms)</code></pre>
 <p><strong>Command line: Many statements: one result each</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;SELECT count(*) AS securities FROM securities; SELECT count(*) AS brokers FROM brokers&quot;</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;SELECT count(*) AS securities FROM securities; SELECT count(*) AS brokers FROM brokers&quot;</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">securities
 ----------
@@ -48,21 +48,21 @@ brokers
       5
 (1 row, 0.0 ms)</code></pre>
 <p><strong>Command line: A script stops at the first error</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;SELECT count(*) AS before FROM brokers; SELECT nope FROM brokers; SELECT 1 AS never_runs&quot;</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;SELECT count(*) AS before FROM brokers; SELECT nope FROM brokers; SELECT 1 AS never_runs&quot;</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">before
 ------
      5
-(1 row, 0.2 ms)
+(1 row, 0.1 ms)
 error: line 1, column 48: unknown column &#39;nope&#39; (table &#39;brokers&#39; has: id name)</code></pre>
 <p>exit code 1</p>
 <h2 id="formats">Output formats: table, CSV, JSON</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">--format table | csv | json</code></pre>
 <div class="table-wrap"><table><thead><tr><th></th><th>table</th><th>csv</th><th>json</th></tr></thead><tbody><tr><td>For</td><td>people</td><td>Excel, PowerShell <code>ConvertFrom-Csv</code></td><td>programs, <code>ConvertFrom-Json</code></td></tr><tr><td>NULL</td><td><code>NULL</code></td><td>an empty field</td><td><code>null</code></td></tr><tr><td>Times</td><td>UTC: <code>2026-09-10T05:15:00.000Z</code></td><td>the same</td><td>the same, as text</td></tr><tr><td>DECIMAL</td><td><code>10.50</code></td><td><code>10.50</code></td><td>text <code>&quot;10.50&quot;</code> (to stay exact)</td></tr><tr><td>Messages like <code>1 row(s) inserted</code></td><td>printed</td><td><strong>not</strong> printed</td><td>in <code>&quot;message&quot;</code></td></tr><tr><td>Rows</td><td>at most 1000</td><td>all</td><td>all</td></tr></tbody></table></div>
-<ul><li><strong>CSV:</strong> text with a comma, a quote or a line break is put in double quotes. Many SELECTs give many CSV blocks, each with its own header line; use one SELECT per command when you save a file.</li><li><strong>JSON fields:</strong> <code>statement</code> (the SQL as KDB understood it), <code>columns</code> (name and type), <code>rows</code> (a list of values per row), <code>rows_affected</code>, <code>message</code>, <code>truncated</code> (<code>true</code> when <code>--max-rows</code> cut rows).</li><li><strong>Saving a file in Windows PowerShell 5.1:</strong> <code>&gt;</code> writes UTF-16. Use <code>| Set-Content prices.csv -Encoding UTF8</code> when another program must read the file.</li></ul>
+<ul><li><strong>CSV:</strong> text with a comma, a quote or a line break is put in double quotes. Many SELECTs give many CSV blocks, each with its own header line; use one SELECT per command when you save a file.</li><li><strong>JSON fields:</strong> <code>statement</code> (the SQL as KarelaDB understood it), <code>columns</code> (name and type), <code>rows</code> (a list of values per row), <code>rows_affected</code>, <code>message</code>, <code>truncated</code> (<code>true</code> when <code>--max-rows</code> cut rows).</li><li><strong>Saving a file in Windows PowerShell 5.1:</strong> <code>&gt;</code> writes UTF-16. Use <code>| Set-Content prices.csv -Encoding UTF8</code> when another program must read the file.</li></ul>
 <p><strong>Command line: CSV for Excel and scripts</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format csv</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format csv</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">symbol,ltp,pct_change
 CITY,527.1,2.71
@@ -70,36 +70,36 @@ COAST,401.9,0.7
 TELCO,897.7,1.9
 VOLT,184,-0.86</code></pre>
 <p><strong>Command line: JSON for programs</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol LIMIT 2&quot; --format json</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol LIMIT 2&quot; --format json</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">[{&quot;statement&quot;:&quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol LIMIT 2&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;SYMBOL&quot;},{&quot;name&quot;:&quot;ltp&quot;,&quot;type&quot;:&quot;DOUBLE&quot;}],&quot;rows&quot;:[[&quot;CITY&quot;,527.1],[&quot;COAST&quot;,401.9]],&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;truncated&quot;:false}
 ]</code></pre>
 <p><strong>Command line: --max-rows: only the first rows</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;SELECT time, symbol, close FROM ochl_minutes&quot; --max-rows 3</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;SELECT time, symbol, close FROM ochl_minutes&quot; --max-rows 3</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
 2026-09-09T05:17:00.000Z | CITY   | 511.9
-(3 rows, more not shown, 0.5 ms)</code></pre>
+(3 rows, more not shown, 0.3 ms)</code></pre>
 <p><code>--max-rows</code> is a safety net for big results. When you want fewer rows, write <code>LIMIT</code> in the SQL: it says clearly what you want, and it works the same in the console and over HTTP.</p>
 <pre><code class="language-powershell"># PowerShell (not run here): CSV to objects. Every CSV value is text, so use [double] for numbers.
-$rows = kdb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format csv | ConvertFrom-Csv
+$rows = kareladb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format csv | ConvertFrom-Csv
 $rows | Where-Object { [double]$_.pct_change -gt 1 }
 
 # JSON to objects (Windows PowerShell 5.1 needs Out-String first).
-$result = kdb sql market &quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format json | Out-String | ConvertFrom-Json
+$result = kareladb sql market &quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format json | Out-String | ConvertFrom-Json
 $result[0].rows</code></pre>
 <h2 id="stdin">SQL from a file or a pipe</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">Get-Content load.sql -Raw | kdb sql &lt;db&gt; -       -- PowerShell
-kdb sql &lt;db&gt; - &lt; load.sql                         -- cmd.exe, bash, zsh
-kdb sql &lt;db&gt; - &lt;&lt;&#39;SQL&#39; ... SQL                    -- bash here-document</code></pre>
-<p>With <code>-</code> instead of the SQL text, <code>kdb sql</code> reads the whole input first and then runs it, like one long SQL text.</p>
+<pre><code class="language-sql">Get-Content load.sql -Raw | kareladb sql &lt;db&gt; -       -- PowerShell
+kareladb sql &lt;db&gt; - &lt; load.sql                         -- cmd.exe, bash, zsh
+kareladb sql &lt;db&gt; - &lt;&lt;&#39;SQL&#39; ... SQL                    -- bash here-document</code></pre>
+<p>With <code>-</code> instead of the SQL text, <code>kareladb sql</code> reads the whole input first and then runs it, like one long SQL text.</p>
 <ul><li>Save <code>.sql</code> files as <strong>UTF-8</strong>. PowerShell&#39;s byte order mark at the start is skipped.</li><li><strong>Windows PowerShell 5.1</strong> sends pipe text as ASCII, so letters outside English (Nepali, Chinese, emoji) become <code>?</code>. Run <code>$OutputEncoding = New-Object System.Text.UTF8Encoding $false</code> first. PowerShell 7 already uses UTF-8.</li><li>A big file is read into memory first. For millions of rows, split it into files of a few thousand rows per <code>INSERT</code>.</li></ul>
-<p><strong>Command line: SQL typed into kdb sql - (the lines after &gt; are the input)</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market -
+<p><strong>Command line: SQL typed into kareladb sql - (the lines after &gt; are the input)</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kareladb sql market -
 &gt; -- report.sql: closing prices on the last day
 &gt; SELECT symbol, close
 &gt; FROM ochl_day
@@ -111,43 +111,43 @@ kdb sql &lt;db&gt; - &lt;&lt;&#39;SQL&#39; ... SQL                    -- bash he
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.4 ms)</code></pre>
+(3 rows, 0.3 ms)</code></pre>
 <pre><code class="language-powershell"># The same from a real file (not run here)
-Get-Content report.sql -Raw -Encoding UTF8 | kdb sql market -</code></pre>
+Get-Content report.sql -Raw -Encoding UTF8 | kareladb sql market -</code></pre>
 <pre><code class="language-bash"># bash (not run here)
-kdb sql market - &lt; report.sql
-kdb sql market - &lt;&lt;&#39;SQL&#39;
+kareladb sql market - &lt; report.sql
+kareladb sql market - &lt;&lt;&#39;SQL&#39;
 SELECT count(*) AS trades FROM trade_log;
 SQL</code></pre>
-<h2 id="backup">BACKUP DATABASE from kdb sql</h2>
+<h2 id="backup">BACKUP DATABASE from kareladb sql</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb sql &lt;db&gt; &quot;BACKUP DATABASE&quot; --backups &lt;dir&gt;</code></pre>
+<pre><code class="language-sql">kareladb sql &lt;db&gt; &quot;BACKUP DATABASE&quot; --backups &lt;dir&gt;</code></pre>
 <p><code>BACKUP DATABASE</code> needs a backup folder. Without <code>--backups</code> it fails with <code>no backup folder is set</code>.
 For a database <strong>name</strong> in the data folder, the backup goes to <code>&lt;dir&gt;/&lt;name&gt;</code>; for a folder path, to <code>&lt;dir&gt;</code>.
-See <a href="backup-and-safety.html#backup-database">BACKUP DATABASE</a> and <a href="backup-and-safety.html#kdb-backup">kdb backup</a>.</p>
+See <a href="backup-and-safety.html#backup-database">BACKUP DATABASE</a> and <a href="backup-and-safety.html#kareladb-backup">kareladb backup</a>.</p>
 <p><strong>Command line: A verified backup from a script</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;BACKUP DATABASE&quot; --backups backups</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;BACKUP DATABASE&quot; --backups backups</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261022-054332-480 |     9 | 194519 |      30
-(1 row, 30.7 ms)
+backups/20261022-095502-240 |     9 | 194519 |      30
+(1 row, 105.1 ms)
 backup created and verified</code></pre>
 <p><strong>Command line: Without --backups</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;BACKUP DATABASE&quot;</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;BACKUP DATABASE&quot;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">error: no backup folder is set; start KDB with a backup folder (for example --backups D:/kdb_backups)</code></pre>
+<pre><code class="language-text">error: no backup folder is set; start KarelaDB with a backup folder (for example --backups D:/kdb_backups)</code></pre>
 <p>exit code 1</p>
-<h2 id="kdb-shell">kdb shell</h2>
+<h2 id="kareladb-shell"><span class="old-id" id="kdb-shell"></span>kareladb shell</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb shell [&lt;db&gt;] [--backups &lt;dir&gt;] [--memory &lt;MB&gt;] [--trash-days N] [--data-dir &lt;folder&gt;]
+<pre><code class="language-sql">kareladb shell [&lt;db&gt;] [--backups &lt;dir&gt;] [--memory &lt;MB&gt;] [--trash-days N] [--data-dir &lt;folder&gt;]
 
-kdb&gt; .help | .tables | .schema &lt;table&gt; | .format table|csv|json | .maxrows &lt;n&gt; | .check | .backup | .exit | .quit</code></pre>
+kareladb&gt; .help | .tables | .schema &lt;table&gt; | .format table|csv|json | .maxrows &lt;n&gt; | .check | .backup | .exit | .quit</code></pre>
 <p>Opens a prompt. Type SQL and end each statement with <code>;</code>. Lines that start with a dot are <a href="#dot-commands">shell commands</a>.</p>
-<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;db&gt;</code></td><td>A database name in the data folder or a folder path. Without it: the database <code>default</code> in the data folder.</td><td><code>default</code></td></tr><tr><td><code>--backups &lt;dir&gt;</code></td><td>Backup folder for <code>.backup</code> and <code>BACKUP DATABASE</code></td><td>not set</td></tr><tr><td><code>--memory &lt;MB&gt;</code></td><td>Memory for table data kept loaded</td><td><code>512</code></td></tr><tr><td><code>--trash-days N</code></td><td>Days a dropped table is kept for <code>UNDROP TABLE</code></td><td><code>7</code></td></tr><tr><td><code>--data-dir &lt;folder&gt;</code></td><td>The data folder</td><td><code>KDB_DATA_DIR</code>, else <code>data</code> next to kdb</td></tr></tbody></table></div>
-<ul><li><strong>Prompts:</strong> <code>kdb&gt;</code> waits for a new statement. <code>...&gt;</code> means the statement is not finished yet (no <code>;</code> so far).</li><li><strong>Exit code:</strong> the exit code of the last statement or dot command (<code>0</code>, <code>1</code> or <code>2</code>).</li><li><strong>One session:</strong> everything you type runs in one SQL session. <code>BEGIN</code> on one line and <code>COMMIT</code> on a later line work; cursors stay open. See <a href="#transactions">transactions in the shell</a>.</li><li><strong>Data folder:</strong> without <code>&lt;db&gt;</code> (or with a name from the data folder) <code>CREATE DATABASE</code>, <code>SHOW DATABASES</code> and <code>USE</code> work. With a folder path they are refused, because only that folder is open.</li><li><strong>Piped input:</strong> <code>&quot;...&quot; | kdb shell market</code> runs the lines like typed lines. A last statement without <code>;</code> still runs at the end. The prompts are printed too.</li><li><strong>Quit</strong> with <code>.exit</code>, <code>.quit</code>, <code>exit</code> or <code>quit</code>, or end the input (Ctrl+Z then Enter on Windows, Ctrl+D on Linux). These close the database cleanly. Ctrl+C also ends the shell, but without a clean close (it is safe: the log is replayed at the next open).</li><li>Keywords and names do not care about case. Comments are <code>-- to the end of the line</code> and <code>/* inside */</code>.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;db&gt;</code></td><td>A database name in the data folder or a folder path. Without it: the database <code>default</code> in the data folder.</td><td><code>default</code></td></tr><tr><td><code>--backups &lt;dir&gt;</code></td><td>Backup folder for <code>.backup</code> and <code>BACKUP DATABASE</code></td><td>not set</td></tr><tr><td><code>--memory &lt;MB&gt;</code></td><td>Memory for table data kept loaded</td><td><code>512</code></td></tr><tr><td><code>--trash-days N</code></td><td>Days a dropped table is kept for <code>UNDROP TABLE</code></td><td><code>7</code></td></tr><tr><td><code>--data-dir &lt;folder&gt;</code></td><td>The data folder</td><td><code>KARELADB_DATA_DIR</code>, else <code>data</code> next to kareladb</td></tr></tbody></table></div>
+<ul><li><strong>Prompts:</strong> <code>kareladb&gt;</code> waits for a new statement. <code>...&gt;</code> means the statement is not finished yet (no <code>;</code> so far).</li><li><strong>Exit code:</strong> the exit code of the last statement or dot command (<code>0</code>, <code>1</code> or <code>2</code>).</li><li><strong>One session:</strong> everything you type runs in one SQL session. <code>BEGIN</code> on one line and <code>COMMIT</code> on a later line work; cursors stay open. See <a href="#transactions">transactions in the shell</a>.</li><li><strong>Data folder:</strong> without <code>&lt;db&gt;</code> (or with a name from the data folder) <code>CREATE DATABASE</code>, <code>SHOW DATABASES</code> and <code>USE</code> work. With a folder path they are refused, because only that folder is open.</li><li><strong>Piped input:</strong> <code>&quot;...&quot; | kareladb shell market</code> runs the lines like typed lines. A last statement without <code>;</code> still runs at the end. The prompts are printed too.</li><li><strong>Quit</strong> with <code>.exit</code>, <code>.quit</code>, <code>exit</code> or <code>quit</code>, or end the input (Ctrl+Z then Enter on Windows, Ctrl+D on Linux). These close the database cleanly. Ctrl+C also ends the shell, but without a clean close (it is safe: the log is replayed at the next open).</li><li>Keywords and names do not care about case. Comments are <code>-- to the end of the line</code> and <code>/* inside */</code>.</li></ul>
 <p><strong>Command line: A shell session (the lines after &gt; are what you type)</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .tables
 &gt; SELECT symbol, close
 &gt; FROM ochl_day
@@ -156,9 +156,9 @@ kdb&gt; .help | .tables | .schema &lt;table&gt; | .format table|csv|json | .maxr
 &gt; SELECT id, name FROM brokers LIMIT 3;
 &gt; .exit</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; name         | kind       | partition | columns | rows
+kareladb&gt; name         | kind       | partition | columns | rows
 -------------+------------+-----------+---------+-----
 brokers      | relational | NONE      |       2 |    5
 live_data    | timeseries | DAY       |      12 |   12
@@ -167,57 +167,57 @@ ochl_minutes | timeseries | MONTH     |       7 |  956
 securities   | relational | NONE      |       3 |    5
 trade_log    | timeseries | DAY       |       8 |   32
 (6 rows, 0.0 ms)
-kdb&gt; ...&gt; ...&gt; symbol | close
+kareladb&gt; ...&gt; ...&gt; symbol | close
 -------+------
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.4 ms)
-kdb&gt; kdb&gt; id,name
+(3 rows, 0.2 ms)
+kareladb&gt; kareladb&gt; id,name
 1,Keystone Securities
 34,Vision Securities
 45,Imperial Securities
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <p><strong>Command line: Without a database: the data folder</strong></p>
-<pre><code class="language-bash">kdb shell
+<pre><code class="language-bash">kareladb shell
 &gt; CREATE DATABASE reports;
 &gt; USE reports;
 &gt; CREATE TABLE notes (id INT PRIMARY KEY, text STRING);
 &gt; SHOW DATABASES;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on default (data folder ./kdb-data)
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on default (data folder ./kdb-data)
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; database &#39;reports&#39; created
-kdb&gt; using database &#39;reports&#39;
-kdb&gt; table &#39;notes&#39; created
-kdb&gt; name    | tables | bytes | current
+kareladb&gt; database &#39;reports&#39; created
+kareladb&gt; using database &#39;reports&#39;
+kareladb&gt; table &#39;notes&#39; created
+kareladb&gt; name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false  
 reports |      1 |   229 | true   
-(2 rows, 0.4 ms)
-kdb&gt;</code></pre>
+(2 rows, 0.1 ms)
+kareladb&gt;</code></pre>
 <pre><code class="language-powershell"># Run a few lines through the shell from PowerShell (not run here)
-&quot;.tables`nSELECT count(*) FROM ochl_day;&quot; | kdb shell market</code></pre>
+&quot;.tables`nSELECT count(*) FROM ochl_day;&quot; | kareladb shell market</code></pre>
 <h2 id="multi-line">Statements over many lines</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb&gt; SELECT symbol, close
+<pre><code class="language-sql">kareladb&gt; SELECT symbol, close
 ...&gt; FROM ochl_day
 ...&gt; WHERE time IN &#39;2026-09-10&#39;;</code></pre>
 <p>A statement ends at a <code>;</code> that is outside quotes and comments. Until then the shell shows <code>...&gt;</code> and waits.</p>
-<ul><li>A <code>;</code> inside <code>&#39;text&#39;</code>, <code>&quot;name&quot;</code>, <code>-- comment</code> or <code>/* comment */</code> does not end the statement.</li><li><code>CREATE PROCEDURE ... AS BEGIN ... END;</code>, <code>CREATE TRIGGER ... EXECUTE BEGIN ... END;</code> and <code>CASE ... END</code> may have many <code>;</code> inside. The shell waits for the <code>END;</code> that closes them.</li><li>A dot command only works at the start of a new statement (at <code>kdb&gt;</code>, not at <code>...&gt;</code>).</li><li>Many statements on one line run one after the other.</li></ul>
+<ul><li>A <code>;</code> inside <code>&#39;text&#39;</code>, <code>&quot;name&quot;</code>, <code>-- comment</code> or <code>/* comment */</code> does not end the statement.</li><li><code>CREATE PROCEDURE ... AS BEGIN ... END;</code>, <code>CREATE TRIGGER ... EXECUTE BEGIN ... END;</code> and <code>CASE ... END</code> may have many <code>;</code> inside. The shell waits for the <code>END;</code> that closes them.</li><li>A dot command only works at the start of a new statement (at <code>kareladb&gt;</code>, not at <code>...&gt;</code>).</li><li>Many statements on one line run one after the other.</li></ul>
 <p><strong>Command line: Two lines, one statement; then two statements on one line</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; SELECT count(*) AS days
 &gt; FROM ochl_day;
 &gt; SELECT 1 AS a; SELECT 2 AS b;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; ...&gt; days
+kareladb&gt; ...&gt; days
 ----
   57
 (1 row, 0.2 ms)
-kdb&gt; a
+kareladb&gt; a
 -
 1
 (1 row, 0.0 ms)
@@ -226,90 +226,90 @@ b
 -
 2
 (1 row, 0.0 ms)
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <p><strong>Command line: A procedure body with ; inside</strong></p>
-<pre><code class="language-bash">kdb shell ./demo
+<pre><code class="language-bash">kareladb shell ./demo
 &gt; CREATE PROCEDURE hello(name STRING) AS BEGIN
 &gt;   PRINT name;
 &gt;   SELECT upper(name) AS shout;
 &gt; END;
 &gt; CALL hello(&#39;market&#39;);</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on ./demo
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on ./demo
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; ...&gt; ...&gt; ...&gt; procedure &#39;hello&#39; created
-kdb&gt; procedure &#39;hello&#39; done: 0 row(s) changed
+kareladb&gt; ...&gt; ...&gt; ...&gt; procedure &#39;hello&#39; created
+kareladb&gt; procedure &#39;hello&#39; done: 0 row(s) changed
 
 shout 
 ------
 MARKET
-(1 row, 0.2 ms)
+(1 row, 0.1 ms)
 
 output
 ------
 market
 (1 row, 0.0 ms)
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <h2 id="transactions">Transactions in the shell</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb&gt; BEGIN;
-kdb&gt; ... statements ...
-kdb&gt; COMMIT;     -- or ROLLBACK;</code></pre>
+<pre><code class="language-sql">kareladb&gt; BEGIN;
+kareladb&gt; ... statements ...
+kareladb&gt; COMMIT;     -- or ROLLBACK;</code></pre>
 <p>The shell keeps one SQL session, so a transaction stays open over many lines until <code>COMMIT</code> or <code>ROLLBACK</code>.</p>
-<ul><li>Other statements in the same shell see your changes before <code>COMMIT</code>.</li><li><strong>Quitting with an open transaction rolls it back.</strong> The shell says <code>the open transaction was rolled back (it had no COMMIT)</code>.</li><li><code>kdb sql</code> is one command: a <code>BEGIN</code> there must have its <code>COMMIT</code> in the same SQL text. Without it, the changes are rolled back and the exit code is <code>1</code>.</li><li>A transaction with no statement for 30 seconds is rolled back. See <a href="transactions.html">transactions</a>.</li></ul>
+<ul><li>Other statements in the same shell see your changes before <code>COMMIT</code>.</li><li><strong>Quitting with an open transaction rolls it back.</strong> The shell says <code>the open transaction was rolled back (it had no COMMIT)</code>.</li><li><code>kareladb sql</code> is one command: a <code>BEGIN</code> there must have its <code>COMMIT</code> in the same SQL text. Without it, the changes are rolled back and the exit code is <code>1</code>.</li><li>A transaction with no statement for 30 seconds is rolled back. See <a href="transactions.html">transactions</a>.</li></ul>
 <p><strong>Command line: COMMIT keeps the change</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; BEGIN;
 &gt; INSERT INTO brokers VALUES (77, &#39;Northgate Securities&#39;);
 &gt; COMMIT;
-kdb sql market &quot;SELECT count(*) AS brokers FROM brokers&quot;</code></pre>
+kareladb sql market &quot;SELECT count(*) AS brokers FROM brokers&quot;</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb shell market</code></p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<p><code>&gt; kareladb shell market</code></p>
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; transaction started
-kdb&gt; 1 row(s) inserted
-kdb&gt; transaction committed: 1 change(s) saved
-kdb&gt;</code></pre>
-<p><code>&gt; kdb sql market &quot;SELECT count(*) AS brokers FROM brokers&quot;</code></p>
+kareladb&gt; transaction started
+kareladb&gt; 1 row(s) inserted
+kareladb&gt; transaction committed: 1 change(s) saved
+kareladb&gt;</code></pre>
+<p><code>&gt; kareladb sql market &quot;SELECT count(*) AS brokers FROM brokers&quot;</code></p>
 <pre><code class="language-text">brokers
 -------
       6
-(1 row, 0.3 ms)</code></pre>
+(1 row, 0.2 ms)</code></pre>
 <p><strong>Command line: No COMMIT: the change is rolled back when the shell ends</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; BEGIN;
 &gt; INSERT INTO brokers VALUES (59, &#39;Test Broker&#39;);
 &gt; SELECT count(*) AS inside_the_transaction FROM brokers;
-kdb sql market &quot;SELECT count(*) AS after_the_shell FROM brokers&quot;</code></pre>
+kareladb sql market &quot;SELECT count(*) AS after_the_shell FROM brokers&quot;</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb shell market</code></p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<p><code>&gt; kareladb shell market</code></p>
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; transaction started
-kdb&gt; 1 row(s) inserted
-kdb&gt; inside_the_transaction
+kareladb&gt; transaction started
+kareladb&gt; 1 row(s) inserted
+kareladb&gt; inside_the_transaction
 ----------------------
                      6
 (1 row, 0.2 ms)
-kdb&gt; 
+kareladb&gt; 
 the open transaction was rolled back (it had no COMMIT)</code></pre>
-<p><code>&gt; kdb sql market &quot;SELECT count(*) AS after_the_shell FROM brokers&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;SELECT count(*) AS after_the_shell FROM brokers&quot;</code></p>
 <pre><code class="language-text">after_the_shell
 ---------------
               5
 (1 row, 0.2 ms)</code></pre>
-<p><strong>Command line: kdb sql: BEGIN and COMMIT must be in the same command</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb sql market &quot;BEGIN; INSERT INTO brokers VALUES (60, &#39;Test Broker&#39;); COMMIT&quot;
-kdb sql market &quot;BEGIN; INSERT INTO brokers VALUES (61, &#39;No Commit Broker&#39;)&quot;</code></pre>
+<p><strong>Command line: kareladb sql: BEGIN and COMMIT must be in the same command</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kareladb sql market &quot;BEGIN; INSERT INTO brokers VALUES (60, &#39;Test Broker&#39;); COMMIT&quot;
+kareladb sql market &quot;BEGIN; INSERT INTO brokers VALUES (61, &#39;No Commit Broker&#39;)&quot;</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb sql market &quot;BEGIN; INSERT INTO brokers VALUES (60, &#39;Test Broker&#39;); COMMIT&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;BEGIN; INSERT INTO brokers VALUES (60, &#39;Test Broker&#39;); COMMIT&quot;</code></p>
 <pre><code class="language-text">transaction started
 
 1 row(s) inserted
 
 transaction committed: 1 change(s) saved</code></pre>
-<p><code>&gt; kdb sql market &quot;BEGIN; INSERT INTO brokers VALUES (61, &#39;No Commit Broker&#39;)&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;BEGIN; INSERT INTO brokers VALUES (61, &#39;No Commit Broker&#39;)&quot;</code></p>
 <pre><code class="language-text">transaction started
 
 1 row(s) inserted
@@ -326,38 +326,38 @@ error: BEGIN without COMMIT: the transaction was rolled back (end it with COMMIT
 .backup
 .exit
 .quit</code></pre>
-<p>Shell commands start with a dot and need no <code>;</code>. They must be at the start of a line, at the <code>kdb&gt;</code> prompt.</p>
-<div class="table-wrap"><table><thead><tr><th>Command</th><th>What it does</th><th>Same as</th></tr></thead><tbody><tr><td><code>.help</code></td><td>Lists the shell commands</td><td></td></tr><tr><td><code>.tables</code></td><td>Lists the tables with kind, partitions, columns and rows</td><td><code>SHOW TABLES</code></td></tr><tr><td><code>.schema &lt;table&gt;</code></td><td>Shows the <code>CREATE TABLE</code> statement</td><td><code>SHOW CREATE TABLE &lt;table&gt;</code></td></tr><tr><td><code>.format table|csv|json</code></td><td>How results are printed from now on</td><td><code>--format</code> of <code>kdb sql</code></td></tr><tr><td><code>.maxrows &lt;n&gt;</code></td><td>At most <code>n</code> rows per result. <code>0</code> = all.</td><td><code>--max-rows</code> (default 1000)</td></tr><tr><td><code>.check</code></td><td>Reads every file and log record and reports damage</td><td><code>CHECK TABLE</code></td></tr><tr><td><code>.backup</code></td><td>Makes a verified backup (start the shell with <code>--backups &lt;dir&gt;</code>)</td><td><code>BACKUP DATABASE</code></td></tr><tr><td><code>.exit</code>, <code>.quit</code></td><td>Quits the shell</td><td><code>exit</code>, <code>quit</code></td></tr></tbody></table></div>
+<p>Shell commands start with a dot and need no <code>;</code>. They must be at the start of a line, at the <code>kareladb&gt;</code> prompt.</p>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>What it does</th><th>Same as</th></tr></thead><tbody><tr><td><code>.help</code></td><td>Lists the shell commands</td><td></td></tr><tr><td><code>.tables</code></td><td>Lists the tables with kind, partitions, columns and rows</td><td><code>SHOW TABLES</code></td></tr><tr><td><code>.schema &lt;table&gt;</code></td><td>Shows the <code>CREATE TABLE</code> statement</td><td><code>SHOW CREATE TABLE &lt;table&gt;</code></td></tr><tr><td><code>.format table|csv|json</code></td><td>How results are printed from now on</td><td><code>--format</code> of <code>kareladb sql</code></td></tr><tr><td><code>.maxrows &lt;n&gt;</code></td><td>At most <code>n</code> rows per result. <code>0</code> = all.</td><td><code>--max-rows</code> (default 1000)</td></tr><tr><td><code>.check</code></td><td>Reads every file and log record and reports damage</td><td><code>CHECK TABLE</code></td></tr><tr><td><code>.backup</code></td><td>Makes a verified backup (start the shell with <code>--backups &lt;dir&gt;</code>)</td><td><code>BACKUP DATABASE</code></td></tr><tr><td><code>.exit</code>, <code>.quit</code></td><td>Quits the shell</td><td><code>exit</code>, <code>quit</code></td></tr></tbody></table></div>
 <p>An unknown dot command prints <code>unknown command .xyz (try .help)</code>.</p>
 <h2 id="help">.help</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">.help</code></pre>
 <p>Lists the shell commands.</p>
 <p><strong>Command line</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .help</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt;   .tables              list tables
+kareladb&gt;   .tables              list tables
   .schema &lt;table&gt;      show CREATE TABLE
   .format table|csv|json
   .maxrows &lt;n&gt;         rows shown per query (0 = all)
   .check               read every file and report damage
   .backup              make a verified backup (needs --backups)
   .exit                quit
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <h2 id="tables">.tables</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">.tables</code></pre>
 <p>Lists the tables of the database: name, kind (<code>timeseries</code> or <code>relational</code>), partitioning, number of columns and rows. The same as <code>SHOW TABLES</code> (see <a href="show-tables.html">SHOW TABLES</a>).</p>
 <p><strong>Command line</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .tables</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; name         | kind       | partition | columns | rows
+kareladb&gt; name         | kind       | partition | columns | rows
 -------------+------------+-----------+---------+-----
 brokers      | relational | NONE      |       2 |    5
 live_data    | timeseries | DAY       |      12 |   12
@@ -366,20 +366,20 @@ ochl_minutes | timeseries | MONTH     |       7 |  956
 securities   | relational | NONE      |       3 |    5
 trade_log    | timeseries | DAY       |       8 |   32
 (6 rows, 0.0 ms)
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <h2 id="schema">.schema</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">.schema &lt;table&gt;</code></pre>
 <p>Shows the <code>CREATE TABLE</code> statement of a table. The same as <code>SHOW CREATE TABLE &lt;table&gt;</code>.</p>
 <ul><li><strong>Notes:</strong> in <code>table</code> format the text is cut after 48 characters. Use <code>.format csv</code> first to see all of it.</li></ul>
 <p><strong>Command line: Use .format csv to see the whole statement</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .format csv
 &gt; .schema ochl_day</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; kdb&gt; create_sql
+kareladb&gt; kareladb&gt; create_sql
 &quot;CREATE TABLE ochl_day (
   time TIMESTAMP ROUND 1d,
   symbol SYMBOL,
@@ -389,91 +389,91 @@ kdb&gt; kdb&gt; create_sql
   close DOUBLE,
   volume DOUBLE
 ) TIMESERIES(time) PARTITION BY YEAR SORT BY (symbol, time) DEDUP KEY (symbol, time)&quot;
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <h2 id="format">.format</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">.format table
 .format csv
 .format json</code></pre>
-<p>Sets how results are printed, for the rest of the session. The formats are the same as <code>--format</code> of <a href="#formats">kdb sql</a>.</p>
+<p>Sets how results are printed, for the rest of the session. The formats are the same as <code>--format</code> of <a href="#formats">kareladb sql</a>.</p>
 <ul><li><strong>Notes:</strong> a wrong value prints <code>format must be table, csv or json</code> and keeps the old format.</li></ul>
 <p><strong>Command line</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .format json
 &gt; SELECT id, name FROM brokers LIMIT 2;
 &gt; .format table
 &gt; SELECT id, name FROM brokers LIMIT 2;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; kdb&gt; [{&quot;statement&quot;:&quot;SELECT id, name FROM brokers LIMIT 2&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;id&quot;,&quot;type&quot;:&quot;INT&quot;},{&quot;name&quot;:&quot;name&quot;,&quot;type&quot;:&quot;STRING&quot;}],&quot;rows&quot;:[[1,&quot;Keystone Securities&quot;],[34,&quot;Vision Securities&quot;]],&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;truncated&quot;:false}
+kareladb&gt; kareladb&gt; [{&quot;statement&quot;:&quot;SELECT id, name FROM brokers LIMIT 2&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;id&quot;,&quot;type&quot;:&quot;INT&quot;},{&quot;name&quot;:&quot;name&quot;,&quot;type&quot;:&quot;STRING&quot;}],&quot;rows&quot;:[[1,&quot;Keystone Securities&quot;],[34,&quot;Vision Securities&quot;]],&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;truncated&quot;:false}
 ]
-kdb&gt; kdb&gt; id | name               
+kareladb&gt; kareladb&gt; id | name               
 ---+--------------------
  1 | Keystone Securities
 34 | Vision Securities  
 (2 rows, 0.0 ms)
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <h2 id="maxrows">.maxrows</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">.maxrows &lt;n&gt;</code></pre>
 <p>Shows at most <code>n</code> rows per result. <code>0</code> means all rows. The default is <code>1000</code>.</p>
 <ul><li><strong>Notes:</strong> <code>.maxrows</code> without a number (or with text) also means <code>0</code> (all rows). <code>LIMIT</code> in the SQL is faster.</li></ul>
 <p><strong>Command line</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .maxrows 2
 &gt; SELECT time, symbol, close FROM ochl_minutes;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; kdb&gt; time                     | symbol | close
+kareladb&gt; kareladb&gt; time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.5 ms)
-kdb&gt;</code></pre>
+(2 rows, more not shown, 0.3 ms)
+kareladb&gt;</code></pre>
 <h2 id="check">.check</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">.check</code></pre>
 <p>Reads every block of every data file and every log record, and reports damage. The same as <code>CHECK TABLE</code> (it always checks the whole database).
 It shows a table of problems (empty when all is well) and <code>OK: no damage found in N files</code>.
-For a closed database, <a href="cli-maintenance.html#kdb-check">kdb check</a> does the same from the command line.</p>
+For a closed database, <a href="cli-maintenance.html#kareladb-check">kareladb check</a> does the same from the command line.</p>
 <p><strong>Command line</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .check</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; problem
+kareladb&gt; problem
 -------
-(0 rows, 1.8 ms)
+(0 rows, 0.6 ms)
 OK: no damage found in 14 files
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <h2 id="backup-2">.backup</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">.backup</code></pre>
 <p>Makes a backup and checks it, like <code>BACKUP DATABASE</code>. Start the shell with <code>--backups &lt;dir&gt;</code>; otherwise it says <code>no backup folder is set</code>.
 It also deletes old backups: it keeps the newest backup of each of the last 7 days and 4 weeks.</p>
 <p><strong>Command line: Start the shell with a backup folder</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market --backups backups
+<pre><code class="language-bash">kareladb shell market --backups backups
 &gt; .backup</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; backup                      | files | bytes  | log_lsn
+kareladb&gt; backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261022-054332-864 |     9 | 194519 |      30
-(1 row, 28.4 ms)
+backups/20261022-095502-740 |     9 | 194519 |      30
+(1 row, 82.2 ms)
 backup created and verified
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <p><strong>Command line: Without --backups</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; .backup</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; kdb&gt; 
-error: no backup folder is set; start KDB with a backup folder (for example --backups D:/kdb_backups)</code></pre>
+kareladb&gt; kareladb&gt; 
+error: no backup folder is set; start KarelaDB with a backup folder (for example --backups D:/kdb_backups)</code></pre>
 <p>exit code 1</p>
 <h2 id="exit">.exit, .quit</h2>
 <p>Syntax:</p>
@@ -482,20 +482,20 @@ error: no backup folder is set; start KDB with a backup folder (for example --ba
 exit
 quit</code></pre>
 <p>Quits the shell and closes the database cleanly. An open transaction is rolled back.
-The words <code>exit</code> and <code>quit</code> (without a dot) also work, at the <code>kdb&gt;</code> prompt.</p>
+The words <code>exit</code> and <code>quit</code> (without a dot) also work, at the <code>kareladb&gt;</code> prompt.</p>
 <p><strong>Command line</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb shell market
+<pre><code class="language-bash">kareladb shell market
 &gt; SELECT 1 AS one;
 &gt; .quit</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; one
+kareladb&gt; one
 ---
   1
 (1 row, 0.1 ms)
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-sql-and-shell.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cli-sql-and-shell.md">This page as markdown</a>.</footer>
 </body>
 </html>

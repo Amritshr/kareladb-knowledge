@@ -59,13 +59,13 @@ For each different value of the `PARTITION BY` columns, keeps only the row with 
   - `PARTITION BY` here means "per group". It has nothing to do with the `PARTITION BY` of `CREATE TABLE` (the files on disk).
   - It works on one table, a view, or a subquery with an alias. It does **not** work with joins.
   - It also works on relational tables that have a `TIMESTAMP` column (for example the last login of every user).
-  - When two rows of a group have the same newest time, KDB keeps the one it reads last.
+  - When two rows of a group have the same newest time, KarelaDB keeps the one it reads last.
   - On a table split by symbol (`PARTITION BY ..., SYMBOL(symbol)`, see [partitions](partitions-and-dedup.md#partition-by-symbol)), `LATEST ON time PARTITION BY symbol` reads only the last rows of each symbol's newest file, on all threads, not the whole table. With `PARTITION BY YEAR` or `MONTH` that holds without a `WHERE` or with only `symbol = ...` / `symbol IN (...)`; other conditions read the files in full.
   - `WHERE` runs **before** `LATEST ON` (see [the next part](latest-on.md#where-first)).
   - Aggregates, window functions, `ORDER BY` and `LIMIT` run **after** it, on the kept rows only.
   - The column names must be plain names: `PARTITION BY upper(symbol)` is not allowed.
   - QuestDB's older `LATEST BY symbol` works too: it is `LATEST ON` the table's own time column `PARTITION BY symbol`. It needs a time-series table (one with `TIMESERIES(...)`), and it may stand before or after `WHERE`; the `WHERE` still picks the rows first.
-  - KDB keeps one row per group while it reads. More groups than `--max-groups` (5,000,000 by default) stop the query with `the query makes more than N groups (max_groups)`; see [protection](protection.md).
+  - KarelaDB keeps one row per group while it reads. More groups than `--max-groups` (5,000,000 by default) stop the query with `the query makes more than N groups (max_groups)`; see [protection](protection.md).
 
 **Example: The newest daily candle of every symbol** (sample data: sample)
 
@@ -192,7 +192,7 @@ LATEST ON time_column PARTITION BY column, ...
   - "The last price before 13:30 Nepal time" is `WHERE timestamp < '...13:30:00+05:45'`, then `LATEST ON`.
   - "The last price today" is `WHERE timestamp IN '2026-09-10'`: a symbol with no row today is not in the result at all.
   - To filter the **kept** rows (for example "only symbols that are up now"), put the LATEST ON query in a subquery and write the condition outside. A condition in `WHERE` would pick an older row instead.
-  - A time condition in `WHERE` also makes the query fast: KDB reads only the partitions of that time.
+  - A time condition in `WHERE` also makes the query fast: KarelaDB reads only the partitions of that time.
 
 **Example: The last price of each symbol before 13:30 Nepal time** (sample data: sample)
 

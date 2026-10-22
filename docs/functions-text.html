@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Text functions - KDB (KARELA DataBase) docs</title>
+<title>Text functions - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Change case, cut, trim, pad, search and join text. A letter of any language (Nepali, Chinese, ...) counts as one character.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-text.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-text.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/functions-text.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-text.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="text-functions">Text functions</h1>
 <blockquote><p>Change case, cut, trim, pad, search and join text. A letter of any language (Nepali, Chinese, ...) counts as one character.</p></blockquote>
 <ul><li>Category: Functions — text</li><li>Keywords: text, string, STRING, ascii, chr, translate, overlay, PLACING, normalize, NFC, NFD, NFKC, NFKD, U&amp;, to_ascii, remove accents, bit_length, to_hex, parse_ident, string_to_table, number format, format a number, VARCHAR, UTF-8, Unicode, Nepali, Devanagari, characters, letters, bytes, upper case, lower case, cut text, clean text, ||, join text, concatenate, lcase, ucase, len, mid, instr, locate, position IN, lengthb, format, sprintf, printf, string format, quote a name, quote a value, quote_ident, quote_literal, quote_nullable, SQL injection</li><li>See also: <a href="functions-regex.html">Regular expressions</a>, <a href="where.html">WHERE</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="functions-bytes.html">Bytes, hex and base64</a>, <a href="full-text-search.html">Full-text search</a></li></ul>
-<p>These functions work on text (<code>STRING</code>). KDB keeps text as <strong>UTF-8</strong>. UTF-8 is the usual way to store the letters of every language. An English letter takes 1 byte; a Nepali letter like <code>न</code> takes 3 bytes.</p>
+<p>These functions work on text (<code>STRING</code>). KarelaDB keeps text as <strong>UTF-8</strong>. UTF-8 is the usual way to store the letters of every language. An English letter takes 1 byte; a Nepali letter like <code>न</code> takes 3 bytes.</p>
 <ul><li>Text functions count <strong>characters</strong>, not bytes. <code>length(&#39;नेपाल&#39;)</code> is <code>5</code>. Only <code>octet_length</code> counts bytes.</li><li>A <code>NULL</code> argument gives <code>NULL</code>. Only <code>concat</code>, <code>concat_ws</code>, <code>format</code> and <code>quote_nullable</code> take NULLs.</li><li>A number, date or <code>true</code>/<code>false</code> is first turned into text: <code>length(12.50)</code> is <code>4</code>, because the text is <code>12.5</code>.</li><li><code>upper</code>, <code>lower</code> and <code>initcap</code> change the letters of every script that has capitals: English, <code>Ä</code>, <code>ě</code>, Vietnamese, Greek, Cyrillic, Armenian and more. Nepali (Devanagari) has no capitals, so it stays as it is.</li><li>Searching (<code>replace</code>, <code>strpos</code>, <code>starts_with</code>, ...) cares about upper and lower case. To ignore case, use <code>lower()</code> on both sides, <a href="where.html">ILIKE</a> or a <a href="functions-regex.html">regular expression</a> with the flag <code>&#39;i&#39;</code>.</li><li>To find text with a pattern, use <a href="where.html">LIKE and ILIKE</a> or the <a href="functions-regex.html">regular expression functions</a>.</li></ul>
 <p><strong>Example: Clean labels for the company list</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT symbol,
@@ -488,7 +488,7 @@ LIMIT 3;</code></pre>
 <pre><code class="language-sql">text || text</code></pre>
 <p>Joins two values into one text: <code>&#39;CITY&#39; || &#39;-&#39; || 2082</code> is <code>CITY-2082</code>. A number or date on one side is turned into text.</p>
 <div class="table-wrap"><table><thead><tr><th>Operand</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td>left, right</td><td>any type</td><td>the two values to join</td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> <code>STRING</code>. Two <code>BYTES</code> values give <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>. Use <code>concat</code> or <code>coalesce</code> when a value can be <code>NULL</code>.</li><li><strong>Notes:</strong> <code>||</code> has the <strong>same</strong> priority as <code>+</code> and <code>-</code>, and they are done from left to right. So <code>&#39;a&#39; || 1 + 2</code> is <code>(&#39;a&#39; || 1) + 2</code>, which is an error. PostgreSQL does <code>+</code> first. Write <code>&#39;a&#39; || (1 + 2)</code>. MySQL reads <code>||</code> as OR unless a setting is changed; KDB always joins text.</li></ul>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. Two <code>BYTES</code> values give <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>. Use <code>concat</code> or <code>coalesce</code> when a value can be <code>NULL</code>.</li><li><strong>Notes:</strong> <code>||</code> has the <strong>same</strong> priority as <code>+</code> and <code>-</code>, and they are done from left to right. So <code>&#39;a&#39; || 1 + 2</code> is <code>(&#39;a&#39; || 1) + 2</code>, which is an error. PostgreSQL does <code>+</code> first. Write <code>&#39;a&#39; || (1 + 2)</code>. MySQL reads <code>||</code> as OR unless a setting is changed; KarelaDB always joins text.</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT &#39;CITY&#39; || &#39;-&#39; || 2082 AS a, &#39;Close: &#39; || 512.5 AS b, &#39;a&#39; || NULL AS with_null, &#39;total &#39; || (1 + 2) AS brackets;</code></pre>
 <p>Result:</p>
@@ -552,10 +552,10 @@ ORDER BY symbol;</code></pre>
 <h2 id="to-str">to_str</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">to_str(time, format)</code></pre>
-<p>Writes a time as text in the QuestDB format letters. QuestDB apps use this name; KDB&#39;s own name for the same job is <a href="functions-date-time.html#to_char">to_char</a>.</p>
+<p>Writes a time as text in the QuestDB format letters. QuestDB apps use this name; KarelaDB&#39;s own name for the same job is <a href="functions-date-time.html#to_char">to_char</a>.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>time</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time to write</td></tr><tr><td><code>format</code></td><td><code>STRING</code></td><td>the pattern, see the table below</td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Letters</th><th>Gives</th><th>Example</th></tr></thead><tbody><tr><td><code>yyyy</code>, <code>yy</code></td><td>year, 4 or 2 digits</td><td><code>2026</code>, <code>26</code></td></tr><tr><td><code>MM</code>, <code>MMM</code></td><td>month number, month name</td><td><code>09</code>, <code>Sep</code></td></tr><tr><td><code>dd</code></td><td>day of the month</td><td><code>10</code></td></tr><tr><td><code>HH</code>, <code>hh</code></td><td>hour 0-23, hour 1-12</td><td><code>05</code>, <code>11</code></td></tr><tr><td><code>mm</code>, <code>ss</code>, <code>SSS</code></td><td>minute, second, millisecond</td><td><code>15</code>, <code>00</code>, <code>123</code></td></tr><tr><td><code>EEE</code></td><td>weekday name</td><td><code>Thu</code></td></tr><tr><td><code>a</code></td><td>AM or PM</td><td><code>AM</code></td></tr><tr><td><code>&#39;text&#39;</code></td><td>text in single quotes is written as it is</td><td><code>&#39;at&#39;</code></td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when the time or the format is <code>NULL</code>.</li><li><strong>Notes:</strong> everything is <strong>UTC</strong>. For a local clock add its offset first, for example 20700000 for Nepal: <code>to_str(time + 20700000, &#39;HH:mm&#39;)</code>. Letters KDB does not know are written as they are. <code>UUU</code> (microseconds) is always <code>000</code>, because KDB keeps milliseconds.</li></ul>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when the time or the format is <code>NULL</code>.</li><li><strong>Notes:</strong> everything is <strong>UTC</strong>. For a local clock add its offset first, for example 20700000 for Nepal: <code>to_str(time + 20700000, &#39;HH:mm&#39;)</code>. Letters KarelaDB does not know are written as they are. <code>UUU</code> (microseconds) is always <code>000</code>, because KarelaDB keeps milliseconds.</li></ul>
 <p><strong>Example: Minute candles with a readable clock</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT to_str(time, &#39;yyyy-MM-dd&#39;) AS day,
        to_str(time, &#39;HH:mm&#39;) AS utc_clock,
@@ -682,7 +682,7 @@ normalize(text, NFC | NFD | NFKC | NFKD)</code></pre>
 <pre><code class="language-sql">to_ascii(text)
 to_ascii(text, &#39;LATIN1&#39;)</code></pre>
 <p>The text with accents taken off, in plain ASCII: <code>to_ascii(&#39;Karél&#39;)</code> is <code>Karel</code>.</p>
-<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>Notes:</strong> Latin-1 letters follow PostgreSQL&#39;s table (<code>Æ</code> → <code>A</code>, <code>ß</code> → <code>B</code>, <code>ÿ</code> → <code>y</code>). Other letters with accents keep their letter (<code>ě</code> → <code>e</code>). A PostgreSQL database in UTF-8 refuses <code>to_ascii</code> altogether; KDB answers as a PostgreSQL database in LATIN1 does.</li><li><strong>Errors:</strong> a character with no ASCII form, such as Nepali letters: &quot;has no ASCII equivalent&quot; (SQLSTATE 22P05). Encodings other than LATIN1 are not supported (0A000).</li></ul>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>Notes:</strong> Latin-1 letters follow PostgreSQL&#39;s table (<code>Æ</code> → <code>A</code>, <code>ß</code> → <code>B</code>, <code>ÿ</code> → <code>y</code>). Other letters with accents keep their letter (<code>ě</code> → <code>e</code>). A PostgreSQL database in UTF-8 refuses <code>to_ascii</code> altogether; KarelaDB answers as a PostgreSQL database in LATIN1 does.</li><li><strong>Errors:</strong> a character with no ASCII form, such as Nepali letters: &quot;has no ASCII equivalent&quot; (SQLSTATE 22P05). Encodings other than LATIN1 are not supported (0A000).</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT to_ascii(&#39;Karél&#39;) AS a, to_ascii(&#39;Škoda Ørsted&#39;) AS b;</code></pre>
 <p>Result:</p>
@@ -746,6 +746,6 @@ LIMIT 3;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>turnover (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>1,012,051,301.00</td></tr><tr><td>COAST</td><td>640,748,179.00</td></tr><tr><td>VOLT</td><td>326,540,767.00</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-text.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-text.md">This page as markdown</a>.</footer>
 </body>
 </html>

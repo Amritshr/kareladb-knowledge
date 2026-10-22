@@ -11,13 +11,13 @@ A **pinned query** is a `SELECT` the server keeps ready. Pin the slow question a
 - It is computed **when the database opens**, right after the indexes are [built at open](indexes.md#warm), before anyone asks.
 - It is **never pushed out** of the result cache by other results, and it may take up to **three quarters** of the cache (an ordinary result is kept only up to a quarter).
 - After a **write** to a table it reads, the server computes it again by itself once the database has been quiet for half a second, so the next request finds it fresh. On a database that is written all the time and is never quiet, it does so at the latest two seconds after the first write that made the result old. A request that comes before that computes it, as any query would.
-- Pins are saved in the table `_pinned_queries` of the hidden `_system` database (like [timers](timers.md)), or of the served database when `kdb serve` runs on one folder, so they survive restarts and are part of every backup.
+- Pins are saved in the table `_pinned_queries` of the hidden `_system` database (like [timers](timers.md)), or of the served database when `kareladb serve` runs on one folder, so they survive restarts and are part of every backup.
 
 The rules of the cache still apply: the statement must be one cacheable `SELECT` of this database (no `now()`, no random functions, no other database), and the **row limit is part of the key**: pin it with the `max_rows` the requests use (`/exec` sends 10,000 unless `limit=` says otherwise; the console sends 10,000).
 
 A pin is saved code that later runs by itself, without a rights check: only a server **admin** can pin or unpin, and every change is written to the [audit log](audit-log.md) (event `pin`).
 
-Pins are a feature of `kdb serve`. A server started without them answers `/api/pins` with 404.
+Pins are a feature of `kareladb serve`. A server started without them answers `/api/pins` with 404.
 
 <a id="get-api-pins"></a>
 
@@ -95,12 +95,12 @@ HTTP 200 (application/json)
   "sql": "SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol",
   "max_rows": 10000,
   "enabled": true,
-  "created_ms": 1792647859769,
+  "created_ms": 1792662978203,
   "created_by": "",
   "open": true,
   "cached": false,
   "cached_bytes": 0,
-  "last_run_ms": 1792647859769,
+  "last_run_ms": 1792662978231,
   "last_ok": true,
   "last_error": "",
   "error": ""
@@ -113,19 +113,19 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792647859811,
+  "now_ms": 1792662978382,
   "pins": [
     {
       "database": "demo",
       "sql": "SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol",
       "max_rows": 10000,
       "enabled": true,
-      "created_ms": 1792647859769,
+      "created_ms": 1792662978203,
       "created_by": "",
       "open": true,
       "cached": false,
       "cached_bytes": 0,
-      "last_run_ms": 1792647859769,
+      "last_run_ms": 1792662978231,
       "last_ok": true,
       "last_error": "",
       "error": ""
@@ -198,12 +198,12 @@ HTTP 200 (application/json)
   "sql": "SELECT symbol, sum(qty) FROM trades GROUP BY symbol",
   "max_rows": 10000,
   "enabled": true,
-  "created_ms": 1792647859798,
+  "created_ms": 1792662978231,
   "created_by": "",
   "open": true,
   "cached": false,
   "cached_bytes": 0,
-  "last_run_ms": 1792647859799,
+  "last_run_ms": 1792662978232,
   "last_ok": true,
   "last_error": "",
   "error": ""

@@ -3,28 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Backups on a schedule - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="kdb serve makes a verified backup of every database at set times, checks a second copy on another disk, runs your command to copy each backup off the server, and warns when the last good backup is old.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/backup-schedule.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/backup-schedule.md">
+<title>Backups on a schedule - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="kareladb serve makes a verified backup of every database at set times, checks a second copy on another disk, runs your command to copy each backup off the server, and warns when the last good backup is old.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/backup-schedule.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/backup-schedule.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="backups-on-a-schedule">Backups on a schedule</h1>
-<blockquote><p>kdb serve makes a verified backup of every database at set times, checks a second copy on another disk, runs your command to copy each backup off the server, and warns when the last good backup is old.</p></blockquote>
-<ul><li>Category: Backup, check, repair, restore</li><li>Keywords: backup schedule, scheduled backup, nightly backup, daily backup, automatic backup, second copy, copy to another disk, offsite, off-site, S3, rclone, scp, remote storage, backup command, backup status, backup warning, default backup folder, _backups, KDB_BACKUP_DIR, KDB_BACKUP_SCHEDULE, KDB_BACKUP_COMMAND, KDB_BACKUP_KEEP_DAILY, KDB_BACKUP_KEEP_WEEKLY, backup_dir, backup_schedule, backup_command, --backups, --backup-schedule, --backup-copy, --backup-command, --backup-warn-hours, --keep-daily, --keep-weekly, daily, hourly, every</li><li>See also: <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-serve.html">kdb serve</a>, <a href="cli-maintenance.html">kdb info, check, repair, dump-file</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a>, <a href="audit-log.html">Audit log</a></li></ul>
-<p>You do not need a scheduled task outside KDB: <code>kdb serve</code> makes the backups itself.</p>
-<p>A backup does not stop the database. KDB waits for an open transaction to end, writes a checkpoint, and then copies the files while reads and writes go on.</p>
+<blockquote><p>kareladb serve makes a verified backup of every database at set times, checks a second copy on another disk, runs your command to copy each backup off the server, and warns when the last good backup is old.</p></blockquote>
+<ul><li>Category: Backup, check, repair, restore</li><li>Keywords: backup schedule, scheduled backup, nightly backup, daily backup, automatic backup, second copy, copy to another disk, offsite, off-site, S3, rclone, scp, remote storage, backup command, backup status, backup warning, default backup folder, _backups, KARELADB_BACKUP_DIR, KARELADB_BACKUP_SCHEDULE, KARELADB_BACKUP_COMMAND, KARELADB_BACKUP_KEEP_DAILY, KARELADB_BACKUP_KEEP_WEEKLY, backup_dir, backup_schedule, backup_command, --backups, --backup-schedule, --backup-copy, --backup-command, --backup-warn-hours, --keep-daily, --keep-weekly, daily, hourly, every</li><li>See also: <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-serve.html">kareladb serve</a>, <a href="cli-maintenance.html">kareladb info, check, repair, dump-file</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a>, <a href="audit-log.html">Audit log</a></li></ul>
+<p>You do not need a scheduled task outside KarelaDB: <code>kareladb serve</code> makes the backups itself.</p>
+<p>A backup does not stop the database. KarelaDB waits for an open transaction to end, writes a checkpoint, and then copies the files while reads and writes go on.</p>
 <h2 id="backup-settings">Where the settings come from</h2>
-<p>Each backup setting is read when the server starts. The first of these wins: a flag, <code>kdb.conf</code> (the <a href="console-settings.html#backups">Settings page</a> saves it there), the environment, the default.</p>
-<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Flag</th><th><code>kdb.conf</code></th><th>Environment</th><th>Default</th></tr></thead><tbody><tr><td>backup folder</td><td><code>--backups &lt;dir&gt;</code></td><td><code>backup_dir</code></td><td><code>KDB_BACKUP_DIR</code></td><td><code>_backups</code> in the data folder (one folder served by its path: <code>_backups/&lt;folder name&gt;</code> next to it)</td></tr><tr><td>schedule</td><td><code>--backup-schedule</code></td><td><code>backup_schedule</code></td><td><code>KDB_BACKUP_SCHEDULE</code></td><td><code>off</code></td></tr><tr><td>daily backups kept</td><td><code>--keep-daily</code></td><td><code>backup_keep_daily</code></td><td><code>KDB_BACKUP_KEEP_DAILY</code></td><td>7</td></tr><tr><td>weekly backups kept</td><td><code>--keep-weekly</code></td><td><code>backup_keep_weekly</code></td><td><code>KDB_BACKUP_KEEP_WEEKLY</code></td><td>4</td></tr><tr><td>copy command</td><td><code>--backup-command</code></td><td><code>backup_command</code></td><td><code>KDB_BACKUP_COMMAND</code></td><td>none</td></tr></tbody></table></div>
-<ul><li>A server with a data folder always has a backup folder: <code>&lt;data folder&gt;/_backups</code>, one sub-folder per database. In Docker that is <code>/data/_backups</code>, inside the volume, so a rebuild keeps it. <code>BACKUP DATABASE</code> and <strong>Backup now</strong> work without any setting.</li><li><code>off</code> as the folder turns backups off. <code>_backups</code> cannot be a database name.</li><li>The default folder is on the <strong>same disk</strong> as the data. Copy the backups off the server too: <a href="#backup-command">--backup-command</a> or <a href="#backup-copy">--backup-copy</a>.</li><li>A folder served by its path (<code>kdb serve D:\kdb\market</code>) backs up into <code>D:\kdb\_backups\market</code>: the folder a data-folder server in <code>D:\kdb</code> would use for the database <code>market</code>, so both keep one set of backups. It is next to the database folder, never inside it.</li><li>The Settings page can save the schedule and what is kept, not the copy command: a command runs programs on the server, so only whoever can edit <code>kdb.conf</code> (or the server&#39;s start command) sets it.</li></ul>
+<p>Each backup setting is read when the server starts. The first of these wins: a flag, <code>kareladb.conf</code> (the <a href="console-settings.html#backups">Settings page</a> saves it there), the environment, the default.</p>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Flag</th><th><code>kareladb.conf</code></th><th>Environment</th><th>Default</th></tr></thead><tbody><tr><td>backup folder</td><td><code>--backups &lt;dir&gt;</code></td><td><code>backup_dir</code></td><td><code>KARELADB_BACKUP_DIR</code></td><td><code>_backups</code> in the data folder (one folder served by its path: <code>_backups/&lt;folder name&gt;</code> next to it)</td></tr><tr><td>schedule</td><td><code>--backup-schedule</code></td><td><code>backup_schedule</code></td><td><code>KARELADB_BACKUP_SCHEDULE</code></td><td><code>off</code></td></tr><tr><td>daily backups kept</td><td><code>--keep-daily</code></td><td><code>backup_keep_daily</code></td><td><code>KARELADB_BACKUP_KEEP_DAILY</code></td><td>7</td></tr><tr><td>weekly backups kept</td><td><code>--keep-weekly</code></td><td><code>backup_keep_weekly</code></td><td><code>KARELADB_BACKUP_KEEP_WEEKLY</code></td><td>4</td></tr><tr><td>copy command</td><td><code>--backup-command</code></td><td><code>backup_command</code></td><td><code>KARELADB_BACKUP_COMMAND</code></td><td>none</td></tr></tbody></table></div>
+<ul><li>A server with a data folder always has a backup folder: <code>&lt;data folder&gt;/_backups</code>, one sub-folder per database. In Docker that is <code>/data/_backups</code>, inside the volume, so a rebuild keeps it. <code>BACKUP DATABASE</code> and <strong>Backup now</strong> work without any setting.</li><li><code>off</code> as the folder turns backups off. <code>_backups</code> cannot be a database name.</li><li>The default folder is on the <strong>same disk</strong> as the data. Copy the backups off the server too: <a href="#backup-command">--backup-command</a> or <a href="#backup-copy">--backup-copy</a>.</li><li>A folder served by its path (<code>kareladb serve D:\kdb\market</code>) backs up into <code>D:\kdb\_backups\market</code>: the folder a data-folder server in <code>D:\kdb</code> would use for the database <code>market</code>, so both keep one set of backups. It is next to the database folder, never inside it.</li><li>The Settings page can save the schedule and what is kept, not the copy command: a command runs programs on the server, so only whoever can edit <code>kareladb.conf</code> (or the server&#39;s start command) sets it.</li></ul>
 <p><strong>Command line: The default backup folder in the start-up lines</strong></p>
-<pre><code class="language-bash">kdb serve</code></pre>
+<pre><code class="language-bash">kareladb serve</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev
+<pre><code class="language-text">cold store &#39;archive&#39;: folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./kdb-data (from KDB_DATA_DIR; one folder per database)
   default   default (used when a request names no database)
@@ -49,25 +50,26 @@ Press Ctrl+C to stop.</code></pre>
 <ol><li>Open <strong>Settings &gt; Backups</strong> in the console, type <code>daily 16:30</code> as the schedule and press <strong>Save</strong>. Or send it with the token:</li></ol>
 <p>Syntax:</p>
 <pre><code class="language-sql">POST /api/settings   {&quot;backup_schedule&quot;: &quot;daily 16:30&quot;}   -&gt;  {&quot;saved&quot;: true, &quot;restart_required&quot;: true, ...}</code></pre>
-<ol start="2"><li>The schedule is saved in <code>kdb.conf</code> and used <strong>from the next start</strong>. Restart the server (the <strong>Restart</strong> button on the Settings page, or restart the service or container).</li><li>Check it: <code>GET /api/info</code> shows <code>&quot;backup_schedule&quot;: {&quot;schedule&quot;: &quot;daily 16:30&quot;, &quot;next_run_ms&quot;: ...}</code>, and the Settings page shows the schedule from <code>kdb.conf</code>.</li></ol>
-<ul><li>In a container the time is UTC unless <code>kdb serve --timezone</code> is set: <code>daily 16:30</code> is 22:15 in Nepal.</li><li>Pick a time after the day&#39;s data is in. A backup does not stop reads or writes.</li><li>Then set a <a href="#backup-command">copy command</a>, so a lost disk does not take the backups with it.</li></ul>
+<ol start="2"><li>The schedule is saved in <code>kareladb.conf</code> and used <strong>from the next start</strong>. Restart the server (the <strong>Restart</strong> button on the Settings page, or restart the service or container).</li><li>Check it: <code>GET /api/info</code> shows <code>&quot;backup_schedule&quot;: {&quot;schedule&quot;: &quot;daily 16:30&quot;, &quot;next_run_ms&quot;: ...}</code>, and the Settings page shows the schedule from <code>kareladb.conf</code>.</li></ol>
+<ul><li>In a container the time is UTC unless <code>kareladb serve --timezone</code> is set: <code>daily 16:30</code> is 22:15 in Nepal.</li><li>Pick a time after the day&#39;s data is in. A backup does not stop reads or writes.</li><li>Then set a <a href="#backup-command">copy command</a>, so a lost disk does not take the backups with it.</li></ul>
 <h2 id="backup-schedule">--backup-schedule</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb serve [--backups &lt;dir&gt;] --backup-schedule &quot;daily 16:00&quot; [--keep-daily 7] [--keep-weekly 4]</code></pre>
+<pre><code class="language-sql">kareladb serve [--backups &lt;dir&gt;] --backup-schedule &quot;daily 16:00&quot; [--keep-daily 7] [--keep-weekly 4]</code></pre>
 <div class="table-wrap"><table><thead><tr><th>Schedule</th><th>Meaning</th></tr></thead><tbody><tr><td><code>daily 16:00</code></td><td>every day at 16:00</td></tr><tr><td><code>daily 02:00,14:00</code></td><td>several times a day</td></tr><tr><td><code>hourly</code>, <code>hourly :30</code></td><td>every hour, at minute 0 (or 30)</td></tr><tr><td><code>every 6h</code>, <code>every 30m</code></td><td>counted from midnight, 5 minutes to 24 hours</td></tr><tr><td><code>off</code></td><td>no scheduled backups (the default)</td></tr></tbody></table></div>
-<p>Times are the <strong>local time of the computer</strong>, or the zone of <code>kdb serve --timezone</code> when it is set (in a zone without daylight saving, such as Nepal <code>+05:45</code>, <code>daily 16:00</code> is always the same hour; pick a time after your data for the day is in).</p>
+<p>Times are the <strong>local time of the computer</strong>, or the zone of <code>kareladb serve --timezone</code> when it is set (in a zone without daylight saving, such as Nepal <code>+05:45</code>, <code>daily 16:00</code> is always the same hour; pick a time after your data for the day is in).</p>
 <ul><li><strong>Returns:</strong> the start-up lines show <code>schedule  backups daily 16:00, next 2026-09-12 16:00:00</code>. Each backup writes a line: <code>backup of &#39;market&#39; OK: 12 files, 3.4 MB, 850 ms, ...</code> or <code>backup of &#39;market&#39; FAILED: ...</code>.</li><li><strong>Notes:</strong>
 <ul><li>Every database of the data folder and <code>_system</code> (users, audit log) are backed up into <code>&lt;dir&gt;/&lt;name&gt;</code>. Each backup is read back and checked before it counts.</li><li>Old backups are removed by <code>--keep-daily</code> and <code>--keep-weekly</code> (7 and 4).</li><li>Each backup is in the <a href="audit-log.html">audit log</a> (<code>event = &#39;backup&#39;</code>).</li></ul></li></ul>
-<div class="table-wrap"><table><thead><tr><th>Start error</th><th>Why</th></tr></thead><tbody><tr><td><code>a backup schedule needs a backup folder: add --backups &lt;dir&gt; (or KDB_BACKUP_DIR)</code></td><td>a schedule with the folder <code>off</code></td></tr><tr><td><code>--backup-copy needs a backup schedule (the copy is made after each scheduled backup)</code></td><td>a copy without a schedule</td></tr><tr><td><code>the backup schedule (--backup-schedule): the backup interval must be from 5 minutes to 24 hours</code></td><td><code>every 1m</code> and the like</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Start error</th><th>Why</th></tr></thead><tbody><tr><td><code>a backup schedule needs a backup folder: add --backups &lt;dir&gt; (or KARELADB_BACKUP_DIR)</code></td><td>a schedule with the folder <code>off</code></td></tr><tr><td><code>--backup-copy needs a backup schedule (the copy is made after each scheduled backup)</code></td><td>a copy without a schedule</td></tr><tr><td><code>the backup schedule (--backup-schedule): the backup interval must be from 5 minutes to 24 hours</code></td><td><code>every 1m</code> and the like</td></tr></tbody></table></div>
 <p>These stop the start only when the flags themselves clash. When the folder
-<code>off</code> comes from <code>kdb.conf</code> or <code>KDB_BACKUP_DIR</code>, the server starts anyway with
+<code>off</code> comes from <code>kareladb.conf</code> or <code>KARELADB_BACKUP_DIR</code>, the server starts anyway with
 <code>warning: backups are off ... starting without scheduled backups</code>, so the
 console stays reachable to fix it. The Settings page refuses to save such a
 clash: send <code>{&quot;backup_dir&quot;: &quot;off&quot;, &quot;backup_schedule&quot;: &quot;off&quot;}</code> to turn both off.</p>
 <p><strong>Command line: Backups every day at 16:00 local time</strong></p>
-<pre><code class="language-bash">kdb serve --backups backups --backup-schedule &quot;daily 16:00&quot;</code></pre>
+<pre><code class="language-bash">kareladb serve --backups backups --backup-schedule &quot;daily 16:00&quot;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev
+<pre><code class="language-text">cold store &#39;archive&#39;: folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./kdb-data (from KDB_DATA_DIR; one folder per database)
   default   default (used when a request names no database)
@@ -89,31 +91,33 @@ clash: send <code>{&quot;backup_dir&quot;: &quot;off&quot;, &quot;backup_schedul
 
 Press Ctrl+C to stop.</code></pre>
 <p><strong>Command line: A schedule with backups turned off is refused</strong></p>
-<pre><code class="language-bash">kdb serve --backups off --backup-schedule &quot;daily 16:00&quot;</code></pre>
+<pre><code class="language-bash">kareladb serve --backups off --backup-schedule &quot;daily 16:00&quot;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">error: a backup schedule needs a backup folder: add --backups &lt;dir&gt; (or KDB_BACKUP_DIR)</code></pre>
+<pre><code class="language-text">cold store &#39;archive&#39;: folder ./cold-archive
+error: a backup schedule needs a backup folder: add --backups &lt;dir&gt; (or KARELADB_BACKUP_DIR)</code></pre>
 <p>exit code 1</p>
 <h2 id="backup-copy">--backup-copy</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb serve --backups &lt;dir&gt; --backup-schedule &quot;...&quot; --backup-copy &lt;dir on another disk&gt;</code></pre>
-<p>After each scheduled backup, KDB copies it to a second folder (another disk, a USB disk, a mounted network drive) and checks the copy there: every block checksum and every log checksum is read back from the copy. A backup on the same disk is lost with the disk.</p>
+<pre><code class="language-sql">kareladb serve --backups &lt;dir&gt; --backup-schedule &quot;...&quot; --backup-copy &lt;dir on another disk&gt;</code></pre>
+<p>After each scheduled backup, KarelaDB copies it to a second folder (another disk, a USB disk, a mounted network drive) and checks the copy there: every block checksum and every log checksum is read back from the copy. A backup on the same disk is lost with the disk.</p>
 <ul><li><strong>Returns:</strong> the log line says <code>copy checked: E:/kdb_copy/market/...</code> or <code>COPY FAILED: ...</code>.</li><li><strong>Notes:</strong> the copy keeps old backups by the same <code>--keep-daily</code> / <code>--keep-weekly</code>. For a cloud or another computer, use <a href="#backup-command">--backup-command</a>.</li></ul>
 <h2 id="backup-command">--backup-command</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb serve --backup-command &quot;&lt;command with {dir}, {database}, {name}&gt;&quot;</code></pre>
-<p>After <strong>every</strong> backup the server makes (the schedule, <code>BACKUP DATABASE</code>, <strong>Backup now</strong>, <code>POST /api/backup</code>), it runs this command to copy the backup off the server. KDB has no cloud code of its own: the command is any tool you have installed and logged in (rclone, the AWS CLI, scp, robocopy).</p>
+<pre><code class="language-sql">kareladb serve --backup-command &quot;&lt;command with {dir}, {database}, {name}&gt;&quot;</code></pre>
+<p>After <strong>every</strong> backup the server makes (the schedule, <code>BACKUP DATABASE</code>, <strong>Backup now</strong>, <code>POST /api/backup</code>), it runs this command to copy the backup off the server. KarelaDB has no cloud code of its own: the command is any tool you have installed and logged in (rclone, the AWS CLI, scp, robocopy).</p>
 <div class="table-wrap"><table><thead><tr><th>In the command</th><th>Becomes</th></tr></thead><tbody><tr><td><code>{dir}</code></td><td>the new backup folder, full path</td></tr><tr><td><code>{database}</code></td><td>the database&#39;s name</td></tr><tr><td><code>{name}</code></td><td>the backup folder&#39;s own name, like <code>20260924-160000-123</code></td></tr></tbody></table></div>
 <ul><li>Each value is put in quotes for the shell. Without any placeholder the folder is added at the end.</li><li>The command runs through <code>/bin/sh</code> (Linux, Docker) or <code>cmd.exe</code> (Windows). Exit code <code>0</code> is success.</li><li>It never holds up the database: the backup is finished when the command starts. Commands run one at a time, in order; at most 100 wait.</li><li><strong>Returns:</strong> a line in the server log (<code>backup copy command for &#39;market&#39; OK in 5200 ms: ...</code> or <code>FAILED (exit code 1) ... - &lt;its last line&gt;</code>), an event in the activity log, and <code>backup_command</code> in <code>/api/info</code> (below). The console shows <code>(copy failed)</code> next to <strong>Last backup</strong>.</li><li>The tool must be inside the Docker image or on the host&#39;s <code>PATH</code>. Test the command by hand once.</li></ul>
 <p>Syntax:</p>
 <pre><code class="language-sql">rclone:   --backup-command &quot;rclone copy {dir} remote:kdb/{database}/{name}&quot;
 AWS S3:   --backup-command &quot;aws s3 cp --recursive {dir} s3://my-bucket/kdb/{database}/{name}&quot;
-scp:      --backup-command &quot;scp -r {dir} backup@10.0.0.9:/srv/kdb/{database}/&quot;
+scp:      --backup-command &quot;scp -r {dir} backup@10.0.0.9:/srv/kareladb/{database}/&quot;
 Windows:  --backup-command &quot;robocopy {dir} \\nas\kdb\{name} /E&quot;</code></pre>
-<p>A copy made with <code>--backup-command</code> is a plain folder: to use it, copy it back and restore it (<a href="backup-and-safety.html#kdb-restore">kdb restore</a>, or put it in the backup folder and use <a href="http-server-info.html#api-restore">POST /api/restore</a>).</p>
+<p>A copy made with <code>--backup-command</code> is a plain folder: to use it, copy it back and restore it (<a href="backup-and-safety.html#kareladb-restore">kareladb restore</a>, or put it in the backup folder and use <a href="http-server-info.html#api-restore">POST /api/restore</a>).</p>
 <p><strong>Command line: A command after each backup: here it only prints the folder</strong></p>
-<pre><code class="language-bash">kdb serve --backup-command &quot;echo copy {database} {name}&quot;</code></pre>
+<pre><code class="language-bash">kareladb serve --backup-command &quot;echo copy {database} {name}&quot;</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev
+<pre><code class="language-text">cold store &#39;archive&#39;: folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./kdb-data (from KDB_DATA_DIR; one folder per database)
   default   default (used when a request names no database)
@@ -136,7 +140,7 @@ Windows:  --backup-command &quot;robocopy {dir} \\nas\kdb\{name} /E&quot;</code>
 Press Ctrl+C to stop.</code></pre>
 <h2 id="backup-warn-hours">--backup-warn-hours</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb serve ... --backup-schedule &quot;...&quot; --backup-warn-hours 26        (0 = no warning)</code></pre>
+<pre><code class="language-sql">kareladb serve ... --backup-schedule &quot;...&quot; --backup-warn-hours 26        (0 = no warning)</code></pre>
 <p>Each database is checked on its own. When a database&#39;s newest good backup is older than this, the log says so once an hour, naming the database: <code>WARNING: the last good backup of &#39;sales&#39; is 30 hours old ...</code>. <code>/api/info</code> and the console show the same warning.</p>
 <ul><li>A database with no backup at all counts from when the server first saw it: <code>WARNING: database &#39;test_01&#39; has no good backup yet (known for 27 hours) ...</code>. A database made after today&#39;s round is backed up by the next one, so it is not overdue before that.</li><li>When several databases are overdue, the one waiting longest is named and the rest are counted: <code>... (and 12 more databases)</code>.</li><li>The server reads the backup folders at start and every hour after, so a backup made by hand (<code>BACKUP DATABASE</code>) counts too. It never opens a database to do so.</li></ul>
 <h2 id="backup-status">Backup status in /api/info</h2>
@@ -149,6 +153,6 @@ Press Ctrl+C to stop.</code></pre>
                                       &quot;last&quot;: {&quot;database&quot;, &quot;dir&quot;, &quot;ok&quot;, &quot;exit_code&quot;, &quot;output&quot;, &quot;started_ms&quot;, &quot;took_ms&quot;}}</code></pre>
 <ul><li><code>null</code> without a copy command. <code>output</code> is the end of what the command printed, shown to admins only (<code>&quot;&quot;</code> for other users).</li></ul>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/backup-schedule.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/backup-schedule.md">This page as markdown</a>.</footer>
 </body>
 </html>

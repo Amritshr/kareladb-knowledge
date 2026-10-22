@@ -3,10 +3,10 @@
 > Let the server run a procedure, a function or any SQL by itself at set times, so a table stays up to date.
 
 - Category: Stored procedures
-- Keywords: timer, timers, schedule, scheduled job, job, cron, every, hourly, daily, weekdays, sun-thu, mon-fri, trading week, trading days, holidays, trading nepse 15:05, catch up, skipped, monthly, retention, keep data for, run on time, back to back, timer\_workers, --timer-workers, KDB\_TIMER\_WORKERS, GET /api/timers, POST /api/timers, POST /api/timers/\<name\>/run, \_timers
+- Keywords: timer, timers, schedule, scheduled job, job, cron, every, hourly, daily, weekdays, sun-thu, mon-fri, trading week, trading days, holidays, trading nepse 15:05, catch up, skipped, monthly, retention, keep data for, run on time, back to back, timer\_workers, --timer-workers, KARELADB\_TIMER\_WORKERS, GET /api/timers, POST /api/timers, POST /api/timers/\<name\>/run, \_timers
 - See also: [Stored procedures](procedures.md), [Saved functions](saved-functions.md), [Triggers](triggers.md), [Trading calendars](calendars.md), [Backups on a schedule](backup-schedule.md), [HTTP API overview](http-overview.md)
 
-A **timer** is saved SQL that the server runs by itself at set times, inside one database. Most timers call a [procedure](procedures.md), so a table of totals, candles or reports is kept up to date without a cron job outside KDB.
+A **timer** is saved SQL that the server runs by itself at set times, inside one database. Most timers call a [procedure](procedures.md), so a table of totals, candles or reports is kept up to date without a cron job outside KarelaDB.
 
 | Part | Example | Rule |
 |---|---|---|
@@ -15,7 +15,7 @@ A **timer** is saved SQL that the server runs by itself at set times, inside one
 | SQL | `CALL refresh_daily_totals()` | any SQL of that database, up to 64 KB; it must parse when the timer is saved |
 | enabled | `true` | a timer that is off does not run on its schedule, but **Run now** still works |
 
-- Timers run while `kdb serve` runs. They are saved in the table `_timers` of the hidden `_system` database, or of the served database when `kdb serve` runs on one folder, so they survive restarts and are part of every backup.
+- Timers run while `kareladb serve` runs. They are saved in the table `_timers` of the hidden `_system` database, or of the served database when `kareladb serve` runs on one folder, so they survive restarts and are part of every backup.
 - A timer runs with the rights of the user who saved it last. Saved with the token, it may do everything.
 - **Who may do what.** Reading the list needs `read` on the database. Saving, running, turning off and deleting a timer need `admin` on that database, as `CREATE TRIGGER` and `CREATE PROCEDURE` do, because a timer is saved code that runs later by itself.
 - **Audited.** Every save, **Run now**, turn on or off and delete is one row in the [audit log](audit-log.md) with the event `timer`, the user, the database and the timer's name.
@@ -25,7 +25,7 @@ A **timer** is saved SQL that the server runs by itself at set times, inside one
 
 ## Schedules
 
-Times are the local time of the computer the server runs on, or the zone of `kdb serve --timezone Asia/Kathmandu` when it is set (a container runs on UTC, so set it there: `daily 15:10` then runs at 15:10 Nepal time).
+Times are the local time of the computer the server runs on, or the zone of `kareladb serve --timezone Asia/Kathmandu` when it is set (a container runs on UTC, so set it there: `daily 15:10` then runs at 15:10 Nepal time).
 
 | Schedule | Runs |
 |---|---|
@@ -53,7 +53,7 @@ Times are the local time of the computer the server runs on, or the zone of `kdb
 - **One at a time.** A timer never runs twice at once. When it is still running at its next due time, that due time runs as soon as the run ends: a **catch-up** run (`caught_up`). More due times during the same run get no run of their own.
 - **No back-to-back runs.** A catch-up runs only when the run before it took less than one interval and ended before the next regular time - for example a run that started late because no worker was free. A timer that takes longer than its interval (an `every 10s` that takes 11 s) keeps its regular times (0 s, 20 s, 40 s ...) instead of running all the time, and each due time in between is skipped with the reason.
 - **Nothing is dropped quietly.** A due time that gets no run is counted in `skipped`, with the time (`last_skip_ms`) and the reason (`last_skip_reason`), and written to the server log and the activity log. This covers a run that is still going, a computer that was busy or asleep, a clock set forward, and a server that was stopped: after a start, the due times missed while it was down are counted, not run.
-- **One slow timer does not make others late.** Two workers are always there; when both are busy and another timer is due, a worker is added (up to three), so the other timer starts on time. Each running timer is one more writer at the database, so the limit is small. Change it with `timer_workers` in `kdb.conf`, `kdb serve --timer-workers N` or `KDB_TIMER_WORKERS` (1 to 64; the flag wins, then `kdb.conf`, then the environment). `1` runs one timer at a time.
+- **One slow timer does not make others late.** Two workers are always there; when both are busy and another timer is due, a worker is added (up to three), so the other timer starts on time. Each running timer is one more writer at the database, so the limit is small. Change it with `timer_workers` in `kareladb.conf`, `kareladb serve --timer-workers N` or `KARELADB_TIMER_WORKERS` (1 to 64; the flag wins, then `kareladb.conf`, then the environment). `1` runs one timer at a time.
 - **Clock changes.** The server sleeps on a clock that nobody sets, and looks at least once a second. When the computer's clock is set back, every next run is planned again; set forward, the due times jumped over are counted as skipped.
 - **Each statement commits by itself.** To make all of it one step, put the SQL in a procedure: `CALL` runs a procedure as one transaction.
 - **A transaction left open is rolled back** at the end of the run (for example `BEGIN; INSERT ...` without `COMMIT`).
@@ -69,7 +69,7 @@ Open **Timers** in the web console. The list shows each timer's schedule, the ne
 
 The **Monitor** (the flyout on the right) has a **Timers** block with the timers of every database you may read, trouble first: when each last ran and whether it failed, how many seconds late it started, how many runs failed in the last 24 hours, and the last error. It comes from `timers` in `GET /api/stats`, which holds the same fields as below.
 
-**Keep data for...** is for old data: pick the tables and how long to keep (6 months, 1 year, ...). It either sets a [TTL](alter-table.md#set-ttl) on each table, so KDB drops the old partitions by itself, or saves one monthly timer that runs `ALTER TABLE ... DROP PARTITION OLDER THAN ...` for every table on the day and time you choose. Both drop whole partitions and never single rows.
+**Keep data for...** is for old data: pick the tables and how long to keep (6 months, 1 year, ...). It either sets a [TTL](alter-table.md#set-ttl) on each table, so KarelaDB drops the old partitions by itself, or saves one monthly timer that runs `ALTER TABLE ... DROP PARTITION OLDER THAN ...` for every table on the day and time you choose. Both drop whole partitions and never single rows.
 
 <a id="get-api-timers"></a>
 
@@ -156,10 +156,10 @@ HTTP 200 (application/json)
   "schedule": "every 5m",
   "sql": "CALL refresh_shop_totals()",
   "enabled": true,
-  "created_ms": 1792647871200,
-  "updated_ms": 1792647871200,
+  "created_ms": 1792662993783,
+  "updated_ms": 1792662993783,
   "created_by": "",
-  "next_run_ms": 1792647900000,
+  "next_run_ms": 1792663200000,
   "last_run_ms": 0,
   "last_due_ms": 0,
   "last_late_ms": 0,
@@ -184,7 +184,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"name": "shop_totals", "finished": true, "ok": true, "error": "", "took_ms": 2, "rows": 2}
+{"name": "shop_totals", "finished": true, "ok": true, "error": "", "took_ms": 0, "rows": 2}
 ```
 
 `POST /exec?compat=0`
@@ -209,10 +209,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 38, "execute_us": 76}
+      "timings": {"parse_us": 20, "execute_us": 143}
     }
   ],
-  "timings": {"parse_us": 38, "execute_us": 76}
+  "timings": {"parse_us": 20, "execute_us": 143}
 }
 ```
 
@@ -286,8 +286,8 @@ HTTP 200 (application/json)
   "schedule": "daily 02:00",
   "sql": "SELECT 1",
   "enabled": true,
-  "created_ms": 1792647871158,
-  "updated_ms": 1792647871158,
+  "created_ms": 1792662993750,
+  "updated_ms": 1792662993750,
   "created_by": "",
   "next_run_ms": 1792700100000,
   "last_run_ms": 0,
@@ -320,8 +320,8 @@ HTTP 200 (application/json)
   "schedule": "daily 02:00",
   "sql": "SELECT 1",
   "enabled": false,
-  "created_ms": 1792647871158,
-  "updated_ms": 1792647871196,
+  "created_ms": 1792662993750,
+  "updated_ms": 1792662993798,
   "created_by": "",
   "next_run_ms": 0,
   "last_run_ms": 0,
@@ -357,7 +357,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792647871223,
+  "now_ms": 1792662993813,
   "timers": []
 }
 ```
@@ -366,7 +366,7 @@ HTTP 200 (application/json)
 
 ## Good to know
 
-- `DROP DATABASE` deletes the database's timers too, so a new database with the same name starts with none. A timer left over from an older KDB (or a database folder removed by hand) can still be deleted: `POST /api/timers/<name>/delete?db=<name>` works while the database is gone, for a server admin.
+- `DROP DATABASE` deletes the database's timers too, so a new database with the same name starts with none. A timer left over from an older KarelaDB (or a database folder removed by hand) can still be deleted: `POST /api/timers/<name>/delete?db=<name>` works while the database is gone, for a server admin.
 - A timer that runs often writes its last result back to `_timers` only when the result changes, or once a minute.
 - For alerts, `/metrics` has `kdb_timer_failures_total` and `kdb_timer_late_seconds_max` for all timers, and per timer `kdb_timer_failures_24h{database,timer}` and `kdb_timer_last_late_seconds{database,timer}`.
 - For backups at set times use the [backup schedule](backup-schedule.md), not a timer.

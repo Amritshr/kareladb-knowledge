@@ -1,12 +1,12 @@
 # Databases and the data folder
 
-> Where KDB keeps databases, how to name them, and CREATE DATABASE, DROP DATABASE, SHOW DATABASES and USE.
+> Where KarelaDB keeps databases, how to name them, and CREATE DATABASE, DROP DATABASE, SHOW DATABASES and USE.
 
 - Category: Databases & folders
-- Keywords: database, data folder, PURGE TRASH, PURGE TRASH ALL, data directory, --data-dir, KDB\_DATA\_DIR, default database, \_trash, trash, database name, folder path, CREATE DATABASE, IF NOT EXISTS, DROP DATABASE, IF EXISTS, SHOW DATABASES, USE, switch database, many databases, kdb.lock, wal\_archive, WAL\_ARCHIVE, old log, log archive, KDB\_WAL\_ARCHIVE\_MB, RESULT\_CACHE, result cache per database, MEMORY\_LIMIT, MEMORY\_RESERVED, memory per database, database\_memory, per-column loads, partial\_loads, BRANCH OF, branch, clone database
-- See also: [Quick start](quick-start.md), [CREATE TABLE](create-table.md), [SHOW TABLES, COLUMNS, CREATE TABLE](show-tables.md), [Users and roles](users-and-roles.md), [Backup, check, repair and restore](backup-and-safety.md), [kdb serve](cli-serve.md), [Queries across databases](cross-database-queries.md), [Time travel and branches: SELECT ... AS OF, CREATE DATABASE ... BRANCH OF](as-of-and-branches.md)
+- Keywords: database, data folder, PURGE TRASH, PURGE TRASH ALL, data directory, --data-dir, KARELADB\_DATA\_DIR, default database, \_trash, trash, database name, folder path, CREATE DATABASE, IF NOT EXISTS, DROP DATABASE, IF EXISTS, SHOW DATABASES, USE, switch database, many databases, kdb.lock, wal\_archive, WAL\_ARCHIVE, old log, log archive, KARELADB\_WAL\_ARCHIVE\_MB, RESULT\_CACHE, result cache per database, MEMORY\_LIMIT, MEMORY\_RESERVED, memory per database, database\_memory, per-column loads, partial\_loads, BRANCH OF, branch, clone database
+- See also: [Quick start](quick-start.md), [CREATE TABLE](create-table.md), [SHOW TABLES, COLUMNS, CREATE TABLE](show-tables.md), [Users and roles](users-and-roles.md), [Backup, check, repair and restore](backup-and-safety.md), [kareladb serve](cli-serve.md), [Queries across databases](cross-database-queries.md), [Time travel and branches: SELECT ... AS OF, CREATE DATABASE ... BRANCH OF](as-of-and-branches.md)
 
-A **database** is one folder with its own tables, views, triggers and procedures. KDB keeps many databases in one **data folder**: one sub-folder per database. `kdb serve` without a database name serves all of them.
+A **database** is one folder with its own tables, views, triggers and procedures. KarelaDB keeps many databases in one **data folder**: one sub-folder per database. `kareladb serve` without a database name serves all of them.
 
 A real setup: one database for market prices, one for the accounting app, one for the forum.
 
@@ -57,35 +57,35 @@ database 'forum' created
 Syntax:
 
 ```sql
-kdb <command> --data-dir <folder> ...
-KDB_DATA_DIR=<folder>
-<folder of kdb.exe>\data
+kareladb <command> --data-dir <folder> ...
+KARELADB_DATA_DIR=<folder>
+<folder of kareladb.exe>\data
 ```
 
-KDB looks for the data folder in this order. The first one that is set wins:
+KarelaDB looks for the data folder in this order. The first one that is set wins:
 
 | # | Where | Example |
 |---|---|---|
-| 1 | the option `--data-dir <folder>` | `kdb serve --data-dir E:\kdb-data` |
-| 2 | the environment variable `KDB_DATA_DIR` | `$env:KDB_DATA_DIR = "E:\kdb-data"` |
-| 3 | the folder `data` next to the `kdb` program | `D:\KDB\build\bin\data` |
+| 1 | the option `--data-dir <folder>` | `kareladb serve --data-dir E:\kdb-data` |
+| 2 | the environment variable `KARELADB_DATA_DIR` | `$env:KARELADB_DATA_DIR = "E:\kdb-data"` |
+| 3 | the folder `data` next to the `kareladb` program | `D:\KarelaDB\build\bin\data` |
 
-KDB creates the folder when it is missing.
+KarelaDB creates the folder when it is missing.
 
 ```text
 E:\kdb-data\              <- the data folder
-E:\kdb-data\default\      <- the database "default" (kdb shell without a name uses it)
+E:\kdb-data\default\      <- the database "default" (kareladb shell without a name uses it)
 E:\kdb-data\market\        <- the database "market"
 E:\kdb-data\_trash\       <- dropped databases (kept until PURGE TRASH ALL)
 ```
 
-- **Notes:** use `KDB_DATA_DIR` when the data must be on another disk, or when `kdb.exe` is in a folder where you cannot write (like `C:\Program Files`). To set it for good on Windows: `[Environment]::SetEnvironmentVariable("KDB_DATA_DIR", "E:\kdb-data", "User")`, then open a new PowerShell window.
+- **Notes:** use `KARELADB_DATA_DIR` when the data must be on another disk, or when `kareladb.exe` is in a folder where you cannot write (like `C:\Program Files`). To set it for good on Windows: `[Environment]::SetEnvironmentVariable("KARELADB_DATA_DIR", "E:\kdb-data", "User")`, then open a new PowerShell window.
 - **Notes:** never change files inside a database folder by hand. Only one program can open a database at a time (the file `kdb.lock` shows this).
 
 **Command line: A shell on a data folder: make a database and list them**
 
 ```bash
-kdb shell --data-dir my-data
+kareladb shell --data-dir my-data
 > CREATE DATABASE market;
 > SHOW DATABASES;
 ```
@@ -93,15 +93,15 @@ kdb shell --data-dir my-data
 Output:
 
 ```text
-KDB 0.2.0-dev shell on default (data folder my-data)
+KarelaDB 0.2.0-dev shell on default (data folder my-data)
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> database 'market' created
-kdb> name    | tables | bytes | current
+kareladb> database 'market' created
+kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 market  |      0 |     0 | false  
-(2 rows, 0.5 ms)
-kdb>
+(2 rows, 0.1 ms)
+kareladb>
 ```
 
 <a id="names"></a>
@@ -121,12 +121,12 @@ A database name has only letters `a-z A-Z`, digits, `_` and `-`, and is 1 to 64 
 |---|---|
 | `my shop`, `my.shop`, `नेपाल` | only letters a-z, digits, `_` and `-` |
 | `_trash` | the folder for dropped databases |
-| `_system` | the folder where KDB keeps its users |
+| `_system` | the folder where KarelaDB keeps its users |
 | `CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`, `LPT0`-`LPT9` | device names on Windows |
 
-Commands like `kdb sql` and `kdb shell` take a **name** or a **path**:
+Commands like `kareladb sql` and `kareladb shell` take a **name** or a **path**:
 
-| You write | KDB uses |
+| You write | KarelaDB uses |
 |---|---|
 | a name, and the data folder has that database | that database |
 | a name, and the data folder does not have it | the folder with that name in the **current** folder (made when missing) |
@@ -157,25 +157,25 @@ Error: `line 1, column 17: bad database name '_trash': '_trash' is where dropped
 **Command line: A name that is not in the data folder means a folder here**
 
 ```bash
-kdb sql shop "CREATE TABLE products (id INT PRIMARY KEY, name STRING)"
-kdb sql .\shop "SHOW TABLES"
+kareladb sql shop "CREATE TABLE products (id INT PRIMARY KEY, name STRING)"
+kareladb sql .\shop "SHOW TABLES"
 ```
 
 Output:
 
-`> kdb sql shop "CREATE TABLE products (id INT PRIMARY KEY, name STRING)"`
+`> kareladb sql shop "CREATE TABLE products (id INT PRIMARY KEY, name STRING)"`
 
 ```text
 table 'products' created
 ```
 
-`> kdb sql .\shop "SHOW TABLES"`
+`> kareladb sql .\shop "SHOW TABLES"`
 
 ```text
 name     | kind       | partition | columns | rows
 ---------+------------+-----------+---------+-----
 products | relational | NONE      |       2 |    0
-(1 row, 0.1 ms)
+(1 row, 0.0 ms)
 ```
 
 <a id="create-database"></a>
@@ -198,7 +198,7 @@ Makes a new, empty database folder in the data folder. With `IF NOT EXISTS`, a d
 
 - **Returns:** the message `database 'name' created` (`... created encrypted` with `encryption = on`), or `database 'name' already exists` with `IF NOT EXISTS`.
 - **Notes:** `IF NOT EXISTS` never changes a database that is there: a plain one stays plain. Encryption is chosen only here; `ALTER DATABASE` cannot switch it.
-- **Notes:** needs a data folder: it works in `kdb shell`, in `kdb sql` with a database name, and in `kdb serve` started without a folder path. With users, only a user with `ROLE admin` may run it ([users and roles](users-and-roles.md)).
+- **Notes:** needs a data folder: it works in `kareladb shell`, in `kareladb sql` with a database name, and in `kareladb serve` started without a folder path. With users, only a user with `ROLE admin` may run it ([users and roles](users-and-roles.md)).
 - **Notes:** an empty folder with that name becomes the database. A folder with other files in it is refused.
 - **Notes:** `CREATE DATABASE test BRANCH OF live [AS OF ...]` makes a full, writable copy of another database in a moment, sharing its files ([branches](as-of-and-branches.md#branch)).
 
@@ -258,7 +258,7 @@ Syntax:
 DROP DATABASE [IF EXISTS] name
 ```
 
-Closes the database and **moves** its folder to `<data folder>/_trash/<time in ms>-<name>`. KDB never deletes the files. With `IF EXISTS`, a database that is not there is not an error.
+Closes the database and **moves** its folder to `<data folder>/_trash/<time in ms>-<name>`. KarelaDB never deletes the files. With `IF EXISTS`, a database that is not there is not an error.
 
 - **Returns:** `database 'name' dropped; its folder was moved to ...`.
 - **Notes:** refused while another request or shell uses the database, or while another program has it open. To get it back: stop the server and move the folder back from `_trash`. When you are sure you do not need it, [PURGE TRASH ALL](#purge-trash) frees the space.
@@ -285,7 +285,7 @@ Result:
 `DROP DATABASE test_2025`
 
 ```text
-database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792647819765-test_2025
+database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792662914486-test_2025
 ```
 
 `DROP DATABASE IF EXISTS test_2025`
@@ -318,7 +318,7 @@ SHOW TABLES;
 Result:
 
 ```text
-database 'demo' dropped; its folder was moved to kdb-data/_trash/1792647819773-demo; no database is selected now (USE <name>)
+database 'demo' dropped; its folder was moved to kdb-data/_trash/1792662914494-demo; no database is selected now (USE <name>)
 ```
 
 Error: `no database is selected; choose one with USE <name>`
@@ -344,7 +344,7 @@ PURGE TRASH
 PURGE TRASH ALL
 ```
 
-Frees disk space. KDB never deletes data on its own at once: it moves it to a `_trash` folder first. `PURGE TRASH` removes, for good, what is in the `_trash` folder of the **current database**. `PURGE TRASH ALL` does it for every `_trash` folder of the data folder, dropped databases too:
+Frees disk space. KarelaDB never deletes data on its own at once: it moves it to a `_trash` folder first. `PURGE TRASH` removes, for good, what is in the `_trash` folder of the **current database**. `PURGE TRASH ALL` does it for every `_trash` folder of the data folder, dropped databases too:
 
 | Folder | What is in it | Emptied by | Without a purge |
 |---|---|---|---|
@@ -358,7 +358,7 @@ Frees disk space. KDB never deletes data on its own at once: it moves it to a `_
 - **Notes:** a dropped database cannot be moved back from `_trash` after `PURGE TRASH ALL`.
 - **Notes:** removing many gigabytes takes a while: minutes for a large trash, longer when the data folder is a Docker folder share on Windows. Only one `PURGE TRASH ALL` runs at a time; a second one meanwhile is refused with `PURGE TRASH is already running`.
 - **Notes:** in the console: the **Tools** panel on the right, **Purge trash**, runs `PURGE TRASH ALL`. The dialog shows how long the purge has been running; it can be closed, and the result appears in the panel. **Save disk** on the Keep data page runs `PURGE TRASH` for one database.
-- **Notes:** a database's own `_trash` (replaced files) also empties **by itself** while the server runs: every minute the database removes every folder older than `trash_keep_hours` (1 hour unless `kdb.conf` or `KDB_TRASH_KEEP_HOURS` says otherwise), also while writes never stop. Beyond `trash_max_mb` (a quarter of the database's data, at least 256 MB, unless set; 0 = no limit) the oldest folders also go, whatever their age, until the trash fits. `PURGE TRASH` is for having the space back now.
+- **Notes:** a database's own `_trash` (replaced files) also empties **by itself** while the server runs: every minute the database removes every folder older than `trash_keep_hours` (1 hour unless `kareladb.conf` or `KARELADB_TRASH_KEEP_HOURS` says otherwise), also while writes never stop. Beyond `trash_max_mb` (a quarter of the database's data, at least 256 MB, unless set; 0 = no limit) the oldest folders also go, whatever their age, until the trash fits. `PURGE TRASH` is for having the space back now.
 
 **Example: Free this database's trash now**
 
@@ -406,7 +406,7 @@ Result:
 `DROP DATABASE old_test`
 
 ```text
-database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792647819902-old_test
+database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792662914738-old_test
 ```
 
 `PURGE TRASH ALL`
@@ -425,7 +425,7 @@ Syntax:
 PURGE VERSIONS [KEEP n]
 ```
 
-Frees disk space in the current database by removing the **older versions** of its data files. Every checkpoint writes a data file anew and keeps the older versions (2 per file unless `keep_versions` in `kdb.conf` or `KDB_KEEP_VERSIONS` says otherwise), so that a file found damaged can be repaired from one of them plus the log. On a table that is rewritten often they add up to more than the data itself. `PURGE VERSIONS` keeps `n` older versions per file (1 without `KEEP`, 0 to 10), moves the rest to the trash, and empties that trash at once.
+Frees disk space in the current database by removing the **older versions** of its data files. Every checkpoint writes a data file anew and keeps the older versions (2 per file unless `keep_versions` in `kareladb.conf` or `KARELADB_KEEP_VERSIONS` says otherwise), so that a file found damaged can be repaired from one of them plus the log. On a table that is rewritten often they add up to more than the data itself. `PURGE VERSIONS` keeps `n` older versions per file (1 without `KEEP`, 0 to 10), moves the rest to the trash, and empties that trash at once.
 
 - **Returns:** `N older file version(s) removed (3.9 GB), 1 kept per file; freed 3.9 GB from the trash`.
 - **Notes:** needs `ROLE admin` on the database. The rows are untouched and the database stays consistent: the list of files is saved before anything moves. With `KEEP 0` a damaged file can only be repaired from a backup, so keep 1 unless space is short.
@@ -558,8 +558,8 @@ The statements after `USE` run in that database.
 
 | Where | How long `USE` lasts |
 |---|---|
-| `kdb shell` | until the next `USE` |
-| `kdb sql` | until the end of the text you sent |
+| `kareladb shell` | until the next `USE` |
+| `kareladb sql` | until the end of the text you sent |
 | HTTP `/exec` | until the end of that request; choose the database of a request with `db=<name>` |
 
 - **Returns:** `using database 'name'`.
@@ -651,7 +651,7 @@ Says which SQL family this database should behave like when the two differ. The 
   - Needs a server admin. The setting is kept in the data folder (`_system`) and holds after a restart, so an app does not have to send it again.
   - It is **per database**, so a QuestDB app and a PostgreSQL app can share one server.
   - Set it before you move a QuestDB app over, so its `INSERT`s and its time maths keep the meaning they had.
-  - A database that has this setting needs a KDB that knows the `dialects` feature; an older KDB refuses to open it (see [versions](versions.md)).
+  - A database that has this setting needs a KarelaDB that knows the `dialects` feature; an older KarelaDB refuses to open it (see [versions](versions.md)).
 
 **Example: A QuestDB app: INSERT replaces a row with the same key**
 
@@ -764,7 +764,7 @@ Says how much **old log** a database keeps in its `wal_archive` folder. Old log 
 | `OFF` | keep no old log |
 | `DEFAULT` | follow the server default again |
 
-The server default is 1 GB. Change it on the console's [Settings page](console-settings.md#wal-archive), or with `wal_archive_mb` in `kdb.conf` or `KDB_WAL_ARCHIVE_MB`.
+The server default is 1 GB. Change it on the console's [Settings page](console-settings.md#wal-archive), or with `wal_archive_mb` in `kareladb.conf` or `KARELADB_WAL_ARCHIVE_MB`.
 
 - **Returns:** `database 'x' keeps at most 100 MB of old log in wal_archive`.
 - **Notes:**
@@ -819,7 +819,7 @@ database 'scratch' keeps no old log in wal_archive; a damaged file can now only 
 database 'scratch' keeps at most 1 GB of old log in wal_archive (the server default)
 ```
 
-**Example: A size needs a unit KDB knows** (shows an error)
+**Example: A size needs a unit KarelaDB knows** (shows an error)
 
 ```sql
 ALTER DATABASE demo SET WAL_ARCHIVE = '100 XB';
@@ -841,7 +841,7 @@ ALTER DATABASE <name> SET RESULT_CACHE = OFF
 ALTER DATABASE <name> SET RESULT_CACHE = DEFAULT
 ```
 
-Gives a database a [result cache](performance-tips.md#result-cache) space of its **own**. Without it, all databases share the server's cache (`--cache-mb`, `cache_mb` in kdb.conf, 256 MB by default), and a busy database's results can push out another's. Use it for the database behind a dashboard that must stay fast while other apps load data.
+Gives a database a [result cache](performance-tips.md#result-cache) space of its **own**. Without it, all databases share the server's cache (`--cache-mb`, `cache_mb` in kareladb.conf, 256 MB by default), and a busy database's results can push out another's. Use it for the database behind a dashboard that must stay fast while other apps load data.
 
 | Value | Meaning |
 |---|---|
@@ -918,14 +918,14 @@ Gives a database its own part of the server's memory for table data ([`--memory`
 |---|---|
 | `MEMORY_LIMIT` | the most loaded data this database holds. Over it, its **own** partitions are unloaded first, even when `--memory` has room. |
 | `MEMORY_RESERVED` | loaded data of this database that nothing else can unload: not another database, not the [process memory limit](cli-serve.md#memory-limit). Its own trims still keep to its `MEMORY_LIMIT`. |
-| `OFF` | none for this database, whatever kdb.conf says |
-| `DEFAULT` | the value in kdb.conf `database_memory`, or none |
+| `OFF` | none for this database, whatever kareladb.conf says |
+| `DEFAULT` | the value in kareladb.conf `database_memory`, or none |
 
 - **Returns:** `database 'x' holds at most 512 MB of loaded partitions; over it, its own partitions are unloaded first`.
 - **Notes:**
   - Needs a server admin. The settings are kept in the data folder (`_system`) and hold after a restart. They work at once.
   - A reservation cannot be more than the database's limit, and all reservations together at most three quarters of `--memory`.
-  - kdb.conf can set start values per database: `"database_memory": {"sales": {"limit_mb": 512, "reserved_mb": 128}}`.
+  - kareladb.conf can set start values per database: `"database_memory": {"sales": {"limit_mb": 512, "reserved_mb": 128}}`.
   - `GET /api/stats` shows `used_bytes`, `limit_bytes`, `reserved_bytes` and `resident_bytes` in each database's `memory`.
   - To keep one table loaded whatever happens, use [`ALTER TABLE t SET (resident = on)`](alter-table.md#resident).
 
@@ -973,7 +973,7 @@ ALTER DATABASE scratch SET MEMORY_LIMIT = DEFAULT;
 Result:
 
 ```text
-database 'scratch' has no memory limit of its own (kdb.conf): it shares the server's budget
+database 'scratch' has no memory limit of its own (kareladb.conf): it shares the server's budget
 ```
 
 <a id="per-column-loads"></a>

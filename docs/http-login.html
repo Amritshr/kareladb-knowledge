@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Logins, tokens and roles over HTTP - KDB (KARELA DataBase) docs</title>
+<title>Logins, tokens and roles over HTTP - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="How a program or the console proves who it is - the access token, HTTP Basic, POST /api/login - and the 401, 403 and 429 answers.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-login.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-login.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/http-login.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/http-login.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="logins-tokens-and-roles-over-http">Logins, tokens and roles over HTTP</h1>
 <blockquote><p>How a program or the console proves who it is - the access token, HTTP Basic, POST /api/login - and the 401, 403 and 429 answers.</p></blockquote>
-<ul><li>Category: HTTP API</li><li>Keywords: login, logout, api/login, api/logout, api/me, api/session, whoami, token, --token, Bearer, Authorization, HTTP Basic, curl -u, cookie, kdb_login, kdb_auth, kdb_token, CSRF, X-KDB-CSRF, remember me, HttpOnly, SameSite, 401, 403, 429, Retry-After, WWW-Authenticate, roles, read, write, admin, password, session token, failed logins</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="server-security.html">Keeping kdb serve safe</a>, <a href="http-overview.html#auth">HTTP API overview (auth)</a>, <a href="cli-users.html">kdb user</a>, <a href="postgres-protocol.html#passwords">PostgreSQL protocol (port 8832) (passwords)</a></li></ul>
+<ul><li>Category: HTTP API</li><li>Keywords: login, logout, api/login, api/logout, api/me, api/session, whoami, token, --token, Bearer, Authorization, HTTP Basic, curl -u, cookie, kdb_login, kdb_auth, kdb_token, CSRF, X-KDB-CSRF, remember me, HttpOnly, SameSite, 401, 403, 429, Retry-After, WWW-Authenticate, roles, read, write, admin, password, session token, failed logins</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="server-security.html">Keeping kareladb serve safe</a>, <a href="http-overview.html#auth">HTTP API overview (auth)</a>, <a href="cli-users.html">kareladb user</a>, <a href="postgres-protocol.html#passwords">PostgreSQL protocol (port 8832) (passwords)</a></li></ul>
 <p>A server can be open, need a <strong>token</strong>, or need a <strong>user login</strong>. This page shows how to send each one over HTTP.</p>
-<div class="table-wrap"><table><thead><tr><th>Server</th><th>Login needed?</th></tr></thead><tbody><tr><td><code>kdb serve</code> on <code>127.0.0.1</code> (the default), no <code>--token</code>, no users</td><td><strong>No.</strong> Only programs on the same computer can connect.</td></tr><tr><td>started with <code>--token &lt;secret&gt;</code></td><td><strong>Yes</strong>: the token. It may do everything.</td></tr><tr><td>the data folder has <strong>users</strong> (<code>CREATE USER</code>, <code>kdb user add</code>)</td><td><strong>Yes</strong>: a user name and password, or a login token. Each user may do only what their role allows. With <code>--token</code> too, the token also works.</td></tr><tr><td><code>--bind 0.0.0.0</code> (not 127.x) without <code>--token</code> and without users</td><td>the server does not start</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Server</th><th>Login needed?</th></tr></thead><tbody><tr><td><code>kareladb serve</code> on <code>127.0.0.1</code> (the default), no <code>--token</code>, no users</td><td><strong>No.</strong> Only programs on the same computer can connect.</td></tr><tr><td>started with <code>--token &lt;secret&gt;</code></td><td><strong>Yes</strong>: the token. It may do everything.</td></tr><tr><td>the data folder has <strong>users</strong> (<code>CREATE USER</code>, <code>kareladb user add</code>)</td><td><strong>Yes</strong>: a user name and password, or a login token. Each user may do only what their role allows. With <code>--token</code> too, the token also works.</td></tr><tr><td><code>--bind 0.0.0.0</code> (not 127.x) without <code>--token</code> and without users</td><td>the server does not start</td></tr></tbody></table></div>
 <ul><li><code>GET /health</code>, <code>POST /api/login</code>, <code>POST /api/session</code>, <code>POST /api/logout</code> and the console page need no login. <code>/health</code> says <code>auth_required</code> and <code>login</code> (users exist).</li><li>Making users and roles: <a href="users-and-roles.html">users and roles</a>. Keeping a server on the internet safe: <a href="server-security.html">server security</a>.</li><li>Tutorial: <a href="../tutorial/16-users-passwords-security.html">chapter 16, users, passwords and security</a>.</li></ul>
-<p>The examples below that need users or a token run on their own new <code>kdb serve</code> (a fresh data folder), so you see the real answers. On a new server without users, the first <code>CREATE USER ... ROLE admin</code> can be sent without a login; from then on every request needs one.</p>
+<p>The examples below that need users or a token run on their own new <code>kareladb serve</code> (a fresh data folder), so you see the real answers. On a new server without users, the first <code>CREATE USER ... ROLE admin</code> can be sent without a login; from then on every request needs one.</p>
 <h2 id="ways">Ways to send a login</h2>
 <div class="table-wrap"><table><thead><tr><th>How</th><th>Send</th><th>Good for</th></tr></thead><tbody><tr><td>The access token</td><td>header <code>Authorization: Bearer &lt;token&gt;</code></td><td>a server started with <code>--token</code></td></tr><tr><td>HTTP Basic</td><td>header <code>Authorization: Basic &lt;base64 of user:password&gt;</code> (<code>curl -u user:password</code>)</td><td>scripts. A good password is remembered for 10 minutes, so it is not slow.</td></tr><tr><td>A login token</td><td><code>POST /api/login</code> once, then <code>Authorization: Bearer &lt;token&gt;</code></td><td>apps that make many requests</td></tr><tr><td>An API token</td><td><code>CREATE TOKEN app FOR USER u</code> once, then <code>Authorization: Bearer kdbt_...</code> (<a href="api-tokens.html">API tokens</a>)</td><td>apps and services: many named tokens, each revoked on its own</td></tr><tr><td>The login cookie</td><td><code>POST /api/login</code> sets the cookie <code>kdb_login</code></td><td>browsers: the web console</td></tr><tr><td>The token cookie</td><td><code>POST /api/session</code> turns a token into the cookie <code>kdb_auth</code></td><td>browsers: the web console, when you paste a token</td></tr></tbody></table></div>
-<ul><li><strong>Base64</strong> is a way to write any bytes as plain letters; <code>curl -u</code> and every HTTP library do it for you.</li><li>A <strong>cookie</strong> is a small value the browser keeps and sends back by itself. KDB&#39;s cookies are <code>HttpOnly</code> (JavaScript in the page cannot read them) and <code>SameSite=Strict</code> (other web sites cannot make the browser send them).</li><li>A change sent with a cookie (not a <code>GET</code>) also needs the header <code>X-KDB-CSRF</code>. See <a href="http-login.html#csrf">CSRF</a>. A header login needs nothing extra.</li><li>On a server that needs no login, the <code>Authorization</code> header is not checked at all.</li></ul>
+<ul><li><strong>Base64</strong> is a way to write any bytes as plain letters; <code>curl -u</code> and every HTTP library do it for you.</li><li>A <strong>cookie</strong> is a small value the browser keeps and sends back by itself. KarelaDB&#39;s cookies are <code>HttpOnly</code> (JavaScript in the page cannot read them) and <code>SameSite=Strict</code> (other web sites cannot make the browser send them).</li><li>A change sent with a cookie (not a <code>GET</code>) also needs the header <code>X-KDB-CSRF</code>. See <a href="http-login.html#csrf">CSRF</a>. A header login needs nothing extra.</li><li>On a server that needs no login, the <code>Authorization</code> header is not checked at all.</li></ul>
 <h2 id="post-api-login">POST /api/login</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">POST /api/login
@@ -31,7 +31,7 @@ body: {&quot;user&quot;: &quot;&lt;name&gt;&quot;, &quot;password&quot;: &quot;&
 <div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>user</code></td><td>JSON body or form field</td><td>The user name (case is ignored)</td><td>required</td></tr><tr><td><code>password</code></td><td>JSON body or form field</td><td>The password</td><td>required</td></tr><tr><td><code>code</code></td><td>JSON body or form field</td><td>The code of the authenticator app, for a user with <a href="two-factor-login.html">two-factor login</a></td><td>-</td></tr><tr><td><code>X-KDB-Console</code></td><td>header</td><td>Sent by the web console: then the answer has no <code>token</code> (the console uses only the cookie)</td><td>not sent</td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>user</code></td><td>The user name as it is stored</td></tr><tr><td><code>role</code></td><td>The user&#39;s own ROLE: <code>admin</code>, <code>write</code>, <code>read</code> or <code>none</code> (for every database)</td></tr><tr><td><code>grants</code></td><td>Roles on single databases, like <code>{&quot;shop&quot;: &quot;write&quot;}</code></td></tr><tr><td><code>expires_ms</code></td><td>When the login ends (ms since 1970, UTC)</td></tr><tr><td><code>token</code></td><td>The login token (43 characters). Send it as <code>Authorization: Bearer &lt;token&gt;</code>.</td></tr><tr><td><code>csrf</code></td><td>The <code>X-KDB-CSRF</code> value for changes sent with the cookie (<a href="http-login.html#csrf">CSRF</a>)</td></tr><tr><td>header <code>Set-Cookie</code></td><td><code>kdb_login=&lt;token&gt;; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200</code> (and <code>Secure</code> over <a href="tls.html">TLS</a>, or when a proxy sends <code>X-Forwarded-Proto: https</code>)</td></tr></tbody></table></div>
 <ul><li><strong>Status codes:</strong> 200 logged in; 400 no user name, or the server has no users; 401 <code>{&quot;error&quot;: &quot;wrong user name or password&quot;, &quot;login&quot;: true}</code> (the same text for an unknown user, so nobody can find out which names exist); 403 the request comes from another web site; 429 too many failed logins, with a <code>Retry-After</code> header (seconds to wait).</li><li><strong>Notes:</strong>
-<ul><li>A login ends after 12 hours, at <code>POST /api/logout</code>, or when the user gets a new password or is dropped. A server restart does not end it: logins are kept in the data folder, as hashes only (<a href="api-tokens.html#kept">where</a>).</li><li>KDB keeps only the SHA-256 of the token, never the token itself.</li><li>After 5 failed logins for one user from one address, that user must wait before the next try from that address: 1 s, 2 s, 4 s, ... up to 15 minutes. A good login ends the waiting for that user.</li><li>After 20 failed logins for one user from all addresses together, that user waits everywhere (someone is guessing from many machines).</li><li>Only the user who failed waits. Other users, and the right <code>--token</code> (with any name, on the <a href="postgres-protocol.html#passwords">PostgreSQL port</a> too), still work from the same address. This matters behind Docker or a NAT, where every client has the same address.</li><li>Every failed login is printed in the server&#39;s output with the user name and address (never the password).</li><li>The same users log in on the <a href="postgres-protocol.html#passwords">PostgreSQL port</a>.</li></ul></li></ul>
+<ul><li>A login ends after 12 hours, at <code>POST /api/logout</code>, or when the user gets a new password or is dropped. A server restart does not end it: logins are kept in the data folder, as hashes only (<a href="api-tokens.html#kept">where</a>).</li><li>KarelaDB keeps only the SHA-256 of the token, never the token itself.</li><li>After 5 failed logins for one user from one address, that user must wait before the next try from that address: 1 s, 2 s, 4 s, ... up to 15 minutes. A good login ends the waiting for that user.</li><li>After 20 failed logins for one user from all addresses together, that user waits everywhere (someone is guessing from many machines).</li><li>Only the user who failed waits. Other users, and the right <code>--token</code> (with any name, on the <a href="postgres-protocol.html#passwords">PostgreSQL port</a> too), still work from the same address. This matters behind Docker or a NAT, where every client has the same address.</li><li>Every failed login is printed in the server&#39;s output with the user name and address (never the password).</li><li>The same users log in on the <a href="postgres-protocol.html#passwords">PostgreSQL port</a>.</li></ul></li></ul>
 <p><strong>HTTP: The first user, a login, the token, and logout</strong></p>
 <pre><code class="language-http">POST /exec?compat=0
 
@@ -66,10 +66,10 @@ Authorization: Bearer {{token}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;user &#39;boss&#39; created with role admin&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 168626}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 135289}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 168626}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 135289}
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT 1 AS one</code></p>
 <p>HTTP 401 (application/json)</p>
@@ -83,9 +83,9 @@ Authorization: Bearer {{token}}</code></pre>
   &quot;user&quot;: &quot;boss&quot;,
   &quot;role&quot;: &quot;admin&quot;,
   &quot;grants&quot;: {},
-  &quot;expires_ms&quot;: 1792691051375,
-  &quot;csrf&quot;: &quot;6add673dff4486d3334de25d2d56f4eb&quot;,
-  &quot;token&quot;: &quot;ddmM7HyYgI-RWGiA7sCk2US_DZikXzBnrjhDFkr2bQE&quot;
+  &quot;expires_ms&quot;: 1792706165360,
+  &quot;csrf&quot;: &quot;7c1a699e8d942242d9b47d42ea27527f&quot;,
+  &quot;token&quot;: &quot;h9xyPFE-Io7JxFuZbKf9A-t-KRa8WOMeKbGQR7jJSHw&quot;
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT 1 AS one</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -104,10 +104,10 @@ Authorization: Bearer {{token}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 58}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 55}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 58}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 55}
 }</code></pre>
 <p><code>POST /api/logout</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -163,10 +163,10 @@ Content-Type: application/json
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;user &#39;boss&#39; created with role admin&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 163793}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 126869}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 163793}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 126869}
 }</code></pre>
 <p><code>POST /api/login</code></p>
 <p>HTTP 401 (application/json)</p>
@@ -214,37 +214,37 @@ Content-Type: application/json
 <p>Log in once, then use the token (Python, <code>requests</code>):</p>
 <pre><code class="language-python">import requests
 
-KDB = &quot;http://127.0.0.1:9900&quot;
-r = requests.post(f&quot;{KDB}/api/login&quot;, json={&quot;user&quot;: &quot;shop_app&quot;, &quot;password&quot;: &quot;Another-long-secret-42&quot;})
+KarelaDB = &quot;http://127.0.0.1:9900&quot;
+r = requests.post(f&quot;{KarelaDB}/api/login&quot;, json={&quot;user&quot;: &quot;shop_app&quot;, &quot;password&quot;: &quot;Another-long-secret-42&quot;})
 if r.status_code == 429:
     raise RuntimeError(f&quot;too many failed logins: wait {r.headers[&#39;Retry-After&#39;]} s&quot;)
 if r.status_code != 200:
     raise RuntimeError(r.json()[&quot;error&quot;])
 auth = {&quot;Authorization&quot;: &quot;Bearer &quot; + r.json()[&quot;token&quot;]}
 
-rows = requests.post(f&quot;{KDB}/exec&quot;, params={&quot;db&quot;: &quot;shop&quot;, &quot;compat&quot;: 0},
+rows = requests.post(f&quot;{KarelaDB}/exec&quot;, params={&quot;db&quot;: &quot;shop&quot;, &quot;compat&quot;: 0},
                      data=&quot;SELECT count(*) FROM orders&quot;, headers=auth).json()
 print(rows[&quot;results&quot;][0][&quot;dataset&quot;])
 
-requests.post(f&quot;{KDB}/api/logout&quot;, headers=auth)</code></pre>
+requests.post(f&quot;{KarelaDB}/api/logout&quot;, headers=auth)</code></pre>
 <pre><code class="language-js">// Node 18+
-const KDB = &quot;http://127.0.0.1:9900&quot;;
-const login = await fetch(`${KDB}/api/login`, {
+const KarelaDB = &quot;http://127.0.0.1:9900&quot;;
+const login = await fetch(`${KarelaDB}/api/login`, {
   method: &quot;POST&quot;,
   headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
-  body: JSON.stringify({ user: &quot;shop_app&quot;, password: process.env.KDB_PASSWORD }),
+  body: JSON.stringify({ user: &quot;shop_app&quot;, password: process.env.KARELADB_PASSWORD }),
 });
 const me = await login.json();
 if (!login.ok) throw new Error(me.error);
 const auth = { Authorization: `Bearer ${me.token}` };
-const res = await fetch(`${KDB}/exec?db=shop&amp;compat=0`, { method: &quot;POST&quot;, headers: auth, body: &quot;SELECT 1&quot; });
+const res = await fetch(`${KarelaDB}/exec?db=shop&amp;compat=0`, { method: &quot;POST&quot;, headers: auth, body: &quot;SELECT 1&quot; });
 console.log(res.status, (await res.json()).results);</code></pre>
 <pre><code class="language-powershell">$login = Invoke-RestMethod -Method Post &quot;http://127.0.0.1:9900/api/login&quot; -ContentType &quot;application/json&quot; `
-  -Body (@{ user = &quot;shop_app&quot;; password = $env:KDB_PASSWORD } | ConvertTo-Json)
+  -Body (@{ user = &quot;shop_app&quot;; password = $env:KARELADB_PASSWORD } | ConvertTo-Json)
 $auth = @{ Authorization = &quot;Bearer $($login.token)&quot; }
 Invoke-RestMethod -Method Post &quot;http://127.0.0.1:9900/exec?db=shop&amp;compat=0&quot; -Headers $auth -ContentType &quot;text/plain&quot; -Body &quot;SELECT 1&quot;</code></pre>
 <pre><code class="language-csharp">using var http = new HttpClient { BaseAddress = new Uri(&quot;http://127.0.0.1:9900&quot;) };
-var login = await http.PostAsJsonAsync(&quot;/api/login&quot;, new { user = &quot;shop_app&quot;, password = Environment.GetEnvironmentVariable(&quot;KDB_PASSWORD&quot;) });
+var login = await http.PostAsJsonAsync(&quot;/api/login&quot;, new { user = &quot;shop_app&quot;, password = Environment.GetEnvironmentVariable(&quot;KARELADB_PASSWORD&quot;) });
 var body = await login.Content.ReadFromJsonAsync&lt;JsonElement&gt;();
 if (!login.IsSuccessStatusCode) throw new Exception(body.GetProperty(&quot;error&quot;).GetString());
 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(&quot;Bearer&quot;, body.GetProperty(&quot;token&quot;).GetString());</code></pre>
@@ -313,7 +313,7 @@ Authorization: Bearer {{token}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;user &#39;boss&#39; created with role admin&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 162348}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 139447}
     },
     {
       &quot;statement&quot;: &quot;CREATE USER shop_app WITH PASSWORD &#39;***&#39;&quot;,
@@ -323,7 +323,7 @@ Authorization: Bearer {{token}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;user &#39;shop_app&#39; created with role none&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 60424}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 52525}
     },
     {
       &quot;statement&quot;: &quot;CREATE DATABASE shop&quot;,
@@ -333,7 +333,7 @@ Authorization: Bearer {{token}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;database &#39;shop&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 9231}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 12538}
     },
     {
       &quot;statement&quot;: &quot;GRANT write ON DATABASE shop TO shop_app&quot;,
@@ -343,10 +343,10 @@ Authorization: Bearer {{token}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;user &#39;shop_app&#39; has role write on database &#39;shop&#39;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 1761}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 2685}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 233764}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 207195}
 }</code></pre>
 <p><code>POST /api/login</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -354,9 +354,9 @@ Authorization: Bearer {{token}}</code></pre>
   &quot;user&quot;: &quot;shop_app&quot;,
   &quot;role&quot;: &quot;none&quot;,
   &quot;grants&quot;: {&quot;shop&quot;: &quot;write&quot;},
-  &quot;expires_ms&quot;: 1792691051520,
-  &quot;csrf&quot;: &quot;5993b92d7d2144c05a35e348320d66f3&quot;,
-  &quot;token&quot;: &quot;DX6j_aIpvcyeyR62ZcpAJIjbbb62tzatkYwCMvnLlbI&quot;
+  &quot;expires_ms&quot;: 1792706165523,
+  &quot;csrf&quot;: &quot;7eb7b9a080f30df061b823995d8c3c6e&quot;,
+  &quot;token&quot;: &quot;bLghcUM-srLtr1B12hebVbcksIBWBSyjH-7DbJv2VHs&quot;
 }</code></pre>
 <p><code>GET /api/me</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -375,7 +375,7 @@ Authorization: Bearer {{token}}</code></pre>
 }</code></pre>
 <h2 id="token">The access token (--token)</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb serve --token &lt;long random secret&gt;
+<pre><code class="language-sql">kareladb serve --token &lt;long random secret&gt;
 Authorization: Bearer &lt;token&gt;</code></pre>
 <p>The simplest protection: one secret for everything. Whoever sends it may do <strong>everything</strong>, like an admin.</p>
 <div class="table-wrap"><table><thead><tr><th>Situation</th><th>Answer</th></tr></thead><tbody><tr><td>no token sent</td><td>401 <code>{&quot;error&quot;: &quot;access token required&quot;}</code></td></tr><tr><td>a wrong token</td><td>401 <code>{&quot;error&quot;: &quot;wrong access token&quot;}</code></td></tr><tr><td>the right token</td><td>the normal answer</td></tr></tbody></table></div>
@@ -396,7 +396,8 @@ Authorization: Bearer change-me-please</code></pre>
 <pre><code class="language-text">{
   &quot;status&quot;: &quot;ok&quot;,
   &quot;version&quot;: &quot;0.2.0-dev&quot;,
-  &quot;server_time_ms&quot;: 1792647851208,
+  &quot;product&quot;: &quot;KarelaDB&quot;,
+  &quot;server_time_ms&quot;: 1792662965258,
   &quot;auth_required&quot;: true,
   &quot;login&quot;: false,
   &quot;tls&quot;: false,
@@ -426,13 +427,13 @@ Authorization: Bearer change-me-please</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 35, &quot;execute_us&quot;: 72}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 53}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 35, &quot;execute_us&quot;: 72}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 53}
 }</code></pre>
 <pre><code class="language-bash">curl -s -H &quot;Authorization: Bearer change-me-please&quot; &quot;http://127.0.0.1:9900/exec?compat=0&amp;query=SELECT%201&quot;</code></pre>
-<pre><code class="language-powershell">$h = @{ Authorization = &quot;Bearer $env:KDB_TOKEN&quot; }
+<pre><code class="language-powershell">$h = @{ Authorization = &quot;Bearer $env:KARELADB_TOKEN&quot; }
 Invoke-RestMethod &quot;http://127.0.0.1:9900/api/info&quot; -Headers $h</code></pre>
 <h2 id="session">POST /api/session</h2>
 <p>Syntax:</p>
@@ -442,7 +443,7 @@ Authorization: Bearer &lt;token&gt;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>header</td><td>The <code>--token</code>, an <a href="api-tokens.html">API token</a> or a login token</td><td>required</td></tr><tr><td><code>remember</code></td><td>query</td><td><code>1</code>: the session lasts 30 days. Without it the session lasts 12 hours, and the browser forgets the cookie when it closes.</td><td>not sent</td></tr></tbody></table></div>
 <p>A console session ends when:</p>
 <div class="table-wrap"><table><thead><tr><th>What happens</th><th>Why</th></tr></thead><tbody><tr><td>its time is up (12 hours, or 30 days with <code>remember</code>)</td><td>a forgotten browser does not stay logged in</td></tr><tr><td><a href="http-login.html#logout"><code>POST /api/logout</code></a> with the cookie</td><td>the server forgets the id: a copied cookie stops working too</td></tr><tr><td>the pasted token stops working (<code>DROP TOKEN</code>, an ended login)</td><td>the session has the token&#39;s rights, checked on every request</td></tr><tr><td>the server restarts</td><td>sessions live in memory only: paste the token again</td></tr></tbody></table></div>
-<ul><li>A cookie from an older KDB held the token itself. The server no longer takes it: the console asks for the token once more.</li></ul>
+<ul><li>A cookie from an older KarelaDB held the token itself. The server no longer takes it: the console asks for the token once more.</li></ul>
 <div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>user</code></td><td>The token&#39;s user, or <code>null</code> for the <code>--token</code></td></tr><tr><td><code>role</code></td><td>The role; <code>admin</code> for the <code>--token</code></td></tr><tr><td><code>full_access</code></td><td><code>true</code> for the <code>--token</code></td></tr><tr><td><code>remember</code></td><td><code>true</code> when the cookie is kept 30 days</td></tr><tr><td><code>csrf</code></td><td>The <code>X-KDB-CSRF</code> value for changes sent with the cookie (<a href="http-login.html#csrf">CSRF</a>)</td></tr><tr><td>header <code>Set-Cookie</code></td><td><code>kdb_auth=&lt;session id&gt;; Path=/; HttpOnly; SameSite=Strict</code> (with <code>Max-Age=2592000</code> for <code>remember</code>, and <code>Secure</code> over <a href="tls.html">TLS</a>)</td></tr></tbody></table></div>
 <ul><li><strong>Status codes:</strong> 200; 400 no <code>Authorization: Bearer</code> header; 401 a wrong token; 403 the request comes from another web site.</li><li><strong>Notes:</strong> programs do not need it. They send <code>Authorization: Bearer &lt;token&gt;</code> with every request. <a href="http-login.html#logout"><code>POST /api/logout</code></a> makes the browser forget the cookie.</li></ul>
 <p><strong>HTTP: The console hands over a token and gets a session cookie</strong></p>
@@ -455,7 +456,7 @@ Authorization: Bearer change-me-please</code></pre>
   &quot;role&quot;: &quot;admin&quot;,
   &quot;full_access&quot;: true,
   &quot;remember&quot;: false,
-  &quot;csrf&quot;: &quot;d940cd8cd42f3877ccaf73469a7f075f&quot;
+  &quot;csrf&quot;: &quot;818860815fc75e60b8241ae4d0da6fc1&quot;
 }</code></pre>
 <h2 id="csrf">CSRF: the X-KDB-CSRF header</h2>
 <p>A browser sends cookies by itself, even when another web site makes it send a request. That is called <strong>CSRF</strong> (cross-site request forgery). So a request that logged in with a <strong>cookie</strong> and changes something must also send the header <code>X-KDB-CSRF</code>.</p>
@@ -483,7 +484,7 @@ CREATE TABLE notes (id INT, text STRING)</code></pre>
   &quot;role&quot;: &quot;admin&quot;,
   &quot;full_access&quot;: true,
   &quot;remember&quot;: false,
-  &quot;csrf&quot;: &quot;35b07c9baa23af37a447fc6924202791&quot;
+  &quot;csrf&quot;: &quot;2f4ff4df9cb903c089bc5599bb37f941&quot;
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 401 (application/json)</p>
@@ -495,7 +496,7 @@ CREATE TABLE notes (id INT, text STRING)</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">Authorization: Basic &lt;base64 of name:password&gt;
 curl -u &lt;name&gt;:&lt;password&gt; ...</code></pre>
-<p>Sends the user name and password with <strong>every</strong> request. KDB checks the password once and then remembers it for 10 minutes, so it stays fast.</p>
+<p>Sends the user name and password with <strong>every</strong> request. KarelaDB checks the password once and then remembers it for 10 minutes, so it stays fast.</p>
 <ul><li>Good for scripts and tools that cannot keep a token.</li><li>A wrong password: 401 <code>wrong user name or password</code>. Many wrong passwords: 429 with <code>Retry-After</code>.</li><li>On a server with users, a request with no login gets <code>WWW-Authenticate: Basic realm=&quot;kdb&quot;</code>, so a browser shows its own password box. The console sends <code>X-KDB-Console: 1</code> and gets <code>Bearer</code> instead (no browser box).</li><li>On a server without users, Basic is refused: 401 <code>this server has no users yet</code>.</li></ul>
 <p>The header below is the base64 of <code>reader:reader-secret-1</code>, what <code>curl -u reader:reader-secret-1</code> sends. The user <code>reader</code> has role <code>read</code>, so reading works and writing is refused:</p>
 <p><strong>HTTP: HTTP Basic with a read-only user</strong> (sample data: sample)</p>
@@ -525,7 +526,7 @@ INSERT INTO brokers VALUES (99, &#39;Not Allowed Securities&#39;)</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;user &#39;boss&#39; created with role admin&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 166112}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 134650}
     },
     {
       &quot;statement&quot;: &quot;CREATE USER reader WITH PASSWORD &#39;***&#39; ROLE read&quot;,
@@ -535,10 +536,10 @@ INSERT INTO brokers VALUES (99, &#39;Not Allowed Securities&#39;)</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;user &#39;reader&#39; created with role read&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 62273}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 52784}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 228385}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 0, &quot;execute_us&quot;: 187434}
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT symbol, name FROM securities ORDER BY symbol LIMIT 2</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -559,10 +560,10 @@ INSERT INTO brokers VALUES (99, &#39;Not Allowed Securities&#39;)</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 245}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 407}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 245}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 407}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 403 (application/json)</p>
@@ -579,11 +580,11 @@ INSERT INTO brokers VALUES (99, &#39;Not Allowed Securities&#39;)</code></pre>
 r = requests.get(&quot;http://127.0.0.1:9900/exec&quot;, params={&quot;db&quot;: &quot;shop&quot;, &quot;query&quot;: &quot;SELECT count(*) FROM app_users&quot;},
                  auth=(&quot;report&quot;, &quot;Reports-only-secret-7&quot;))</code></pre>
 <h2 id="roles">Roles: what each route needs</h2>
-<p>Each user has a <strong>role</strong>: <code>none</code>, <code>read</code>, <code>write</code> or <code>admin</code>. The user&#39;s own ROLE counts for every database; a <code>GRANT ... ON DATABASE</code> gives a role on one database. KDB uses the stronger of the two.</p>
+<p>Each user has a <strong>role</strong>: <code>none</code>, <code>read</code>, <code>write</code> or <code>admin</code>. The user&#39;s own ROLE counts for every database; a <code>GRANT ... ON DATABASE</code> gives a role on one database. KarelaDB uses the stronger of the two.</p>
 <div class="table-wrap"><table><thead><tr><th>Route</th><th>Needs</th></tr></thead><tbody><tr><td><code>GET /health</code>, <code>POST /api/login</code>, <code>POST /api/logout</code>, the console files</td><td>nothing</td></tr><tr><td><code>GET /api/me</code>, <code>POST /session</code>, <code>DELETE /session/&lt;id&gt;</code>, <code>POST /api/feedback</code></td><td>any login</td></tr><tr><td><code>/exec</code> and <code>/exp</code> with SQL that reads, <code>BEGIN</code>/<code>COMMIT</code>/<code>ROLLBACK</code></td><td><code>read</code> on the database</td></tr><tr><td><code>GET /api/info</code>, <code>GET /api/disk</code>, <code>GET /api/backups</code>, <code>GET /api/trigger-queue</code>, <code>GET /api/stats</code>, <code>GET /api/timers</code>, <code>GET /api/pins</code>, <code>/cursor</code></td><td><code>read</code></td></tr><tr><td><code>/exec</code> with <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CALL</code>; <code>POST /write</code>, <code>POST /imp</code> into a table that is there</td><td><code>write</code></td></tr><tr><td><code>/exec</code> with <code>CREATE</code>/<code>ALTER</code>/<code>DROP</code> of tables, views, functions, procedures, triggers, indexes; <code>BACKUP DATABASE</code>, <code>CHECK TABLE</code>; <code>POST /api/check</code>, <code>POST /api/backup</code>; a new table with <code>POST /imp</code>; saving, running and removing <a href="timers.html">timers</a>; pinning and unpinning <a href="pinned-queries.html">statements</a></td><td><code>admin</code> on the database</td></tr><tr><td><code>POST /api/databases</code>, <code>DELETE /api/databases/&lt;name&gt;</code>, <code>GET /api/settings</code>, <code>POST /api/settings</code>, <code>POST /api/restart</code>, <code>GET /api/audit</code>, <code>GET /api/feedback</code>, <code>POST /api/feedback/&lt;id&gt;</code>, <code>CREATE USER</code>, <code>GRANT</code>, ...</td><td>the user&#39;s own ROLE <code>admin</code></td></tr><tr><td><code>GET /api/databases</code></td><td>any login; lists only the databases the user may read</td></tr></tbody></table></div>
 <ul><li>A session (<code>POST /session</code>) can only be used by the user who opened it.</li><li>Rights are per database, and per table with <a href="table-rights.html">table rights</a>; not per column or row.</li><li>Users with <a href="two-factor-login.html">two-factor login</a> send <code>&quot;code&quot;</code> with <code>POST /api/login</code>; without it the answer is 401 with <code>&quot;totp&quot;: true</code>.</li></ul>
 <h2 id="errors">401, 403 and 429 answers</h2>
-<div class="table-wrap"><table><thead><tr><th>Answer</th><th>Means</th><th>What to do</th></tr></thead><tbody><tr><td>401 <code>{&quot;error&quot;: &quot;login required: log in (POST /api/login), or send a user name and password (HTTP Basic)&quot;, &quot;login&quot;: true}</code></td><td>no login on a server with users</td><td>log in</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;wrong user name or password&quot;, &quot;login&quot;: true}</code></td><td>a wrong name or password</td><td>check them</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;the login token is wrong or has expired; log in again (POST /api/login)&quot;}</code></td><td>an old or wrong login token</td><td>log in again</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;your login has expired; log in again&quot;}</code></td><td>an old login cookie</td><td>log in again</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;access token required&quot;}</code> / <code>{&quot;error&quot;: &quot;wrong access token&quot;}</code></td><td>a server with <code>--token</code></td><td>send the right token</td></tr><tr><td>403 <code>{&quot;error&quot;: &quot;INSERT needs role write on database &#39;shop&#39;; user &#39;report&#39; has read&quot;}</code></td><td>logged in, but the role is too weak</td><td>use another user, or <code>GRANT</code></td></tr><tr><td>403 <code>{&quot;error&quot;: &quot;cross-site requests are not allowed&quot;}</code></td><td>a browser request from another site</td><td>call KDB from your backend</td></tr><tr><td>403 <code>{&quot;error&quot;: &quot;this change came with a login cookie but without the right X-KDB-CSRF header; ...&quot;, &quot;csrf&quot;: true}</code></td><td>a change sent with a cookie but no <code>X-KDB-CSRF</code></td><td>send the <code>csrf</code> value, see <a href="http-login.html#csrf">CSRF</a></td></tr><tr><td>429 <code>{&quot;error&quot;: &quot;too many failed logins; try again in 4 s&quot;, &quot;login&quot;: true}</code> and <code>Retry-After: 4</code></td><td>too many failed logins</td><td>wait that many seconds</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer</th><th>Means</th><th>What to do</th></tr></thead><tbody><tr><td>401 <code>{&quot;error&quot;: &quot;login required: log in (POST /api/login), or send a user name and password (HTTP Basic)&quot;, &quot;login&quot;: true}</code></td><td>no login on a server with users</td><td>log in</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;wrong user name or password&quot;, &quot;login&quot;: true}</code></td><td>a wrong name or password</td><td>check them</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;the login token is wrong or has expired; log in again (POST /api/login)&quot;}</code></td><td>an old or wrong login token</td><td>log in again</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;your login has expired; log in again&quot;}</code></td><td>an old login cookie</td><td>log in again</td></tr><tr><td>401 <code>{&quot;error&quot;: &quot;access token required&quot;}</code> / <code>{&quot;error&quot;: &quot;wrong access token&quot;}</code></td><td>a server with <code>--token</code></td><td>send the right token</td></tr><tr><td>403 <code>{&quot;error&quot;: &quot;INSERT needs role write on database &#39;shop&#39;; user &#39;report&#39; has read&quot;}</code></td><td>logged in, but the role is too weak</td><td>use another user, or <code>GRANT</code></td></tr><tr><td>403 <code>{&quot;error&quot;: &quot;cross-site requests are not allowed&quot;}</code></td><td>a browser request from another site</td><td>call KarelaDB from your backend</td></tr><tr><td>403 <code>{&quot;error&quot;: &quot;this change came with a login cookie but without the right X-KDB-CSRF header; ...&quot;, &quot;csrf&quot;: true}</code></td><td>a change sent with a cookie but no <code>X-KDB-CSRF</code></td><td>send the <code>csrf</code> value, see <a href="http-login.html#csrf">CSRF</a></td></tr><tr><td>429 <code>{&quot;error&quot;: &quot;too many failed logins; try again in 4 s&quot;, &quot;login&quot;: true}</code> and <code>Retry-After: 4</code></td><td>too many failed logins</td><td>wait that many seconds</td></tr></tbody></table></div>
 <p>The 403 role message is shown for real in <a href="http-login.html#basic">HTTP Basic</a>. In a 401 answer, <code>&quot;login&quot;: true</code> tells a program that the server has users (so it should log in, not ask for a token).</p>
 <p><strong>HTTP: A request from another web site is refused before any login check</strong></p>
 <pre><code class="language-http">POST /api/login
@@ -595,6 +596,6 @@ Origin: http://evil.example
 <p>HTTP 403 (application/json)</p>
 <pre><code class="language-text">{&quot;error&quot;: &quot;cross-origin requests are not allowed&quot;}</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-login.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/http-login.md">This page as markdown</a>.</footer>
 </body>
 </html>

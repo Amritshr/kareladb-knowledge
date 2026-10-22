@@ -4,9 +4,9 @@
 
 - Category: Web console
 - Keywords: monitor, timers, timer failures, late timer, Monitor panel, monitoring, memory, RAM, resident, working set, processor, CPU, threads, uptime, running statements, cancel statement, kill query, result cache, cache hits, cached results, memory budget, loaded partitions, pending rows, checkpoint, open cursors, log position, LSN, deferred trigger queue, trigger lag, failed job, /api/stats, activity, activity log, server log, terminal, what the server is doing, GET /api/activity, --activity-log-size, X-KDB-Quiet, slow statements, slow queries, --slow-query-ms, disk use, on disk, trash, metrics
-- See also: [Web console](web-console.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md), [View data page (browse and edit rows)](console-data-page.md), [Health, info, check and backup over HTTP](http-server-info.md), [Performance tips](performance-tips.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [kdb serve](cli-serve.md), [Triggers](triggers.md)
+- See also: [Web console](web-console.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md), [View data page (browse and edit rows)](console-data-page.md), [Health, info, check and backup over HTTP](http-server-info.md), [Performance tips](performance-tips.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [kareladb serve](cli-serve.md), [Triggers](triggers.md)
 
-The **Monitor** panel of the [web console](web-console.md) shows the inside of a running `kdb serve`: how much memory the process holds, how busy the processor is, what each open database keeps in memory, and which statements are running right now. Open it with the **Monitor** button on the [right side](web-console.md#right-side) of the console. It is a panel, not a page: pin it to keep it open beside the page you work on.
+The **Monitor** panel of the [web console](web-console.md) shows the inside of a running `kareladb serve`: how much memory the process holds, how busy the processor is, what each open database keeps in memory, and which statements are running right now. Open it with the **Monitor** button on the [right side](web-console.md#right-side) of the console. It is a panel, not a page: pin it to keep it open beside the page you work on.
 
 It reads [`GET /api/stats`](http-server-info.md#api-stats) every couple of seconds. Everything there is a counter already in memory, so asking often costs almost nothing: no file is read and no database is opened to answer it.
 
@@ -71,7 +71,7 @@ Shown while [priority lanes](cli-serve.md#lanes) are on: the heavy slots in use,
 
 ## Slow statements
 
-The newest 20 statements that took at least the slow-query threshold (`kdb serve --slow-query-ms`, 1 second by default), from [`GET /api/slow-queries`](http-server-info.md#slow-queries). They are kept in a file on disk, so last night's slow statement is still here in the morning, after a restart too.
+The newest 20 statements that took at least the slow-query threshold (`kareladb serve --slow-query-ms`, 1 second by default), from [`GET /api/slow-queries`](http-server-info.md#slow-queries). They are kept in a file on disk, so last night's slow statement is still here in the morning, after a restart too.
 
 | Column | What it is |
 |---|---|
@@ -108,12 +108,12 @@ Only databases that are **open** are listed. A database opens the first time it 
 |---|---|
 | **Rows held in memory** | saved partition data kept in memory, against the budget (`--memory`, 512 MB by default). When it is full, the partitions used longest ago are dropped and read again when next needed. |
 | **Waiting to be written** | changes that are in the log but not yet in the partition files. A checkpoint writes them; it starts by itself at a quarter of the memory budget. |
-| **Result cache** | memory holding results of repeated queries (`--cache-mb` or `cache_mb` in kdb.conf, 256 MB by default; 0 turns it off) |
+| **Result cache** | memory holding results of repeated queries (`--cache-mb` or `cache_mb` in kareladb.conf, 256 MB by default; 0 turns it off) |
 | **Cache hits** | share of queries answered from that cache since the database was opened |
 | **Cached results** | how many results are in that cache now |
 | **Open cursors** | [cursors](cursors.md) a client has open (`POST /cursor`) |
 | **Log position** | the last change written to the log (the LSN) |
-| **On disk** | what the database takes on disk. The bar is the share that is data; point at it for the parts: data, older versions, trash, log, old log. Measured once a minute. Older versions and trash go by themselves (`keep_versions`, `trash_keep_hours`, `trash_max_mb` in [kdb.conf](cli-serve.md#kdb-conf)); the [Keep data page](console-keep-data.md) frees them at once. |
+| **On disk** | what the database takes on disk. The bar is the share that is data; point at it for the parts: data, older versions, trash, log, old log. Measured once a minute. Older versions and trash go by themselves (`keep_versions`, `trash_keep_hours`, `trash_max_mb` in [kareladb.conf](cli-serve.md#kareladb-conf)); the [Keep data page](console-keep-data.md) frees them at once. |
 | **Open for** | how long ago the server opened this database |
 
 A database with [deferred triggers](triggers.md#deferred) also shows **Deferred trigger queues**, one line per trigger:
@@ -155,7 +155,7 @@ The [terminal](web-console.md#terminal) at the bottom of the Home page shows wha
 | `backup` | a backup made from the console or the [backup schedule](backup-schedule.md) |
 | `server` | the server started or stops |
 
-- It is kept **in memory only**: the last 5,000 events (`kdb serve --activity-log-size N`, `0` turns it off). A restart starts it empty. For a record that is kept, use the [audit log](audit-log.md).
+- It is kept **in memory only**: the last 5,000 events (`kareladb serve --activity-log-size N`, `0` turns it off). A restart starts it empty. For a record that is kept, use the [audit log](audit-log.md).
 - Passwords, secrets and tokens in SQL show as `'***'`, and long statements are cut to 300 characters.
 - A bulk load is **one** event per request, never one per row, so logging does not slow loading down.
 - Requests with the header `X-KDB-Quiet: 1` are not logged. The console sends it with its own background refreshes.
@@ -217,10 +217,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 35, "execute_us": 68}
+      "timings": {"parse_us": 24, "execute_us": 59}
     }
   ],
-  "timings": {"parse_us": 35, "execute_us": 68}
+  "timings": {"parse_us": 24, "execute_us": 59}
 }
 ```
 
@@ -235,7 +235,7 @@ HTTP 200 (application/json)
   "events": [
     {
       "seq": 2,
-      "ms": 1792647811577,
+      "ms": 1792662901027,
       "kind": "query",
       "level": "ok",
       "user": "",
@@ -243,12 +243,12 @@ HTTP 200 (application/json)
       "database": "h119",
       "text": "CREATE TABLE acct (id INT PRIMARY KEY, name STRING, bal DOUBLE); INSERT INTO acct VALUES (1, 'Asha', 10);",
       "rows": 1,
-      "took_ms": 5,
+      "took_ms": 33,
       "error": ""
     },
     {
       "seq": 3,
-      "ms": 1792647815921,
+      "ms": 1792662907906,
       "kind": "query",
       "level": "ok",
       "user": "",
@@ -272,5 +272,5 @@ HTTP 200 (application/json)
 - Damage and backups; those are in the [Health panel](web-console.md#health-box) on the right side of the console and in [`/api/info`](http-server-info.md#get-api-info).
 
 ```bash
-curl -s -H "Authorization: Bearer $KDB_TOKEN" http://127.0.0.1:9900/api/stats
+curl -s -H "Authorization: Bearer $KARELADB_TOKEN" http://127.0.0.1:9900/api/stats
 ```

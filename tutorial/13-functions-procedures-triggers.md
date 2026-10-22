@@ -277,11 +277,11 @@ error: a row with id='1' already exists in 'brokers'. Use INSERT OR REPLACE to o
 
 | Rule | Detail |
 |---|---|
-| Where | In one text sent to `kdb sql`, `POST /exec` or the web console. In `kdb shell`, in an HTTP session (`POST /session`) and over the PostgreSQL protocol, a transaction can go over many requests (chapter 15). |
+| Where | In one text sent to `kareladb sql`, `POST /exec` or the web console. In `kareladb shell`, in an HTTP session (`POST /session`) and over the PostgreSQL protocol, a transaction can go over many requests (chapter 15). |
 | No COMMIT | A text that ends without `COMMIT` is rolled back, with the error `BEGIN without COMMIT` (not in a session: there it stays open). |
 | Crash | Changes are written to the log only at `COMMIT`. After a crash or power cut, a committed transaction is there completely, and a transaction without `COMMIT` is not there at all. |
 | Not inside | `CREATE`, `DROP`, `ALTER`, `RENAME`, `TRUNCATE`, `BACKUP DATABASE`. Run them before `BEGIN` or after `COMMIT`. |
-| Size | At most 10 million changed rows per transaction (`CALL` too). Until `COMMIT`, KDB keeps the old version of every changed row in memory. |
+| Size | At most 10 million changed rows per transaction (`CALL` too). Until `COMMIT`, KarelaDB keeps the old version of every changed row in memory. |
 | Others | While a session has an open transaction, other sessions **wait** before they change a table it used (at most 5 seconds, then `table 'x' is busy`); changes of other tables go on. Their reads do not wait for an open transaction: they see the rows without its changes. Chapter 15 explains this. |
 
 ## Triggers
@@ -421,7 +421,7 @@ trigger 'build_totals' created on table 'trade_log' (deferred: it runs after eac
 |---|---|
 | Which | Only `AFTER INSERT` triggers can be deferred. |
 | Jobs | Every insert (`INSERT`, `POST /write`, `POST /imp`, a `COMMIT` that inserted rows) makes one **job**. The jobs of a trigger run one at a time, oldest first. They are kept on disk, so a restart does not lose them. |
-| Where they run | In a running server (`kdb serve`). `kdb sql` exits right after its statement, so a job it made runs the next time a server opens the database. |
+| Where they run | In a running server (`kareladb serve`). `kareladb sql` exits right after its statement, so a job it made runs the next time a server opens the database. |
 | Failure | A failed job stops its trigger's queue. Nothing is skipped by itself. `RETRY TRIGGER QUEUE build_totals` runs it again; `SKIP TRIGGER JOB build_totals <id>` leaves it out. |
 | Watch | `GET /api/trigger-queue` shows the queue and the lag. `POST /write?...&wait=trigger` answers only after its own jobs ended. |
 | SHOW TRIGGERS | The timing column says `AFTER (deferred)`. |
@@ -505,11 +505,11 @@ time                     | symbol | close
 
 `FETCH NEXT n FROM c`, `FETCH ALL FROM c` (the rest), `CLOSE c`. `DECLARE` runs the query once and keeps its rows (a snapshot): later changes to the table do not change what `FETCH` returns.
 
-A cursor lives until `CLOSE`, until the end of the text (`kdb sql`, `POST /exec`), or until the `kdb shell` session ends.
+A cursor lives until `CLOSE`, until the end of the text (`kareladb sql`, `POST /exec`), or until the `kareladb shell` session ends.
 
-### In kdb shell: over many lines
+### In kareladb shell: over many lines
 
-In `kdb shell`, a transaction and a cursor stay open from one line to the next:
+In `kareladb shell`, a transaction and a cursor stay open from one line to the next:
 
 ```powershell
 @"
@@ -529,46 +529,46 @@ CREATE PROCEDURE count_sector(wanted STRING) AS BEGIN
 END;
 CALL count_sector('Banking');
 .exit
-"@ | kdb shell market
+"@ | kareladb shell market
 ```
 
 ```text
-KDB 0.2.0-dev shell on market
+KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> transaction started
-kdb> 1 row(s) updated
-kdb> symbol | sector
+kareladb> transaction started
+kareladb> 1 row(s) updated
+kareladb> symbol | sector
 -------+-------
 CITY   | Banks 
 (1 row, 0.1 ms)
-kdb> transaction rolled back: 1 change(s) undone
-kdb> symbol | sector 
+kareladb> transaction rolled back: 1 change(s) undone
+kareladb> symbol | sector 
 -------+--------
 CITY   | Banking
 (1 row, 0.0 ms)
-kdb> cursor 's' declared: 5 row(s)
-kdb> symbol
+kareladb> cursor 's' declared: 5 row(s)
+kareladb> symbol
 ------
 ACME  
 CITY  
 (2 rows, 0.0 ms)
 2 row(s) fetched, 3 left
-kdb> symbol
+kareladb> symbol
 ------
 COAST 
 TELCO 
 VOLT  
 (3 rows, 0.0 ms)
 3 row(s) fetched, no more rows
-kdb> cursor 's' closed
-kdb> ...> ...> ...> ...> procedure 'count_sector' created
-kdb> procedure 'count_sector' done: 0 row(s) changed
+kareladb> cursor 's' closed
+kareladb> ...> ...> ...> ...> procedure 'count_sector' created
+kareladb> procedure 'count_sector' done: 0 row(s) changed
 
 output    
 ----------
 Banking: 2
 (1 row, 0.0 ms)
-kdb>
+kareladb>
 ```
 
 The shell knows that a `CREATE PROCEDURE ... BEGIN ... END;` is one statement, even though it has `;` inside (the `...>` prompts). If you leave the shell with a transaction still open, it is rolled back. If a statement fails inside the transaction, the transaction is rolled back and the shell accepts only `ROLLBACK` until you send it (so the next lines cannot run outside the transaction by mistake).
@@ -628,7 +628,7 @@ step | routine    | statement                                        | rows | ti
 | `time_us` | time of the step in microseconds (the first row: the whole `CALL`) |
 | `changes` | variables that got a new value (`minutes=476`), the result of a condition (`true`/`false`), the `PRINT` text, or `failed: <error>`. A step that read table partitions adds how many: `partitions read: 1`. The first row counts them for the whole `CALL`. |
 
-With `WITH DEBUG`, `PRINT` lines are in the `debug` result (there is no separate `print` result). When the `CALL` fails, the `debug` rows up to the error are still returned, and the last one says `failed`: `kdb sql` and `kdb shell` print them before the error, and `POST /exec` returns them in `results` next to the `error`. Triggers that run during the `CALL` add their steps too. At most 100,000 steps are recorded.
+With `WITH DEBUG`, `PRINT` lines are in the `debug` result (there is no separate `print` result). When the `CALL` fails, the `debug` rows up to the error are still returned, and the last one says `failed`: `kareladb sql` and `kareladb shell` print them before the error, and `POST /exec` returns them in `results` next to the `error`. Triggers that run during the `CALL` add their steps too. At most 100,000 steps are recorded.
 
 `time_us` changes every time you run it: the numbers above are from one run.
 
@@ -665,9 +665,9 @@ change_pct | price DOUBLE, prev DOUBLE | DOUBLE  | CREATE FUNCTION change_pct(pr
 (1 row, 0.0 ms)
 ```
 
-The table format cuts long text after 48 characters. To see a whole definition, use `--format csv` or `--format json`: `kdb sql market "SHOW PROCEDURES" --format csv`.
+The table format cuts long text after 48 characters. To see a whole definition, use `--format csv` or `--format json`: `kareladb sql market "SHOW PROCEDURES" --format csv`.
 
-KDB checks a procedure's statements for **syntax** when you create it, and for **tables and columns** when it runs. A procedure that uses a table you dropped later fails at `CALL` with a clear message. `DROP FUNCTION` and `DROP PROCEDURE` do not check who uses them (views, other procedures, triggers).
+KarelaDB checks a procedure's statements for **syntax** when you create it, and for **tables and columns** when it runs. A procedure that uses a table you dropped later fails at `CALL` with a clear message. `DROP FUNCTION` and `DROP PROCEDURE` do not check who uses them (views, other procedures, triggers).
 
 ## Limits
 

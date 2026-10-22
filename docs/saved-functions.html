@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Saved functions - KDB (KARELA DataBase) docs</title>
+<title>Saved functions - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Save a formula with a name, and use it in any query like a built-in function.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/saved-functions.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/saved-functions.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/saved-functions.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/saved-functions.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="saved-functions">Saved functions</h1>
 <blockquote><p>Save a formula with a name, and use it in any query like a built-in function.</p></blockquote>
 <ul><li>Category: Saved functions</li><li>Keywords: function, user-defined function, UDF, formula, RETURNS, OR REPLACE, FUNCTIONS, CREATE OR REPLACE FUNCTION, calls itself, built-in function, nested too deeply</li><li>See also: <a href="procedures.html">Stored procedures</a>, <a href="procedure-language.html">The procedure language</a>, <a href="views.html">Views</a>, <a href="functions-math.html">Math functions</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
 <p>A <strong>saved function</strong> is a formula with a name. Its body is <strong>one expression</strong> (one formula, like <code>(close - open) / open * 100</code>).
 You write the formula once. Then every query can use it, like <code>round</code> or <code>concat</code>.</p>
-<ul><li>KDB keeps the function in the database. It is still there after a restart and in a backup.</li><li>A call costs nothing extra: when the query starts, KDB puts the body in the place of the call.</li><li>Only <strong>one expression</strong>. For many steps, variables or loops, use a <a href="procedures.html">stored procedure</a>.</li></ul>
+<ul><li>KarelaDB keeps the function in the database. It is still there after a restart and in a backup.</li><li>A call costs nothing extra: when the query starts, KarelaDB puts the body in the place of the call.</li><li>Only <strong>one expression</strong>. For many steps, variables or loops, use a <a href="procedures.html">stored procedure</a>.</li></ul>
 <p><strong>Example: The change of each share today, in percent</strong> (sample data: sample)</p>
 <pre><code class="language-sql">CREATE FUNCTION change_pct(price DOUBLE, prev DOUBLE) RETURNS DOUBLE
 AS ((price - prev) / prev * 100);
@@ -39,7 +39,7 @@ CREATE [OR REPLACE] FUNCTION name() [RETURNS TYPE] AS (expression)</code></pre>
 <p>Saves a new function. <code>OR REPLACE</code> changes a function that already exists.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the name of the function. Upper and lower case are the same (<code>Tax</code> and <code>tax</code> are one function).</td></tr><tr><td><code>parameter TYPE</code></td><td>an input value and its type (<code>INT</code>, <code>DOUBLE</code>, <code>DECIMAL(2)</code>, <code>STRING</code>, <code>TIMESTAMP</code>, ...). Write <code>()</code> for a function without inputs.</td></tr><tr><td><code>RETURNS TYPE</code></td><td>optional. The result is changed to this type (like <code>CAST</code>). Without it, the result keeps the type of the expression.</td></tr><tr><td><code>AS (expression)</code></td><td>the body: one expression in brackets. It can use the parameters, operators, <code>CASE</code>, built-in functions and other saved functions.</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> the message <code>function &#39;name&#39; created</code> (or <code>replaced</code>).</li><li><strong>Notes:</strong>
-<ul><li>Each argument is changed to the type of its parameter, like <code>CAST</code>. So <code>change_pct(&#39;5&#39;, &#39;4&#39;)</code> works: the text becomes a <code>DOUBLE</code>.</li><li><code>RETURNS DECIMAL(2)</code> fails when the value has more than 2 decimals, for example <code>112.9887</code>. Round first: <code>AS (round(amount * 0.13, 2))</code>.</li><li>Without <code>OR REPLACE</code>, a name that is already used gives an error.</li><li>KDB checks the body when you create the function: unknown functions, wrong argument counts and a function that calls itself are refused at once. The <a href="saved-functions.html#rules">rules</a> list everything a body cannot hold.</li><li>There are no default values for parameters, and no two functions with the same name and other parameters.</li></ul></li></ul>
+<ul><li>Each argument is changed to the type of its parameter, like <code>CAST</code>. So <code>change_pct(&#39;5&#39;, &#39;4&#39;)</code> works: the text becomes a <code>DOUBLE</code>.</li><li><code>RETURNS DECIMAL(2)</code> fails when the value has more than 2 decimals, for example <code>112.9887</code>. Round first: <code>AS (round(amount * 0.13, 2))</code>.</li><li>Without <code>OR REPLACE</code>, a name that is already used gives an error.</li><li>KarelaDB checks the body when you create the function: unknown functions, wrong argument counts and a function that calls itself are refused at once. The <a href="saved-functions.html#rules">rules</a> list everything a body cannot hold.</li><li>There are no default values for parameters, and no two functions with the same name and other parameters.</li></ul></li></ul>
 <p><strong>Example: VAT of 13% on an amount of money, exact to the cent</strong></p>
 <pre><code class="language-sql">CREATE FUNCTION vat(amount DECIMAL(2)) RETURNS DECIMAL(2) AS (round(amount * 0.13, 2));
 
@@ -189,7 +189,7 @@ CREATE OR REPLACE FUNCTION a(x DOUBLE) AS (b(x));</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">DROP FUNCTION [IF EXISTS] name</code></pre>
 <p>Removes a saved function.</p>
-<ul><li><strong>Returns:</strong> <code>function &#39;name&#39; dropped</code>. With <code>IF EXISTS</code>, a name that does not exist gives the message <code>function &#39;name&#39; does not exist</code> and no error.</li><li><strong>Notes:</strong> KDB does not check who uses the function. Other functions, views, procedures and triggers that use it fail later, when they run.</li></ul>
+<ul><li><strong>Returns:</strong> <code>function &#39;name&#39; dropped</code>. With <code>IF EXISTS</code>, a name that does not exist gives the message <code>function &#39;name&#39; does not exist</code> and no error.</li><li><strong>Notes:</strong> KarelaDB does not check who uses the function. Other functions, views, procedures and triggers that use it fail later, when they run.</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">CREATE FUNCTION fee(amount DOUBLE) RETURNS DOUBLE AS (amount * 0.004);
 DROP FUNCTION fee;
@@ -223,7 +223,7 @@ SELECT b(1);</code></pre>
 <pre><code class="language-sql">SHOW FUNCTIONS</code></pre>
 <p>Lists the saved functions of the database, in name order.</p>
 <div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the function name</td></tr><tr><td><code>arguments</code></td><td>the parameters and their types</td></tr><tr><td><code>returns</code></td><td>the <code>RETURNS</code> type, or <code>NULL</code> when there is none</td></tr><tr><td><code>definition</code></td><td>the whole <code>CREATE FUNCTION</code> statement</td></tr></tbody></table></div>
-<ul><li><strong>Notes:</strong> built-in functions are not listed. The text table of <code>kdb sql</code> cuts long text after 48 characters; use <code>--format csv</code> or <code>--format json</code> to see the whole definition.</li></ul>
+<ul><li><strong>Notes:</strong> built-in functions are not listed. The text table of <code>kareladb sql</code> cuts long text after 48 characters; use <code>--format csv</code> or <code>--format json</code> to see the whole definition.</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">CREATE FUNCTION change_pct(price DOUBLE, prev DOUBLE) RETURNS DOUBLE AS ((price - prev) / prev * 100);
 CREATE FUNCTION vat(amount DECIMAL(2)) RETURNS DECIMAL(2) AS (round(amount * 0.13, 2));
@@ -240,6 +240,6 @@ SHOW FUNCTIONS;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>arguments (STRING)</th><th>returns (STRING)</th><th>definition (STRING)</th></tr></thead><tbody><tr><td>change_pct</td><td>price DOUBLE, prev DOUBLE</td><td>DOUBLE</td><td>CREATE FUNCTION change_pct(price DOUBLE, prev DOUBLE) RETURNS DOUBLE AS ((price - prev) / prev * 100)</td></tr><tr><td>greeting</td><td>name STRING</td><td>NULL</td><td>CREATE FUNCTION greeting(name STRING) AS (concat(&#39;Namaste, &#39;, name))</td></tr><tr><td>vat</td><td>amount DECIMAL(2)</td><td>DECIMAL(2)</td><td>CREATE FUNCTION vat(amount DECIMAL(2)) RETURNS DECIMAL(2) AS (round(amount * 0.13, 2))</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/saved-functions.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/saved-functions.md">This page as markdown</a>.</footer>
 </body>
 </html>

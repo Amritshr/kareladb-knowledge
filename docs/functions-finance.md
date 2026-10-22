@@ -478,7 +478,7 @@ The **internal rate of return**: the discount rate that makes the NPV of the cas
 
 - **Returns:** `DOUBLE`, a fraction per period (`0.0889` is 8.89%).
 - **NULL:** `NULL` when an argument is `NULL`, and when there is no answer: the values need at least one negative and one positive value.
-- **Notes:** the periods are equal (years, or months). For cash flows on real dates use [xirr](#xirr). KDB starts looking at 10% and then searches wider.
+- **Notes:** the periods are equal (years, or months). For cash flows on real dates use [xirr](#xirr). KarelaDB starts looking at 10% and then searches wider.
 
 **Example: Return of a project: invest 1,000,000, get money back for 4 years** (sample data: analysis-finance)
 

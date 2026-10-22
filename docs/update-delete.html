@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UPDATE and DELETE - KDB (KARELA DataBase) docs</title>
+<title>UPDATE and DELETE - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/update-delete.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/update-delete.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/update-delete.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/update-delete.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="update-and-delete">UPDATE and DELETE</h1>
 <blockquote><p>Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.</p></blockquote>
 <ul><li>Category: Writing data</li><li>Keywords: update, change rows, modify, SET, delete, remove rows, delete rows, WHERE, all rows, RETURNING, fix bad data, wrong data, correct data, undo, rollback, TRUNCATE, TRUNCATE TABLE, RESTART IDENTITY, CONTINUE IDENTITY, empty a table, delete all rows, the update would create a second row, row(s) updated, row(s) deleted, safe workflow, UPDATE FROM, FROM other table, update from another table, DELETE USING</li><li>See also: <a href="insert.html">INSERT</a>, <a href="transactions.html">Transactions</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="constraints.html">Constraints</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="where.html">WHERE</a></li></ul>
-<p><code>UPDATE</code> changes values in rows that are already there. <code>DELETE</code> removes rows. Both take a <code>WHERE</code> condition that says <strong>which</strong> rows. Like <code>INSERT</code>, one statement is all or nothing, and it is saved as soon as KDB says <code>updated</code> or <code>deleted</code>.</p>
+<p><code>UPDATE</code> changes values in rows that are already there. <code>DELETE</code> removes rows. Both take a <code>WHERE</code> condition that says <strong>which</strong> rows. Like <code>INSERT</code>, one statement is all or nothing, and it is saved as soon as KarelaDB says <code>updated</code> or <code>deleted</code>.</p>
 <p><strong>Warning:</strong> without <code>WHERE</code>, <code>UPDATE</code> changes <strong>every row</strong> and <code>DELETE</code> removes <strong>every row</strong>. Before a big change, run <code>SELECT count(*)</code> with the same <code>WHERE</code> and check the number.</p>
 <p><strong>Example: Make every VOLT daily volume of 2026-09 ten percent bigger: count first, then change</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT count(*) AS rows FROM ochl_day WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09&#39;;
@@ -31,7 +31,7 @@ UPDATE ochl_day SET volume = round(volume * 1.1) WHERE symbol = &#39;VOLT&#39; A
 <pre><code class="language-sql">UPDATE table SET column = expression [, column = expression ...] [WHERE condition] [RETURNING ...]</code></pre>
 <p>Sets new values in every row where <code>condition</code> is true. The expression can use the <strong>old</strong> values of the same row: <code>balance = balance - 250.50</code>.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>SET column = expression</code></td><td>the new value; each column at most once</td></tr><tr><td><code>WHERE condition</code></td><td>which rows; without it: <strong>all</strong> rows. See <a href="where.html">WHERE</a></td></tr><tr><td><code>RETURNING</code></td><td>give the changed rows back; see <a href="#returning">RETURNING</a></td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> <code>N row(s) updated</code> (also <code>0 row(s) updated</code>: no row matched, not an error).</li><li>New values are converted to the column type and every <a href="constraints.html">constraint</a> is checked.</li><li>An <code>UPDATE</code> may change a key or the time column; KDB moves the row (also to another partition). It refuses to make a duplicate: <code>the update would create a second row with ...</code>.</li><li><strong>Notes:</strong> a computed column cannot be set. A <strong>subquery works</strong> in <code>SET</code> and in <code>WHERE</code>. A <code>DECIMAL</code> result with too many decimal places is refused; use <code>round(x, 2)</code>.</li></ul>
+<ul><li><strong>Returns:</strong> <code>N row(s) updated</code> (also <code>0 row(s) updated</code>: no row matched, not an error).</li><li>New values are converted to the column type and every <a href="constraints.html">constraint</a> is checked.</li><li>An <code>UPDATE</code> may change a key or the time column; KarelaDB moves the row (also to another partition). It refuses to make a duplicate: <code>the update would create a second row with ...</code>.</li><li><strong>Notes:</strong> a computed column cannot be set. A <strong>subquery works</strong> in <code>SET</code> and in <code>WHERE</code>. A <code>DECIMAL</code> result with too many decimal places is refused; use <code>round(x, 2)</code>.</li></ul>
 <h3 id="update-from">UPDATE ... FROM</h3>
 <p>Syntax:</p>
 <pre><code class="language-sql">UPDATE table SET column = expression FROM other_table [alias] [, ...] WHERE join_condition
@@ -130,7 +130,7 @@ SELECT * FROM accounts ORDER BY id;</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">DELETE FROM table [WHERE condition] [RETURNING ...]</code></pre>
 <p>Removes every row where <code>condition</code> is true. Without <code>WHERE</code>, it removes <strong>all</strong> rows, but the table stays.</p>
-<ul><li><strong>Returns:</strong> <code>N row(s) deleted</code>.</li><li><strong>Notes:</strong> a row that another table still <a href="constraints.html#references">REFERENCES</a> cannot be deleted, unless that <code>REFERENCES</code> says <code>ON DELETE CASCADE</code> (the pointing rows go too) or <code>ON DELETE SET NULL</code>. There is no <code>DELETE ... LIMIT</code>; a subquery in the <code>WHERE</code> works. To remove whole days, months or years of a time-series table, <a href="alter-table.html#drop-partition">DROP PARTITION</a> is much faster. To empty a whole table, <a href="#truncate">TRUNCATE</a> is much faster. Unlike QuestDB, KDB can delete single rows of a time-series table.</li><li><strong>Whole partitions:</strong> when the <code>WHERE</code> matches <strong>every</strong> row of each partition the <code>DELETE</code> reads - all rows of a table that holds one symbol, or whole months of a <code>PARTITION BY MONTH</code> table - KDB drops those partitions instead of deleting row by row, as <code>DROP PARTITION</code> does: the same rows go, but one log entry is written instead of one per row (239,326 minute bars: 3 ms instead of 300 ms). Inside <code>BEGIN ... COMMIT</code> a <code>ROLLBACK</code> puts them back. KDB checks this by counting: if a single row of those partitions does not match, the <code>DELETE</code> goes row by row as before. In the <a href="change-stream.html">change stream</a> such a <code>DELETE</code> is one <code>ddl</code> row (<code>ALTER TABLE ... DROP PARTITION ...</code>), not a <code>delete</code> row per row. <code>KDB_NO_DELETE_DROP=1</code> turns it off.</li></ul>
+<ul><li><strong>Returns:</strong> <code>N row(s) deleted</code>.</li><li><strong>Notes:</strong> a row that another table still <a href="constraints.html#references">REFERENCES</a> cannot be deleted, unless that <code>REFERENCES</code> says <code>ON DELETE CASCADE</code> (the pointing rows go too) or <code>ON DELETE SET NULL</code>. There is no <code>DELETE ... LIMIT</code>; a subquery in the <code>WHERE</code> works. To remove whole days, months or years of a time-series table, <a href="alter-table.html#drop-partition">DROP PARTITION</a> is much faster. To empty a whole table, <a href="#truncate">TRUNCATE</a> is much faster. Unlike QuestDB, KarelaDB can delete single rows of a time-series table.</li><li><strong>Whole partitions:</strong> when the <code>WHERE</code> matches <strong>every</strong> row of each partition the <code>DELETE</code> reads - all rows of a table that holds one symbol, or whole months of a <code>PARTITION BY MONTH</code> table - KarelaDB drops those partitions instead of deleting row by row, as <code>DROP PARTITION</code> does: the same rows go, but one log entry is written instead of one per row (239,326 minute bars: 3 ms instead of 300 ms). Inside <code>BEGIN ... COMMIT</code> a <code>ROLLBACK</code> puts them back. KarelaDB checks this by counting: if a single row of those partitions does not match, the <code>DELETE</code> goes row by row as before. In the <a href="change-stream.html">change stream</a> such a <code>DELETE</code> is one <code>ddl</code> row (<code>ALTER TABLE ... DROP PARTITION ...</code>), not a <code>delete</code> row per row. <code>KARELADB_NO_DELETE_DROP=1</code> turns it off.</li></ul>
 <p><strong>Example: Delete the trades of broker 34 on 2026-09-09</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT count(*) AS trades FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34);
 DELETE FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34);
@@ -240,7 +240,7 @@ CREATE TABLE trades (id LONG PRIMARY KEY AUTO, buyer INT REFERENCES brokers(id))
 TRUNCATE notes;</code></pre>
 <p>Result:</p>
 <pre><code class="language-text">transaction started</code></pre>
-<p>Error: <code>TRUNCATE cannot be used inside a transaction or a procedure: KDB cannot undo it. COMMIT or ROLLBACK first, or use DELETE FROM table, which ROLLBACK undoes (the transaction was rolled back)</code></p>
+<p>Error: <code>TRUNCATE cannot be used inside a transaction or a procedure: KarelaDB cannot undo it. COMMIT or ROLLBACK first, or use DELETE FROM table, which ROLLBACK undoes (the transaction was rolled back)</code></p>
 <h2 id="returning">RETURNING</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">UPDATE ... [WHERE ...] RETURNING expression [[AS] alias], ... | *
@@ -270,12 +270,12 @@ INSERT INTO news (title, published_at) VALUES
 <h2 id="fix-safely">Fix wrong rows safely</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">1. SELECT count(*) ... WHERE condition        -- look, count
-2. BACKUP DATABASE  (or kdb backup)           -- a way back
+2. BACKUP DATABASE  (or kareladb backup)           -- a way back
 3. DELETE FROM ... WHERE condition            -- the same WHERE
 4. INSERT OR REPLACE INTO ... VALUES (...)    -- the correct rows
 5. SELECT ... WHERE condition                 -- check</code></pre>
 <p>Bad data happens: a wrong file is imported, a price is ten times too big, a day is loaded twice. Use these steps.</p>
-<ul><li>Use the <strong>same <code>WHERE</code></strong> in every step. The number of deleted rows must be the number you counted.</li><li>To try a change first, wrap it in <code>BEGIN</code> ... <code>ROLLBACK</code>: you see the result, and nothing is saved. When it looks right, run it again with <code>COMMIT</code> (<a href="transactions.html">transactions</a>).</li><li><strong>Notes:</strong> if something went badly wrong (an <code>UPDATE</code> without <code>WHERE</code>), do not fix it row by row: restore the backup to the time before the mistake with <code>kdb restore --until</code> (<a href="backup-and-safety.html">backup and safety</a>). Times that are 5:45 hours wrong (a local time written without its offset, here <code>+05:45</code>) can be fixed with <code>UPDATE t SET time = time - 20700000 WHERE ...</code> (20700000 ms = 5 h 45 min); check the <code>DEDUP KEY</code> first.</li></ul>
+<ul><li>Use the <strong>same <code>WHERE</code></strong> in every step. The number of deleted rows must be the number you counted.</li><li>To try a change first, wrap it in <code>BEGIN</code> ... <code>ROLLBACK</code>: you see the result, and nothing is saved. When it looks right, run it again with <code>COMMIT</code> (<a href="transactions.html">transactions</a>).</li><li><strong>Notes:</strong> if something went badly wrong (an <code>UPDATE</code> without <code>WHERE</code>), do not fix it row by row: restore the backup to the time before the mistake with <code>kareladb restore --until</code> (<a href="backup-and-safety.html">backup and safety</a>). Times that are 5:45 hours wrong (a local time written without its offset, here <code>+05:45</code>) can be fixed with <code>UPDATE t SET time = time - 20700000 WHERE ...</code> (20700000 ms = 5 h 45 min); check the <code>DEDUP KEY</code> first.</li></ul>
 <p><strong>Example: A bad import made COAST minute prices ten times too big: find, delete, load again, check</strong> (sample data: sample)</p>
 <p>Setup:</p>
 <pre><code class="language-sql">UPDATE ochl_minutes SET open = open * 10, high = high * 10, low = low * 10, close = close * 10
@@ -356,6 +356,6 @@ SELECT timestamp, symbol, ltp FROM live_data;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>513</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>527.1</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/update-delete.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/update-delete.md">This page as markdown</a>.</footer>
 </body>
 </html>

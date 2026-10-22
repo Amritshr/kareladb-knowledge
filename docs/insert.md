@@ -6,7 +6,7 @@
 - Keywords: insert, add rows, new row, VALUES, INTO, column list, multi-row insert, upsert, INSERT OR REPLACE, REPLACE, INSERT OR IGNORE, IGNORE, ON CONFLICT, duplicate key, already exists, dedup, RETURNING, returning id, new id, last insert id, time zone, +05:45, Nepal time, UTC, INSERT SELECT, copy rows
 - See also: [UPDATE and DELETE](update-delete.md), [Loading many rows](loading-data.md), [Constraints](constraints.md), [Column types](column-types.md), [CREATE TABLE](create-table.md), [Transactions](transactions.md), [Time and time zones](time-and-time-zones.md)
 
-`INSERT` adds rows to a table. One `INSERT` can add many rows, and it is **all or nothing**: when one row is bad, no row of that statement is saved. When KDB says `inserted`, the rows are already on the disk.
+`INSERT` adds rows to a table. One `INSERT` can add many rows, and it is **all or nothing**: when one row is bad, no row of that statement is saved. When KarelaDB says `inserted`, the rows are already on the disk.
 
 | Statement | The key is new | The key is already there |
 |---|---|---|
@@ -210,7 +210,7 @@ DEDUP KEY (column, ..., time)   time-series table
 UNIQUE (column)                 any table
 ```
 
-How KDB decides that a new row is "already there":
+How KarelaDB decides that a new row is "already there":
 
 | Table | Two rows are the same when |
 |---|---|
@@ -284,7 +284,7 @@ Adds rows with new keys, and **replaces** rows whose key is already there. This 
 
 - The **whole old row** is replaced. Columns you do not give get their `DEFAULT` or `NULL`, **not** the old values. To change only some columns, use [UPDATE](update-delete.md#update).
 - **Returns:** `N row(s) inserted, M replaced`.
-- **Notes:** on a table without a key it works like `INSERT`. PostgreSQL writes `INSERT ... ON CONFLICT (key) DO UPDATE`; MySQL writes `REPLACE INTO`. QuestDB replaces rows by itself with `DEDUP UPSERT KEYS`; KDB does too on a table made with those words, and otherwise only when you write `OR REPLACE` ([dedup_insert](partitions-and-dedup.md#dedup-insert)).
+- **Notes:** on a table without a key it works like `INSERT`. PostgreSQL writes `INSERT ... ON CONFLICT (key) DO UPDATE`; MySQL writes `REPLACE INTO`. QuestDB replaces rows by itself with `DEDUP UPSERT KEYS`; KarelaDB does too on a table made with those words, and otherwise only when you write `OR REPLACE` ([dedup_insert](partitions-and-dedup.md#dedup-insert)).
 
 **Example: The CITY close price was wrong: send the full row again**
 
@@ -499,9 +499,9 @@ Syntax:
 'YYYY-MM-DD[T| ]HH:MM[:SS[.fff]][Z | +HH:MM | +HHMM | -HH:MM]'
 ```
 
-KDB keeps every `TIMESTAMP` in **UTC**. The text you write is read like this:
+KarelaDB keeps every `TIMESTAMP` in **UTC**. The text you write is read like this:
 
-| You write | KDB reads it as |
+| You write | KarelaDB reads it as |
 |---|---|
 | `'2026-09-10T11:00:00+05:45'` | 11:00 Nepal time = 05:15 UTC |
 | `'2026-09-10 11:00:00'` (no zone) | 11:00 **UTC** |
@@ -609,7 +609,7 @@ Copies the rows of a query into a table in one statement.
   - `DEFAULT VALUES` writes one row with every column at its `DEFAULT` (or NULL).
   - **Big copies:** when the query is a plain read of tables (a `WHERE` and expressions are fine, `UNION ALL` too; no `GROUP BY`, `DISTINCT`, window or `LIMIT`), the rows go into the table while they are read. An `ORDER BY` of one table is fine too: the rows are sorted in batches of a few MB that go to temporary files in `_tmp/` of the database folder (`max_spill_bytes`), then written in that order - the same rows as a sort in memory, so the `ORDER BY` still decides which of two rows with one key is kept. They are not held first as a query result, so `--max-result-memory` does not stop the copy; the rows count toward the [transaction limits](limits.md) instead. It is still one statement: a bad row writes nothing, and the error names the row (`row 17000: ...`). This needs no `RETURNING`, no trigger on the table, and an `ON CONFLICT` only as `DO NOTHING` or a `DO UPDATE` that sets every other column from `EXCLUDED`. Any other query keeps its rows first, as before.
   - **Into a table without a key** (no `DEDUP KEY`, no `PRIMARY KEY`, not split by `SYMBOL(...)`), such a copy is written as columns, the way [/imp](http-import.md) writes: about 50 bytes a row in memory until the next checkpoint, not about 600. A loop copying 660k rows at a time stays near 80 MB of unsaved rows, not 750 MB.
-  - **Into empty partitions of a table with a key** (a `DEDUP KEY` or `PRIMARY KEY` that is the whole `SORT BY`): when no partition the rows go to held a row before (a new month, or partitions a `DELETE` of the same transaction emptied) and the rows come in key order - as a copy from a table with the same `SORT BY` gives them - such a copy is written as columns too, and no key is looked up. A plain copy of every column, `INSERT INTO t SELECT a, b, c FROM s`, where `s` has the same columns and types, the same `SORT BY` and `PARTITION BY`, copies the partitions of `s` whole. The rows and the messages are the same as row by row: a key that repeats, or one already stored, sends the copy the row way, which reports it as before. `KDB_NO_INSERT_KEY_RUNS=1` and `KDB_NO_INSERT_COPY=1` turn these off.
+  - **Into empty partitions of a table with a key** (a `DEDUP KEY` or `PRIMARY KEY` that is the whole `SORT BY`): when no partition the rows go to held a row before (a new month, or partitions a `DELETE` of the same transaction emptied) and the rows come in key order - as a copy from a table with the same `SORT BY` gives them - such a copy is written as columns too, and no key is looked up. A plain copy of every column, `INSERT INTO t SELECT a, b, c FROM s`, where `s` has the same columns and types, the same `SORT BY` and `PARTITION BY`, copies the partitions of `s` whole. The rows and the messages are the same as row by row: a key that repeats, or one already stored, sends the copy the row way, which reports it as before. `KARELADB_NO_INSERT_KEY_RUNS=1` and `KARELADB_NO_INSERT_COPY=1` turn these off.
   - A subquery can also be a value: `VALUES ((SELECT max(id) FROM t) + 1, 'x')`.
 
 **Example: Copy the closes of one symbol into another table**

@@ -11,7 +11,7 @@ A `BYTES` value holds raw bytes: any byte from 0 to 255, also zero bytes. Good u
 
 - **Hex** writes every byte as two digits `0-9 a-f`: the bytes 0, 255, 16 are `00ff10`.
 - **Base64** writes 3 bytes as 4 letters: the same bytes are `AP8Q`. It is shorter than hex, and is often used in JSON and HTTP.
-- KDB **shows** `BYTES` as `\x` and hex (`\x00ff10`), like PostgreSQL. This is the same in the shell, CSV and HTTP answers.
+- KarelaDB **shows** `BYTES` as `\x` and hex (`\x00ff10`), like PostgreSQL. This is the same in the shell, CSV and HTTP answers.
 - On `BYTES`, `length()`, `octet_length()`, `substr()` and `reverse()` work on bytes, not letters (see [text functions](functions-text.md)).
 
 Setup used by the examples below:
@@ -30,7 +30,7 @@ INSERT INTO reports (symbol, fiscal_year, pdf_url, pdf_sha256) VALUES
   ('VOLT', '2082/83', 'https://files.example.com/volt/2082-83-q4.pdf', NULL);
 ```
 
-**Example: A report PDF stays outside; KDB keeps its SHA-256 hash**
+**Example: A report PDF stays outside; KarelaDB keeps its SHA-256 hash**
 
 ```sql
 SELECT symbol,
@@ -548,7 +548,7 @@ The bytes of a text in an encoding (PostgreSQL). `convert_to(token, 'UTF8')` is 
 
 - **Returns:** `BYTES`.
 - **NULL:** `NULL` when an argument is `NULL`.
-- **Notes:** KDB keeps text as UTF-8, so `'UTF8'` gives those bytes as they are. `'LATIN1'` gives one byte per character; a character LATIN1 does not have (like Nepali letters) is an error, never a `?`. Other encodings are an error.
+- **Notes:** KarelaDB keeps text as UTF-8, so `'UTF8'` gives those bytes as they are. `'LATIN1'` gives one byte per character; a character LATIN1 does not have (like Nepali letters) is an error, never a `?`. Other encodings are an error.
 
 **Example**
 

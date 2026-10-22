@@ -4,13 +4,13 @@
 
 - Category: Users & security
 - Keywords: ALTER USER SET timezone, user time zone, user, users, database user, role, roles, rights, permissions, privileges, GRANT, REVOKE, PASSWORD, ROLE, USER, USERS, IF NOT EXISTS, IF EXISTS, WITH, ALL, admin, ddl, write, read, none, DDL right, schema changes, migrations, \_system, last admin, REVOKE ALL ON DATABASE, 403, permission denied, SET ROLE, RESET ROLE, SET ROLE NONE, current\_user, session\_user
-- See also: [Keeping kdb serve safe](server-security.md), [Security functions](functions-security.md), [kdb user](cli-users.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases and the data folder](databases.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md)
+- See also: [Keeping kareladb serve safe](server-security.md), [Security functions](functions-security.md), [kareladb user](cli-users.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases and the data folder](databases.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md)
 
-**Database users** are the people and programs that connect to a running `kdb serve`: you in the web console, your app's backend, a report script. Each user has a password and a **role** (what it may do).
+**Database users** are the people and programs that connect to a running `kareladb serve`: you in the web console, your app's backend, a report script. Each user has a password and a **role** (what it may do).
 
-- As soon as the first user exists, `kdb serve` asks for a login on every request (see [Keeping kdb serve safe](server-security.md)).
+- As soon as the first user exists, `kareladb serve` asks for a login on every request (see [Keeping kareladb serve safe](server-security.md)).
 - The users of **your app** (customers who register on your web site) are something else. Keep them in your own table with [password_hash](functions-security.md#password-hash).
-- `kdb sql` and `kdb shell` open the files directly. They never ask for a login and can run every statement here. Protect the data folder with the file rights of the operating system.
+- `kareladb sql` and `kareladb shell` open the files directly. They never ask for a login and can run every statement here. Protect the data folder with the file rights of the operating system.
 
 A small shop with three users: you (admin), the shop's backend (write on one database) and a report script (read everywhere).
 
@@ -54,9 +54,9 @@ user 'report' created with role read
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:39.234Z | 2026-10-22T05:44:39.234Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-22T05:44:39.366Z | 2026-10-22T05:44:39.366Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-22T05:44:39.299Z | 2026-10-22T05:44:39.301Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:41.412Z | 2026-10-22T09:56:41.412Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-22T09:56:41.521Z | 2026-10-22T09:56:41.521Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-22T09:56:41.467Z | 2026-10-22T09:56:41.468Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -81,10 +81,10 @@ Adds a database user with a password. `PASSWORD` and `ROLE` may come in any orde
 - **Notes:**
   - The **first** user must have `ROLE admin`. Once a user exists, the server asks for a login, and only an admin can manage users.
   - Only a user whose own `ROLE` is `admin` may run it (on a server with users).
-  - KDB keeps a PBKDF2 hash of the password (600,000 rounds) and a SCRAM-SHA-256 secret for the PostgreSQL port. The password itself is never stored. The statement KDB shows back reads `PASSWORD '***'`.
+  - KarelaDB keeps a PBKDF2 hash of the password (600,000 rounds) and a SCRAM-SHA-256 secret for the PostgreSQL port. The password itself is never stored. The statement KarelaDB shows back reads `PASSWORD '***'`.
   - Hashing takes about 0.1 second, so creating many users is not instant.
   - A name with other characters (a dot, a space, Nepali letters) is refused, also inside double quotes. The name is kept as you wrote it (`Sita-K`), but compared without case.
-  - Different from PostgreSQL: there is no `CREATE ROLE`, no `LOGIN`/`NOLOGIN` and no `VALID UNTIL`. MySQL writes `'name'@'host' IDENTIFIED BY '...'`; KDB has no host part.
+  - Different from PostgreSQL: there is no `CREATE ROLE`, no `LOGIN`/`NOLOGIN` and no `VALID UNTIL`. MySQL writes `'name'@'host' IDENTIFIED BY '...'`; KarelaDB has no host part.
 
 **Example**
 
@@ -217,8 +217,8 @@ user 'report' changed: role write
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:39.719Z | 2026-10-22T05:44:39.719Z | NULL | false | NULL | NULL |
-| report | write | NULL | 2026-10-22T05:44:39.792Z | 2026-10-22T05:44:40.030Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:41.880Z | 2026-10-22T09:56:41.880Z | NULL | false | NULL | NULL |
+| report | write | NULL | 2026-10-22T09:56:41.935Z | 2026-10-22T09:56:42.184Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -316,9 +316,9 @@ statement_timeout of user 'report' is 10 min (from their next statement)
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:40.103Z | 2026-10-22T05:44:40.103Z | NULL | false | NULL | NULL |
-| charts | read | NULL | 2026-10-22T05:44:40.170Z | 2026-10-22T05:44:40.381Z | NULL | false | 2 s | NULL |
-| report | read | NULL | 2026-10-22T05:44:40.237Z | 2026-10-22T05:44:40.384Z | NULL | false | 10 min | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:42.338Z | 2026-10-22T09:56:42.338Z | NULL | false | NULL | NULL |
+| charts | read | NULL | 2026-10-22T09:56:42.393Z | 2026-10-22T09:56:42.623Z | NULL | false | 2 s | NULL |
+| report | read | NULL | 2026-10-22T09:56:42.447Z | 2026-10-22T09:56:42.625Z | NULL | false | 10 min | NULL |
 
 (3 rows)
 
@@ -370,7 +370,7 @@ ALTER USER name SET TIME ZONE 'Asia/Kathmandu'
 ALTER USER name RESET timezone
 ```
 
-The clock one user's sessions start on: `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, `to_char` and a `DATE` met by a `TIMESTAMP` use it ([time zones](time-and-time-zones.md#session-time-zone)). The user's own `SET TIME ZONE` still changes it for a session. Users without one have the server's zone, which is the computer's own unless `kdb serve --timezone` names another.
+The clock one user's sessions start on: `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, `to_char` and a `DATE` met by a `TIMESTAMP` use it ([time zones](time-and-time-zones.md#session-time-zone)). The user's own `SET TIME ZONE` still changes it for a session. Users without one have the server's zone, which is the computer's own unless `kareladb serve --timezone` names another.
 
 - **Role:** an admin sets it, for any user.
 - **Kept:** with the user, across restarts and backups.
@@ -414,7 +414,7 @@ Removes a user and its grants. Its logins stop working at once.
   - Needs `ROLE admin`.
   - The last user with `ROLE admin` can not be dropped while other users exist.
   - When the **last** user is dropped, the server has no users again and stops asking for a login (on `127.0.0.1`).
-  - Tables and data are never touched: KDB has no "owner" of a table.
+  - Tables and data are never touched: KarelaDB has no "owner" of a table.
 
 **Example**
 
@@ -449,7 +449,7 @@ user 'report' does not exist
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:40.692Z | 2026-10-22T05:44:40.692Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:42.936Z | 2026-10-22T09:56:42.936Z | NULL | false | NULL | NULL |
 
 (1 row)
 
@@ -518,9 +518,9 @@ Result:
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:40.810Z | 2026-10-22T05:44:40.810Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-22T05:44:40.953Z | 2026-10-22T05:44:40.953Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=read, shop=write | 2026-10-22T05:44:40.877Z | 2026-10-22T05:44:40.985Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:42.950Z | 2026-10-22T09:56:42.950Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-22T09:56:43.060Z | 2026-10-22T09:56:43.060Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=read, shop=write | 2026-10-22T09:56:43.005Z | 2026-10-22T09:56:43.076Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -583,8 +583,8 @@ user 'shop_app' has role admin on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:40.924Z | 2026-10-22T05:44:40.924Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=admin, shop=write | 2026-10-22T05:44:40.999Z | 2026-10-22T05:44:41.200Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:43.118Z | 2026-10-22T09:56:43.118Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=admin, shop=write | 2026-10-22T09:56:43.173Z | 2026-10-22T09:56:43.316Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -609,15 +609,15 @@ Result:
 `DROP DATABASE shop`
 
 ```text
-database 'shop' dropped; its folder was moved to kdb-data/_trash/1792647881547-shop
+database 'shop' dropped; its folder was moved to kdb-data/_trash/1792663003586-shop
 ```
 
 `SHOW USERS`
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:41.285Z | 2026-10-22T05:44:41.285Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-22T05:44:41.351Z | 2026-10-22T05:44:41.553Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:43.339Z | 2026-10-22T09:56:43.339Z | NULL | false | NULL | NULL |
+| shop_app | none | NULL | 2026-10-22T09:56:43.399Z | 2026-10-22T09:56:43.592Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -674,7 +674,7 @@ Removes the user's grant on one database.
 - **Notes:**
   - It does **not** change the user's own `ROLE`. A user with `ROLE read` can still read `db` after `REVOKE`. Use `ALTER USER name ROLE none` for that.
   - `REVOKE read ...` on a user with a `write` grant removes the `write` grant too; there is no "step down". To give less, `GRANT` the smaller role instead.
-  - KDB also accepts `TO name` instead of `FROM name`.
+  - KarelaDB also accepts `TO name` instead of `FROM name`.
   - Needs `ROLE admin`.
 
 **Example**
@@ -704,8 +704,8 @@ user 'shop_app' has no grant on database 'demo' now
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:41.537Z | 2026-10-22T05:44:41.537Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-22T05:44:41.605Z | 2026-10-22T05:44:41.774Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:43.618Z | 2026-10-22T09:56:43.618Z | NULL | false | NULL | NULL |
+| shop_app | none | NULL | 2026-10-22T09:56:43.672Z | 2026-10-22T09:56:43.798Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -736,8 +736,8 @@ user 'report' keeps role write on database 'demo': REVOKE read takes away only a
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:41.895Z | 2026-10-22T05:44:41.895Z | NULL | false | NULL | NULL |
-| report | read | demo=write | 2026-10-22T05:44:41.963Z | 2026-10-22T05:44:41.965Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:43.815Z | 2026-10-22T09:56:43.815Z | NULL | false | NULL | NULL |
+| report | read | demo=write | 2026-10-22T09:56:43.872Z | 2026-10-22T09:56:43.874Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -870,10 +870,10 @@ Two places give a role:
   - `SHOW DATABASES` lists only the databases the user may read.
   - A `--token` of the server works like a full admin.
   - Give each program only what it needs: your app's backend `write` on its own database, a report script `read`, a migration tool `ddl`. Keep `admin` for yourself.
-  - `ddl` is for a developer or a migration tool (Flyway, Alembic, Prisma) that changes tables but must not manage users or settings. It is kept by its name, like the other roles. An older KDB reads a `ddl` user as `none`: that user loses rights there, it never gains them.
+  - `ddl` is for a developer or a migration tool (Flyway, Alembic, Prisma) that changes tables but must not manage users or settings. It is kept by its name, like the other roles. An older KarelaDB reads a `ddl` user as `none`: that user loses rights there, it never gains them.
   - `CALL` needs `write`: a procedure can only change rows (it can not hold `CREATE` or `DROP`).
   - A view, procedure or trigger saved by a `ddl` user may only read and change what that user may. `CREATE VIEW v AS SELECT * FROM _audit_log` needs `admin`, like reading `_audit_log` itself. See [table rights](table-rights.md#revoke-on-table).
-  - Only `kdb serve` (HTTP, web console and PostgreSQL port) checks roles. `kdb sql` and `kdb shell` do not.
+  - Only `kareladb serve` (HTTP, web console and PostgreSQL port) checks roles. `kareladb sql` and `kareladb shell` do not.
 
 **Example: A report user that may read every database, and an app that may write one**
 
@@ -914,9 +914,9 @@ user 'shop_app' has role write on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:42.114Z | 2026-10-22T05:44:42.114Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-22T05:44:42.334Z | 2026-10-22T05:44:42.334Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-22T05:44:42.406Z | 2026-10-22T05:44:42.408Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:44.043Z | 2026-10-22T09:56:44.043Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-22T09:56:44.223Z | 2026-10-22T09:56:44.223Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-22T09:56:44.281Z | 2026-10-22T09:56:44.283Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -1004,7 +1004,7 @@ Syntax:
 <data folder>/_system/        the hidden database with the table users
 ```
 
-Users belong to the **data folder**, not to one database. KDB keeps them in a hidden database named `_system` inside the data folder. All databases of that folder share the users.
+Users belong to the **data folder**, not to one database. KarelaDB keeps them in a hidden database named `_system` inside the data folder. All databases of that folder share the users.
 
 | Column of `users` | Holds |
 |---|---|
@@ -1015,11 +1015,11 @@ Users belong to the **data folder**, not to one database. KDB keeps them in a hi
 
 - **Returns:** not a statement: `USE _system` and `CREATE DATABASE _system` are refused.
 - **Notes:**
-  - A server that opened **one database folder by its path** (`kdb serve D:\kdb\market`) has no users. Use `--data-dir <folder>`.
+  - A server that opened **one database folder by its path** (`kareladb serve D:\kdb\market`) has no users. Use `--data-dir <folder>`.
   - Anyone who can read the data folder or a backup can read the password hashes. Keep the folder and backups private (`chmod 700` on Linux).
-  - `kdb user add | passwd | role | list | remove` work on the same users while the server is stopped (see [kdb user](cli-users.md)). While `kdb serve` runs, use SQL in its console.
+  - `kareladb user add | passwd | role | list | remove` work on the same users while the server is stopped (see [kareladb user](cli-users.md)). While `kareladb serve` runs, use SQL in its console.
   - Logins (sessions) and [API tokens](api-tokens.md) are kept here too, as hashes only, so a restart logs nobody out.
-  - An old `kdb` program made before users existed does not know `_system` and would serve the data **without** a login. Update every `kdb` program first.
+  - An old `kareladb` program made before users existed does not know `_system` and would serve the data **without** a login. Update every `kareladb` program first.
 
 **Example: _system is not a normal database** (shows an error)
 
@@ -1029,51 +1029,51 @@ USE _system;
 
 Result:
 
-Error: `line 1, column 5: bad database name '_system': '_system' is where KDB keeps its users`
+Error: `line 1, column 5: bad database name '_system': '_system' is where KarelaDB keeps its users`
 
-**Command line: kdb user and SQL see the same users**
+**Command line: kareladb user and SQL see the same users**
 
 ```bash
-kdb user add admin --role admin
+kareladb user add admin --role admin
 > Long-Admin-Passw0rd
 > Long-Admin-Passw0rd
-kdb user list
-kdb sql kdb-data/shop "CREATE TABLE orders (id INT PRIMARY KEY)"
-kdb sql shop "CREATE USER report WITH PASSWORD 'Reports-only-secret-7' ROLE read; SHOW USERS"
+kareladb user list
+kareladb sql kdb-data/shop "CREATE TABLE orders (id INT PRIMARY KEY)"
+kareladb sql shop "CREATE USER report WITH PASSWORD 'Reports-only-secret-7' ROLE read; SHOW USERS"
 ```
 
 Output:
 
-`> kdb user add admin --role admin`
+`> kareladb user add admin --role admin`
 
 ```text
 user 'admin' added with role admin in ./kdb-data
 ```
 
-`> kdb user list`
+`> kareladb user list`
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 11:29:42
+admin                    admin  -                              2026-10-22 15:41:44
 1 user in ./kdb-data
 ```
 
-`> kdb sql kdb-data/shop "CREATE TABLE orders (id INT PRIMARY KEY)"`
+`> kareladb sql kdb-data/shop "CREATE TABLE orders (id INT PRIMARY KEY)"`
 
 ```text
 table 'orders' created
 ```
 
-`> kdb sql shop "CREATE USER report WITH PASSWORD 'Reports-only-secret-7' ROLE read; SHOW USERS"`
+`> kareladb sql shop "CREATE USER report WITH PASSWORD 'Reports-only-secret-7' ROLE read; SHOW USERS"`
 
 ```text
 user 'report' created with role read
 
 name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority
 -------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+---------
-admin  | admin | NULL   | 2026-10-22T05:44:42.569Z | 2026-10-22T05:44:42.569Z | NULL         | false      | NULL              | NULL    
-report | read  | NULL   | 2026-10-22T05:44:43.043Z | 2026-10-22T05:44:43.043Z | NULL         | false      | NULL              | NULL    
+admin  | admin | NULL   | 2026-10-22T09:56:44.318Z | 2026-10-22T09:56:44.318Z | NULL         | false      | NULL              | NULL    
+report | read  | NULL   | 2026-10-22T09:56:44.908Z | 2026-10-22T09:56:44.908Z | NULL         | false      | NULL              | NULL    
 (2 rows, 0.0 ms)
 ```
 
-Here the data folder is `kdb-data`. The first `kdb sql` makes the database `shop` in it by its path. After that, the plain name `shop` means the database in the data folder, so the user statements work. A plain name that is **not** in the data folder is taken as a new folder in the current folder, and then user statements say `users need a data folder`.
+Here the data folder is `kdb-data`. The first `kareladb sql` makes the database `shop` in it by its path. After that, the plain name `shop` means the database in the data folder, so the user statements work. A plain name that is **not** in the data folder is taken as a new folder in the current folder, and then user statements say `users need a data folder`.

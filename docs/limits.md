@@ -1,15 +1,15 @@
 # Limits
 
-> The sizes and counts KDB allows, what happens at each limit, and the features that are not there yet.
+> The sizes and counts KarelaDB allows, what happens at each limit, and the features that are not there yet.
 
 - Category: Limits
-- Keywords: limit, limits, maximum, max, how big, how many, too big, too many, nested too deeply, 16 MB, 64 MB, 10 million, DECIMAL scale, name length, too many open cursors, lock timeout, database is busy, table is busy, deadlock, idle transaction, request body, 10,000 rows, truncated, disk full, 507, 53100, statement timeout, max-queries-per-user, max-groups, max-result-memory, max\_spill\_bytes, KDB\_NO\_ZONE\_MAPS, KDB\_NO\_COLUMN\_MASK, KDB\_NO\_UNION\_PUSHDOWN, switches, reader yield, not supported, missing features, known limitations, not available
-- See also: [Performance tips](performance-tips.md), [Cursors (limits)](cursors.md#limits), [Transactions](transactions.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [How KDB stores data](data-formats.md), [Protection - timeouts, limits, safe updates, read-only](protection.md)
+- Keywords: limit, limits, maximum, max, how big, how many, too big, too many, nested too deeply, 16 MB, 64 MB, 10 million, DECIMAL scale, name length, too many open cursors, lock timeout, database is busy, table is busy, deadlock, idle transaction, request body, 10,000 rows, truncated, disk full, 507, 53100, statement timeout, max-queries-per-user, max-groups, max-result-memory, max\_spill\_bytes, KARELADB\_NO\_ZONE\_MAPS, KARELADB\_NO\_COLUMN\_MASK, KARELADB\_NO\_UNION\_PUSHDOWN, switches, reader yield, not supported, missing features, known limitations, not available
+- See also: [Performance tips](performance-tips.md), [Cursors (limits)](cursors.md#limits), [Transactions](transactions.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [How KarelaDB stores data](data-formats.md), [Protection - timeouts, limits, safe updates, read-only](protection.md)
 
-These are the limits of KDB `0.2.0-dev` (September 2026). Most of them are there to protect memory and to give a clear error instead of a crash.
+These are the limits of KarelaDB `0.2.0-dev` (September 2026). Most of them are there to protect memory and to give a clear error instead of a crash.
 When a limit is reached, the statement fails with an error that names the limit, and **nothing** of that statement is saved.
 
-The full list of missing features is in [known limitations](../tutorial/known-limitations.md). Please check again after you update KDB.
+The full list of missing features is in [known limitations](../tutorial/known-limitations.md). Please check again after you update KarelaDB.
 
 <a id="names"></a>
 
@@ -139,29 +139,29 @@ Error: `line 1, column 107: expression is nested too deeply; expected at most 10
 Syntax:
 
 ```sql
-kdb sql / kdb shell     1,000 rows per result in table format (--max-rows, .maxrows)
+kareladb sql / kareladb shell     1,000 rows per result in table format (--max-rows, .maxrows)
 HTTP /exec              10,000 rows by default, at most 1,000,000 (limit=)
 HTTP /exp               1,000,000 rows by default, any number with limit= (streamed)
 one transaction         10 million changed rows
-one query (kdb serve)   1 GB of rows in memory, 5,000,000 groups
+one query (kareladb serve)   1 GB of rows in memory, 5,000,000 groups
 ```
 
 | What | Limit |
 |---|---|
 | Rows, tables, partitions, databases | **no fixed limit** (the disk is the limit) |
-| Rows shown by `kdb sql` and `kdb shell` in table format | 1,000 (change with `--max-rows N` / `.maxrows N`; `0` = all). CSV and JSON: no limit. |
+| Rows shown by `kareladb sql` and `kareladb shell` in table format | 1,000 (change with `--max-rows N` / `.maxrows N`; `0` = all). CSV and JSON: no limit. |
 | Rows returned by HTTP `/exec` | 10,000 unless you pass `limit=`, at most 1,000,000. A cut answer has `"truncated": true`: check it, or you read (and time) a short answer. |
 | Rows exported by HTTP `/exp` | 1,000,000 unless you pass `limit=`, then any number: a plain read of one table is streamed, never held whole. `X-KDB-Truncated: true` says rows were cut ([GET /exp](http-exec.md#get-exp)). |
 | Rows changed in one transaction (`BEGIN`...`COMMIT`, `CALL`, a statement with triggers) | 10 million (the old rows are kept in memory until the end) |
-| Rows one query keeps in memory under `kdb serve` | 1 GB (`--max-result-memory`, `0` = no limit). A plain `INSERT ... SELECT` writes its rows while it reads them and is not stopped by it ([INSERT ... SELECT](insert.md#insert-select)), and neither is a plain read over the Postgres port, which sends its rows while it reads them ([big answers stream](postgres-protocol.md#streaming)). A sort (`ORDER BY` without `LIMIT`) cannot use disk: its rows must fit. |
-| Groups of one `GROUP BY` or `SAMPLE BY` under `kdb serve` | 5,000,000 (`--max-groups`, `0` = no limit). Counted as the groups are made, also those kept on disk when memory is short, so the query stops as soon as it passes the limit. |
+| Rows one query keeps in memory under `kareladb serve` | 1 GB (`--max-result-memory`, `0` = no limit). A plain `INSERT ... SELECT` writes its rows while it reads them and is not stopped by it ([INSERT ... SELECT](insert.md#insert-select)), and neither is a plain read over the Postgres port, which sends its rows while it reads them ([big answers stream](postgres-protocol.md#streaming)). A sort (`ORDER BY` without `LIMIT`) cannot use disk: its rows must fit. |
+| Groups of one `GROUP BY` or `SAMPLE BY` under `kareladb serve` | 5,000,000 (`--max-groups`, `0` = no limit). Counted as the groups are made, also those kept on disk when memory is short, so the query stops as soon as it passes the limit. |
 | Rows made by `FILL` in `SAMPLE BY`, and by `generate_series` | 10 million |
-| Text shown per cell in `kdb sql` table format | 48 characters (then `...`); use `--format csv` |
+| Text shown per cell in `kareladb sql` table format | 48 characters (then `...`); use `--format csv` |
 
-**Command line: kdb sql shows at most --max-rows rows** (sample data: sample)
+**Command line: kareladb sql shows at most --max-rows rows** (sample data: sample)
 
 ```bash
-kdb sql market "SELECT time, symbol, close FROM ochl_minutes" --max-rows 2
+kareladb sql market "SELECT time, symbol, close FROM ochl_minutes" --max-rows 2
 ```
 
 Output:
@@ -171,7 +171,7 @@ time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.3 ms)
+(2 rows, more not shown, 0.5 ms)
 ```
 
 **HTTP: HTTP: limit=2, and truncated is true** (sample data: sample)
@@ -203,7 +203,7 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 30, "execute_us": 287}
+      "timings": {"parse_us": 22, "execute_us": 188}
     }
   ],
   "columns": [
@@ -216,7 +216,7 @@ HTTP 200 (application/json)
     ["2026-09-09T05:16:00.000Z", "CITY", 511.9]
   ],
   "count": 2,
-  "timings": {"parse_us": 30, "execute_us": 287}
+  "timings": {"parse_us": 22, "execute_us": 188}
 }
 ```
 
@@ -235,15 +235,15 @@ open cursors            16 per database, 10 million rows each, closed after 10 u
 
 | What | Limit |
 |---|---|
-| Writers at the same time | **one per table**. Writers of different tables run at the same time. A writer of a table that another writer or an open `BEGIN` ... `COMMIT` holds waits at most 5 seconds, then gets `table 'x' is busy: ...`. Change the wait for the server (`kdb serve --lock-timeout 20s`, `KDB_LOCK_TIMEOUT`, `lock_timeout_ms` in `kdb.conf`) or for one session (`SET lock_timeout = '20s'`); `0` = no limit ([lock timeout](transactions.md#lock-timeout)). |
+| Writers at the same time | **one per table**. Writers of different tables run at the same time. A writer of a table that another writer or an open `BEGIN` ... `COMMIT` holds waits at most 5 seconds, then gets `table 'x' is busy: ...`. Change the wait for the server (`kareladb serve --lock-timeout 20s`, `KARELADB_LOCK_TIMEOUT`, `lock_timeout_ms` in `kareladb.conf`) or for one session (`SET lock_timeout = '20s'`); `0` = no limit ([lock timeout](transactions.md#lock-timeout)). |
 | Two transactions that would wait for each other | one of them gets `deadlock: ...` at once |
 | Schema changes (`CREATE`, `ALTER`, `DROP`) | `CREATE`, `ALTER` and `DROP TABLE`, `CREATE` and `DROP INDEX` and `CREATE`, `ALTER` and `DROP TRIGGER` wait only for writers of their table (`table 'x' is busy: ...`), and for writers of other tables only until those pause between two statements. So do `TRUNCATE`, `CREATE TABLE ... AS` (the tables its query reads) and materialized views (the view and its table). Views, procedures and functions lock no table, but a procedure or function change waits for a running writer that runs a procedure, function or plpgsql trigger (a long `CALL`), and a view change for a running writer that reads views. Sequences, `BACKUP` and a schema change sent in one request with statements it affects (`CREATE OR REPLACE PROCEDURE p ...; CALL p()`) wait for every table of the database (`database is busy: ...`). A load into a table waits while a schema change is queued for it, unless the schema change itself still waits for a writer that was there first. A statement with nothing to do (`CREATE TABLE IF NOT EXISTS` of a table that is there, `ADD COLUMN IF NOT EXISTS` of a column that is there, `DROP ... IF EXISTS` of something that is not there) waits for nothing. |
 | Readers | any number, and a read never waits for another read. A read does not wait for an open `BEGIN` ... `COMMIT`: it sees the committed rows. |
 | Readers during a long `CALL`, trigger, write request or checkpoint | a read of other tables never waits. A read of a table the writer holds waits until the running statement ends: the writer lets it in between its statements ([reader yield](transactions.md#reader-yield), on by default). With `--reader-yield off` it waits for the whole request. See [readers during a long writer](transactions.md#per-table-reads). |
-| An open transaction with no statement | rolled back after 30 seconds. Change it for the server (`--idle-in-transaction-timeout`, `KDB_IDLE_IN_TRANSACTION_TIMEOUT`, `idle_in_transaction_timeout_ms` in `kdb.conf`) or one session (`SET idle_in_transaction_session_timeout = '5min'`); `0` = never ([idle transactions](transactions.md#idle-timeout)). |
-| Statement timeout of `kdb serve` | 60 s (`--statement-timeout`, `0` = none). A trigger's time counts toward the statement that fired it, also for `POST /write` and `POST /imp`. |
+| An open transaction with no statement | rolled back after 30 seconds. Change it for the server (`--idle-in-transaction-timeout`, `KARELADB_IDLE_IN_TRANSACTION_TIMEOUT`, `idle_in_transaction_timeout_ms` in `kareladb.conf`) or one session (`SET idle_in_transaction_session_timeout = '5min'`); `0` = never ([idle transactions](transactions.md#idle-timeout)). |
+| Statement timeout of `kareladb serve` | 60 s (`--statement-timeout`, `0` = none). A trigger's time counts toward the statement that fired it, also for `POST /write` and `POST /imp`. |
 | How soon a timeout stops a statement | the row path checks every 1,024 rows; the column engine once per batch. One row is never stopped in the middle (a 16 MB value with a slow regular expression runs to its end). |
-| Statements of one user at the same time under `kdb serve` | 32 (`--max-queries-per-user`, `0` = no limit) |
+| Statements of one user at the same time under `kareladb serve` | 32 (`--max-queries-per-user`, `0` = no limit) |
 | Open cursors | 16 per database. Each keeps at most 10 million rows in memory. An unused cursor is closed after 10 minutes. |
 | Queued `DEFERRED` trigger jobs | no cap yet |
 | Advisory locks (`pg_advisory_lock`) | wait at most 30 seconds |
@@ -409,8 +409,8 @@ pg connections   500 (--max-connections)
 | HTTP request body (SQL text, line protocol, CSV) | 64 MB. A body sent with `Content-Encoding: gzip` or `deflate` is unpacked first, and the unpacked body is also at most 64 MB. Send big loads in several requests. |
 | HTTP replies | not compressed |
 | HTTP request headers | 64 KB |
-| Requests handled at the same time | one worker thread per CPU thread, at least 8 and at most 64 by default. Set it with `kdb serve --http-threads N` (1 to 1024), `KDB_HTTP_THREADS` or `http_threads` in `kdb.conf`. Fast and slow requests share the workers: more slow statements than workers make other requests wait for a free one (in a test with 8 workers, 12 slow scans made a `SELECT 1` wait 18.6 s). |
-| PostgreSQL connections | 500 logged-in connections for the whole server, all databases together. Set it with `kdb serve --max-connections N` (`0` = no limit), `KDB_MAX_CONNECTIONS` or `max_connections` in `kdb.conf`. A closed connection's place is free again at once. One more gets `53300`. |
+| Requests handled at the same time | one worker thread per CPU thread, at least 8 and at most 64 by default. Set it with `kareladb serve --http-threads N` (1 to 1024), `KARELADB_HTTP_THREADS` or `http_threads` in `kareladb.conf`. Fast and slow requests share the workers: more slow statements than workers make other requests wait for a free one (in a test with 8 workers, 12 slow scans made a `SELECT 1` wait 18.6 s). |
+| PostgreSQL connections | 500 logged-in connections for the whole server, all databases together. Set it with `kareladb serve --max-connections N` (`0` = no limit), `KARELADB_MAX_CONNECTIONS` or `max_connections` in `kareladb.conf`. A closed connection's place is free again at once. One more gets `53300`. |
 | A keep-alive connection with no new request | closed after 35 seconds (answers advertise `Keep-Alive: timeout=30`; the 5 extra seconds keep a request sent right at 30 seconds from meeting the close) |
 | A started request must arrive within | 30 seconds |
 | Failed logins | after 5 failures for one user from one address (or 20 from one address), waits of 1 s, 2 s, 4 s ... up to 15 minutes |
@@ -422,13 +422,14 @@ See [server security](server-security.md) and [HTTP exec](http-exec.md).
 **Command line: The server's defaults are in its banner** (sample data: sample)
 
 ```bash
-kdb serve ./market
+kareladb serve ./market
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev
+cold store 'archive': folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./market
   backups   ./_backups/market (from default)
@@ -445,7 +446,7 @@ KDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -468,16 +469,16 @@ memory for data     --memory, default 512 MB for all open databases together
 |---|---|
 | Free disk space | writes (and checkpoints) are refused when less than 64 MB is free; they work again when there is space |
 | A full disk | the write fails with HTTP 507 `{"code":"disk full", ...}` (PostgreSQL port: SQLSTATE `53100`). Rows already committed stay, and nothing is half written. |
-| A full disk with the default log mode | `kdb serve` commits with a group flush (`--sync-commits always`). If that flush hits a full disk, the writes in it get 507 with `The rows of this write are applied in memory and reach the log once disk space is freed`. Reads go on, later writes get 507 until there is room, and then everything works again with no restart. Those refused rows are lost only if the server stops before space is freed. Rarely (the disk refuses the flush after it took the data), the log stops instead: reads go on, writes say `reopen the database to recover`. |
+| A full disk with the default log mode | `kareladb serve` commits with a group flush (`--sync-commits always`). If that flush hits a full disk, the writes in it get 507 with `The rows of this write are applied in memory and reach the log once disk space is freed`. Reads go on, later writes get 507 until there is room, and then everything works again with no restart. Those refused rows are lost only if the server stops before space is freed. Rarely (the disk refuses the flush after it took the data), the log stops instead: reads go on, writes say `reopen the database to recover`. |
 | A full disk with `--sync-commits batch` | reads go on, and writes work again when there is space. But if the disk fills at the moment the log is flushed, the writes confirmed since the last flush (every 10 ms) are lost, and the database must be reopened. |
 | An `INSERT` that got 507 | can still be committed: the checkpoint that runs after a commit can fail on its own and report the full disk. Count the rows before you send them again. |
-| Previous versions of each data file | 2 (for the repair ladder; `keep_versions` in `kdb.conf` or `KDB_KEEP_VERSIONS`, 0 to 10); fewer once the old log they need is gone |
-| Replaced files in `_trash` | removed after 1 hour (`trash_keep_hours` in `kdb.conf` or `KDB_TRASH_KEEP_HOURS`), or sooner beyond `trash_max_mb` (a quarter of the data, at least 256 MB, unless set) |
+| Previous versions of each data file | 2 (for the repair ladder; `keep_versions` in `kareladb.conf` or `KARELADB_KEEP_VERSIONS`, 0 to 10); fewer once the old log they need is gone |
+| Replaced files in `_trash` | removed after 1 hour (`trash_keep_hours` in `kareladb.conf` or `KARELADB_TRASH_KEEP_HOURS`), or sooner beyond `trash_max_mb` (a quarter of the data, at least 256 MB, unless set) |
 | A dropped table | kept 7 days for `UNDROP TABLE` (`--trash-days`) |
 | Old log files (`wal_archive`) | 1 GB per database by default; the oldest are deleted. Change it per database with [ALTER DATABASE ... SET WAL_ARCHIVE](databases.md#wal-archive), or for all with `wal_archive_mb` on the [Settings page](console-settings.md#wal-archive). `OFF` keeps none. |
 | One log file (`wal/*.log`) | 64 MB, then a new file starts |
 | One log record | 256 MB (big changes are split into several records) |
-| Memory for loaded table data | `--memory`, default 512 MB for all open databases of `kdb serve` together |
+| Memory for loaded table data | `--memory`, default 512 MB for all open databases of `kareladb serve` together |
 | Memory for one plain or full-text index | 2 GB (`index_memory_bytes`); a bigger index is not built and queries read the table |
 | Memory for repeated query results | `--cache-mb`, default 64 MB for all open databases together. One result may use an eighth of it, a [pinned query](pinned-queries.md) half. |
 | Temporary files of one big `GROUP BY` or `SAMPLE BY` | 16 GB (`max_spill_bytes`), in `_tmp/` of the database folder; used when the groups need more than half of `--max-result-memory`, removed when the query ends |
@@ -488,7 +489,7 @@ memory for data     --memory, default 512 MB for all open databases together
 **Command line: Sizes and log positions of the files** (sample data: sample)
 
 ```bash
-kdb info market
+kareladb info market
 ```
 
 Output:
@@ -498,7 +499,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-22 11:28:27
+newest change   2026-10-22 15:39:54
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -514,20 +515,20 @@ t/5/2026-09-10                                 13     2.4 KB           30  ok
 t/6/2026-09-10                                 14     2.7 KB           30  ok
 
 9 files, 72.1 KB, 0 marked damaged
-(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)
+(STATUS is what the manifest records. To read every block and find new damage, run: kareladb check)
 ```
 
 <a id="switches"></a>
 
 ## Switches for measuring
 
-These environment variables turn one speed-up off, so you can time a query with and without it. The answers are the same either way. Set them for `kdb serve` only while you measure.
+These environment variables turn one speed-up off, so you can time a query with and without it. The answers are the same either way. Set them for `kareladb serve` only while you measure.
 
 | Variable | Turns off |
 |---|---|
-| `KDB_NO_ZONE_MAPS=1` | skipping partitions by their min and max, and answers from [saved stats](performance-tips.md#saved-stats) |
-| `KDB_NO_COLUMN_MASK=1` | building only the columns a query reads ([column mask](performance-tips.md#column-mask)) |
-| `KDB_NO_UNION_PUSHDOWN=1` | grouping a `GROUP BY` over a `UNION ALL` part by part |
+| `KARELADB_NO_ZONE_MAPS=1` | skipping partitions by their min and max, and answers from [saved stats](performance-tips.md#saved-stats) |
+| `KARELADB_NO_COLUMN_MASK=1` | building only the columns a query reads ([column mask](performance-tips.md#column-mask)) |
+| `KARELADB_NO_UNION_PUSHDOWN=1` | grouping a `GROUP BY` over a `UNION ALL` part by part |
 
 For one query, `/exec?cache=0` skips the result cache (see [performance tips](performance-tips.md#measure)).
 
@@ -549,12 +550,12 @@ Short list. The details, and the ways around each one, are in [known limitations
 | Changing a table | `PARTITION BY` and `SORT BY` of an existing table; the type of the time column or of a `SORT BY` / `DEDUP KEY` column; dropping the `PRIMARY KEY` |
 | Queries | `NATURAL JOIN` (write `JOIN ... USING (columns)`); `ASOF JOIN ... TOLERANCE`; a series function inside another (`lag(sma(x, 3))`); `GROUPS` frames, named windows, `IGNORE NULLS` |
 | Procedures and triggers | exception handlers, `LOOP`, `OUT` parameters, functions that return tables, `INSTEAD OF` triggers; row triggers (`FOR EACH ROW`) only as a PostgreSQL `BEFORE UPDATE` trigger |
-| Transactions | Only `SELECT ... FOR UPDATE` on one table with a primary key locks rows; a change (`UPDATE`, `DELETE`, `INSERT`) still locks its whole table until `COMMIT`, so `SKIP LOCKED` inside `BEGIN` returns no rows (and `NOWAIT` fails) while another transaction has changed that table, unless `kdb serve --skip-locked-beside on`. `FOR SHARE`, `FOR NO KEY UPDATE` and `FOR KEY SHARE` take the same lock as `FOR UPDATE`: two sessions cannot share a row lock, the second one waits (stricter than PostgreSQL, never looser; see [FOR UPDATE](transactions.md#for-update)). |
+| Transactions | Only `SELECT ... FOR UPDATE` on one table with a primary key locks rows; a change (`UPDATE`, `DELETE`, `INSERT`) still locks its whole table until `COMMIT`, so `SKIP LOCKED` inside `BEGIN` returns no rows (and `NOWAIT` fails) while another transaction has changed that table, unless `kareladb serve --skip-locked-beside on`. `FOR SHARE`, `FOR NO KEY UPDATE` and `FOR KEY SHARE` take the same lock as `FOR UPDATE`: two sessions cannot share a row lock, the second one waits (stricter than PostgreSQL, never looser; see [FOR UPDATE](transactions.md#for-update)). |
 | Text and JSON | regular expression back references and look-around, JSON path wildcards (`$.items[*]`), `json_each`, the `jsonb` operator `?` |
 | Time | summer time in `ROUND ... TIME ZONE`, `time IN ... TIME ZONE` and the zone argument of `date_trunc` / `to_char` (fixed offsets only there) |
 | Server | CORS, compressed replies, a Windows service mode; TLS certificates are read at start (restart after renewing one) |
 | PostgreSQL port | pgAdmin's own catalog queries (psql `\d` and DBeaver work); API tokens as passwords |
-| Users | rights per column or row (rights are per database, and per table with `GRANT ... ON TABLE`); `kdb sql` and `kdb shell` never ask for a login |
+| Users | rights per column or row (rights are per database, and per table with `GRANT ... ON TABLE`); `kareladb sql` and `kareladb shell` never ask for a login |
 | Other databases | writing into another database (`INSERT INTO otherdb.t` is refused; reading it works, see [queries across databases](cross-database-queries.md)) |
 
 **Example: NATURAL JOIN is not there yet** (sample data: sample; shows an error)

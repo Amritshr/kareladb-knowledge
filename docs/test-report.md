@@ -1,12 +1,12 @@
 # Test report
 
-> How KDB is tested as of 2026-09-23, what each test proves, the real results, and what is not tested yet.
+> How KarelaDB is tested as of 2026-09-23, what each test proves, the real results, and what is not tested yet.
 
 - Category: Quality
 - Keywords: test report, tests, testing, quality, QA, crash test, powercut test, power cut, corrupt test, fuzz test, text fuzz, dirty input, pattern denial of service, disk full test, stress test, soak test, ctest, unit tests, console tests, e2e, help examples, tutorial check, Linux build, Docker image, sanitizer, what is not tested
-- See also: [About KDB](about-kdb.md), [Benchmark report](benchmark-report.md), [Backup, check, repair and restore](backup-and-safety.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Versions and upgrades](versions.md), [Limits](limits.md)
+- See also: [About KarelaDB](about-kareladb.md), [Benchmark report](benchmark-report.md), [Backup, check, repair and restore](backup-and-safety.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Versions and upgrades](versions.md), [Limits](limits.md)
 
-Every number on this page comes from a report file in the KDB source folder, or from a run named on this page. The file is named at the end of each section. Most runs are from **2026-09-23**; the ones from 2026-09-12 say so.
+Every number on this page comes from a report file in the KarelaDB source folder, or from a run named on this page. The file is named at the end of each section. Most runs are from **2026-09-23**; the ones from 2026-09-12 say so.
 
 <a id="summary"></a>
 
@@ -76,7 +76,7 @@ Each round: insert until the disk is full (never a crash), check that the count 
 |---|---|
 | one flush per commit | 24 of 24 rounds, both fault places |
 | batched flushes, fault at the write | 24 of 24 |
-| group commit (the default of `kdb serve`) | 1 of 24: the database stops and must be reopened, by design for now |
+| group commit (the default of `kareladb serve`) | 1 of 24: the database stops and must be reopened, by design for now |
 | batched flushes, fault at the flush | a known limit: writes confirmed since the last flush are lost, a reopen recovers |
 
 Over HTTP: `/write` answers 204, then 507 `{"code":"disk full"}`; an `INSERT` over `POST /exec` answers 507; a `SELECT` still answers 200 with the right rows; `/health` answers 200. The PostgreSQL port gives SQLSTATE `53100`.
@@ -138,7 +138,7 @@ Source: CMakeLists.txt, reports/zone-maps.md, reports/warm-at-open.md, reports/k
 
 ## Web console and HTTP API tests
 
-The files in `tests/console/` start a real `kdb serve` on ports 9930 to 9939 and test the page logic, the HTTP API, and the console in a real headless Chrome. Run on 2026-09-23 with the current `build/bin/kdb.exe`, one file at a time:
+The files in `tests/console/` start a real `kareladb serve` on ports 9930 to 9939 and test the page logic, the HTTP API, and the console in a real headless Chrome. Run on 2026-09-23 with the current `build/bin/kareladb.exe`, one file at a time:
 
 | File | Tests | Pass |
 |---|---|---|
@@ -155,7 +155,7 @@ The files in `tests/console/` start a real `kdb serve` on ports 9930 to 9939 and
 | `dashboard.e2e.test.mjs` (browser) | 9 | 9 |
 | **All** | **287** | **286** |
 
-The one failure is `EXPLAIN CALL plans each statement with the real arguments`. The test expects `delete from table px (1 of 3 partitions ...)` for a `DELETE ... WHERE symbol = 'CITY' AND time >= '2026-09-10'`. KDB now says `0 of 3`: the only partition from that day holds no `CITY` row, so it is rightly skipped. The expectation is older than that skip.
+The one failure is `EXPLAIN CALL plans each statement with the real arguments`. The test expects `delete from table px (1 of 3 partitions ...)` for a `DELETE ... WHERE symbol = 'CITY' AND time >= '2026-09-10'`. KarelaDB now says `0 of 3`: the only partition from that day holds no `CITY` row, so it is rightly skipped. The expectation is older than that skip.
 
 Source: runs of `node --test tests/console/<file>` on 2026-09-23, tests/console/README.md.
 
@@ -206,7 +206,7 @@ Source: reports/soak.md (and its addendum of 2026-09-23).
 
 ## Linux and Docker
 
-On 2026-09-12 KDB built and passed every test on Linux in Docker, on the same Windows PC.
+On 2026-09-12 KarelaDB built and passed every test on Linux in Docker, on the same Windows PC.
 
 | | Linux (Debian 12, g++ 12) | Windows (MinGW ucrt64) |
 |---|---|---|
@@ -214,7 +214,7 @@ On 2026-09-12 KDB built and passed every test on Linux in Docker, on the same Wi
 | 33 quick tests (all there were then) | all pass | all pass |
 | crash, power cut, damage, fuzz, stress | all pass | all pass |
 
-A database made on Windows was opened on Linux, written to there, and read back on Windows. The **Docker image** (Alpine and one static `kdb` program) passed all 33 tests then, and the help build inside it ran 1,799 examples with 0 failed. The Linux runs have not been repeated since the table-locks, zone-map and warm-at-open work.
+A database made on Windows was opened on Linux, written to there, and read back on Windows. The **Docker image** (Alpine and one static `kareladb` program) passed all 33 tests then, and the help build inside it ran 1,799 examples with 0 failed. The Linux runs have not been repeated since the table-locks, zone-map and warm-at-open work.
 
 Source: reports/linux-build.md, reports/docker-image.md.
 

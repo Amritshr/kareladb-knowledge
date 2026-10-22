@@ -4,11 +4,11 @@
 
 - Category: Users & security
 - Keywords: API token, api tokens, token, tokens, CREATE TOKEN, DROP TOKEN, SHOW TOKENS, revoke, revoke token, kdbt\_, Bearer, Authorization, EXPIRES, personal access token, service token, app token, 401
-- See also: [Users and roles](users-and-roles.md), [Logins, tokens and roles over HTTP](http-login.md), [Keeping kdb serve safe](server-security.md), [Protection - timeouts, limits, safe updates, read-only](protection.md)
+- See also: [Users and roles](users-and-roles.md), [Logins, tokens and roles over HTTP](http-login.md), [Keeping kareladb serve safe](server-security.md), [Protection - timeouts, limits, safe updates, read-only](protection.md)
 
 An **API token** is a long secret an app sends with every request, like the server's `--token`. The difference: you can have **many**, each has a **name**, each acts as **one user** (with that user's rights), and you can **remove one** without touching the others.
 
-| | `--token` of `kdb serve` | API token |
+| | `--token` of `kareladb serve` | API token |
 |---|---|---|
 | How many | one | as many as you like |
 | Rights | everything | the rights of its user |
@@ -37,7 +37,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| chart_app | charts | kdbt_kUp9nunNEhbrCOeojEFj6CzKw4NXzO9QwTbS_N6JogM | 2027-01-20T05:43:29.306Z |
+| chart_app | charts | kdbt_3lHGY4R9tai0DNaZhdUxY5o5rJy7iVJmnoNCs-q4yhw | 2027-01-20T09:54:57.664Z |
 
 (1 row)
 
@@ -49,7 +49,7 @@ token 'chart_app' for user 'charts' created: copy it now, it is shown only this 
 
 | name (STRING) | user (STRING) | prefix (STRING) | created (TIMESTAMP) | expires (TIMESTAMP) | expired (BOOL) | created_by (STRING) | last_used (TIMESTAMP) |
 |---|---|---|---|---|---|---|---|
-| chart_app | charts | kdbt_kUp9... | 2026-10-22T05:43:29.311Z | 2027-01-20T05:43:29.306Z | false | NULL | NULL |
+| chart_app | charts | kdbt_3lHG... | 2026-10-22T09:54:57.683Z | 2027-01-20T09:54:57.664Z | false | NULL | NULL |
 
 (1 row)
 
@@ -69,13 +69,13 @@ Makes a new token and shows its secret **once**.
 | `FOR USER user` | the user it acts as. Without it: the user who runs the statement. |
 | `EXPIRES IN n DAYS` | it stops working after that many days (1 to 99999). Without it: never. |
 
-- **Returns:** one row `name`, `user`, `token`, `expires`. The `token` looks like `kdbt_` and 43 more letters. Copy it now: KDB keeps only its SHA-256, so nobody can show it again.
+- **Returns:** one row `name`, `user`, `token`, `expires`. The `token` looks like `kdbt_` and 43 more letters. Copy it now: KarelaDB keeps only its SHA-256, so nobody can show it again.
 - **Notes:**
   - Any user may make a token for **themselves**. A token for another user needs `ROLE admin`.
   - The app sends it as `Authorization: Bearer kdbt_...` on the HTTP API (`/exec`, `/write`, `/imp`, `/api/...`). It is not a password for the PostgreSQL port; use the user's password there.
   - It can do exactly what its user can do, including [table rights](table-rights.md), the user's [time limit](users-and-roles.md#statement-timeout) and [rate limit](protection.md#rate-limits). For a read-only app, make a user with `ROLE read` and a token for it.
   - A new password for the user does **not** end the user's tokens (apps keep working). `DROP USER` removes the user's tokens.
-  - The session that runs it needs a user: with the server's `--token` or in `kdb sql`, write `FOR USER`.
+  - The session that runs it needs a user: with the server's `--token` or in `kareladb sql`, write `FOR USER`.
 
 **Example: Two apps, two tokens for one user**
 
@@ -97,7 +97,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| price_feed | loader | kdbt_sBAa0yQr3ugYZgxKJaH3I_sUuw3XGGQT1njwV0bRBFA | NULL |
+| price_feed | loader | kdbt_igH672TOWvnng_Lokt5_jojz4o4IHQ5k7oHFfbJBaA4 | NULL |
 
 (1 row)
 
@@ -109,7 +109,7 @@ token 'price_feed' for user 'loader' created: copy it now, it is shown only this
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| backfill | loader | kdbt_v0iut_osA-e4LN4hmCIbK3KKnEtlFnuniuYEBTHxkWM | 2026-10-29T05:43:29.419Z |
+| backfill | loader | kdbt_24kpq3G8IYpICMAp5q9qI0rMDvye2zq_4ZLX4ftPaDs | 2026-10-29T09:54:57.826Z |
 
 (1 row)
 
@@ -229,7 +229,7 @@ Result:
 
 | name (STRING) | user (STRING) | prefix (STRING) | created (TIMESTAMP) | expires (TIMESTAMP) | expired (BOOL) | created_by (STRING) | last_used (TIMESTAMP) |
 |---|---|---|---|---|---|---|---|
-| price_feed | admin | kdbt_J9vW... | 2026-10-22T05:43:29.638Z | 2026-11-21T05:43:29.632Z | false | NULL | NULL |
+| price_feed | admin | kdbt_LR6U... | 2026-10-22T09:54:58.301Z | 2026-11-21T09:54:58.266Z | false | NULL | NULL |
 
 (1 row)
 
@@ -244,4 +244,4 @@ Both live in the hidden `_system` database of the data folder, as **hashes only*
 | `api_tokens` | name, user, the SHA-256 of the secret, its first letters, times |
 | `login_sessions` | the SHA-256 of each login token of `POST /api/login` and the console, its user and when it ends |
 
-So a server restart logs nobody out, and apps with a token go on. A login still ends after 12 hours, at logout, or when the user gets a new password or is dropped. An older KDB program does not know these tables: there, tokens do not work and everyone logs in again.
+So a server restart logs nobody out, and apps with a token go on. A login still ends after 12 hours, at logout, or when the user gets a new password or is dropped. An older KarelaDB program does not know these tables: there, tokens do not work and everyone logs in again.

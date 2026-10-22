@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stored procedures - KDB (KARELA DataBase) docs</title>
+<title>Stored procedures - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Save many SQL steps under one name and run them with CALL, as one transaction.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/procedures.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/procedures.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/procedures.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/procedures.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="stored-procedures">Stored procedures</h1>
 <blockquote><p>Save many SQL steps under one name and run them with CALL, as one transaction.</p></blockquote>
-<ul><li>Category: Stored procedures</li><li>Keywords: procedure, stored procedure, CALL, PROCEDURES, DEBUG, WITH DEBUG, debug, print result, CREATE OR REPLACE PROCEDURE, one transaction, call each other too deeply, READ ONLY, read-only procedure, cannot be READ ONLY, --read-only-calls, KDB_READ_ONLY_CALLS, rounding, 6 decimals, match old system</li><li>See also: <a href="procedure-language.html">The procedure language</a>, <a href="triggers.html">Triggers</a>, <a href="transactions.html">Transactions</a>, <a href="saved-functions.html">Saved functions</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
+<ul><li>Category: Stored procedures</li><li>Keywords: procedure, stored procedure, CALL, PROCEDURES, DEBUG, WITH DEBUG, debug, print result, CREATE OR REPLACE PROCEDURE, one transaction, call each other too deeply, READ ONLY, read-only procedure, cannot be READ ONLY, --read-only-calls, KARELADB_READ_ONLY_CALLS, rounding, 6 decimals, match old system</li><li>See also: <a href="procedure-language.html">The procedure language</a>, <a href="triggers.html">Triggers</a>, <a href="transactions.html">Transactions</a>, <a href="saved-functions.html">Saved functions</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
 <p>A <strong>stored procedure</strong> (or just &quot;procedure&quot;) is a list of SQL statements with a name. You run it with <code>CALL name(...)</code>.
-KDB keeps it in the database, like a table. Your app, the web console and <code>kdb sql</code> can all call it.</p>
+KarelaDB keeps it in the database, like a table. Your app, the web console and <code>kareladb sql</code> can all call it.</p>
 <ul><li>A procedure can have <strong>variables</strong>, <code>IF</code>, loops, cursors and errors (see <a href="procedure-language.html">the procedure language</a>).</li><li><strong>A <code>CALL</code> is one transaction</strong> (a group of changes that are saved together, or not at all). If one step fails, nothing of the <code>CALL</code> is saved.</li></ul>
 <p>A real job: after the market closes, a trading app builds the daily candle of each share from the one-minute candles.</p>
 <p><strong>Example: End of day: build the daily candles from the minute candles</strong> (sample data: sample)</p>
@@ -58,10 +58,10 @@ CALL end_of_day(&#39;2026-09-10&#39;);</code></pre>
   ...
 END</code></pre>
 <p>Saves a procedure. <code>OR REPLACE</code> changes one that already exists.</p>
-<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the procedure name. Upper and lower case are the same.</td></tr><tr><td><code>parameter TYPE</code></td><td>an input value and its type, like <code>day DATE</code> or <code>amt DECIMAL(2)</code>. Write <code>()</code> for none.</td></tr><tr><td><code>READ ONLY</code></td><td>optional: the procedure changes no data. KDB refuses a body that does, and every <code>CALL</code> of it runs like a <code>SELECT</code>. See <a href="procedures.html#read-only-call">a CALL that only reads</a>.</td></tr><tr><td><code>BEGIN ... END</code></td><td>the body. Every statement in it ends with <code>;</code>.</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the procedure name. Upper and lower case are the same.</td></tr><tr><td><code>parameter TYPE</code></td><td>an input value and its type, like <code>day DATE</code> or <code>amt DECIMAL(2)</code>. Write <code>()</code> for none.</td></tr><tr><td><code>READ ONLY</code></td><td>optional: the procedure changes no data. KarelaDB refuses a body that does, and every <code>CALL</code> of it runs like a <code>SELECT</code>. See <a href="procedures.html#read-only-call">a CALL that only reads</a>.</td></tr><tr><td><code>BEGIN ... END</code></td><td>the body. Every statement in it ends with <code>;</code>.</td></tr></tbody></table></div>
 <p>What a body can hold: <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CALL</code>, <code>SHOW ...</code>, <code>EXPLAIN</code>, and the procedure statements <code>DECLARE</code>, <code>SET</code>, <code>IF</code>, <code>WHILE</code>, <code>FOR</code>, <code>OPEN</code>, <code>FETCH</code>, <code>CLOSE</code>, <code>RETURN</code>, <code>RAISE</code> and <code>PRINT</code> (<a href="procedure-language.html">the procedure language</a>).</p>
 <ul><li><strong>Returns:</strong> <code>procedure &#39;name&#39; created</code> (or <code>replaced</code>).</li><li><strong>Notes:</strong>
-<ul><li><code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>BACKUP</code>, <code>BEGIN</code>, <code>COMMIT</code> and <code>ROLLBACK</code> cannot be used inside a body. A <code>CALL</code> is already one transaction.</li><li>KDB checks the <strong>grammar</strong> of the body when you create the procedure. Tables and columns are checked only when it runs, so a procedure can use a table that you create later.</li><li><code>found</code> cannot be a parameter name: every procedure already has a variable <code>FOUND</code>.</li><li><strong>A column name wins over a parameter with the same name.</strong> Give parameters names that are not column names (<code>amt</code>, not <code>amount</code>; <code>wanted</code>, not <code>name</code>).</li><li><code>CREATE PROCEDURE</code> cannot be used inside <code>BEGIN ... COMMIT</code>.</li><li>In <code>kdb shell</code>, KDB knows that <code>CREATE PROCEDURE ... BEGIN ... END;</code> is one statement, even with <code>;</code> inside.</li></ul></li></ul>
+<ul><li><code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>BACKUP</code>, <code>BEGIN</code>, <code>COMMIT</code> and <code>ROLLBACK</code> cannot be used inside a body. A <code>CALL</code> is already one transaction.</li><li>KarelaDB checks the <strong>grammar</strong> of the body when you create the procedure. Tables and columns are checked only when it runs, so a procedure can use a table that you create later.</li><li><code>found</code> cannot be a parameter name: every procedure already has a variable <code>FOUND</code>.</li><li><strong>A column name wins over a parameter with the same name.</strong> Give parameters names that are not column names (<code>amt</code>, not <code>amount</code>; <code>wanted</code>, not <code>name</code>).</li><li><code>CREATE PROCEDURE</code> cannot be used inside <code>BEGIN ... COMMIT</code>.</li><li>In <code>kareladb shell</code>, KarelaDB knows that <code>CREATE PROCEDURE ... BEGIN ... END;</code> is one statement, even with <code>;</code> inside.</li></ul></li></ul>
 <p>Setup used by the examples below:</p>
 <pre><code class="language-sql">-- A small bank: accounts, and a ledger with one row for every transfer.
 CREATE TABLE accounts (
@@ -180,7 +180,7 @@ CALL name(argument, ...) WITH DEBUG</code></pre>
 <p>Runs a procedure. Each argument can be a value or an expression, like <code>&#39;2026-09-10&#39;</code> or <code>dateadd(&#39;d&#39;, -1, now())</code>.</p>
 <ul><li><strong>Returns:</strong> more than one result:
 <ol><li>the message <code>procedure &#39;name&#39; done: N row(s) changed</code> (N counts the rows changed by <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> in the procedure and in the procedures it calls);</li><li>the rows of every <code>SELECT</code> in the procedure, in order;</li><li>a result called <code>print</code> with one row (column <code>output</code>) for each <code>PRINT</code>.
-The web console, <code>kdb sql</code> and <code>POST /exec</code> show them like several statements.</li></ol></li><li><strong>Notes:</strong>
+The web console, <code>kareladb sql</code> and <code>POST /exec</code> show them like several statements.</li></ol></li><li><strong>Notes:</strong>
 <ul><li>Each argument is changed to the type of its parameter: <code>CALL end_of_day(&#39;2026-09-10&#39;)</code> turns the text into a <code>DATE</code>. A value that does not fit is an error.</li><li>The number of arguments must match.</li><li>Inside the body a parameter or variable is a plain value. <code>WHERE time &gt;= day</code> skips partitions like a written date, also with <code>dateadd(&#39;d&#39;, 1, day)</code> around it. See <a href="performance-tips.html#parameters">performance tips</a>.</li><li>A procedure may <code>CALL</code> another procedure, or itself, at most <strong>16 levels</strong> deep.</li><li><code>CALL</code> is one transaction: see <a href="procedures.html#call-transaction">A CALL is one transaction</a>.</li><li>When the <code>CALL</code> fails, the <code>print</code> lines from before the error are still returned, next to the error. Nothing that the procedure changed is saved.</li><li>Add <code>WITH DEBUG</code> to see every step: <a href="procedures.html#with-debug">CALL ... WITH DEBUG</a>.</li></ul></li></ul>
 <p><strong>Example: Transfer, then look at the books</strong></p>
 <pre><code class="language-sql">CREATE PROCEDURE transfer(from_id INT, to_id INT, amt DECIMAL(2)) AS BEGIN
@@ -264,7 +264,7 @@ CALL countdown(20);</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">CALL name(...)                        -- one transaction by itself
 BEGIN; CALL a(...); CALL b(...); COMMIT;   -- part of a bigger transaction</code></pre>
-<p>All changes of a <code>CALL</code> are saved <strong>together</strong> when it ends, with one write to the log (the file where KDB writes every change first).
+<p>All changes of a <code>CALL</code> are saved <strong>together</strong> when it ends, with one write to the log (the file where KarelaDB writes every change first).
 If any statement fails, or <code>RAISE</code> runs, <strong>nothing</strong> of the <code>CALL</code> is saved, also not the steps before the error.</p>
 <ul><li>Statements inside the procedure see the changes made earlier in the same <code>CALL</code>.</li><li>Inside <code>BEGIN ... COMMIT</code>, a <code>CALL</code> is part of that bigger transaction. An error in the <code>CALL</code> rolls back (undoes) the whole transaction. See <a href="transactions.html">transactions</a>.</li><li>Triggers that the procedure fires are part of the same transaction too.</li><li>At most 10 million changed rows in one transaction.</li><li>Before it starts, a <code>CALL</code> locks every table its body (and the procedures and triggers it sets off) reads or changes, until it ends. Writers of other tables go on meanwhile; writers of these tables wait. A body with <a href="procedure-language.html#execute"><code>EXECUTE</code></a> of text made while it runs locks every table. See <a href="transactions.html#one-writer">one writer per table</a>.</li><li>A long <code>CALL</code> lets readers of its tables in between its statements (<a href="transactions.html#reader-yield">reader yield</a>, on unless the server turns it off). One long statement inside it still makes them wait until it ends. Readers of other tables do not wait at all (<a href="transactions.html#per-table-reads">per-table reads</a>).</li><li>A <code>CALL</code> that changes nothing is not a transaction at all: it locks nothing and runs like a <code>SELECT</code>. See <a href="procedures.html#read-only-call">a CALL that only reads</a>.</li></ul>
 <p>In this example the first <code>UPDATE</code> takes 100 from Ram. Then the ledger row fails, because account 99 does not exist. The whole <code>CALL</code> is undone, so Ram still has 1000.</p>
@@ -278,18 +278,18 @@ CREATE PROCEDURE transfer(from_id INT, to_id INT, amt DECIMAL(2)) AS BEGIN
   UPDATE accounts SET balance = balance + amt WHERE id = to_id;
   INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt);
 END;</code></pre>
-<pre><code class="language-bash">kdb sql market &quot;CALL transfer(1, 99, 100)&quot;
-kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;CALL transfer(1, 99, 100)&quot;
+kareladb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb sql market &quot;CALL transfer(1, 99, 100)&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;CALL transfer(1, 99, 100)&quot;</code></p>
 <pre><code class="language-text">error: procedure &#39;transfer&#39;, line 4: column &#39;to_account&#39; = &#39;99&#39; has no matching row in accounts(id)</code></pre>
 <p>exit code 1</p>
-<p><code>&gt; kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></p>
 <pre><code class="language-text">id | owner | balance
 ---+-------+--------
  1 | Ram   | 1000.00
  2 | Sita  |    0.00
-(2 rows, 0.3 ms)</code></pre>
+(2 rows, 0.2 ms)</code></pre>
 <p><strong>Example: Two CALLs in one transaction, then ROLLBACK</strong></p>
 <pre><code class="language-sql">CREATE PROCEDURE deposit(account INT, amt DECIMAL(2)) AS BEGIN
   UPDATE accounts SET balance = balance + amt WHERE id = account;
@@ -323,13 +323,13 @@ SELECT id, balance FROM accounts ORDER BY id;</code></pre>
 CALL name(...)                                          -- runs like a SELECT</code></pre>
 <p>A procedure that only reads (a report, a lookup, a chart query) runs like a <code>SELECT</code>:</p>
 <ul><li>it locks no table and starts no transaction;</li><li>it does not wait for writers of the tables it reads, and it does not make readers wait;</li><li>it sees the last committed rows, like a <code>SELECT</code>. Changes of an open transaction are not seen.</li><li>a long one does not hold writers up either: when a writer waits, it lets it in between two of its statements. So each statement sees the rows committed when that statement starts.</li></ul>
-<p>KDB works this out by itself before each <code>CALL</code>, from everything the body runs: the procedures it calls, the views and saved functions it uses.
+<p>KarelaDB works this out by itself before each <code>CALL</code>, from everything the body runs: the procedures it calls, the views and saved functions it uses.
 A <code>CALL</code> stays a normal transaction (it locks its tables) when its body, or anything it calls, has one of these:</p>
-<div class="table-wrap"><table><thead><tr><th>In the body</th><th>Why</th></tr></thead><tbody><tr><td><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code></td><td>it changes data</td></tr><tr><td><code>SELECT ... FOR UPDATE</code></td><td>it locks rows for a later change</td></tr><tr><td><code>nextval</code>, <code>setval</code>, <code>set_config</code>, <code>pg_advisory_...</code>, <code>pg_sleep</code></td><td>they change state, or wait on purpose</td></tr><tr><td><a href="procedure-language.html#execute"><code>EXECUTE</code></a> of text made while it runs (<code>&#39;...&#39; || name</code>)</td><td>KDB cannot tell what it runs</td></tr><tr><td><code>SHOW ...</code>, <code>information_schema</code> or <code>pg_catalog</code></td><td>they read the whole database</td></tr><tr><td><code>EXPLAIN CALL</code></td><td>it works through another procedure&#39;s steps</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>In the body</th><th>Why</th></tr></thead><tbody><tr><td><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code></td><td>it changes data</td></tr><tr><td><code>SELECT ... FOR UPDATE</code></td><td>it locks rows for a later change</td></tr><tr><td><code>nextval</code>, <code>setval</code>, <code>set_config</code>, <code>pg_advisory_...</code>, <code>pg_sleep</code></td><td>they change state, or wait on purpose</td></tr><tr><td><a href="procedure-language.html#execute"><code>EXECUTE</code></a> of text made while it runs (<code>&#39;...&#39; || name</code>)</td><td>KarelaDB cannot tell what it runs</td></tr><tr><td><code>SHOW ...</code>, <code>information_schema</code> or <code>pg_catalog</code></td><td>they read the whole database</td></tr><tr><td><code>EXPLAIN CALL</code></td><td>it works through another procedure&#39;s steps</td></tr></tbody></table></div>
 <p><code>EXPLAIN</code> of anything else only shows a plan, so it does not count as a change.</p>
 <p>Write <strong><code>READ ONLY</code></strong> to make it a promise:</p>
 <ul><li><p><code>CREATE PROCEDURE</code> refuses a body that changes data, with the reason: <code>procedure &#39;x&#39; cannot be READ ONLY: it changes table &#39;accounts&#39;</code>.</p></li><li><p>If a procedure it calls is later replaced by one that writes, its <code>CALL</code> fails before it runs: <code>procedure &#39;x&#39; is declared READ ONLY, but it changes table ...</code>. Nothing is changed.</p></li><li><p><strong>Notes:</strong></p>
-<ul><li>Inside <code>BEGIN ... COMMIT</code>, a read-only <code>CALL</code> is part of the transaction and sees its changes, like any statement there.</li><li><code>kdb serve --read-only-calls off</code> (or <code>KDB_READ_ONLY_CALLS=off</code>) makes every <code>CALL</code> a transaction again, as before. <code>READ ONLY</code> is then only checked when the procedure is created.</li><li>A database with a <code>READ ONLY</code> procedure cannot be opened by a KDB older than 2026-09-24 (<a href="versions.html">versions</a>).</li></ul></li></ul>
+<ul><li>Inside <code>BEGIN ... COMMIT</code>, a read-only <code>CALL</code> is part of the transaction and sees its changes, like any statement there.</li><li><code>kareladb serve --read-only-calls off</code> (or <code>KARELADB_READ_ONLY_CALLS=off</code>) makes every <code>CALL</code> a transaction again, as before. <code>READ ONLY</code> is then only checked when the procedure is created.</li><li>A database with a <code>READ ONLY</code> procedure cannot be opened by a KarelaDB older than 2026-09-24 (<a href="versions.html">versions</a>).</li></ul></li></ul>
 <p><strong>Example: A report procedure that only reads</strong></p>
 <pre><code class="language-sql">CREATE PROCEDURE rich_accounts(at_least DECIMAL(2)) READ ONLY AS BEGIN
   SELECT id, owner, balance FROM accounts WHERE balance &gt;= at_least ORDER BY id;
@@ -354,7 +354,7 @@ END;</code></pre>
 <p>Result:</p>
 <p>Error: <code>procedure &#39;empty_accounts&#39; cannot be READ ONLY: it changes table &#39;accounts&#39;. Take READ ONLY away to let it change data</code></p>
 <h2 id="rounding">Matching another system&#39;s rounding</h2>
-<p>A <code>DOUBLE</code> keeps about 16 digits: <code>9609.0 / 17</code> is <code>565.2352941176...</code> in KDB.
+<p>A <code>DOUBLE</code> keeps about 16 digits: <code>9609.0 / 17</code> is <code>565.2352941176...</code> in KarelaDB.
 Many programs round a rate before they store it, for example to 6 places: <code>565.235294</code>.</p>
 <p>When a procedure takes over a job from such a program, round the same way, with <a href="functions-math.html#round"><code>round(x, 6)</code></a>:</p>
 <div class="table-wrap"><table><thead><tr><th>Where</th><th>Why</th></tr></thead><tbody><tr><td>every rate or ratio the procedure stores</td><td>the stored numbers then equal the old program&#39;s, digit for digit</td></tr><tr><td>both sides of a comparison in a filter</td><td>a difference in the 7th place can flip <code>a &gt; b</code>, so a row appears or disappears</td></tr></tbody></table></div>
@@ -409,7 +409,7 @@ CALL transfer(1, 2, 600) WITH DEBUG;</code></pre>
 <p><code>CALL transfer(1, 2, 600) WITH DEBUG</code></p>
 <pre><code class="language-text">procedure &#39;transfer&#39; done: 3 row(s) changed</code></pre>
 <p><code>debug</code></p>
-<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL transfer(1, 2, 600) WITH DEBUG</td><td>3</td><td>3276</td><td></td></tr><tr><td>2</td><td>transfer</td><td>DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id)</td><td>0</td><td>123</td><td>have=1000.00</td></tr><tr><td>3</td><td>transfer</td><td>IF have &lt; amt THEN</td><td>0</td><td>5</td><td>false</td></tr><tr><td>4</td><td>transfer</td><td>ELSIF amt &gt;= 500 THEN</td><td>0</td><td>2</td><td>true</td></tr><tr><td>5</td><td>transfer</td><td>PRINT &#39;big transfer: check it by hand&#39;</td><td>0</td><td>1</td><td>big transfer: check it by hand</td></tr><tr><td>6</td><td>transfer</td><td>UPDATE accounts SET balance = balance - amt WHERE id = from_id</td><td>1</td><td>61</td><td></td></tr><tr><td>7</td><td>transfer</td><td>UPDATE accounts SET balance = balance + amt WHERE id = to_id</td><td>1</td><td>17</td><td></td></tr><tr><td>8</td><td>transfer</td><td>INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt)</td><td>1</td><td>94</td><td></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL transfer(1, 2, 600) WITH DEBUG</td><td>3</td><td>1863</td><td></td></tr><tr><td>2</td><td>transfer</td><td>DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id)</td><td>0</td><td>79</td><td>have=1000.00</td></tr><tr><td>3</td><td>transfer</td><td>IF have &lt; amt THEN</td><td>0</td><td>5</td><td>false</td></tr><tr><td>4</td><td>transfer</td><td>ELSIF amt &gt;= 500 THEN</td><td>0</td><td>2</td><td>true</td></tr><tr><td>5</td><td>transfer</td><td>PRINT &#39;big transfer: check it by hand&#39;</td><td>0</td><td>1</td><td>big transfer: check it by hand</td></tr><tr><td>6</td><td>transfer</td><td>UPDATE accounts SET balance = balance - amt WHERE id = from_id</td><td>1</td><td>59</td><td></td></tr><tr><td>7</td><td>transfer</td><td>UPDATE accounts SET balance = balance + amt WHERE id = to_id</td><td>1</td><td>10</td><td></td></tr><tr><td>8</td><td>transfer</td><td>INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt)</td><td>1</td><td>168</td><td></td></tr></tbody></table></div>
 <p>(8 rows)</p>
 <p><strong>Example: The debug rows of a CALL that fails</strong> (shows an error)</p>
 <pre><code class="language-sql">CREATE PROCEDURE transfer(from_id INT, to_id INT, amt DECIMAL(2)) AS BEGIN
@@ -425,14 +425,14 @@ CALL transfer(2, 1, 50) WITH DEBUG;</code></pre>
 <p><code>CREATE PROCEDURE transfer(from_id INT, to_id INT, amt DECIMAL(2)) AS BEGIN</code></p>
 <pre><code class="language-text">procedure &#39;transfer&#39; created</code></pre>
 <p><code>debug</code></p>
-<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL transfer(2, 1, 50) WITH DEBUG</td><td>0</td><td>314</td><td>failed</td></tr><tr><td>2</td><td>transfer</td><td>DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id)</td><td>0</td><td>157</td><td>have=0.00</td></tr><tr><td>3</td><td>transfer</td><td>IF have &lt; amt THEN</td><td>0</td><td>10</td><td>true</td></tr><tr><td>4</td><td>transfer</td><td>RAISE concat(&#39;not enough money in account &#39;, from_id, &#39;: it has &#39;, have)</td><td>0</td><td>97</td><td>failed: not enough money in account 2: it has 0.00</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL transfer(2, 1, 50) WITH DEBUG</td><td>0</td><td>219</td><td>failed</td></tr><tr><td>2</td><td>transfer</td><td>DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id)</td><td>0</td><td>92</td><td>have=0.00</td></tr><tr><td>3</td><td>transfer</td><td>IF have &lt; amt THEN</td><td>0</td><td>5</td><td>true</td></tr><tr><td>4</td><td>transfer</td><td>RAISE concat(&#39;not enough money in account &#39;, from_id, &#39;: it has &#39;, have)</td><td>0</td><td>83</td><td>failed: not enough money in account 2: it has 0.00</td></tr></tbody></table></div>
 <p>(4 rows)</p>
 <p>Error: <code>procedure &#39;transfer&#39;, line 4: not enough money in account 2: it has 0.00</code></p>
 <h2 id="drop-procedure">DROP PROCEDURE</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">DROP PROCEDURE [IF EXISTS] name</code></pre>
 <p>Removes a procedure.</p>
-<ul><li><strong>Returns:</strong> <code>procedure &#39;name&#39; dropped</code>. With <code>IF EXISTS</code>, a name that does not exist gives the message <code>procedure &#39;name&#39; does not exist</code> and no error.</li><li><strong>Notes:</strong> KDB does not check who uses the procedure. Other procedures and triggers that <code>CALL</code> it fail when they run, with <code>procedure &#39;name&#39; does not exist</code>. <code>DROP PROCEDURE</code> cannot be used inside <code>BEGIN ... COMMIT</code>.</li></ul>
+<ul><li><strong>Returns:</strong> <code>procedure &#39;name&#39; dropped</code>. With <code>IF EXISTS</code>, a name that does not exist gives the message <code>procedure &#39;name&#39; does not exist</code> and no error.</li><li><strong>Notes:</strong> KarelaDB does not check who uses the procedure. Other procedures and triggers that <code>CALL</code> it fail when they run, with <code>procedure &#39;name&#39; does not exist</code>. <code>DROP PROCEDURE</code> cannot be used inside <code>BEGIN ... COMMIT</code>.</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">CREATE PROCEDURE hello() AS BEGIN PRINT &#39;hello&#39;; END;
 DROP PROCEDURE hello;
@@ -464,8 +464,8 @@ INSERT INTO posts VALUES (1, &#39;hello&#39;);</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">SHOW PROCEDURES</code></pre>
 <p>Lists the procedures of the database, in name order.</p>
-<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the procedure name</td></tr><tr><td><code>arguments</code></td><td>the parameters and their types</td></tr><tr><td><code>definition</code></td><td>the whole <code>CREATE PROCEDURE</code> statement, written again by KDB (one statement per line)</td></tr></tbody></table></div>
-<ul><li><strong>Notes:</strong> the line numbers in error messages (<code>procedure &#39;transfer&#39;, line 4: ...</code>) count the lines of this <code>definition</code>: <code>CREATE PROCEDURE ... AS BEGIN</code> is line 1. The text table of <code>kdb sql</code> cuts long text after 48 characters; use <code>--format csv</code> or <code>--format json</code> to see all of it.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the procedure name</td></tr><tr><td><code>arguments</code></td><td>the parameters and their types</td></tr><tr><td><code>definition</code></td><td>the whole <code>CREATE PROCEDURE</code> statement, written again by KarelaDB (one statement per line)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> the line numbers in error messages (<code>procedure &#39;transfer&#39;, line 4: ...</code>) count the lines of this <code>definition</code>: <code>CREATE PROCEDURE ... AS BEGIN</code> is line 1. The text table of <code>kareladb sql</code> cuts long text after 48 characters; use <code>--format csv</code> or <code>--format json</code> to see all of it.</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">CREATE PROCEDURE deposit(account INT, amt DECIMAL(2)) AS BEGIN
   UPDATE accounts SET balance = balance + amt WHERE id = account;
@@ -481,6 +481,6 @@ SHOW PROCEDURES;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>arguments (STRING)</th><th>definition (STRING)</th></tr></thead><tbody><tr><td>deposit</td><td>account INT, amt DECIMAL(2)</td><td>CREATE PROCEDURE deposit(account INT, amt DECIMAL(2)) AS BEGIN   UPDATE accounts SET balance = balance + amt WHERE id = account; END</td></tr><tr><td>hello</td><td></td><td>CREATE PROCEDURE hello() AS BEGIN   PRINT &#39;hello&#39;; END</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/procedures.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/procedures.md">This page as markdown</a>.</footer>
 </body>
 </html>

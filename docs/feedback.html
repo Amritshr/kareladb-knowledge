@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Comments and suggestions - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="How people who use a KDB server send comments, suggestions and problem reports, and how its admins read them.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/feedback.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/feedback.md">
+<title>Comments and suggestions - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="How people who use a KarelaDB server send comments, suggestions and problem reports, and how its admins read them.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/feedback.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/feedback.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="comments-and-suggestions">Comments and suggestions</h1>
-<blockquote><p>How people who use a KDB server send comments, suggestions and problem reports, and how its admins read them.</p></blockquote>
-<ul><li>Category: Web console</li><li>Keywords: feedback, comment, comments, suggestion, suggestions, problem report, bug report, send feedback, contact, POST /api/feedback, GET /api/feedback, POST /api/feedback/&lt;id&gt;, _feedback</li><li>See also: <a href="web-console.html">Web console</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="about-kdb.html">About KDB</a></li></ul>
-<p>Anyone who may use a KDB server can send its admins a <strong>comment</strong>, a <strong>suggestion</strong> or a <strong>problem</strong> report. The message is saved on that server, in the table <code>_feedback</code>, so it survives restarts and is part of every backup.</p>
+<blockquote><p>How people who use a KarelaDB server send comments, suggestions and problem reports, and how its admins read them.</p></blockquote>
+<ul><li>Category: Web console</li><li>Keywords: feedback, comment, comments, suggestion, suggestions, problem report, bug report, send feedback, contact, POST /api/feedback, GET /api/feedback, POST /api/feedback/&lt;id&gt;, _feedback</li><li>See also: <a href="web-console.html">Web console</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="about-kareladb.html">About KarelaDB</a></li></ul>
+<p>Anyone who may use a KarelaDB server can send its admins a <strong>comment</strong>, a <strong>suggestion</strong> or a <strong>problem</strong> report. The message is saved on that server, in the table <code>_feedback</code>, so it survives restarts and is part of every backup.</p>
 <div class="table-wrap"><table><thead><tr><th>Who</th><th>What they can do</th><th>Where</th></tr></thead><tbody><tr><td>anyone who can open the console (logged in, or with the token)</td><td>send a message</td><td><strong>Help &gt; Comments and suggestions</strong></td></tr><tr><td>a server admin (the user&#39;s own <code>ROLE admin</code>, or the token)</td><td>read every message and mark it read or done</td><td>the same page, under <strong>Received</strong></td></tr><tr><td>a program</td><td>the same, over HTTP</td><td><a href="#post-api-feedback">POST /api/feedback</a>, <a href="#get-api-feedback">GET /api/feedback</a>, <a href="#mark-feedback">POST /api/feedback/&lt;id&gt;</a></td></tr></tbody></table></div>
-<ul><li>Messages go to the admins of <strong>this</strong> server, not to the makers of KDB.</li><li>A message can be up to 4,000 characters. A name or email for an answer is optional.</li><li>One user can send at most 10 messages in 10 minutes (without a user name: one client address), so a script cannot fill the table.</li><li>Messages are kept in the hidden <code>_system</code> database when the server has a data folder, or in the served database when <code>kdb serve</code> runs on one folder.</li></ul>
+<ul><li>Messages go to the admins of <strong>this</strong> server, not to the makers of KarelaDB.</li><li>A message can be up to 4,000 characters. A name or email for an answer is optional.</li><li>One user can send at most 10 messages in 10 minutes (without a user name: one client address), so a script cannot fill the table.</li><li>Messages are kept in the hidden <code>_system</code> database when the server has a data folder, or in the served database when <code>kareladb serve</code> runs on one folder.</li></ul>
 <h2 id="page">The page in the console</h2>
 <p>Open <strong>Help &gt; Comments and suggestions</strong>.</p>
 <ol><li>Pick what it is: <strong>Comment</strong>, <strong>Suggestion</strong> or <strong>Problem</strong>.</li><li>Write the message. <strong>Ctrl+Enter</strong> sends it too.</li><li>Optionally add a name or email, if you would like an answer.</li><li>Press <strong>Send</strong>. The page says which number the message was saved as.</li></ol>
@@ -31,7 +31,7 @@ Content-Type: application/json
 <p>Saves one message. Needs a login or the token, like every <code>/api</code> route; no role is needed.</p>
 <div class="table-wrap"><table><thead><tr><th>Field</th><th>Needed</th><th>Rule</th></tr></thead><tbody><tr><td><code>kind</code></td><td>no (default <code>comment</code>)</td><td><code>comment</code>, <code>suggestion</code> or <code>problem</code></td></tr><tr><td><code>message</code></td><td>yes</td><td>1 to 4,000 characters, no control characters except line breaks and tabs</td></tr><tr><td><code>contact</code></td><td>no</td><td>up to 200 characters</td></tr><tr><td><code>page</code></td><td>no</td><td>where it was sent from, up to 200 characters</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>{&quot;id&quot;: 12, &quot;saved&quot;: true}</code>.</li><li><strong>Errors:</strong> 400 with a message that says which field is wrong; 401 without a login; 429 after 10 messages in 10 minutes from one user (or one address, for the token).</li><li>The server adds the time, the user name and the client address itself.</li></ul>
-<pre><code class="language-text">curl -s -X POST &quot;$KDB_URL/api/feedback&quot; -H &quot;Authorization: Bearer $KDB_TOKEN&quot; \
+<pre><code class="language-text">curl -s -X POST &quot;$KARELADB_URL/api/feedback&quot; -H &quot;Authorization: Bearer $KARELADB_TOKEN&quot; \
   -H &quot;Content-Type: application/json&quot; \
   --data-binary &#39;{&quot;kind&quot;:&quot;suggestion&quot;,&quot;message&quot;:&quot;Please add a CSV export to dashboards.&quot;,&quot;contact&quot;:&quot;ram@example.com&quot;}&#39;
 
@@ -84,7 +84,7 @@ Content-Type: application/json
   &quot;dataset&quot;: [
     [
       1,
-      &quot;2026-10-22T05:43:41.888Z&quot;,
+      &quot;2026-10-22T09:55:17.505Z&quot;,
       &quot;suggestion&quot;,
       &quot;new&quot;,
       &quot;Please add a CSV export to dashboards.&quot;,
@@ -108,6 +108,6 @@ Content-Type: application/json
 <p>HTTP 404 (application/json)</p>
 <pre><code class="language-text">{&quot;error&quot;: &quot;there is no message #999&quot;}</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/feedback.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/feedback.md">This page as markdown</a>.</footer>
 </body>
 </html>

@@ -3,26 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Databases over HTTP (/api/databases) - KDB (KARELA DataBase) docs</title>
+<title>Databases over HTTP (/api/databases) - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="List the databases of a server, create a new one, and drop one (its folder moves to _trash).">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-databases.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-databases.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/http-databases.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/http-databases.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="databases-over-http-api-databases">Databases over HTTP (/api/databases)</h1>
 <blockquote><p>List the databases of a server, create a new one, and drop one (its folder moves to _trash).</p></blockquote>
-<ul><li>Category: HTTP API</li><li>Keywords: api/databases, list databases, create database, drop database, _trash, can_create, data_dir, default database, --data-dir, --db, 409, name rules</li><li>See also: <a href="databases.html">Databases and the data folder</a>, <a href="http-overview.html#database">HTTP API overview (database)</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a>, <a href="cli-serve.html">kdb serve</a></li></ul>
-<p>A server started for a <strong>data folder</strong> (<code>kdb serve</code>, or <code>kdb serve --data-dir &lt;folder&gt;</code>) serves every database in that folder. A <strong>database</strong> is one folder with its own tables. These routes list, create and drop them.</p>
-<ul><li>Every other route picks its database with <code>db=&lt;name&gt;</code> or the header <code>X-KDB-Database</code> (<a href="http-overview.html#database">choosing the database</a>).</li><li>The same can be done in SQL: <code>SHOW DATABASES</code>, <code>CREATE DATABASE</code>, <code>DROP DATABASE</code> (<a href="databases.html">databases</a>).</li><li>A server started for one folder (<code>kdb serve D:\kdb\market</code>) has just that one database and cannot create or drop others.</li></ul>
+<ul><li>Category: HTTP API</li><li>Keywords: api/databases, list databases, create database, drop database, _trash, can_create, data_dir, default database, --data-dir, --db, 409, name rules</li><li>See also: <a href="databases.html">Databases and the data folder</a>, <a href="http-overview.html#database">HTTP API overview (database)</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a>, <a href="cli-serve.html">kareladb serve</a></li></ul>
+<p>A server started for a <strong>data folder</strong> (<code>kareladb serve</code>, or <code>kareladb serve --data-dir &lt;folder&gt;</code>) serves every database in that folder. A <strong>database</strong> is one folder with its own tables. These routes list, create and drop them.</p>
+<ul><li>Every other route picks its database with <code>db=&lt;name&gt;</code> or the header <code>X-KDB-Database</code> (<a href="http-overview.html#database">choosing the database</a>).</li><li>The same can be done in SQL: <code>SHOW DATABASES</code>, <code>CREATE DATABASE</code>, <code>DROP DATABASE</code> (<a href="databases.html">databases</a>).</li><li>A server started for one folder (<code>kareladb serve D:\kdb\market</code>) has just that one database and cannot create or drop others.</li></ul>
 <h2 id="get-api-databases">GET /api/databases</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">GET /api/databases</code></pre>
 <p>Lists the databases of the server, sorted by name.</p>
 <div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td>(none)</td><td>-</td><td>This route does not use <code>db=</code></td><td>-</td></tr></tbody></table></div>
-<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>databases[]</code></td><td>One object for each database you may read</td></tr><tr><td><code>databases[].name</code></td><td>The database name</td></tr><tr><td><code>databases[].dir</code></td><td>Its folder</td></tr><tr><td><code>databases[].default</code></td><td><code>true</code> for the default database (used when a request has no <code>db=</code>)</td></tr><tr><td><code>databases[].open</code></td><td><code>true</code> when the server has it open now</td></tr><tr><td><code>databases[].opening</code></td><td><code>true</code> while a request is opening it (a big database can take minutes)</td></tr><tr><td><code>databases[].opening_ms</code></td><td>Only while it opens: for how long, in milliseconds</td></tr><tr><td><code>databases[].opening_phase</code></td><td>Only while it opens: what it does now, such as <code>replaying log</code> (details in <a href="http-server-info.html#api-stats">/api/stats</a>)</td></tr><tr><td><code>databases[].busy</code></td><td>Only when <code>true</code>: a write or checkpoint held the database, so <code>tables</code>, <code>bytes</code> and <code>wal_archive_bytes</code> are from the last listing that got in. The list never waits for a database</td></tr><tr><td><code>databases[].tables</code></td><td>Number of tables, or <code>null</code> when it is not open</td></tr><tr><td><code>databases[].bytes</code></td><td>Size of its data files, or <code>0</code> when it is not open</td></tr><tr><td><code>databases[].error</code></td><td>Only when an open database cannot be read: why</td></tr><tr><td><code>databases[].wal_archive_max_bytes</code></td><td>Old log the database keeps for repairs and restores (<code>0</code> = none)</td></tr><tr><td><code>databases[].wal_archive_source</code></td><td><code>database</code> when it has its own <code>ALTER DATABASE ... SET WAL_ARCHIVE</code>, else <code>server</code> (the server default)</td></tr><tr><td><code>databases[].wal_archive_bytes</code></td><td>Old log on disk now, or <code>null</code> when it is not open</td></tr><tr><td><code>default</code></td><td>The name of the default database</td></tr><tr><td><code>data_dir</code></td><td>The data folder (empty for <code>kdb serve &lt;folder&gt;</code>)</td></tr><tr><td><code>can_create</code></td><td><code>true</code> when you may create and drop databases here: the server has a data folder, and you have full rights</td></tr><tr><td><code>wal_archive_default_bytes</code></td><td>The server default for old log kept per database (<code>wal_archive_mb</code> in <code>kdb.conf</code>, or <code>KDB_WAL_ARCHIVE_MB</code>)</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>databases[]</code></td><td>One object for each database you may read</td></tr><tr><td><code>databases[].name</code></td><td>The database name</td></tr><tr><td><code>databases[].dir</code></td><td>Its folder</td></tr><tr><td><code>databases[].default</code></td><td><code>true</code> for the default database (used when a request has no <code>db=</code>)</td></tr><tr><td><code>databases[].open</code></td><td><code>true</code> when the server has it open now</td></tr><tr><td><code>databases[].opening</code></td><td><code>true</code> while a request is opening it (a big database can take minutes)</td></tr><tr><td><code>databases[].opening_ms</code></td><td>Only while it opens: for how long, in milliseconds</td></tr><tr><td><code>databases[].opening_phase</code></td><td>Only while it opens: what it does now, such as <code>replaying log</code> (details in <a href="http-server-info.html#api-stats">/api/stats</a>)</td></tr><tr><td><code>databases[].busy</code></td><td>Only when <code>true</code>: a write or checkpoint held the database, so <code>tables</code>, <code>bytes</code> and <code>wal_archive_bytes</code> are from the last listing that got in. The list never waits for a database</td></tr><tr><td><code>databases[].tables</code></td><td>Number of tables, or <code>null</code> when it is not open</td></tr><tr><td><code>databases[].bytes</code></td><td>Size of its data files, or <code>0</code> when it is not open</td></tr><tr><td><code>databases[].error</code></td><td>Only when an open database cannot be read: why</td></tr><tr><td><code>databases[].wal_archive_max_bytes</code></td><td>Old log the database keeps for repairs and restores (<code>0</code> = none)</td></tr><tr><td><code>databases[].wal_archive_source</code></td><td><code>database</code> when it has its own <code>ALTER DATABASE ... SET WAL_ARCHIVE</code>, else <code>server</code> (the server default)</td></tr><tr><td><code>databases[].wal_archive_bytes</code></td><td>Old log on disk now, or <code>null</code> when it is not open</td></tr><tr><td><code>default</code></td><td>The name of the default database</td></tr><tr><td><code>data_dir</code></td><td>The data folder (empty for <code>kareladb serve &lt;folder&gt;</code>)</td></tr><tr><td><code>can_create</code></td><td><code>true</code> when you may create and drop databases here: the server has a data folder, and you have full rights</td></tr><tr><td><code>wal_archive_default_bytes</code></td><td>The server default for old log kept per database (<code>wal_archive_mb</code> in <code>kareladb.conf</code>, or <code>KARELADB_WAL_ARCHIVE_MB</code>)</td></tr></tbody></table></div>
 <ul><li><strong>Status codes:</strong> 200; 401 without a needed login.</li><li><strong>Notes:</strong> listing never opens a database, so it answers at once, also while a big one is being opened. A database is opened by the first request that uses it (<code>db=&lt;name&gt;</code>); until then it is listed with <code>open: false</code> and no table count. With users, the list has only the databases the user may read, and <code>can_create</code> is <code>true</code> only for a user whose own ROLE is <code>admin</code>. The default database is made the first time it is used, so on a new server it may not be in the list yet.</li><li><strong>About the example below:</strong> the server that made this help has one database for each example (named <code>h1</code>, <code>h2</code>, ...), so its list is longer than yours will be. <code>demo</code> is the database of this example.</li></ul>
 <p><strong>HTTP: Every database of the server</strong></p>
 <pre><code class="language-http">GET /api/databases</code></pre>
@@ -61,8 +61,8 @@
       &quot;result_cache_source&quot;: &quot;server&quot;
     },
     {
-      &quot;name&quot;: &quot;h1385&quot;,
-      &quot;dir&quot;: &quot;kdb-data/h1385&quot;,
+      &quot;name&quot;: &quot;h1399&quot;,
+      &quot;dir&quot;: &quot;kdb-data/h1399&quot;,
       &quot;default&quot;: false,
       &quot;encrypted&quot;: false,
       &quot;open&quot;: true,
@@ -76,8 +76,8 @@
       &quot;result_cache_source&quot;: &quot;server&quot;
     },
     {
-      &quot;name&quot;: &quot;h234&quot;,
-      &quot;dir&quot;: &quot;kdb-data/h234&quot;,
+      &quot;name&quot;: &quot;h1400&quot;,
+      &quot;dir&quot;: &quot;kdb-data/h1400&quot;,
       &quot;default&quot;: false,
       &quot;encrypted&quot;: false,
       &quot;open&quot;: true,
@@ -91,8 +91,23 @@
       &quot;result_cache_source&quot;: &quot;server&quot;
     },
     {
-      &quot;name&quot;: &quot;h315&quot;,
-      &quot;dir&quot;: &quot;kdb-data/h315&quot;,
+      &quot;name&quot;: &quot;h241&quot;,
+      &quot;dir&quot;: &quot;kdb-data/h241&quot;,
+      &quot;default&quot;: false,
+      &quot;encrypted&quot;: false,
+      &quot;open&quot;: true,
+      &quot;tables&quot;: 0,
+      &quot;bytes&quot;: 0,
+      &quot;opening&quot;: false,
+      &quot;wal_archive_max_bytes&quot;: 1073741824,
+      &quot;wal_archive_source&quot;: &quot;server&quot;,
+      &quot;wal_archive_bytes&quot;: 0,
+      &quot;result_cache_bytes&quot;: 268435456,
+      &quot;result_cache_source&quot;: &quot;server&quot;
+    },
+    {
+      &quot;name&quot;: &quot;h322&quot;,
+      &quot;dir&quot;: &quot;kdb-data/h322&quot;,
       &quot;default&quot;: false,
       &quot;encrypted&quot;: false,
       &quot;open&quot;: true,
@@ -106,8 +121,8 @@
       &quot;result_cache_source&quot;: &quot;server&quot;
     },
     {
-      &quot;name&quot;: &quot;h316&quot;,
-      &quot;dir&quot;: &quot;kdb-data/h316&quot;,
+      &quot;name&quot;: &quot;h323&quot;,
+      &quot;dir&quot;: &quot;kdb-data/h323&quot;,
       &quot;default&quot;: false,
       &quot;encrypted&quot;: false,
       &quot;open&quot;: true,
@@ -157,7 +172,7 @@ POST /api/databases        body: name=&lt;name&gt;  (Content-Type: application/x
 <p>Creates an empty database: a new folder in the data folder.</p>
 <div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>name</code></td><td>URL, form field, or JSON body</td><td>The new database&#39;s name: letters, digits, <code>_</code> and <code>-</code>, at most 64 characters. Case is ignored.</td><td>required</td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>The name of the new database</td></tr><tr><td><code>created</code></td><td><code>true</code></td></tr></tbody></table></div>
-<ul><li><strong>Status codes:</strong> 200 created; 400 no name or a bad name; 401/403 login or role; 409 a database with this name already exists.</li><li><strong>Notes:</strong> needs full rights (the <code>--token</code>, a server without login, or a user whose own ROLE is <code>admin</code>). A <code>GET</code> never creates a database. A server for one folder (<code>kdb serve &lt;folder&gt;</code>) refuses. In SQL: <code>CREATE DATABASE name</code> (with <code>POST /exec</code>).</li></ul>
+<ul><li><strong>Status codes:</strong> 200 created; 400 no name or a bad name; 401/403 login or role; 409 a database with this name already exists.</li><li><strong>Notes:</strong> needs full rights (the <code>--token</code>, a server without login, or a user whose own ROLE is <code>admin</code>). A <code>GET</code> never creates a database. A server for one folder (<code>kareladb serve &lt;folder&gt;</code>) refuses. In SQL: <code>CREATE DATABASE name</code> (with <code>POST /exec</code>).</li></ul>
 <p><strong>HTTP: Create with ?name=, then with a JSON body</strong></p>
 <pre><code class="language-http">POST /api/databases?name=help_shop
 ###
@@ -190,7 +205,7 @@ SHOW TABLES</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;items&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 19598}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 14864}
     },
     {
       &quot;statement&quot;: &quot;SHOW TABLES&quot;,
@@ -208,10 +223,10 @@ SHOW TABLES</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 13}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 14}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 19611}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 14878}
 }</code></pre>
 <p><strong>HTTP: The same name again</strong></p>
 <pre><code class="language-http">POST /api/databases?name=help_twice
@@ -262,7 +277,7 @@ GET /exec?db=help_scratch&amp;query=SELECT 1</code></pre>
 <pre><code class="language-text">{
   &quot;name&quot;: &quot;help_scratch&quot;,
   &quot;dropped&quot;: true,
-  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792647850424-help_scratch&quot;
+  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792662964248-help_scratch&quot;
 }</code></pre>
 <p><code>GET /exec?db=help_scratch&amp;query=SELECT 1</code></p>
 <p>HTTP 404 (application/json)</p>
@@ -283,6 +298,6 @@ GET /exec?db=help_scratch&amp;query=SELECT 1</code></pre>
 var res = await http.DeleteAsync(&quot;http://127.0.0.1:9900/api/databases/shop&quot;);
 Console.WriteLine($&quot;{(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}&quot;);</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-databases.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/http-databases.md">This page as markdown</a>.</footer>
 </body>
 </html>

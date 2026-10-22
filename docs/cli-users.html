@@ -3,238 +3,238 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>kdb user - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="Add, list and remove the users of the KDB server, set their passwords and roles, from the command line.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/cli-users.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-users.md">
+<title>kareladb user - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="Add, list and remove the users of the KarelaDB server, set their passwords and roles, from the command line.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/cli-users.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cli-users.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
-<h1 id="kdb-user">kdb user</h1>
-<blockquote><p>Add, list and remove the users of the KDB server, set their passwords and roles, from the command line.</p></blockquote>
-<ul><li>Category: Command line</li><li>Keywords: users, user management, reset-2fa, two-factor, add user, password, change password, reset password, role, admin, ddl, write, read, none, list users, remove user, delete user, first user, last admin, --role, pipe password, _system</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="server-security.html">Keeping kdb serve safe</a>, <a href="cli-serve.html">kdb serve</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a></li></ul>
-<p><code>kdb user</code> manages the <strong>users of the server</strong>: the people and programs that log in to <code>kdb serve</code> (the web console, the HTTP API, the PostgreSQL port).
+<h1 id="kareladb-user"><span class="old-id" id="kdb-user"></span>kareladb user</h1>
+<blockquote><p>Add, list and remove the users of the KarelaDB server, set their passwords and roles, from the command line.</p></blockquote>
+<ul><li>Category: Command line</li><li>Keywords: users, user management, reset-2fa, two-factor, add user, password, change password, reset password, role, admin, ddl, write, read, none, list users, remove user, delete user, first user, last admin, --role, pipe password, _system</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="server-security.html">Keeping kareladb serve safe</a>, <a href="cli-serve.html">kareladb serve</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a></li></ul>
+<p><code>kareladb user</code> manages the <strong>users of the server</strong>: the people and programs that log in to <code>kareladb serve</code> (the web console, the HTTP API, the PostgreSQL port).
 They are not the users of your app (for those, see <a href="users-and-roles.html">users and roles</a>).</p>
-<ul><li>Users belong to the <strong>data folder</strong>. KDB keeps them in a hidden database <code>_system</code> inside it. Use <code>--data-dir &lt;folder&gt;</code> (or <code>KDB_DATA_DIR</code>) to choose the data folder.</li><li>As soon as one user exists, the server asks every request for a login.</li><li><code>kdb user</code> works only while <code>kdb serve</code> is <strong>stopped</strong>. While the server runs, it has the users open; use SQL in its console then (<code>CREATE USER</code>, <code>ALTER USER</code>, <code>DROP USER</code>, <code>SHOW USERS</code>, <code>GRANT</code>, <code>REVOKE</code>).</li><li><strong>Passwords are never given on the command line</strong> (other users of the computer could see command lines). <code>kdb user add</code> and <code>kdb user passwd</code> ask for the password on the keyboard (the typed text is not shown, and you type it twice), or read one line from a pipe.</li></ul>
+<ul><li>Users belong to the <strong>data folder</strong>. KarelaDB keeps them in a hidden database <code>_system</code> inside it. Use <code>--data-dir &lt;folder&gt;</code> (or <code>KARELADB_DATA_DIR</code>) to choose the data folder.</li><li>As soon as one user exists, the server asks every request for a login.</li><li><code>kareladb user</code> works only while <code>kareladb serve</code> is <strong>stopped</strong>. While the server runs, it has the users open; use SQL in its console then (<code>CREATE USER</code>, <code>ALTER USER</code>, <code>DROP USER</code>, <code>SHOW USERS</code>, <code>GRANT</code>, <code>REVOKE</code>).</li><li><strong>Passwords are never given on the command line</strong> (other users of the computer could see command lines). <code>kareladb user add</code> and <code>kareladb user passwd</code> ask for the password on the keyboard (the typed text is not shown, and you type it twice), or read one line from a pipe.</li></ul>
 <div class="table-wrap"><table><thead><tr><th>Role</th><th>May do</th></tr></thead><tbody><tr><td><code>none</code></td><td>nothing, until a <code>GRANT</code> on a database</td></tr><tr><td><code>read</code></td><td><code>SELECT</code>, <code>SHOW</code>, <code>EXPLAIN</code>, CSV export, cursors, transactions</td></tr><tr><td><code>write</code></td><td>everything of <code>read</code>, and <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CALL</code>, the line protocol</td></tr><tr><td><code>admin</code></td><td>everything, also <code>CREATE</code>/<code>ALTER</code>/<code>DROP</code>, <code>BACKUP</code>, <code>CHECK</code>, databases and users</td></tr></tbody></table></div>
 <p>A role given here is for <strong>every</strong> database. For one database only, use <code>GRANT ... ON DATABASE</code> in SQL. Details: <a href="users-and-roles.html">users and roles</a>.</p>
-<p><code>kdb user reset-2fa &lt;name&gt;</code> turns <a href="two-factor-login.html#kdb-user-reset-2fa">two-factor login</a> off for a user who lost the phone.</p>
-<h2 id="kdb-user-add">kdb user add</h2>
+<p><code>kareladb user reset-2fa &lt;name&gt;</code> turns <a href="two-factor-login.html#kareladb-user-reset-2fa">two-factor login</a> off for a user who lost the phone.</p>
+<h2 id="kareladb-user-add"><span class="old-id" id="kdb-user-add"></span>kareladb user add</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb user add &lt;name&gt; [--role admin|ddl|write|read|none] [--data-dir &lt;folder&gt;]</code></pre>
+<pre><code class="language-sql">kareladb user add &lt;name&gt; [--role admin|ddl|write|read|none] [--data-dir &lt;folder&gt;]</code></pre>
 <p>Adds a user. The password is asked for, or read from a pipe.</p>
-<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;name&gt;</code></td><td>Letters, digits, <code>_</code> and <code>-</code>, 1 to 63 characters. <code>Bob</code> and <code>bob</code> are the same user.</td><td>required</td></tr><tr><td><code>--role</code></td><td><code>admin</code>, <code>ddl</code>, <code>write</code>, <code>read</code> or <code>none</code></td><td><code>admin</code> for the first user, <code>none</code> for later users</td></tr><tr><td><code>--data-dir &lt;folder&gt;</code></td><td>The data folder that gets the user</td><td><code>KDB_DATA_DIR</code>, else <code>data</code> next to kdb</td></tr></tbody></table></div>
-<ul><li><strong>Exit code:</strong> <code>0</code> added; <code>1</code> for every error.</li><li><strong>The first user must be <code>admin</code>.</strong> Otherwise nobody could manage users after the server starts asking for logins.</li><li><strong>Password:</strong> at least 12 characters, not the user name, at most 1024 bytes. Long random passwords (20 characters or more, from a password manager) are best for programs.</li><li>Adding a user takes a moment: the password is hashed slowly on purpose (PBKDF2, 600,000 rounds), so a stolen copy is hard to guess.</li><li><strong>From a script:</strong> pipe the password, for example <code>Get-Content admin-password.txt | kdb user add admin --role admin</code>. Keep that file readable only by you.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;name&gt;</code></td><td>Letters, digits, <code>_</code> and <code>-</code>, 1 to 63 characters. <code>Bob</code> and <code>bob</code> are the same user.</td><td>required</td></tr><tr><td><code>--role</code></td><td><code>admin</code>, <code>ddl</code>, <code>write</code>, <code>read</code> or <code>none</code></td><td><code>admin</code> for the first user, <code>none</code> for later users</td></tr><tr><td><code>--data-dir &lt;folder&gt;</code></td><td>The data folder that gets the user</td><td><code>KARELADB_DATA_DIR</code>, else <code>data</code> next to kareladb</td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code> added; <code>1</code> for every error.</li><li><strong>The first user must be <code>admin</code>.</strong> Otherwise nobody could manage users after the server starts asking for logins.</li><li><strong>Password:</strong> at least 12 characters, not the user name, at most 1024 bytes. Long random passwords (20 characters or more, from a password manager) are best for programs.</li><li>Adding a user takes a moment: the password is hashed slowly on purpose (PBKDF2, 600,000 rounds), so a stolen copy is hard to guess.</li><li><strong>From a script:</strong> pipe the password, for example <code>Get-Content admin-password.txt | kareladb user add admin --role admin</code>. Keep that file readable only by you.</li></ul>
 <p><strong>Command line: The first user, with the password from a pipe</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
 <p><strong>Command line: More users: a report reader and an app with no role yet</strong></p>
-<pre><code class="language-bash">kdb user add admin
+<pre><code class="language-bash">kareladb user add admin
 &gt; Long-Admin-Passw0rd
-kdb user add report --role read
+kareladb user add report --role read
 &gt; Reports-only-secret-7
-kdb user add shop_app
+kareladb user add shop_app
 &gt; Another-long-secret-42
-kdb user list</code></pre>
+kareladb user list</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin</code></p>
+<p><code>&gt; kareladb user add admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user add report --role read</code></p>
+<p><code>&gt; kareladb user add report --role read</code></p>
 <pre><code class="language-text">user &#39;report&#39; added with role read in ./kdb-data</code></pre>
-<p><code>&gt; kdb user add shop_app</code></p>
+<p><code>&gt; kareladb user add shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; added with role none in ./kdb-data</code></pre>
-<p><code>&gt; kdb user list</code></p>
+<p><code>&gt; kareladb user list</code></p>
 <pre><code class="language-text">USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 11:28:33
-report                   read   -                              2026-10-22 11:28:33
-shop_app                 none   -                              2026-10-22 11:28:33
+admin                    admin  -                              2026-10-22 15:40:03
+report                   read   -                              2026-10-22 15:40:03
+shop_app                 none   -                              2026-10-22 15:40:03
 3 users in ./kdb-data</code></pre>
 <p><strong>Command line: The first user must be admin</strong></p>
-<pre><code class="language-bash">kdb user add report --role read
+<pre><code class="language-bash">kareladb user add report --role read
 &gt; Reports-only-secret-7</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">error: Invalid argument: the first user must have ROLE admin (CREATE USER name WITH PASSWORD &#39;...&#39; ROLE admin): once a user exists the server asks for a login, and only an admin can manage users</code></pre>
 <p>exit code 1</p>
 <p><strong>Command line: A password that is too short</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; short</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">error: the password is too short: use at least 12 characters (a password manager can make a long random one)</code></pre>
 <p>exit code 1</p>
 <pre><code class="language-powershell"># Typed on the keyboard (not run here)
-PS&gt; kdb user add admin --role admin --data-dir E:\kdb-data
+PS&gt; kareladb user add admin --role admin --data-dir E:\kdb-data
 New password:
 Type it again:
 user &#39;admin&#39; added with role admin in E:/kdb-data</code></pre>
-<pre><code class="language-bash"># Linux, as the kdb system user, password from a file only root can read (not run here)
-sudo cat /root/kdb-admin-password | sudo -u kdb kdb user add admin --role admin --data-dir /srv/kdb/data</code></pre>
-<h2 id="kdb-user-passwd">kdb user passwd</h2>
+<pre><code class="language-bash"># Linux, as the kareladb system user, password from a file only root can read (not run here)
+sudo cat /root/kdb-admin-password | sudo -u kdb kareladb user add admin --role admin --data-dir /srv/kareladb/data</code></pre>
+<h2 id="kareladb-user-passwd"><span class="old-id" id="kdb-user-passwd"></span>kareladb user passwd</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb user passwd &lt;name&gt; [--data-dir &lt;folder&gt;]</code></pre>
+<pre><code class="language-sql">kareladb user passwd &lt;name&gt; [--data-dir &lt;folder&gt;]</code></pre>
 <p>Sets a new password for a user. The password is asked for, or read from a pipe.</p>
-<ul><li><strong>Exit code:</strong> <code>0</code> set; <code>1</code> for every error (unknown user, short password, passwords not the same).</li><li>Every login of that user ends at once (web console sessions and <code>POST /api/login</code> tokens). They must log in again with the new password.</li><li>The new password is asked for before KDB looks for the user, so a wrong name is reported after you typed the password.</li><li>In SQL: <code>ALTER USER &lt;name&gt; WITH PASSWORD &#39;...&#39;</code> (every user may change their own password).</li></ul>
+<ul><li><strong>Exit code:</strong> <code>0</code> set; <code>1</code> for every error (unknown user, short password, passwords not the same).</li><li>Every login of that user ends at once (web console sessions and <code>POST /api/login</code> tokens). They must log in again with the new password.</li><li>The new password is asked for before KarelaDB looks for the user, so a wrong name is reported after you typed the password.</li><li>In SQL: <code>ALTER USER &lt;name&gt; WITH PASSWORD &#39;...&#39;</code> (every user may change their own password).</li></ul>
 <p><strong>Command line: A new password</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user passwd admin
+kareladb user passwd admin
 &gt; Even-Longer-Admin-Passw0rd-2026</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user passwd admin</code></p>
+<p><code>&gt; kareladb user passwd admin</code></p>
 <pre><code class="language-text">new password set for user &#39;admin&#39;; logins with the old password end</code></pre>
 <p><strong>Command line: An unknown user</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user passwd nobody
+kareladb user passwd nobody
 &gt; Some-long-password-1</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user passwd nobody</code></p>
+<p><code>&gt; kareladb user passwd nobody</code></p>
 <pre><code class="language-text">error: Not found: user &#39;nobody&#39; does not exist</code></pre>
 <p>exit code 1</p>
-<h2 id="kdb-user-role">kdb user role</h2>
+<h2 id="kareladb-user-role"><span class="old-id" id="kdb-user-role"></span>kareladb user role</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb user role &lt;name&gt; admin|ddl|write|read|none [--data-dir &lt;folder&gt;]</code></pre>
+<pre><code class="language-sql">kareladb user role &lt;name&gt; admin|ddl|write|read|none [--data-dir &lt;folder&gt;]</code></pre>
 <p>Changes the role of a user. The role is for every database.</p>
 <ul><li><strong>Exit code:</strong> <code>0</code> changed; <code>1</code> for every error.</li><li><strong>The last admin</strong> cannot lose the admin role while other users exist. Make another user admin first.</li><li>In SQL: <code>ALTER USER &lt;name&gt; ROLE write</code>.</li></ul>
 <p><strong>Command line: Give the app the right to write</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user add shop_app
+kareladb user add shop_app
 &gt; Another-long-secret-42
-kdb user role shop_app write
-kdb user list</code></pre>
+kareladb user role shop_app write
+kareladb user list</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user add shop_app</code></p>
+<p><code>&gt; kareladb user add shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; added with role none in ./kdb-data</code></pre>
-<p><code>&gt; kdb user role shop_app write</code></p>
+<p><code>&gt; kareladb user role shop_app write</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; now has role write</code></pre>
-<p><code>&gt; kdb user list</code></p>
+<p><code>&gt; kareladb user list</code></p>
 <pre><code class="language-text">USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 11:28:33
-shop_app                 write  -                              2026-10-22 11:28:33
+admin                    admin  -                              2026-10-22 15:40:03
+shop_app                 write  -                              2026-10-22 15:40:03
 2 users in ./kdb-data</code></pre>
 <p><strong>Command line: The last admin keeps the role</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user add report --role read
+kareladb user add report --role read
 &gt; Reports-only-secret-7
-kdb user role admin read</code></pre>
+kareladb user role admin read</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user add report --role read</code></p>
+<p><code>&gt; kareladb user add report --role read</code></p>
 <pre><code class="language-text">user &#39;report&#39; added with role read in ./kdb-data</code></pre>
-<p><code>&gt; kdb user role admin read</code></p>
+<p><code>&gt; kareladb user role admin read</code></p>
 <pre><code class="language-text">error: Invalid argument: &#39;admin&#39; is the last user with ROLE admin; make another user admin first (ALTER USER &lt;name&gt; ROLE admin), or nobody could manage users any more</code></pre>
 <p>exit code 1</p>
 <p><strong>Command line: A role that does not exist</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user role admin superuser</code></pre>
+kareladb user role admin superuser</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user role admin superuser</code></p>
+<p><code>&gt; kareladb user role admin superuser</code></p>
 <pre><code class="language-text">error: the role must be admin, ddl, write, read or none (got &#39;superuser&#39;)</code></pre>
 <p>exit code 1</p>
-<h2 id="kdb-user-list">kdb user list</h2>
+<h2 id="kareladb-user-list"><span class="old-id" id="kdb-user-list"></span>kareladb user list</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb user list [--data-dir &lt;folder&gt;]</code></pre>
+<pre><code class="language-sql">kareladb user list [--data-dir &lt;folder&gt;]</code></pre>
 <p>Lists the users: name, role, grants (roles on single databases) and the time of the last change (local time). It never shows passwords or hashes.</p>
 <ul><li><strong>Exit code:</strong> <code>0</code>, also when there are no users (then it says <code>no users in &lt;folder&gt; yet</code>).</li><li><code>GRANTS</code> shows <code>-</code>, or <code>database=role</code> for each <code>GRANT</code> (for example <code>shop=write</code>). Grants are made with SQL: <code>GRANT write ON DATABASE shop TO shop_app</code>.</li><li>In SQL: <code>SHOW USERS</code>.</li></ul>
 <p><strong>Command line: No users yet</strong></p>
-<pre><code class="language-bash">kdb user list</code></pre>
+<pre><code class="language-bash">kareladb user list</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">no users in ./kdb-data yet (add one with: kdb user add &lt;name&gt; --role admin)</code></pre>
-<p><strong>Command line: Users, and a grant made with SQL in kdb shell</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-text">no users in ./kdb-data yet (add one with: kareladb user add &lt;name&gt; --role admin)</code></pre>
+<p><strong>Command line: Users, and a grant made with SQL in kareladb shell</strong></p>
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user add shop_app
+kareladb user add shop_app
 &gt; Another-long-secret-42
-kdb shell
+kareladb shell
 &gt; CREATE DATABASE shop;
 &gt; GRANT write ON DATABASE shop TO shop_app;
-kdb user list</code></pre>
+kareladb user list</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user add shop_app</code></p>
+<p><code>&gt; kareladb user add shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; added with role none in ./kdb-data</code></pre>
-<p><code>&gt; kdb shell</code></p>
-<pre><code class="language-text">KDB 0.2.0-dev shell on default (data folder ./kdb-data)
+<p><code>&gt; kareladb shell</code></p>
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on default (data folder ./kdb-data)
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; database &#39;shop&#39; created
-kdb&gt; user &#39;shop_app&#39; has role write on database &#39;shop&#39;
-kdb&gt;</code></pre>
-<p><code>&gt; kdb user list</code></p>
+kareladb&gt; database &#39;shop&#39; created
+kareladb&gt; user &#39;shop_app&#39; has role write on database &#39;shop&#39;
+kareladb&gt;</code></pre>
+<p><code>&gt; kareladb user list</code></p>
 <pre><code class="language-text">USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 11:28:33
-shop_app                 none   shop=write                     2026-10-22 11:28:34
+admin                    admin  -                              2026-10-22 15:40:03
+shop_app                 none   shop=write                     2026-10-22 15:40:04
 2 users in ./kdb-data</code></pre>
-<h2 id="kdb-user-remove">kdb user remove</h2>
+<h2 id="kareladb-user-remove"><span class="old-id" id="kdb-user-remove"></span>kareladb user remove</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb user remove &lt;name&gt; [--data-dir &lt;folder&gt;]</code></pre>
+<pre><code class="language-sql">kareladb user remove &lt;name&gt; [--data-dir &lt;folder&gt;]</code></pre>
 <p>Removes a user. It can no longer log in.</p>
 <ul><li><strong>Exit code:</strong> <code>0</code> removed; <code>1</code> for every error (unknown user, the last admin).</li><li><strong>The last admin</strong> cannot be removed while other users exist.</li><li>To stop the server asking for logins, remove every user. The last user (an admin) can be removed when it is alone.</li><li>In SQL: <code>DROP USER &lt;name&gt;</code>.</li></ul>
 <p><strong>Command line: Remove a user</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user add report --role read
+kareladb user add report --role read
 &gt; Reports-only-secret-7
-kdb user remove report
-kdb user list</code></pre>
+kareladb user remove report
+kareladb user list</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user add report --role read</code></p>
+<p><code>&gt; kareladb user add report --role read</code></p>
 <pre><code class="language-text">user &#39;report&#39; added with role read in ./kdb-data</code></pre>
-<p><code>&gt; kdb user remove report</code></p>
+<p><code>&gt; kareladb user remove report</code></p>
 <pre><code class="language-text">user &#39;report&#39; removed</code></pre>
-<p><code>&gt; kdb user list</code></p>
+<p><code>&gt; kareladb user list</code></p>
 <pre><code class="language-text">USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 11:28:33
+admin                    admin  -                              2026-10-22 15:40:04
 1 user in ./kdb-data</code></pre>
 <p><strong>Command line: The last admin cannot be removed while others exist</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
-kdb user add report --role read
+kareladb user add report --role read
 &gt; Reports-only-secret-7
-kdb user remove admin</code></pre>
+kareladb user remove admin</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user add report --role read</code></p>
+<p><code>&gt; kareladb user add report --role read</code></p>
 <pre><code class="language-text">user &#39;report&#39; added with role read in ./kdb-data</code></pre>
-<p><code>&gt; kdb user remove admin</code></p>
+<p><code>&gt; kareladb user remove admin</code></p>
 <pre><code class="language-text">error: Invalid argument: &#39;admin&#39; is the last user with ROLE admin; make another user admin first (ALTER USER &lt;name&gt; ROLE admin), or nobody could manage users any more</code></pre>
 <p>exit code 1</p>
-<h2 id="errors">Errors of kdb user</h2>
+<h2 id="errors">Errors of kareladb user</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">usage: kdb user add &lt;name&gt; [--role admin|ddl|write|read|none]
-error: no password given (type it, or pipe it in: echo &lt;password&gt; | kdb user add ...)
-error: the users database (...) is open in another program, for example a running kdb serve; ...</code></pre>
-<div class="table-wrap"><table><thead><tr><th>Message</th><th>Why</th><th>Fix</th></tr></thead><tbody><tr><td><code>usage: kdb user ...</code></td><td>Unknown sub-command, or a missing or extra argument</td><td>See the syntax above</td></tr><tr><td><code>no password given</code></td><td>The pipe was empty</td><td>Pipe one line, or type it</td></tr><tr><td><code>the password is too short</code></td><td>Fewer than 12 characters</td><td>A longer password (a password manager can make one)</td></tr><tr><td><code>the password must not be the user name</code></td><td>The password is the user name</td><td>Another password</td></tr><tr><td><code>the two passwords are not the same; nothing was changed</code></td><td>You typed two different passwords</td><td>Type it again</td></tr><tr><td><code>the first user must have ROLE admin</code></td><td>The first user had <code>--role read</code>, <code>write</code> or <code>none</code></td><td><code>--role admin</code> (or no <code>--role</code>)</td></tr><tr><td><code>is the last user with ROLE admin</code></td><td>The change would leave no admin</td><td>Make another user admin first</td></tr><tr><td><code>user &#39;...&#39; already exists</code> / <code>does not exist</code></td><td>Wrong name</td><td><code>kdb user list</code></td></tr><tr><td><code>bad user name</code></td><td>Other characters than letters, digits, <code>_</code>, <code>-</code></td><td>Change the name</td></tr><tr><td><code>the users database ... is open in another program</code></td><td><code>kdb serve</code> runs on this data folder</td><td>Stop the server, or use SQL in its console</td></tr><tr><td><code>no users in &lt;folder&gt; yet</code> (for passwd, role, remove)</td><td>The data folder has no users; exit code <code>1</code></td><td>Check <code>--data-dir</code></td></tr></tbody></table></div>
+<pre><code class="language-sql">usage: kareladb user add &lt;name&gt; [--role admin|ddl|write|read|none]
+error: no password given (type it, or pipe it in: echo &lt;password&gt; | kareladb user add ...)
+error: the users database (...) is open in another program, for example a running kareladb serve; ...</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Message</th><th>Why</th><th>Fix</th></tr></thead><tbody><tr><td><code>usage: kareladb user ...</code></td><td>Unknown sub-command, or a missing or extra argument</td><td>See the syntax above</td></tr><tr><td><code>no password given</code></td><td>The pipe was empty</td><td>Pipe one line, or type it</td></tr><tr><td><code>the password is too short</code></td><td>Fewer than 12 characters</td><td>A longer password (a password manager can make one)</td></tr><tr><td><code>the password must not be the user name</code></td><td>The password is the user name</td><td>Another password</td></tr><tr><td><code>the two passwords are not the same; nothing was changed</code></td><td>You typed two different passwords</td><td>Type it again</td></tr><tr><td><code>the first user must have ROLE admin</code></td><td>The first user had <code>--role read</code>, <code>write</code> or <code>none</code></td><td><code>--role admin</code> (or no <code>--role</code>)</td></tr><tr><td><code>is the last user with ROLE admin</code></td><td>The change would leave no admin</td><td>Make another user admin first</td></tr><tr><td><code>user &#39;...&#39; already exists</code> / <code>does not exist</code></td><td>Wrong name</td><td><code>kareladb user list</code></td></tr><tr><td><code>bad user name</code></td><td>Other characters than letters, digits, <code>_</code>, <code>-</code></td><td>Change the name</td></tr><tr><td><code>the users database ... is open in another program</code></td><td><code>kareladb serve</code> runs on this data folder</td><td>Stop the server, or use SQL in its console</td></tr><tr><td><code>no users in &lt;folder&gt; yet</code> (for passwd, role, remove)</td><td>The data folder has no users; exit code <code>1</code></td><td>Check <code>--data-dir</code></td></tr></tbody></table></div>
 <p><strong>Command line: A missing argument</strong></p>
-<pre><code class="language-bash">kdb user add</code></pre>
+<pre><code class="language-bash">kareladb user add</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">usage: kdb user add &lt;name&gt; [--role admin|ddl|write|read|none]
-       kdb user passwd &lt;name&gt;
-       kdb user role &lt;name&gt; admin|ddl|write|read|none
-       kdb user list
-       kdb user remove &lt;name&gt;
-       kdb user reset-2fa &lt;name&gt;   turn two-factor login off (a lost phone)
+<pre><code class="language-text">usage: kareladb user add &lt;name&gt; [--role admin|ddl|write|read|none]
+       kareladb user passwd &lt;name&gt;
+       kareladb user role &lt;name&gt; admin|ddl|write|read|none
+       kareladb user list
+       kareladb user remove &lt;name&gt;
+       kareladb user reset-2fa &lt;name&gt;   turn two-factor login off (a lost phone)
        [--data-dir &lt;folder&gt;]  (the password is asked for, or read from a pipe)</code></pre>
 <p>exit code 1</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-users.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cli-users.md">This page as markdown</a>.</footer>
 </body>
 </html>

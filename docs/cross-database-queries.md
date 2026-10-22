@@ -6,7 +6,7 @@
 - Keywords: cross-database, cross database, other database, another database, database.table, db.table, otherdb.table, reference data, shared tables, copy a table between databases, join two databases, INSERT INTO ... SELECT from another database, dblink, linked server, three-part name, changes only the database it runs in
 - See also: [Databases and the data folder](databases.md), [Joins](joins.md), [UNION and subqueries](union-subqueries.md), [Users and roles](users-and-roles.md), [Table rights - GRANT ON TABLE](table-rights.md), [The procedure language (execute)](procedure-language.md#execute)
 
-One KDB server holds many [databases](databases.md). A query can read a table of **another database** on the same server. Write the database name, a dot and the table name: `refdata.companies`.
+One KarelaDB server holds many [databases](databases.md). A query can read a table of **another database** on the same server. Write the database name, a dot and the table name: `refdata.companies`.
 
 A real setup: one database `refdata` holds the company list. Every app database reads it from there instead of keeping its own copy.
 
@@ -73,9 +73,9 @@ database.public.table
 | `demo.companies`, when you use `demo` | your own database: the same as `companies` |
 
 - **Notes:**
-  - Database names ignore upper and lower case, like everywhere in KDB.
+  - Database names ignore upper and lower case, like everywhere in KarelaDB.
   - With no alias, the table name is the alias: `SELECT companies.name FROM refdata.companies`.
-  - It works over HTTP, the PostgreSQL port, `kdb shell`, `kdb sql --data-dir` and the web console. A `Database` opened on its own, without the server's databases, gives an error.
+  - It works over HTTP, the PostgreSQL port, `kareladb shell`, `kareladb sql --data-dir` and the web console. A `Database` opened on its own, without the server's databases, gives an error.
 
 <a id="what-works"></a>
 

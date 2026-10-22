@@ -1,12 +1,12 @@
 # Web console
 
-> The browser page of kdb serve - run SQL, see results as a grid or a chart, switch databases, check health, make backups and open this help.
+> The browser page of kareladb serve - run SQL, see results as a grid or a chart, switch databases, check health, make backups and open this help.
 
 - Category: Web console
-- Keywords: console, web console, browser, pages, tabs, Home menu, SQL page, Dashboards, Data page, View data, Monitor panel, Settings page, right side, flyout, panel, pin, Samples, Databases panel, Tools panel, Purge trash, Delete all data, Terminal, activity log, log, Timers tab, New timer, Run now, Keep data for, object tabs, web folder, web\_dir, KDB\_WEB\_DIR, console not installed, editor, Run, Run all, Ctrl+Enter, Ctrl+Shift+Enter, F1, history, grid, result grid, chart, candles, Export CSV, table list, health box, Check now, Backup now, database picker, New database, login form, Log out, token box, theme, dark, light, Help menu, Documentation, Examples, Keyboard shortcuts, About KDB, #sql, link with SQL, Try in console, dashboard
-- See also: [Dashboard page (many charts on one page)](console-dashboards.md), [View data page (browse and edit rows)](console-data-page.md), [Keep data page (how long tables keep their rows)](console-keep-data.md), [Monitor panel (memory, processor, caches)](console-monitor.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md), [Comments and suggestions](feedback.md), [HTTP API overview (get)](http-overview.md#get), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases over HTTP (/api/databases)](http-databases.md), [Health, info, check and backup over HTTP](http-server-info.md), [kdb serve](cli-serve.md), [Databases and the data folder](databases.md)
+- Keywords: console, web console, browser, pages, tabs, Home menu, SQL page, Dashboards, Data page, View data, Monitor panel, Settings page, right side, flyout, panel, pin, Samples, Databases panel, Tools panel, Purge trash, Delete all data, Terminal, activity log, log, Timers tab, New timer, Run now, Keep data for, object tabs, web folder, web\_dir, KARELADB\_WEB\_DIR, console not installed, editor, Run, Run all, Ctrl+Enter, Ctrl+Shift+Enter, F1, history, grid, result grid, chart, candles, Export CSV, table list, health box, Check now, Backup now, database picker, New database, login form, Log out, token box, theme, dark, light, Help menu, Documentation, Examples, Keyboard shortcuts, About KarelaDB, #sql, link with SQL, Try in console, dashboard
+- See also: [Dashboard page (many charts on one page)](console-dashboards.md), [View data page (browse and edit rows)](console-data-page.md), [Keep data page (how long tables keep their rows)](console-keep-data.md), [Monitor panel (memory, processor, caches)](console-monitor.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md), [Comments and suggestions](feedback.md), [HTTP API overview (get)](http-overview.md#get), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases over HTTP (/api/databases)](http-databases.md), [Health, info, check and backup over HTTP](http-server-info.md), [kareladb serve](cli-serve.md), [Databases and the data folder](databases.md)
 
-The **web console** is a web page inside `kdb serve`. Open it in a browser to write SQL, run it, and look at the results. It needs no internet and no other software. Its files are plain files in the folder `web/` next to the kdb program, not inside the program ([where kdb finds them](install-packages.md#folders)).
+The **web console** is a web page inside `kareladb serve`. Open it in a browser to write SQL, run it, and look at the results. It needs no internet and no other software. Its files are plain files in the folder `web/` next to the kareladb program, not inside the program ([where kareladb finds them](install-packages.md#folders)).
 
 Pick a page from the **Home** menu at the top left. The button shows where you are, for example `Home / Dashboard`.
 
@@ -31,13 +31,14 @@ The page you were on last opens again when you come back.
 **Command line: Start the server; the console address is on the second line**
 
 ```bash
-kdb serve --backups backups
+kareladb serve --backups backups
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev
+cold store 'archive': folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./kdb-data (from KDB_DATA_DIR; one folder per database)
   default   default (used when a request names no database)
@@ -66,22 +67,22 @@ Press Ctrl+C to stop.
 Syntax:
 
 ```sql
-kdb serve [<database folder>] [--data-dir <folder>] [--port 9900] [--bind 127.0.0.1] [--backups <folder>] [--token <secret>]
+kareladb serve [<database folder>] [--data-dir <folder>] [--port 9900] [--bind 127.0.0.1] [--backups <folder>] [--token <secret>]
 http://127.0.0.1:9900/
 ```
 
 | Server started as | What the console shows |
 |---|---|
-| `kdb serve` or `kdb serve --data-dir <folder>` | every database of the data folder; **New database** is there |
-| `kdb serve D:\kdb\market` (one folder) | just that database; no **New database** |
+| `kareladb serve` or `kareladb serve --data-dir <folder>` | every database of the data folder; **New database** is there |
+| `kareladb serve D:\kdb\market` (one folder) | just that database; no **New database** |
 | with a data folder (or `--backups <folder>`) | **Backup now** and **Restore a backup** work |
 | with `--token <secret>` | a box that asks for the token once |
 | on a data folder with users | a **Log in** form |
 
 - Keep the server window open while you use the console. Stop the server with **Ctrl+C**.
 - From another computer, do not open the port to the network: use an SSH tunnel (`ssh -L 9900:127.0.0.1:9900 you@server`) and open `http://127.0.0.1:9900` on your own PC ([server security](server-security.md)).
-- The page only loads files from the KDB server itself (its `Content-Security-Policy` says so), and it cannot be put inside another site's page.
-- The console files are read from the `web` folder when the browser asks for them. When that folder is missing, the server still runs and the API works; the page at `/` says the console is not installed and lists the folders KDB looked in. The banner of `kdb serve` says so too.
+- The page only loads files from the KarelaDB server itself (its `Content-Security-Policy` says so), and it cannot be put inside another site's page.
+- The console files are read from the `web` folder when the browser asks for them. When that folder is missing, the server still runs and the API works; the page at `/` says the console is not installed and lists the folders KarelaDB looked in. The banner of `kareladb serve` says so too.
 - Copying a new console into the folder shows at the next page load, with no restart. The browser keeps its copy only until the file changes (the server answers `304 Not Modified` while it is the same).
 
 **HTTP: The console page is there (HEAD: only the headers)**
@@ -100,7 +101,7 @@ HTTP 200 (text/html)
 
 ```text
 +-------------------------------------------------------------------------------------------+
-| KDB [Home v]  Database [market v] New database   boss (admin) Log out  * Connected  Help   |
+| KarelaDB [Home v]  Database [market v] New database   boss (admin) Log out  * Connected  Help   |
 +-----------------------+----------------------------------------------------------+--------+
 | OBJECTS       Refresh | [Run Ctrl+Enter] [Run all Ctrl+Shift+Enter] [History]  Rows | Monitor|
 | [Tables 6][Views][Trig]|  1  SELECT time, open, high, low, close, volume          | Health |
@@ -395,17 +396,17 @@ The **terminal** at the bottom of Home is a live log of what the server does: ev
 
 | Line | Meaning |
 |---|---|
-| `OK - no damaged files` (green) or `DAMAGED (n)` (red) | files KDB knows are damaged, with their names |
+| `OK - no damaged files` (green) or `DAMAGED (n)` (red) | files KarelaDB knows are damaged, with their names |
 | **Last backup** | how long ago (`just now`, `3 h ago`), `never`, or `no backup folder`; `(copy failed)` when the [copy command](backup-schedule.md#backup-command) failed. Hover it for the folder, the schedule and the last copy. |
 | **Data** | size and number of the data files |
 | **Log LSN** | the number of the last change in the log; it grows with every change |
 | **Opened** | when the server opened the database |
-| **Recovery at open** | what KDB did when it opened the database (it opens by itself when something was wrong) |
+| **Recovery at open** | what KarelaDB did when it opened the database (it opens by itself when something was wrong) |
 | **Check now** | reads every block of every file and the log ([POST /api/check](http-server-info.md#post-api-check)). Example message: `OK: 11 files (76.1 KB) and 1 log segments read in 1.50 ms. No damage.` |
 | **Backup now** | makes a verified backup ([POST /api/backup](http-server-info.md#post-api-backup)). Example message: `Backup 20260911-083519-806 created and verified: 9 files, 222.3 KB.` The button is off when backups are off (`--backups off`). |
 | **Restore a backup** | opens a small form: the backups of this database, how far back a restore **up to** a time can go ([the window](backup-and-safety.md#pitr-window)), a time (empty = the backup as it was) and a **new** name. **Restore** makes the new database while this one keeps running ([POST /api/restore](http-server-info.md#api-restore)). Then **Swap ... in** gives this database the restored data and the new one the old data ([swap](http-server-info.md#api-swap)); it asks first. |
 
-If **Check now** finds damage: stop the server and run `kdb repair` ([backup and safety](backup-and-safety.md)).
+If **Check now** finds damage: stop the server and run `kareladb repair` ([backup and safety](backup-and-safety.md)).
 
 <a id="databases"></a>
 
@@ -458,10 +459,10 @@ The **Help** button in the top bar opens a menu:
 | **Examples...** | A list of the ready examples of this help, with a search box and a preview. **Insert into editor** puts the chosen example (with the tables it needs) at the end of the editor; then press `Ctrl+Enter`. **Open in help** shows it in the help. |
 | **Keyboard shortcuts** | The table below |
 | **Comments and suggestions** | A form to send a comment, a problem or an idea to whoever runs this server. An admin also sees the messages sent so far and marks them read or done ([feedback](feedback.md)). |
-| **About KDB** | The version, the database and its folder, the data folder, number of tables, the backup folder, how you are logged in, the help's version, and the server address |
+| **About KarelaDB** | The version, the database and its folder, the data folder, number of tables, the backup folder, how you are logged in, the help's version, and the server address |
 
 - In the help panel, every SQL example has **Insert into editor**, which puts that SQL (with its setup) into the console editor.
-- The help comes from [GET /help/](http-overview.md#get-help): a folder of pages next to the kdb program, not inside it. When no help folder is installed, the panel says so and how to build it.
+- The help comes from [GET /help/](http-overview.md#get-help): a folder of pages next to the kareladb program, not inside it. When no help folder is installed, the panel says so and how to build it.
 - The menu works with the keyboard: `Arrow down` opens it, arrows move, `Enter` chooses, `Esc` closes.
 
 <a id="shortcuts"></a>

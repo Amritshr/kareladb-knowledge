@@ -484,7 +484,7 @@ Error: `line 1, column 25: GROUPING(buyer): the argument must be one of the GROU
 
 ## Big GROUP BY: many groups and memory
 
-A `GROUP BY` can make millions of groups, for example one per day, symbol and broker. KDB keeps it fast and keeps the server safe.
+A `GROUP BY` can make millions of groups, for example one per day, symbol and broker. KarelaDB keeps it fast and keeps the server safe.
 
 | Situation | What happens |
 |---|---|
@@ -509,7 +509,7 @@ Syntax:
 SELECT key, ..., aggregate(...), ... FROM ... [WHERE ...]
 ```
 
-Like QuestDB, KDB does not need the words `GROUP BY`. When the select list has an aggregate and there is no `GROUP BY`, **every select item that is not an aggregate becomes a group key**.
+Like QuestDB, KarelaDB does not need the words `GROUP BY`. When the select list has an aggregate and there is no `GROUP BY`, **every select item that is not an aggregate becomes a group key**.
 
 | Select list | Groups by |
 |---|---|
@@ -521,7 +521,7 @@ Like QuestDB, KDB does not need the words `GROUP BY`. When the select list has a
 | `time, symbol, last(close) ... SAMPLE BY 1d` | `symbol` (the time column is the bucket) |
 
 - **Returns:** the same as the query with `GROUP BY` of those items.
-- **Notes:** in PostgreSQL this is an error. In KDB it is allowed, but **every extra column adds a key**: adding `close` to `SELECT symbol, count(*)` splits the groups by close price. Writing `GROUP BY` makes the query clearer for readers.
+- **Notes:** in PostgreSQL this is an error. In KarelaDB it is allowed, but **every extra column adds a key**: adding `close` to `SELECT symbol, count(*)` splits the groups by close price. Writing `GROUP BY` makes the query clearer for readers.
 
 **Example: No GROUP BY: symbol is not an aggregate, so it is the key** (sample data: sample)
 
@@ -714,12 +714,12 @@ Syntax:
 SELECT key, other_column, aggregate(...) FROM ... GROUP BY key
 ```
 
-In PostgreSQL, a column in the select list that is neither a `GROUP BY` key nor inside an aggregate is an error. **KDB gives no error.** It shows the value of **one row of the group** (the first row it read), which is usually not the value you want.
+In PostgreSQL, a column in the select list that is neither a `GROUP BY` key nor inside an aggregate is an error. **KarelaDB gives no error.** It shows the value of **one row of the group** (the first row it read), which is usually not the value you want.
 
 - **Notes:** do not use this. Put the column in `GROUP BY`, or use an aggregate that says which value you want: `first(x)`, `last(x)` (by time), `min(x)`, `max(x)`.
 - Without `GROUP BY`, the same column becomes a key instead (see [implicit GROUP BY](group-by.md#implicit-group-by)).
 
-**Example: time is not grouped: KDB shows the time of one row (2025-12-28), not of the highest price** (sample data: sample)
+**Example: time is not grouped: KarelaDB shows the time of one row (2025-12-28), not of the highest price** (sample data: sample)
 
 ```sql
 SELECT symbol, time, max(high) AS highest FROM ochl_day GROUP BY symbol;

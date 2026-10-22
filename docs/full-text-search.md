@@ -67,8 +67,8 @@ Makes a full-text index on one or more text columns. With several columns, they 
 - **NULL:** a `NULL` column counts as empty text.
 - **Notes:**
   - A query uses the index when `match(...)` names **the same columns** as the index (the order of the columns does not matter). `match(title, 'bank')` does not use an index on `(title, body)`.
-  - `match`, `search_rank` and `highlight` also work **without** an index. Then KDB reads every row. That is fine for small tables.
-  - Like every index it lives in memory. `kdb serve` builds it on a background thread right after the database opens, after the other indexes (see [built at open](indexes.md#warm)); a query that needs it sooner builds it itself. It takes a few seconds for 200,000 articles. `INSERT`, `UPDATE` and `DELETE` keep it up to date.
+  - `match`, `search_rank` and `highlight` also work **without** an index. Then KarelaDB reads every row. That is fine for small tables.
+  - Like every index it lives in memory. `kareladb serve` builds it on a background thread right after the database opens, after the other indexes (see [built at open](indexes.md#warm)); a query that needs it sooner builds it itself. It takes a few seconds for 200,000 articles. `INSERT`, `UPDATE` and `DELETE` keep it up to date.
   - Since 2026-10-02 the words of each partition are also saved on disk, so a restart does not split every row into words again (see [segments on disk](#segments)).
   - The index keeps where each word is in the text, so a phrase (`"net profit"`) is also found from the index. With them, the index took a little less memory than the text itself (302 MB for 378 MB of news, measured before 2026-10-02).
   - Since 2026-10-02 the index is smaller and its searches skip more. Where a row is: two numbers (partition, row), about 40 bytes a row instead of about 200. The rows of a word are packed in blocks of 128; each block notes its last row, so a search for a rare word with a common one jumps over whole blocks of the common word. Each block also notes the highest count of the word in it, for faster top-N ranking later.
@@ -241,7 +241,7 @@ What `'english'` changes:
   - Words with digits, Nepali and other scripts are not stemmed.
   - An index without the option (or `language = 'simple'`) works exactly as before.
   - To change the language of an index, `DROP INDEX` it and create it again. A table has one FULLTEXT index for the same columns.
-  - Other languages give an error. Data with such an index needs KDB 2026-10-02 or newer (see [versions](versions.md)).
+  - Other languages give an error. Data with such an index needs KarelaDB 2026-10-02 or newer (see [versions](versions.md)).
 
 **Example: 'planning' finds 'plans' and 'planned' only with the English analyzer** (sample data: content-news)
 
@@ -450,9 +450,9 @@ use index name (full-text search)
 use index other (...) (r row(s), the text match is checked on them)
 ```
 
-With a FULLTEXT index on the same columns as `match`, KDB **always** uses it. It never goes back to reading the text of every row, even for a word that is in most rows.
+With a FULLTEXT index on the same columns as `match`, KarelaDB **always** uses it. It never goes back to reading the text of every row, even for a word that is in most rows.
 
-| Query | What KDB does |
+| Query | What KarelaDB does |
 |---|---|
 | `WHERE MATCH(...)` | finds the rows in the index, then reads only those rows |
 | `SELECT count(*) ... WHERE MATCH(...)` and nothing else in `WHERE` | counts in the index; no row is read |
@@ -538,7 +538,7 @@ Result:
 
 ## Segments on disk
 
-Splitting text into words is the slow part of building a full-text index. Since 2026-10-02 KDB saves the words of each partition in a file, a **segment**, so the next open builds the index from those files and reads no row.
+Splitting text into words is the slow part of building a full-text index. Since 2026-10-02 KarelaDB saves the words of each partition in a file, a **segment**, so the next open builds the index from those files and reads no row.
 
 | When | What happens |
 |---|---|
@@ -553,11 +553,11 @@ Splitting text into words is the slow part of building a full-text index. Since 
   - The segments are in the folder `fts/` of the database. They are a copy of what the rows already say: deleting the folder only makes the next build slower. Backups do not copy them.
   - JSON (`USING GIN`) indexes get segments too.
   - An encrypted database encrypts its segments like every other file.
-  - `kdb check` reads every segment and prints a `WARNING` for a damaged one. It does not count as damage: KDB never uses a damaged segment.
+  - `kareladb check` reads every segment and prints a `WARNING` for a damaged one. It does not count as damage: KarelaDB never uses a damaged segment.
   - `GET /api/stats` counts them under `search`: `segments_written`, `segment_extensions`, `segments_merged`, `segments_loaded`, `segment_rows_loaded`, `segments_damaged`, `segments_stale`, and `rows_indexed` (rows a build still split into words). After a clean restart `rows_indexed` stays at 0.
-  - An older KDB ignores the folder and opens the database as before. `kdb downgrade` to a KDB from before 2026-10-02 moves the segments to `_trash`.
+  - An older KarelaDB ignores the folder and opens the database as before. `kareladb downgrade` to a KarelaDB from before 2026-10-02 moves the segments to `_trash`.
 
-**Growing partitions.** A table that gets new rows all day (a news feed, a log) would write the segment of today's partition again at every quiet moment, for a few new rows. Instead, KDB writes only the new rows in an extra segment (`fts/<name>.1.kfs`, `.2.kfs`, ...) that names the segment before it. Small extra segments are merged into one as they pile up, and into a new whole segment when they reach half of it, so a partition never has more than 5 files. Old ones go to `_trash`.
+**Growing partitions.** A table that gets new rows all day (a news feed, a log) would write the segment of today's partition again at every quiet moment, for a few new rows. Instead, KarelaDB writes only the new rows in an extra segment (`fts/<name>.1.kfs`, `.2.kfs`, ...) that names the segment before it. Small extra segments are merged into one as they pile up, and into a new whole segment when they reach half of it, so a partition never has more than 5 files. Old ones go to `_trash`.
 
 | What | Why it is safe |
 |---|---|
@@ -592,8 +592,8 @@ A number that says how well a row matches: higher is better, `0` when the row do
 - **Notes:**
   - The number depends on **all rows** of the table (how rare each word is). Compare ranks only inside one query. When rows change, the rank of the same row can change.
   - Words with `-` do not add to the rank.
-  - **The fastest form:** `WHERE MATCH(cols, 'words') ORDER BY search_rank(cols, 'words') DESC LIMIT n`, with the same columns and the same words, and a FULLTEXT index on those columns. KDB takes the `n` best rows straight from the index. [EXPLAIN](explain.md) then says `best n row(s) by search_rank, top-k by rank (WAND)`.
-  - **Only the best rows are ranked:** in that form KDB keeps the `n` best rows found so far. A row, or a whole block of 128 rows of a word, that cannot rank above the `n`-th best even with the most mentions of each word is skipped without working out its rank. The answer is the same as ranking every match. Conditions on other columns (`AND category = 3`) are fine: when they turn rows down, KDB looks for more. `search` in [`GET /api/stats`](http-server-info.md#api-stats) counts the ranks worked out (`bm25_evaluations`), the top-n searches (`top_k_searches`) and what they skipped (`skipped_blocks`, `skipped_docs`).
+  - **The fastest form:** `WHERE MATCH(cols, 'words') ORDER BY search_rank(cols, 'words') DESC LIMIT n`, with the same columns and the same words, and a FULLTEXT index on those columns. KarelaDB takes the `n` best rows straight from the index. [EXPLAIN](explain.md) then says `best n row(s) by search_rank, top-k by rank (WAND)`.
+  - **Only the best rows are ranked:** in that form KarelaDB keeps the `n` best rows found so far. A row, or a whole block of 128 rows of a word, that cannot rank above the `n`-th best even with the most mentions of each word is skipped without working out its rank. The answer is the same as ranking every match. Conditions on other columns (`AND category = 3`) are fine: when they turn rows down, KarelaDB looks for more. `search` in [`GET /api/stats`](http-server-info.md#api-stats) counts the ranks worked out (`bm25_evaluations`), the top-n searches (`top_k_searches`) and what they skipped (`skipped_blocks`, `skipped_docs`).
   - Without a FULLTEXT index on the same columns, `search_rank` reads the whole table once per query.
   - On values that are not columns of a table (`search_rank('bank bank', 'bank')`), the value is ranked alone, as if it were the only row.
 
@@ -802,7 +802,7 @@ word*           a word that starts with these letters
 -"word word"    this phrase must not be there
 ```
 
-How KDB cuts text (and the search text) into **words**:
+How KarelaDB cuts text (and the search text) into **words**:
 
 | Rule | Example |
 |---|---|

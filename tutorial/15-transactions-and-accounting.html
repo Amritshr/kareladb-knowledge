@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>15. Transactions and accounting - KDB (KARELA DataBase) docs</title>
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/15-transactions-and-accounting.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/15-transactions-and-accounting.md">
+<title>15. Transactions and accounting - KarelaDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/tutorial/15-transactions-and-accounting.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/15-transactions-and-accounting.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="15-transactions-and-accounting">15. Transactions and accounting</h1>
 <ul><li>Category: Tutorial</li></ul>
 <h2 id="what-you-will-learn">What you will learn</h2>
-<ul><li>Keep users (register and login) and money (accounts and a ledger) in KDB.</li><li>Stop bad data with <strong>CHECK constraints</strong> (for example: no balance below zero).</li><li>Move money with a <strong>transaction</strong>: all steps are saved, or none.</li><li>Get a new id back with <strong>RETURNING</strong>.</li><li>Keep a transaction open over <strong>many requests</strong> (kdb shell, HTTP, PostgreSQL protocol).</li><li>What happens when many programs write at the same time, and what the <strong>timeouts</strong> do.</li><li>What happens on an <strong>error</strong> and after a <strong>crash</strong>.</li></ul>
+<ul><li>Keep users (register and login) and money (accounts and a ledger) in KarelaDB.</li><li>Stop bad data with <strong>CHECK constraints</strong> (for example: no balance below zero).</li><li>Move money with a <strong>transaction</strong>: all steps are saved, or none.</li><li>Get a new id back with <strong>RETURNING</strong>.</li><li>Keep a transaction open over <strong>many requests</strong> (kareladb shell, HTTP, PostgreSQL protocol).</li><li>What happens when many programs write at the same time, and what the <strong>timeouts</strong> do.</li><li>What happens on an <strong>error</strong> and after a <strong>crash</strong>.</li></ul>
 <p>The examples use a new, empty database <code>market</code>. Each example is a file in <code>examples/15-transactions-and-accounting/</code>. The results are real.</p>
 <h2 id="the-rules-in-short">The rules in short</h2>
 <div class="table-wrap"><table><thead><tr><th>Rule</th><th>What it means for you</th></tr></thead><tbody><tr><td>One writer per table</td><td>While one transaction is open, other changes of its tables <strong>wait</strong>; changes of other tables go on. Two transfers never mix.</td></tr><tr><td>Reads do not wait</td><td>A <code>SELECT</code> of another program sees the data <strong>as it was before</strong> the open transaction. It never sees half of a transfer.</td></tr><tr><td>All or nothing</td><td><code>COMMIT</code> saves all changes of the transaction in one log write. An error saves nothing.</td></tr><tr><td>Crash safe</td><td>After a crash or power cut, every transaction that got <code>COMMIT</code> OK is there. A transaction without <code>COMMIT</code> is not there at all.</td></tr><tr><td>CHECK</td><td>A row that breaks a <code>CHECK</code> is never written.</td></tr></tbody></table></div>
@@ -50,7 +50,7 @@ table &#39;ledger&#39; created</code></pre>
 <p>Some choices here are important for money:</p>
 <ul><li><strong><code>DECIMAL(2)</code></strong> for money, never <code>DOUBLE</code>. A <code>DECIMAL</code> is exact: <code>0.10 + 0.20</code> is <code>0.30</code>.</li><li><strong><code>NOT NULL</code></strong> on every money column. A <code>CHECK</code> lets <code>NULL</code> pass, so use both.</li><li>The <strong>ledger</strong> keeps every movement. Never update or delete ledger rows. To undo a transfer, write a new transfer back.</li></ul>
 <h2 id="register-and-login">Register and login</h2>
-<p>KDB has the functions <code>password_hash(password)</code> and <code>password_verify(password, hash)</code>. They keep only a salted, slow hash of the password, never the password itself.</p>
+<p>KarelaDB has the functions <code>password_hash(password)</code> and <code>password_verify(password, hash)</code>. They keep only a salted, slow hash of the password, never the password itself.</p>
 <pre><code class="language-sql">-- Register two users. RETURNING gives the new AUTO id back.
 INSERT INTO users (email, password_hash) VALUES (&#39;ram@example.com&#39;, password_hash(&#39;ram-secret-1&#39;)) RETURNING id, email;
 INSERT INTO users (email, password_hash) VALUES (&#39;sita@example.com&#39;, password_hash(&#39;sita-secret-2&#39;)) RETURNING id, email;</code></pre>
@@ -100,7 +100,7 @@ INSERT INTO accounts (user_id, balance) VALUES (1, 1000), (2, 0) RETURNING id, u
 <div class="table-wrap"><table><thead><tr><th>Statement</th><th><code>RETURNING</code> gives</th></tr></thead><tbody><tr><td><code>INSERT</code></td><td>the new rows, with <code>AUTO</code> ids and <code>DEFAULT</code> values filled in</td></tr><tr><td><code>UPDATE</code></td><td>the rows after the change</td></tr><tr><td><code>DELETE</code></td><td>the deleted rows</td></tr></tbody></table></div>
 <p><code>RETURNING *</code> gives all columns. If the <code>RETURNING</code> list has an error (an unknown column), nothing is written.</p>
 <h2 id="check-constraints">CHECK constraints</h2>
-<p>A <code>CHECK</code> is a rule for every row. KDB checks it on <code>INSERT</code>, <code>INSERT OR REPLACE</code>, <code>UPDATE</code>, <code>InsertRows</code> and the line protocol. A row that makes the condition <strong>false</strong> is not written, and the statement fails:</p>
+<p>A <code>CHECK</code> is a rule for every row. KarelaDB checks it on <code>INSERT</code>, <code>INSERT OR REPLACE</code>, <code>UPDATE</code>, <code>InsertRows</code> and the line protocol. A row that makes the condition <strong>false</strong> is not written, and the statement fails:</p>
 <pre><code class="language-sql">-- A balance below zero breaks the CHECK constraint: nothing is written.
 UPDATE accounts SET balance = balance - 5000 WHERE id = 1;</code></pre>
 <pre><code class="language-text">error: CHECK constraint &#39;accounts_balance_check&#39; of table &#39;accounts&#39; failed: balance &gt;= 0 is false for the row id=&#39;1&#39;, balance=&#39;-4000.00&#39;</code></pre>
@@ -108,7 +108,7 @@ UPDATE accounts SET balance = balance - 5000 WHERE id = 1;</code></pre>
 <p>Two ways to write a <code>CHECK</code>:</p>
 <pre><code class="language-sql">balance DECIMAL(2) NOT NULL CHECK (balance &gt;= 0)              -- after a column
 CONSTRAINT positive_amount CHECK (amount &gt; 0)                 -- after the columns, with a name</code></pre>
-<p>Without a name, KDB makes one: <code>table_column_check</code> (for a column) or <code>table_check</code>. <code>SHOW CREATE TABLE</code> shows every <code>CHECK</code> with its name:</p>
+<p>Without a name, KarelaDB makes one: <code>table_column_check</code> (for a column) or <code>table_check</code>. <code>SHOW CREATE TABLE</code> shows every <code>CHECK</code> with its name:</p>
 <pre><code class="language-sql">SHOW CREATE TABLE accounts;</code></pre>
 <pre><code class="language-text">create_sql
 &quot;CREATE TABLE accounts (
@@ -159,7 +159,7 @@ id | balance
  2 |  250.50
 (2 rows, 0.0 ms)</code></pre>
 <p>Why each part is there:</p>
-<div class="table-wrap"><table><thead><tr><th>Part</th><th>Why</th></tr></thead><tbody><tr><td><code>BEGIN</code></td><td>Starts the transaction. Every table it changes (or reads with <code>FOR UPDATE</code>) is locked from then on until <code>COMMIT</code> or <code>ROLLBACK</code>: no other program can change those tables meanwhile.</td></tr><tr><td><code>SELECT ... FOR UPDATE</code></td><td>Reads the balances. Your app can check them (for example, show &quot;not enough money&quot; before trying). <code>FOR UPDATE</code> tells the reader: these rows are read to be changed. In KDB it locks the table <code>accounts</code> at once, so the balances you just read cannot change before your <code>UPDATE</code>. Other databases need it too: write it, and your SQL stays correct everywhere.</td></tr><tr><td><code>balance = balance - 250.50</code></td><td>Let the database do the math, in one statement. <strong>Do not</strong> read the balance in your app, subtract there, and write the result back (<code>SET balance = 749.50</code>) outside a transaction: two programs could both read 1000.00.</td></tr><tr><td><code>CHECK (balance &gt;= 0)</code></td><td>Even if your app forgets to check, the database refuses a negative balance.</td></tr><tr><td><code>RETURNING id</code></td><td>The ledger id, for the receipt.</td></tr><tr><td><code>COMMIT</code></td><td>Saves all changes with one log write.</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Why</th></tr></thead><tbody><tr><td><code>BEGIN</code></td><td>Starts the transaction. Every table it changes (or reads with <code>FOR UPDATE</code>) is locked from then on until <code>COMMIT</code> or <code>ROLLBACK</code>: no other program can change those tables meanwhile.</td></tr><tr><td><code>SELECT ... FOR UPDATE</code></td><td>Reads the balances. Your app can check them (for example, show &quot;not enough money&quot; before trying). <code>FOR UPDATE</code> tells the reader: these rows are read to be changed. In KarelaDB it locks the table <code>accounts</code> at once, so the balances you just read cannot change before your <code>UPDATE</code>. Other databases need it too: write it, and your SQL stays correct everywhere.</td></tr><tr><td><code>balance = balance - 250.50</code></td><td>Let the database do the math, in one statement. <strong>Do not</strong> read the balance in your app, subtract there, and write the result back (<code>SET balance = 749.50</code>) outside a transaction: two programs could both read 1000.00.</td></tr><tr><td><code>CHECK (balance &gt;= 0)</code></td><td>Even if your app forgets to check, the database refuses a negative balance.</td></tr><tr><td><code>RETURNING id</code></td><td>The ledger id, for the receipt.</td></tr><tr><td><code>COMMIT</code></td><td>Saves all changes with one log write.</td></tr></tbody></table></div>
 <h2 id="when-something-goes-wrong">When something goes wrong</h2>
 <p>Ram has 749.50 now. He tries to send 900.00:</p>
 <pre><code class="language-sql">-- Ram has 749.50. A transfer of 900.00 fails at the first UPDATE.
@@ -194,12 +194,12 @@ from_account | to_account | transfers | moved
            1 |          2 |         1 | 250.50
 (1 row, 0.1 ms)</code></pre>
 <p>Run queries like these every night. The total must not change (except for money that comes in from outside), and every balance must match its ledger rows.</p>
-<div class="table-wrap"><table><thead><tr><th>What happens</th><th>Result</th></tr></thead><tbody><tr><td>A statement fails (CHECK, REFERENCES, UNIQUE, a typing error, ...)</td><td>The transaction is rolled back. Nothing is saved.</td></tr><tr><td>Your app sends <code>ROLLBACK</code></td><td>Nothing is saved.</td></tr><tr><td>The client disconnects before <code>COMMIT</code></td><td>Rolled back.</td></tr><tr><td>No statement for 30 seconds</td><td>Rolled back (see <a href="#timeouts">Timeouts</a>).</td></tr><tr><td>KDB crashes or the power goes off before <code>COMMIT</code> returns</td><td>Nothing is saved.</td></tr><tr><td><code>COMMIT</code> returned OK</td><td>Saved, also after a crash or power cut.</td></tr><tr><td>The disk is full at <code>COMMIT</code></td><td><code>COMMIT</code> returns an error, and nothing is saved.</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>What happens</th><th>Result</th></tr></thead><tbody><tr><td>A statement fails (CHECK, REFERENCES, UNIQUE, a typing error, ...)</td><td>The transaction is rolled back. Nothing is saved.</td></tr><tr><td>Your app sends <code>ROLLBACK</code></td><td>Nothing is saved.</td></tr><tr><td>The client disconnects before <code>COMMIT</code></td><td>Rolled back.</td></tr><tr><td>No statement for 30 seconds</td><td>Rolled back (see <a href="#timeouts">Timeouts</a>).</td></tr><tr><td>KarelaDB crashes or the power goes off before <code>COMMIT</code> returns</td><td>Nothing is saved.</td></tr><tr><td><code>COMMIT</code> returned OK</td><td>Saved, also after a crash or power cut.</td></tr><tr><td>The disk is full at <code>COMMIT</code></td><td><code>COMMIT</code> returns an error, and nothing is saved.</td></tr></tbody></table></div>
 <h2 id="a-transaction-over-many-requests">A transaction over many requests</h2>
 <p>A transaction can go over many requests when the program keeps a <strong>session</strong>:</p>
-<ul><li><strong>kdb shell</strong>: one session for the whole shell.</li><li><strong>HTTP</strong>: <code>POST /session</code>, then the header <code>X-KDB-Session</code> on every <code>/exec</code>.</li><li><strong>PostgreSQL protocol</strong> (psql, and drivers for Python, Go, Node, Java, .NET): every connection is a session. Use <code>BEGIN</code> and <code>COMMIT</code> as usual.</li></ul>
+<ul><li><strong>kareladb shell</strong>: one session for the whole shell.</li><li><strong>HTTP</strong>: <code>POST /session</code>, then the header <code>X-KDB-Session</code> on every <code>/exec</code>.</li><li><strong>PostgreSQL protocol</strong> (psql, and drivers for Python, Go, Node, Java, .NET): every connection is a session. Use <code>BEGIN</code> and <code>COMMIT</code> as usual.</li></ul>
 <p>Inside a session there is one more rule: <strong>after an error, the session accepts only <code>ROLLBACK</code></strong>. Your next statements do not run by mistake outside the transaction:</p>
-<pre><code class="language-powershell"># In kdb shell, a transaction goes over many lines. After an error, only ROLLBACK is accepted.
+<pre><code class="language-powershell"># In kareladb shell, a transaction goes over many lines. After an error, only ROLLBACK is accepted.
 @&quot;
 BEGIN;
 UPDATE accounts SET balance = balance + 10 WHERE id = 2;
@@ -208,20 +208,20 @@ UPDATE accounts SET balance = balance + 1 WHERE id = 2;
 ROLLBACK;
 SELECT id, balance FROM accounts ORDER BY id;
 .exit
-&quot;@ | kdb shell market</code></pre>
-<pre><code class="language-text">KDB 0.2.0-dev shell on market
+&quot;@ | kareladb shell market</code></pre>
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; transaction started
-kdb&gt; 1 row(s) updated
-kdb&gt; error: CHECK constraint &#39;accounts_balance_check&#39; of table &#39;accounts&#39; failed: balance &gt;= 0 is false for the row id=&#39;1&#39;, balance=&#39;-9250.50&#39; (the transaction was rolled back; send ROLLBACK to end it)
-kdb&gt; error: the transaction of this session was rolled back (a statement in it failed); nothing of it was saved. Send ROLLBACK to end it, then start again
-kdb&gt; transaction rolled back (it was already rolled back: a statement in it failed)
-kdb&gt; id | balance
+kareladb&gt; transaction started
+kareladb&gt; 1 row(s) updated
+kareladb&gt; error: CHECK constraint &#39;accounts_balance_check&#39; of table &#39;accounts&#39; failed: balance &gt;= 0 is false for the row id=&#39;1&#39;, balance=&#39;-9250.50&#39; (the transaction was rolled back; send ROLLBACK to end it)
+kareladb&gt; error: the transaction of this session was rolled back (a statement in it failed); nothing of it was saved. Send ROLLBACK to end it, then start again
+kareladb&gt; transaction rolled back (it was already rolled back: a statement in it failed)
+kareladb&gt; id | balance
 ---+--------
  1 |  749.50
  2 |  250.50
 (2 rows, 0.1 ms)
-kdb&gt;</code></pre>
+kareladb&gt;</code></pre>
 <p>The third line (<code>+ 1</code> for account 2) was <strong>not</strong> run: it would have given money without taking it anywhere. <code>COMMIT</code> in this state also fails (<code>COMMIT saved nothing: ...</code>), so your app cannot think the transfer was saved.</p>
 <h3 id="over-http">Over HTTP</h3>
 <pre><code class="language-text">POST   /session                 -&gt; {&quot;session&quot;: &quot;&lt;id&gt;&quot;, &quot;idle_timeout_ms&quot;: 600000}
@@ -255,18 +255,18 @@ session closed: True</code></pre>
 <p>The request <strong>without</strong> the session header saw 749.50: the open transaction was not committed yet.</p>
 <div class="table-wrap"><table><thead><tr><th>HTTP session rule</th><th>Detail</th></tr></thead><tbody><tr><td>Id</td><td>Random and long, so nobody can guess another client&#39;s session. Keep it secret like a password.</td></tr><tr><td>Unused</td><td>A session without a request for 10 minutes is closed (its open transaction was already rolled back after 30 seconds).</td></tr><tr><td>Unknown or closed id</td><td><code>/exec</code> answers <code>404</code> with <code>session &#39;...&#39; does not exist</code>.</td></tr><tr><td>Busy</td><td><code>table &#39;x&#39; is busy</code>, <code>database is busy</code> and <code>deadlock</code> are answered with <code>503</code>: try again a moment later.</td></tr></tbody></table></div>
 <h2 id="many-programs-at-the-same-time">Many programs at the same time</h2>
-<p>KDB locks <strong>tables</strong>, not the whole database. A writer locks every table it uses until its statement ends; inside <code>BEGIN</code> ... <code>COMMIT</code> it keeps them until the transaction ends. Two transfers can never mix, and every transaction sees the data exactly as the one before it left it (this is called <em>serializable</em>).</p>
+<p>KarelaDB locks <strong>tables</strong>, not the whole database. A writer locks every table it uses until its statement ends; inside <code>BEGIN</code> ... <code>COMMIT</code> it keeps them until the transaction ends. Two transfers can never mix, and every transaction sees the data exactly as the one before it left it (this is called <em>serializable</em>).</p>
 <ul><li><strong>Writers of the same table wait.</strong> While session A has an open transaction that changed <code>accounts</code>, session B&#39;s <code>UPDATE</code>, <code>INSERT</code>, <code>DELETE</code> or <code>CALL</code> on <code>accounts</code> <strong>waits</strong> until A ends. Writers wait in a queue: the one that came first goes first. Line-protocol writes and <code>InsertRows</code> into that table wait too.</li><li><strong>Writers of other tables do not wait.</strong> A price feed into <code>live_data</code> goes on while a transfer holds <code>accounts</code> and <code>ledger</code>.</li><li><strong>What is locked:</strong> the tables a statement changes and reads, and what it sets off: tables its triggers and procedures use, and tables linked to it by <code>REFERENCES</code>.</li><li><strong>Deadlock:</strong> when A waits for a table B holds, and B then needs a table A holds, one of them gets <code>deadlock: ...</code> at once and is rolled back. Run it again. Use the tables in the same order in every transaction (<code>accounts</code>, then <code>ledger</code>), and it cannot happen.</li><li><strong>Schema changes</strong> (<code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code>) lock every table. They wait until no transaction is open.</li><li><strong>Readers do not wait for an open transaction.</strong> Session B&#39;s <code>SELECT</code> runs at once and sees the data <strong>without</strong> A&#39;s changes. Inside A, a <code>SELECT</code> sees A&#39;s own changes.</li><li>A normal statement without <code>BEGIN</code> is its own small transaction, so it also waits for an open transaction that holds its table.</li><li><strong>Commits share the disk.</strong> Writers that commit at the same moment share one wait for the disk (group commit). Each one is still told &quot;committed&quot; only when its changes are on the disk.</li></ul>
-<p>A read can still wait for a writer&#39;s <strong>running</strong> statement, usually a millisecond. A long <code>CALL</code> or a slow trigger body can make reads wait for seconds. <code>kdb serve --reader-yield on</code> (in Docker: <code>KDB_READER_YIELD=on</code>) lets reads in between the statements of such a writer: they read the last committed rows at once.</p>
+<p>A read can still wait for a writer&#39;s <strong>running</strong> statement, usually a millisecond. A long <code>CALL</code> or a slow trigger body can make reads wait for seconds. <code>kareladb serve --reader-yield on</code> (in Docker: <code>KARELADB_READER_YIELD=on</code>) lets reads in between the statements of such a writer: they read the last committed rows at once.</p>
 <p>A transfer takes about a millisecond, so waiting is short. It becomes a problem only when a transaction stays open for a long time. <strong>Never</strong> keep a transaction open while you wait for a person (a click, a form, an SMS code). Read first, ask the person, then do <code>BEGIN ... COMMIT</code> quickly.</p>
 <h2 id="timeouts">Timeouts</h2>
 <div class="table-wrap"><table><thead><tr><th>Option (<code>DatabaseOptions</code>)</th><th>Default</th><th>What happens</th></tr></thead><tbody><tr><td><code>lock_timeout_ms</code></td><td>5000 (5 s)</td><td>A writer that waited this long for a table gets the error <code>table &#39;x&#39; is busy: another transaction has held it for N ms; waited 5000 ms ...</code> (a schema change: <code>database is busy: ...</code>). Nothing of its statement was done. Try again.</td></tr><tr><td><code>idle_transaction_timeout_ms</code></td><td>30000 (30 s)</td><td>A transaction with no statement for this long is rolled back. Its session&#39;s next statement gets <code>the transaction of this session was rolled back (it was open without a statement for ...)</code>. Send <code>ROLLBACK</code> and start again.</td></tr></tbody></table></div>
 <p>In your app:</p>
 <ul><li>On <code>table &#39;x&#39; is busy</code>, <code>database is busy</code> or <code>deadlock</code>: wait a little (for example 100 ms) and run the <strong>whole</strong> transaction again.</li><li>On any error inside a transaction: send <code>ROLLBACK</code>, then show an error or try the whole transaction again. Never continue with the next statement.</li></ul>
 <h2 id="after-a-crash">After a crash</h2>
-<p>Changes of a transaction are written to the log only at <code>COMMIT</code>, in one write, and KDB waits until the disk has them. So:</p>
+<p>Changes of a transaction are written to the log only at <code>COMMIT</code>, in one write, and KarelaDB waits until the disk has them. So:</p>
 <ul><li>a transaction that got <code>COMMIT</code> OK is there after a crash or a power cut;</li><li>a transaction without <code>COMMIT</code> leaves <strong>no trace</strong>, not even half of a transfer.</li></ul>
-<p>KDB tests this all the time. <code>test_accounting</code> runs 8 threads doing 2,000 random transfers (with errors, rollbacks and clients that go away) while readers check the total at every moment, and copies the database folder in the middle of open transactions and opens the copies. <code>crash_test</code> kills a program doing transfers more than 200 times at random moments and checks every time: the total is the same, no balance is negative, the ledger matches the balances, and every confirmed transfer is there.</p>
+<p>KarelaDB tests this all the time. <code>test_accounting</code> runs 8 threads doing 2,000 random transfers (with errors, rollbacks and clients that go away) while readers check the total at every moment, and copies the database folder in the middle of open transactions and opens the copies. <code>crash_test</code> kills a program doing transfers more than 200 times at random moments and checks every time: the total is the same, no balance is negative, the ledger matches the balances, and every confirmed transfer is there.</p>
 <h2 id="checklist-for-an-accounting-app">Checklist for an accounting app</h2>
 <ol><li>Money columns: <code>DECIMAL(2) NOT NULL</code>, with <code>CHECK</code> rules for what must never happen (<code>balance &gt;= 0</code>, <code>amount &gt; 0</code>).</li><li>Keep a ledger. Never update or delete its rows; correct a mistake with a new row.</li><li>Every transfer: <code>BEGIN</code>, <code>SELECT ... FOR UPDATE</code>, <code>UPDATE ... SET balance = balance ± amount</code>, <code>INSERT INTO ledger ... RETURNING id</code>, <code>COMMIT</code>.</li><li>On any error: <code>ROLLBACK</code>. On <code>table &#39;x&#39; is busy</code>, <code>database is busy</code> or <code>deadlock</code>: try the whole transaction again.</li><li>Keep transactions short. No waiting for people inside a transaction.</li><li>Use parameters (<code>$1</code>), not SQL glued together from user input.</li><li>Store <code>password_hash(...)</code>, check with <code>password_verify(...)</code>.</li><li>Check the books every night (total, and balances against the ledger), and make a backup (chapter 9).</li></ol>
 <h2 id="try-it-yourself">Try it yourself</h2>
@@ -278,6 +278,6 @@ session closed: True</code></pre>
 <hr>
 <p>Back to the index. Also read the <a href="known-limitations.html">known limitations</a>.</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/15-transactions-and-accounting.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/15-transactions-and-accounting.md">This page as markdown</a>.</footer>
 </body>
 </html>

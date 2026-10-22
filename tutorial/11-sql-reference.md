@@ -4,7 +4,7 @@
 
 ## What you will learn
 
-- The exact form of every KDB statement.
+- The exact form of every KarelaDB statement.
 - Every type, function and operator, with a short example.
 - The time rules, reserved words and limits.
 
@@ -16,7 +16,7 @@ The example results in this chapter are real. They come from `examples/11-sql-re
 
 | Rule | Detail |
 |---|---|
-| Statements | End with `;`. Many statements can be sent at once. Each one is saved on its own (statements between `BEGIN` and `COMMIT`, and a whole `CALL`, are saved together); KDB stops at the first error. |
+| Statements | End with `;`. Many statements can be sent at once. Each one is saved on its own (statements between `BEGIN` and `COMMIT`, and a whole `CALL`, are saved together); KarelaDB stops at the first error. |
 | Case | Keywords, table names, column names and function names do not care about case. Text values do (`'CITY'` is not `'city'`). |
 | Names | Letters, digits, `_`, and non-English letters. A reserved word or a special name must be in double quotes: `"order"`. |
 | Text | In single quotes: `'CITY'`. A quote inside is doubled: `'City''s'`. |
@@ -157,7 +157,7 @@ EXPLAIN SELECT ...;
 | Subqueries | `(SELECT ...)` as a value (must return 0 or 1 row), `IN (SELECT ...)`, `EXISTS (SELECT ...)`, `FROM (SELECT ...)`, `LATERAL`. They may use outer columns (correlated); `inner.col = outer.col` becomes a hash lookup (chapter 23). |
 | Aggregates | `agg(x) FILTER (WHERE cond)`, `array_agg(x ORDER BY y)`, `GROUP BY 1` (a select column), aggregates in ORDER BY and HAVING. |
 | Window functions | With GROUP BY or SAMPLE BY they run over the groups, one row per group. Their arguments must be aggregates or group keys: `sma(last(close), 2)`, `rank() OVER (ORDER BY sum(volume) DESC)`. `sma(close, 2)` there is an error (`column 'close' is used by a window function in a query with aggregates, so it must be a key of the groups`). Not inside each other (`lag(sma(close, 3))`): use a subquery. |
-| Big GROUP BY | When the groups need more than half of `--max-result-memory`, KDB writes them to temporary files (`_tmp/` in the database folder) and adds them up after the scan. The result is the same, only slower. At most 16 GB of such files per query. |
+| Big GROUP BY | When the groups need more than half of `--max-result-memory`, KarelaDB writes them to temporary files (`_tmp/` in the database folder) and adds them up after the scan. The result is the same, only slower. At most 16 GB of such files per query. |
 | `SELECT` without `FROM` | Allowed: `SELECT 1 + 1`. |
 
 ### Views
@@ -200,7 +200,7 @@ SHOW INDEXES [FROM table];   -- columns: name, table, kind, columns, built, rows
 | Columns | 1 to 16 stored columns (not computed). Relational and time-series tables. |
 | `UNIQUE` | Two rows cannot have the same values. NULL values never clash. Error: `duplicate value violates unique index 'name' on table 't': a row with col='value' already exists`. Creating it fails when rows already clash. |
 | `FULLTEXT` | STRING, SYMBOL or JSON columns. Used by `MATCH(...)`, `search_rank(...)`. |
-| Where the data lives | In memory only. `kdb serve` builds it from the rows right after the database opens, on a background thread. In `kdb sql`, `kdb shell` and with `--warm-indexes off`, the first query that needs it builds it. `CREATE INDEX` builds it at once. Nothing on disk: crashes, `kdb check`, `kdb repair`, backups need nothing extra. |
+| Where the data lives | In memory only. `kareladb serve` builds it from the rows right after the database opens, on a background thread. In `kareladb sql`, `kareladb shell` and with `--warm-indexes off`, the first query that needs it builds it. `CREATE INDEX` builds it at once. Nothing on disk: crashes, `kareladb check`, `kareladb repair`, backups need nothing extra. |
 | When a query uses an index | `col = value`, `col IN (...)`, `col IS NULL` on the first columns, then a range (`<`, `<=`, `>`, `>=`, `BETWEEN`, `LIKE 'abc%'`, `time IN '...'`, a row comparison) on the next column. `ORDER BY` the next columns (all ASC or all DESC) with `LIMIT` reads only the rows needed. `MATCH` uses a FULLTEXT index on the same columns. `EXPLAIN` shows `use index name (...)`. Also used by `UPDATE` and `DELETE`. |
 | When it does not | A condition with `OR`, a function around the column, `!=`, `NOT LIKE`, a FLOAT column, text compared with a number, or when the index would read more than a quarter of the table. |
 | `DROP COLUMN` | Refused while an index uses the column. `RENAME COLUMN` / `RENAME TABLE` keep the index. `DROP TABLE` drops its indexes. |
@@ -291,7 +291,7 @@ CLOSE name;
 
 | Rule | Detail |
 |---|---|
-| Scope | A transaction and a cursor end with the text they were sent in (`kdb sql`, `/exec`, the web console). In a session (`kdb shell`, `POST /session` + `X-KDB-Session`, a PostgreSQL connection) they stay open over many requests. A text without a session that ends without `COMMIT` is rolled back with an error. |
+| Scope | A transaction and a cursor end with the text they were sent in (`kareladb sql`, `/exec`, the web console). In a session (`kareladb shell`, `POST /session` + `X-KDB-Session`, a PostgreSQL connection) they stay open over many requests. A text without a session that ends without `COMMIT` is rolled back with an error. |
 | Errors | A failing statement rolls back the whole open transaction. In a session, only `ROLLBACK` (or `COMMIT`, which then fails) is accepted after that. |
 | Many writers | Writers of different tables run at the same time; writers of the same table take turns: they wait up to 5 s (`table 'x' is busy`), and two transactions that would wait for each other get `deadlock` at once. Readers see the committed rows. An idle transaction is rolled back after 30 s. Chapter 15. |
 | Not in a transaction | `CREATE`, `DROP`, `ALTER`, `RENAME`, `TRUNCATE`, `BACKUP DATABASE`. |
@@ -300,7 +300,7 @@ CLOSE name;
 ### Database
 
 ```sql
-BACKUP DATABASE;          -- needs --backups <folder> on kdb serve / shell / sql
+BACKUP DATABASE;          -- needs --backups <folder> on kareladb serve / shell / sql
 CHECK TABLE any_name;     -- reads every file of the whole database
 ```
 
@@ -322,9 +322,9 @@ SELECT ... FROM other_db.table ...; -- read a table of another database on the s
 |---|---|
 | Names | Letters, digits, `_` and `-`, 1 to 64 characters. `Market` and `market` are the same database. The folder keeps the name as you first wrote it. Not allowed: `_trash` and the Windows device names `CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`, `LPT0`-`LPT9`. |
 | `DROP DATABASE` | Refused while another request or shell uses the database. Nothing is deleted: the folder moves to `_trash/<time in ms>-<name>`. To get it back, stop the server and move the folder back. |
-| `database.table` | Reads a table of another database: `SELECT`, joins, subqueries, `INSERT INTO t SELECT ...`, `CREATE TABLE t AS SELECT ...`. A statement only changes the database it runs in. Works over HTTP, the PostgreSQL port, `kdb shell` and the console. |
-| `USE` | In `kdb shell`: stays until the next `USE`. Over HTTP: only for the rest of that request; choose the database of a request with `db=<name>` (chapter 8). |
-| Where they work | `kdb shell` and `kdb sql` with a database name (or no name), and `kdb serve` with a data folder. A command that opened one folder by its **path** (`kdb serve D:\kdb\market`) cannot create or drop databases. |
+| `database.table` | Reads a table of another database: `SELECT`, joins, subqueries, `INSERT INTO t SELECT ...`, `CREATE TABLE t AS SELECT ...`. A statement only changes the database it runs in. Works over HTTP, the PostgreSQL port, `kareladb shell` and the console. |
+| `USE` | In `kareladb shell`: stays until the next `USE`. Over HTTP: only for the rest of that request; choose the database of a request with `db=<name>` (chapter 8). |
+| Where they work | `kareladb shell` and `kareladb sql` with a database name (or no name), and `kareladb serve` with a data folder. A command that opened one folder by its **path** (`kareladb serve D:\kdb\market`) cannot create or drop databases. |
 
 ```powershell
 @"
@@ -337,36 +337,36 @@ USE market;
 DROP DATABASE demo;
 DROP DATABASE IF EXISTS demo;
 SHOW DATABASES;
-"@ | kdb shell --data-dir kdb-data
+"@ | kareladb shell --data-dir kdb-data
 ```
 
 ```text
-KDB 0.2.0-dev shell on default (data folder kdb-data)
+KarelaDB 0.2.0-dev shell on default (data folder kdb-data)
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> database 'market' created
-kdb> database 'demo' created
-kdb> using database 'demo'
-kdb> table 'notes' created
-kdb> name    | tables | bytes | current
+kareladb> database 'market' created
+kareladb> database 'demo' created
+kareladb> using database 'demo'
+kareladb> table 'notes' created
+kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false
 demo    |      1 |   229 | true
 market  |      0 |     0 | false
 (3 rows, 0.1 ms)
-kdb> using database 'market'
-kdb> database 'demo' dropped; its folder was moved to kdb-data/_trash/1789135960212-demo
-kdb> database 'demo' does not exist
-kdb> name    | tables | bytes | current
+kareladb> using database 'market'
+kareladb> database 'demo' dropped; its folder was moved to kdb-data/_trash/1789135960212-demo
+kareladb> database 'demo' does not exist
+kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false
 market  |      0 |     0 | true
 (2 rows, 0.0 ms)
-kdb>
+kareladb>
 ```
 
 ### Users and roles
 
-Users of the KDB server (chapter 16). They belong to the data folder, not to one database.
+Users of the KarelaDB server (chapter 16). They belong to the data folder, not to one database.
 
 ```sql
 CREATE USER [IF NOT EXISTS] name [WITH] PASSWORD 'secret' [ROLE admin|write|read|none];
@@ -388,12 +388,12 @@ REVOKE [read|write|admin|ALL] ON DATABASE db FROM name;
 | Rule | Detail |
 |---|---|
 | Names | letters, digits, `_` and `-`, 1 to 63 characters; not case sensitive |
-| Passwords | 8 to 1024 bytes. Shown as `'***'` in every statement KDB shows back. |
+| Passwords | 8 to 1024 bytes. Shown as `'***'` in every statement KarelaDB shows back. |
 | First user | must have `ROLE admin`. From then on the server asks for a login. |
 | Last admin | cannot be dropped or lose ROLE admin while other users exist |
 | Own password | every user may run `ALTER USER <own name> WITH PASSWORD '...'` |
 | `SHOW USERS` | never shows passwords or hashes; a user who is not an admin sees only their own row |
-| `kdb shell`, `kdb sql` | open the files directly and do not check users |
+| `kareladb shell`, `kareladb sql` | open the files directly and do not check users |
 
 ## Types
 
@@ -541,7 +541,7 @@ Text functions count **characters**, so text in any language works (`length('न
 | `coalesce(a, b, ...)` | first value that is not NULL | `coalesce(NULL, 'n/a')` | `n/a` |
 | `nullif(a, b)` | NULL if a = b, else a | `nullif(5, 5)` | NULL |
 
-Regular expressions: `.` `[abc]` `[^abc]` `[a-z]` `\d` `\w` `\s` `\b` `^` `$` `(...)` `(?:...)` `a|b` `*` `+` `?` `{n,m}` (and lazy `*?`). `\w` also matches letters of other languages. Back references and look-ahead are not supported. KDB never backtracks, so no pattern can hang the server.
+Regular expressions: `.` `[abc]` `[^abc]` `[a-z]` `\d` `\w` `\s` `\b` `^` `$` `(...)` `(?:...)` `a|b` `*` `+` `?` `{n,m}` (and lazy `*?`). `\w` also matches letters of other languages. Back references and look-ahead are not supported. KarelaDB never backtracks, so no pattern can hang the server.
 
 ### JSON and BYTES
 
@@ -728,8 +728,8 @@ A NULL argument gives NULL. The random functions give a new value for every row 
 | Numbers | milliseconds since 1970 (UTC) |
 | `time IN 'text'` | The whole year / month / day / hour / minute / second of the text, in UTC. |
 | Partitions | by UTC date |
-| `SAMPLE BY ... TIME ZONE` | the only place where KDB computes in another time zone |
-| `--until` of `kdb restore` | local time of the computer |
+| `SAMPLE BY ... TIME ZONE` | the only place where KarelaDB computes in another time zone |
+| `--until` of `kareladb restore` | local time of the computer |
 | Backup folder names | UTC |
 
 Time zones for `TIME ZONE` (fixed offsets only, no daylight saving): `UTC`, `GMT`, `Z`, `Etc/UTC`, `Asia/Kathmandu`, `Asia/Katmandu`, `NPT`, `Asia/Kolkata`, `Asia/Calcutta`, `IST`, `Asia/Colombo`, `Asia/Dhaka`, `Asia/Thimphu`, `Asia/Karachi`, `Asia/Dubai`, `Asia/Bangkok`, `Asia/Jakarta`, `Asia/Shanghai`, `Asia/Hong_Kong`, `Asia/Singapore`, `Asia/Taipei`, `Asia/Tokyo`, `Asia/Seoul`, or an offset like `'+05:45'`. Others are refused:
@@ -790,7 +790,7 @@ All other words (`time`, `date`, `timestamp`, `symbol`, `partition`, `open`, `cl
 | Open cursors | 16 per database; unused ones close after 10 minutes; 10 million rows each |
 | Tables in one query | 63 |
 | Rows made by FILL | 10 million |
-| Rows returned by `kdb sql` | 1000 in table format (`--max-rows`), no limit in csv/json |
+| Rows returned by `kareladb sql` | 1000 in table format (`--max-rows`), no limit in csv/json |
 | Rows returned by HTTP `/exec` | 10,000 by default, 1,000,000 at most |
 | HTTP request body | 64 MB |
 | One STRING, JSON or BYTES value | 16 MB (keep bigger files outside the database) |
@@ -808,7 +808,7 @@ All other words (`time`, `date`, `timestamp`, `symbol`, `partition`, `open`, `cl
 SELECT s.symbol, (SELECT max(close) FROM ochl_day d WHERE d.symbol = s.symbol) AS best FROM securities s;
 ```
 
-The subquery uses `s.symbol` of the outer row. KDB does not run it once per row: it reads `ochl_day` once, groups it by `symbol`, and looks every security up in that result. Chapter 23 has the rules.
+The subquery uses `s.symbol` of the outer row. KarelaDB does not run it once per row: it reads `ochl_day` once, groups it by `symbol`, and looks every security up in that result. Chapter 23 has the rules.
 
 ## Try it yourself
 

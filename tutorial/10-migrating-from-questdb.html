@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>10. Moving from QuestDB - KDB (KARELA DataBase) docs</title>
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/10-migrating-from-questdb.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/10-migrating-from-questdb.md">
+<title>10. Moving from QuestDB - KarelaDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/tutorial/10-migrating-from-questdb.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/10-migrating-from-questdb.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="10-moving-from-questdb">10. Moving from QuestDB</h1>
 <ul><li>Category: Tutorial</li></ul>
 <h2 id="what-you-will-learn">What you will learn</h2>
-<ul><li>The tables of the 006 app (NChartPro) as KDB tables.</li><li>What is different between QuestDB SQL and KDB SQL.</li><li>How to move the data (CSV export, then <code>/imp</code> or INSERT batches).</li></ul>
+<ul><li>The tables of the 006 app (NChartPro) as KarelaDB tables.</li><li>What is different between QuestDB SQL and KarelaDB SQL.</li><li>How to move the data (CSV export, then <code>/imp</code> or INSERT batches).</li></ul>
 <p>The examples start with an <strong>empty</strong> database <code>market</code>. The files are in <code>examples/10-migrating-from-questdb/</code>.</p>
 <h2 id="first-what-works-today">First: what works today</h2>
-<div class="table-wrap"><table><thead><tr><th>006 uses</th><th>QuestDB</th><th>KDB</th></tr></thead><tbody><tr><td>Reads with Go <code>pgx</code> (Postgres protocol)</td><td>port 8812</td><td><strong>yes</strong>, port 8832 (chapter 14). Change the port in the connection string.</td></tr><tr><td>Bulk writes with HTTP <code>/imp</code> (CSV upload)</td><td>port 9000</td><td><strong>yes</strong>, the same parameters (chapter 8)</td></tr><tr><td>SAT3 writes with ILP (InfluxDB line protocol)</td><td>port 9009 (TCP) or HTTP <code>/write</code></td><td><strong>yes, over HTTP</strong>: <code>POST /write</code> (also <code>/api/v2/write</code>) on port 9900. There is no TCP port for ILP. The tables must exist first.</td></tr><tr><td><code>/exec</code> JSON (<code>columns</code>, <code>dataset</code>, <code>count</code>)</td><td>yes</td><td><strong>yes</strong>, same top-level fields (plus <code>results</code>)</td></tr><tr><td><code>/exp</code> CSV export</td><td>yes</td><td><strong>yes</strong>, for reading statements</td></tr><tr><td>Web console</td><td>yes</td><td>yes, with charts, dashboards and health (chapters 6 and 20)</td></tr></tbody></table></div>
-<p>So the 006 Go code can keep <code>pgx</code>: point it at port 8832. The SQL itself mostly stays the same. <code>ALTER DATABASE name SET dialect = &#39;questdb&#39;</code> makes KDB read a few things the QuestDB way (chapter 23).</p>
-<h2 id="the-006-tables-in-kdb">The 006 tables in KDB</h2>
-<p>The KDB tables have the <strong>same names and columns</strong> as in QuestDB. Names do not care about case, with or without double quotes.</p>
-<pre><code class="language-sql">-- The tables of the 006 app, in KDB. Names and columns are the same as in QuestDB.
+<div class="table-wrap"><table><thead><tr><th>006 uses</th><th>QuestDB</th><th>KarelaDB</th></tr></thead><tbody><tr><td>Reads with Go <code>pgx</code> (Postgres protocol)</td><td>port 8812</td><td><strong>yes</strong>, port 8832 (chapter 14). Change the port in the connection string.</td></tr><tr><td>Bulk writes with HTTP <code>/imp</code> (CSV upload)</td><td>port 9000</td><td><strong>yes</strong>, the same parameters (chapter 8)</td></tr><tr><td>SAT3 writes with ILP (InfluxDB line protocol)</td><td>port 9009 (TCP) or HTTP <code>/write</code></td><td><strong>yes, over HTTP</strong>: <code>POST /write</code> (also <code>/api/v2/write</code>) on port 9900. There is no TCP port for ILP. The tables must exist first.</td></tr><tr><td><code>/exec</code> JSON (<code>columns</code>, <code>dataset</code>, <code>count</code>)</td><td>yes</td><td><strong>yes</strong>, same top-level fields (plus <code>results</code>)</td></tr><tr><td><code>/exp</code> CSV export</td><td>yes</td><td><strong>yes</strong>, for reading statements</td></tr><tr><td>Web console</td><td>yes</td><td>yes, with charts, dashboards and health (chapters 6 and 20)</td></tr></tbody></table></div>
+<p>So the 006 Go code can keep <code>pgx</code>: point it at port 8832. The SQL itself mostly stays the same. <code>ALTER DATABASE name SET dialect = &#39;questdb&#39;</code> makes KarelaDB read a few things the QuestDB way (chapter 23).</p>
+<h2 id="the-006-tables-in-kareladb"><span class="old-id" id="the-006-tables-in-kdb"></span>The 006 tables in KarelaDB</h2>
+<p>The KarelaDB tables have the <strong>same names and columns</strong> as in QuestDB. Names do not care about case, with or without double quotes.</p>
+<pre><code class="language-sql">-- The tables of the 006 app, in KarelaDB. Names and columns are the same as in QuestDB.
 
 CREATE TABLE IF NOT EXISTS &quot;Ochl_Day&quot; (
   time   TIMESTAMP,
@@ -93,14 +93,14 @@ Ochl_Day_Unadj   | timeseries | YEAR      |       7 |    0
 Ochl_Minutes     | timeseries | MONTH     |       7 |    0
 Ochl_Minutes_Adj | timeseries | MONTH     |       7 |    0
 (6 rows, 0.0 ms)</code></pre>
-<p>How the QuestDB DDL maps to KDB:</p>
-<div class="table-wrap"><table><thead><tr><th>QuestDB</th><th>KDB</th></tr></thead><tbody><tr><td><code>TIMESTAMP(time)</code> after the column list</td><td><code>TIMESERIES(time)</code></td></tr><tr><td><code>PARTITION BY DAY/MONTH/YEAR</code></td><td>same</td></tr><tr><td><code>WAL</code></td><td>remove it (KDB always has a log)</td></tr><tr><td><code>symbol SYMBOL INDEX</code></td><td><code>symbol SYMBOL</code> is enough: rows are sorted by symbol inside each partition. <code>SYMBOL INDEX</code> is accepted too and makes an index (<code>q_s_idx</code>).</td></tr><tr><td><code>DEDUP UPSERT KEYS(time, symbol)</code></td><td><code>DEDUP KEY (time, symbol)</code>, and write with <code>INSERT OR REPLACE</code> (or run <code>ALTER DATABASE name SET dialect = &#39;questdb&#39;</code> once: then a plain <code>INSERT</code> replaces too, and <code>CAST(time AS LONG)</code> gives microseconds; chapter 23). The QuestDB words are accepted as well.</td></tr><tr><td><code>ALTER TABLE ... DEDUP ENABLE UPSERT KEYS(...)</code> / <code>DEDUP DISABLE</code></td><td>same. <code>DEDUP ENABLE</code> on a table with rows folds rows with the same key into one (the newest is kept).</td></tr><tr><td><code>CREATE TABLE ... AS (SELECT ...)</code></td><td>same: <code>table &#39;x&#39; created with 57 row(s)</code></td></tr></tbody></table></div>
-<p>The QuestDB <code>CREATE TABLE</code> text itself (<code>TIMESTAMP(time) PARTITION BY DAY WAL DEDUP UPSERT KEYS(...)</code>) is accepted as it is. The KDB form above is easier to read.</p>
+<p>How the QuestDB DDL maps to KarelaDB:</p>
+<div class="table-wrap"><table><thead><tr><th>QuestDB</th><th>KarelaDB</th></tr></thead><tbody><tr><td><code>TIMESTAMP(time)</code> after the column list</td><td><code>TIMESERIES(time)</code></td></tr><tr><td><code>PARTITION BY DAY/MONTH/YEAR</code></td><td>same</td></tr><tr><td><code>WAL</code></td><td>remove it (KarelaDB always has a log)</td></tr><tr><td><code>symbol SYMBOL INDEX</code></td><td><code>symbol SYMBOL</code> is enough: rows are sorted by symbol inside each partition. <code>SYMBOL INDEX</code> is accepted too and makes an index (<code>q_s_idx</code>).</td></tr><tr><td><code>DEDUP UPSERT KEYS(time, symbol)</code></td><td><code>DEDUP KEY (time, symbol)</code>, and write with <code>INSERT OR REPLACE</code> (or run <code>ALTER DATABASE name SET dialect = &#39;questdb&#39;</code> once: then a plain <code>INSERT</code> replaces too, and <code>CAST(time AS LONG)</code> gives microseconds; chapter 23). The QuestDB words are accepted as well.</td></tr><tr><td><code>ALTER TABLE ... DEDUP ENABLE UPSERT KEYS(...)</code> / <code>DEDUP DISABLE</code></td><td>same. <code>DEDUP ENABLE</code> on a table with rows folds rows with the same key into one (the newest is kept).</td></tr><tr><td><code>CREATE TABLE ... AS (SELECT ...)</code></td><td>same: <code>table &#39;x&#39; created with 57 row(s)</code></td></tr></tbody></table></div>
+<p>The QuestDB <code>CREATE TABLE</code> text itself (<code>TIMESTAMP(time) PARTITION BY DAY WAL DEDUP UPSERT KEYS(...)</code>) is accepted as it is. The KarelaDB form above is easier to read.</p>
 <p>Design notes for these tables:</p>
-<ul><li><strong>DEDUP stays on.</strong> In 006, dedup on <code>Ochl_*</code> was switched off during big backfills because QuestDB&#39;s merge was slow. In KDB, the DEDUP KEY check is part of every insert and is fast, so you can leave it on. Test the speed of your backfill with a real file first. (<code>POST /write</code> and <code>POST /imp</code> also take <code>dedup=skip</code> for rows you know are new.)</li><li><strong>Minute symbols</strong> in <code>Ochl_Minutes</code> use the <code>-1</code> suffix (<code>CITY-1</code>) in 006. KDB does not care; keep it the same so the Go code does not change. <code>replace(symbol, &#39;-1&#39;, &#39;&#39;)</code> removes it in a query.</li><li><strong>ROUND is optional.</strong> <code>time TIMESTAMP ROUND 1d</code> on <code>Ochl_Day</code> and <code>date TIMESTAMP ROUND 1d</code> on <code>TradeLog</code> would force times to 00:00 UTC. That would make a trade with a wrong sub-day time a duplicate of the right row, instead of a second row. But it would also merge an intraday junk row into the real day row (<code>INSERT OR REPLACE</code> keeps the last one). Decide after you clean the data.</li><li><strong>amount</strong> in <code>TradeLog</code> is a stored column here, because the imports send it. It could be a computed column <code>amount DOUBLE AS (quantity * rate)</code> (chapter 3), if the source value is always <code>quantity * rate</code>.</li><li><strong>REFERENCES</strong> to a brokers table would check every trade, but it slows down big imports. Leave it out for the migration.</li><li><strong>Timestamps:</strong> QuestDB stores microseconds; KDB stores milliseconds. Daily market data like this has no sub-millisecond times, so nothing is lost. Digits after the milliseconds are dropped when you insert.</li></ul>
+<ul><li><strong>DEDUP stays on.</strong> In 006, dedup on <code>Ochl_*</code> was switched off during big backfills because QuestDB&#39;s merge was slow. In KarelaDB, the DEDUP KEY check is part of every insert and is fast, so you can leave it on. Test the speed of your backfill with a real file first. (<code>POST /write</code> and <code>POST /imp</code> also take <code>dedup=skip</code> for rows you know are new.)</li><li><strong>Minute symbols</strong> in <code>Ochl_Minutes</code> use the <code>-1</code> suffix (<code>CITY-1</code>) in 006. KarelaDB does not care; keep it the same so the Go code does not change. <code>replace(symbol, &#39;-1&#39;, &#39;&#39;)</code> removes it in a query.</li><li><strong>ROUND is optional.</strong> <code>time TIMESTAMP ROUND 1d</code> on <code>Ochl_Day</code> and <code>date TIMESTAMP ROUND 1d</code> on <code>TradeLog</code> would force times to 00:00 UTC. That would make a trade with a wrong sub-day time a duplicate of the right row, instead of a second row. But it would also merge an intraday junk row into the real day row (<code>INSERT OR REPLACE</code> keeps the last one). Decide after you clean the data.</li><li><strong>amount</strong> in <code>TradeLog</code> is a stored column here, because the imports send it. It could be a computed column <code>amount DOUBLE AS (quantity * rate)</code> (chapter 3), if the source value is always <code>quantity * rate</code>.</li><li><strong>REFERENCES</strong> to a brokers table would check every trade, but it slows down big imports. Leave it out for the migration.</li><li><strong>Timestamps:</strong> QuestDB stores microseconds; KarelaDB stores milliseconds. Daily market data like this has no sub-millisecond times, so nothing is lost. Digits after the milliseconds are dropped when you insert.</li></ul>
 <h2 id="query-differences">Query differences</h2>
 <p>Most 006 queries run unchanged. These are the differences:</p>
-<div class="table-wrap"><table><thead><tr><th>Task</th><th>QuestDB</th><th>KDB</th></tr></thead><tbody><tr><td>1-hour candles on the Nepal clock</td><td><code>SAMPLE BY 1h ALIGN TO CALENDAR WITH OFFSET &#39;00:15&#39;</code></td><td>same, or <code>SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code></td></tr><tr><td>Weekly candles starting Sunday</td><td>not possible in SQL (006 folds days in Go: <code>rollupWeeklySunday</code>)</td><td><code>SAMPLE BY 1w WEEK START SUNDAY</code></td></tr><tr><td>Monthly candles</td><td><code>SAMPLE BY 1M</code></td><td>same</td></tr><tr><td>Newest row per symbol</td><td><code>LATEST ON timestamp PARTITION BY symbol</code></td><td>same</td></tr><tr><td>Delete some rows</td><td>not possible (006 rebuilds tables with <code>CREATE TABLE AS</code>)</td><td><code>DELETE FROM t WHERE ...</code></td></tr><tr><td>Change some rows</td><td><code>UPDATE</code> (slow on WAL tables)</td><td><code>UPDATE t SET ... WHERE ...</code></td></tr><tr><td>Drop a partition</td><td><code>ALTER TABLE t DROP PARTITION LIST &#39;2026-09&#39;</code></td><td><code>ALTER TABLE t DROP PARTITION &#39;2026-09&#39;</code> (no <code>LIST</code>)</td></tr><tr><td>Count rows</td><td><code>count()</code> or <code>count(*)</code></td><td>same</td></tr><tr><td>Time interval</td><td><code>time IN &#39;2026-09-10&#39;</code></td><td>same. The QuestDB form with <code>;</code> (<code>&#39;2026-09-10;1d&#39;</code>) is not available.</td></tr><tr><td>Row range</td><td><code>LIMIT 10,20</code></td><td>same (rows 11 to 20), or <code>LIMIT 10 OFFSET 10</code></td></tr><tr><td>Bucket a time</td><td><code>timestamp_floor(&#39;1h&#39;, time)</code></td><td>same, or <code>date_trunc(&#39;hour&#39;, time)</code></td></tr><tr><td>Nepal clock</td><td><code>to_timezone(time, &#39;Asia/Kathmandu&#39;)</code></td><td>same</td></tr><tr><td>Implicit GROUP BY</td><td>yes</td><td>yes, same rule</td></tr><tr><td>Casts</td><td><code>x::DOUBLE</code></td><td>same</td></tr><tr><td>Remove all rows</td><td><code>TRUNCATE TABLE t</code></td><td>same</td></tr><tr><td>Joins</td><td><code>JOIN</code>, <code>LEFT JOIN</code>, <code>ASOF JOIN</code>, <code>LT JOIN</code>, <code>SPLICE JOIN</code></td><td>the same, and <code>RIGHT JOIN</code>, <code>FULL JOIN</code>, <code>CROSS JOIN</code>, <code>JOIN ... USING</code>. <code>SPLICE JOIN ... ON</code> with several keys keeps every row of both tables (QuestDB 9.4.3 drops some); no <code>TOLERANCE</code> yet</td></tr><tr><td>Indicators</td><td>few built in</td><td><code>sma</code>, <code>ema</code>, <code>rsi</code>, <code>atr</code>, <code>lag</code>, <code>pct_change</code>, ... (chapter 5)</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Task</th><th>QuestDB</th><th>KarelaDB</th></tr></thead><tbody><tr><td>1-hour candles on the Nepal clock</td><td><code>SAMPLE BY 1h ALIGN TO CALENDAR WITH OFFSET &#39;00:15&#39;</code></td><td>same, or <code>SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code></td></tr><tr><td>Weekly candles starting Sunday</td><td>not possible in SQL (006 folds days in Go: <code>rollupWeeklySunday</code>)</td><td><code>SAMPLE BY 1w WEEK START SUNDAY</code></td></tr><tr><td>Monthly candles</td><td><code>SAMPLE BY 1M</code></td><td>same</td></tr><tr><td>Newest row per symbol</td><td><code>LATEST ON timestamp PARTITION BY symbol</code></td><td>same</td></tr><tr><td>Delete some rows</td><td>not possible (006 rebuilds tables with <code>CREATE TABLE AS</code>)</td><td><code>DELETE FROM t WHERE ...</code></td></tr><tr><td>Change some rows</td><td><code>UPDATE</code> (slow on WAL tables)</td><td><code>UPDATE t SET ... WHERE ...</code></td></tr><tr><td>Drop a partition</td><td><code>ALTER TABLE t DROP PARTITION LIST &#39;2026-09&#39;</code></td><td><code>ALTER TABLE t DROP PARTITION &#39;2026-09&#39;</code> (no <code>LIST</code>)</td></tr><tr><td>Count rows</td><td><code>count()</code> or <code>count(*)</code></td><td>same</td></tr><tr><td>Time interval</td><td><code>time IN &#39;2026-09-10&#39;</code></td><td>same. The QuestDB form with <code>;</code> (<code>&#39;2026-09-10;1d&#39;</code>) is not available.</td></tr><tr><td>Row range</td><td><code>LIMIT 10,20</code></td><td>same (rows 11 to 20), or <code>LIMIT 10 OFFSET 10</code></td></tr><tr><td>Bucket a time</td><td><code>timestamp_floor(&#39;1h&#39;, time)</code></td><td>same, or <code>date_trunc(&#39;hour&#39;, time)</code></td></tr><tr><td>Nepal clock</td><td><code>to_timezone(time, &#39;Asia/Kathmandu&#39;)</code></td><td>same</td></tr><tr><td>Implicit GROUP BY</td><td>yes</td><td>yes, same rule</td></tr><tr><td>Casts</td><td><code>x::DOUBLE</code></td><td>same</td></tr><tr><td>Remove all rows</td><td><code>TRUNCATE TABLE t</code></td><td>same</td></tr><tr><td>Joins</td><td><code>JOIN</code>, <code>LEFT JOIN</code>, <code>ASOF JOIN</code>, <code>LT JOIN</code>, <code>SPLICE JOIN</code></td><td>the same, and <code>RIGHT JOIN</code>, <code>FULL JOIN</code>, <code>CROSS JOIN</code>, <code>JOIN ... USING</code>. <code>SPLICE JOIN ... ON</code> with several keys keeps every row of both tables (QuestDB 9.4.3 drops some); no <code>TOLERANCE</code> yet</td></tr><tr><td>Indicators</td><td>few built in</td><td><code>sma</code>, <code>ema</code>, <code>rsi</code>, <code>atr</code>, <code>lag</code>, <code>pct_change</code>, ... (chapter 5)</td></tr></tbody></table></div>
 <h3 id="hourly-candles-candles-get-go">Hourly candles (candles_get.go)</h3>
 <pre><code class="language-sql">INSERT INTO &quot;Ochl_Minutes&quot; VALUES
   (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY-1&#39;, 504.6, 504.9, 504.3, 504.4, 280),
@@ -108,7 +108,7 @@ Ochl_Minutes_Adj | timeseries | MONTH     |       7 |    0
   (&#39;2026-09-10T12:00:00+05:45&#39;, &#39;CITY-1&#39;, 505.3, 505.5, 505.2, 505.2, 400);
 
 -- QuestDB (006): SAMPLE BY 1h ALIGN TO CALENDAR WITH OFFSET &#39;00:15&#39;
--- KDB:
+-- KarelaDB:
 SELECT time, first(open) open, max(high) high, min(low) low, last(close) close, sum(volume) volume
 FROM &quot;Ochl_Minutes&quot;
 WHERE symbol = &#39;CITY-1&#39; AND time IN &#39;2026-09-10&#39;
@@ -145,7 +145,7 @@ SAMPLE BY 1h ALIGN TO CALENDAR WITH OFFSET &#39;00:15&#39;;</code></pre>
 2026-09-10T06:15:00.000Z | 505.3 | 505.2
 (2 rows, 0.2 ms)</code></pre>
 <h3 id="weekly-candles-candles-weekly-go">Weekly candles (candles_weekly.go)</h3>
-<pre><code class="language-sql">-- 006 folds day rows into Sunday weeks in Go (rollupWeeklySunday). KDB does it in SQL.
+<pre><code class="language-sql">-- 006 folds day rows into Sunday weeks in Go (rollupWeeklySunday). KarelaDB does it in SQL.
 -- Day rows are at 00:00 UTC, so no TIME ZONE is needed here.
 SELECT time, first(open) open, max(high) high, min(low) low, last(close) close, sum(volume) volume
 FROM &quot;Ochl_Day&quot;
@@ -159,7 +159,7 @@ LIMIT 500;</code></pre>
 (1 row, 0.3 ms)</code></pre>
 <p>The bucket time is Sunday 00:00 UTC, the same value <code>weekBucketStartSunday</code> makes in Go. (Do <strong>not</strong> add <code>TIME ZONE &#39;Asia/Kathmandu&#39;</code> here: the bucket would then be stamped Saturday 18:15 UTC.)</p>
 <h3 id="deleting-rows">Deleting rows</h3>
-<pre><code class="language-sql">-- QuestDB cannot delete rows (006 rebuilds tables with CREATE TABLE AS). KDB can:
+<pre><code class="language-sql">-- QuestDB cannot delete rows (006 rebuilds tables with CREATE TABLE AS). KarelaDB can:
 DELETE FROM &quot;Ochl_Minutes&quot; WHERE symbol = &#39;CITY-1&#39; AND time &lt; &#39;1990-01-01&#39;;
 DELETE FROM &quot;TradeLog&quot; WHERE date IN &#39;2026-09-10&#39; AND transaction_id = 100003;
 SELECT count(*) AS trade_log_rows FROM &quot;TradeLog&quot;;</code></pre>
@@ -197,7 +197,7 @@ SELECT count(*) AS c FROM OCHL_DAY;</code></pre>
 <p>All three return the same count (5 after the import below).</p>
 <h2 id="moving-the-data">Moving the data</h2>
 <p>The plan:</p>
-<ol><li><strong>Export</strong> each table (or each year or month) from QuestDB as CSV with <code>/exp</code>.</li><li><strong>Convert</strong> the CSV into <code>INSERT OR REPLACE</code> statements with <code>csv-to-sql.ps1</code>.</li><li><strong>Load</strong> the SQL into KDB with <code>kdb sql</code> (KDB server stopped) or <code>POST /exec</code> (server running).</li><li><strong>Compare</strong> row counts and a few sums between QuestDB and KDB.</li></ol>
+<ol><li><strong>Export</strong> each table (or each year or month) from QuestDB as CSV with <code>/exp</code>.</li><li><strong>Convert</strong> the CSV into <code>INSERT OR REPLACE</code> statements with <code>csv-to-sql.ps1</code>.</li><li><strong>Load</strong> the SQL into KarelaDB with <code>kareladb sql</code> (KarelaDB server stopped) or <code>POST /exec</code> (server running).</li><li><strong>Compare</strong> row counts and a few sums between QuestDB and KarelaDB.</li></ol>
 <h3 id="1-export-from-questdb">1. Export from QuestDB</h3>
 <p>Run this against your QuestDB (port 9000). <strong>Not run while writing this tutorial</strong> (there was no QuestDB on the test PC):</p>
 <pre><code class="language-powershell">$qdb = &quot;http://127.0.0.1:9000&quot;
@@ -212,9 +212,9 @@ curl.exe -s -G &quot;$qdb/exp&quot; --data-urlencode &quot;query=SELECT * FROM &
 2026-09-10T00:00:00.000000Z,&quot;CITY&quot;,504.6,507.0,500.7,504.9,183040.0
 2026-09-10T00:00:00.000000Z,&quot;COAST&quot;,380.1,382.0,373.2,376.1,186200.0
 2026-09-10T00:00:00.000000Z,&quot;VOLT&quot;,187.3,192.1,184.2,191.2,41470.0</code></pre>
-<p>The simplest way to load such a file into a running KDB server is <code>POST /imp</code>, the same call QuestDB takes (chapter 8):</p>
+<p>The simplest way to load such a file into a running KarelaDB server is <code>POST /imp</code>, the same call QuestDB takes (chapter 8):</p>
 <pre><code class="language-powershell">curl.exe -s -F &quot;data=@Ochl_Day_2026.csv&quot; &quot;http://127.0.0.1:9900/imp?name=Ochl_Day&quot;</code></pre>
-<p>The steps below do the same without a server: they turn the CSV into SQL and load it with <code>kdb sql</code>.</p>
+<p>The steps below do the same without a server: they turn the CSV into SQL and load it with <code>kareladb sql</code>.</p>
 <h3 id="2-convert-csv-to-sql-ps1">2. Convert: csv-to-sql.ps1</h3>
 <p>The script examples/10-migrating-from-questdb/csv-to-sql.ps1 reads the CSV line by line and writes INSERT statements:</p>
 <ul><li>Values that look like numbers stay numbers. Everything else becomes <code>&#39;text&#39;</code> (times, symbols). Empty values become NULL.</li><li>One <code>INSERT OR REPLACE</code> per <code>-BatchSize</code> rows (default 5000). <code>-OnDuplicate IGNORE</code> or <code>NONE</code> change the verb.</li><li>It works in Windows PowerShell 5.1 and PowerShell 7.</li></ul>
@@ -231,9 +231,9 @@ INSERT OR REPLACE INTO &quot;Ochl_Day&quot; (&quot;time&quot;, &quot;symbol&quot
   (&#39;2026-09-10T00:00:00.000000Z&#39;, &#39;VOLT&#39;, 187.3, 192.1, 184.2, 191.2, 41470.0);</code></pre>
 <h3 id="3-load">3. Load</h3>
 <pre><code class="language-powershell">$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Get-Content Ochl_Day.sql -Raw -Encoding UTF8 | kdb sql market -
+Get-Content Ochl_Day.sql -Raw -Encoding UTF8 | kareladb sql market -
 &quot;exit code: $LASTEXITCODE&quot;
-kdb sql market &quot;SELECT * FROM Ochl_Day&quot;</code></pre>
+kareladb sql market &quot;SELECT * FROM Ochl_Day&quot;</code></pre>
 <pre><code class="language-text">3 row(s) inserted
 
 2 row(s) inserted
@@ -248,8 +248,8 @@ time                     | symbol | open  | high  | low   | close | volume
 (5 rows, 0.3 ms)</code></pre>
 <p>Loading the same file again is safe:</p>
 <pre><code class="language-powershell"># Running the same import again is safe: INSERT OR REPLACE finds the rows by (time, symbol).
-Get-Content Ochl_Day.sql -Raw -Encoding UTF8 | kdb sql market -
-kdb sql market &quot;SELECT count(*) AS rows FROM Ochl_Day&quot;</code></pre>
+Get-Content Ochl_Day.sql -Raw -Encoding UTF8 | kareladb sql market -
+kareladb sql market &quot;SELECT count(*) AS rows FROM Ochl_Day&quot;</code></pre>
 <pre><code class="language-text">0 row(s) inserted, 3 replaced
 
 0 row(s) inserted, 2 replaced
@@ -260,8 +260,8 @@ rows
 <p>Duplicates inside the file are handled too. <code>TradeLog.csv</code> has transaction 100002 twice:</p>
 <pre><code class="language-powershell"># TradeLog.csv has transaction 100002 twice. DEDUP KEY (date, transaction_id) keeps one row.
 .\csv-to-sql.ps1 -Csv TradeLog.csv -Table TradeLog -Out TradeLog.sql
-Get-Content TradeLog.sql -Raw -Encoding UTF8 | kdb sql market -
-kdb sql market &quot;SELECT date, transaction_id, symbol, buyer, seller, quantity, rate, amount FROM TradeLog&quot;</code></pre>
+Get-Content TradeLog.sql -Raw -Encoding UTF8 | kareladb sql market -
+kareladb sql market &quot;SELECT date, transaction_id, symbol, buyer, seller, quantity, rate, amount FROM TradeLog&quot;</code></pre>
 <pre><code class="language-text">4 rows from TradeLog.csv written to TradeLog.sql
 3 row(s) inserted, 1 replaced
 date                     | transaction_id | symbol | buyer | seller | quantity | rate  | amount
@@ -270,11 +270,11 @@ date                     | transaction_id | symbol | buyer | seller | quantity |
 2026-09-10T00:00:00.000Z |         100002 | COAST  |    45 |      1 |     1000 |   398 | 398000
 2026-09-10T00:00:00.000Z |         100003 | VOLT   |    34 |     58 |      200 |   184 |  36800
 (3 rows, 0.2 ms)</code></pre>
-<p><strong>While the KDB server runs</strong>, send the file with POST (chapter 8). The body may be up to 64 MB, so split very big SQL files (for example one file per month):</p>
+<p><strong>While the KarelaDB server runs</strong>, send the file with POST (chapter 8). The body may be up to 64 MB, so split very big SQL files (for example one file per month):</p>
 <pre><code class="language-powershell">$body = [System.IO.File]::ReadAllBytes((Resolve-Path Ochl_Day.sql))
 $r = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/exec?compat=0&quot; -Body $body -ContentType &quot;text/plain; charset=utf-8&quot;
 $r.results | ForEach-Object { $_.message }</code></pre>
-<p>Speed: on the test PC, loading 24,000 minute rows in 5 statements of 5000 rows took about 0.6 seconds with <code>kdb sql</code>. The PowerShell conversion script is slower than the load; for many millions of rows you may want to convert in Go or Python (same rules: numbers stay numbers, other values in single quotes with <code>&#39;</code> doubled).</p>
+<p>Speed: on the test PC, loading 24,000 minute rows in 5 statements of 5000 rows took about 0.6 seconds with <code>kareladb sql</code>. The PowerShell conversion script is slower than the load; for many millions of rows you may want to convert in Go or Python (same rules: numbers stay numbers, other values in single quotes with <code>&#39;</code> doubled).</p>
 <h3 id="4-compare">4. Compare</h3>
 <p>Run the same checks on both databases:</p>
 <pre><code class="language-sql">SELECT count(*) AS rows, min(time) AS first, max(time) AS last, sum(volume) AS volume
@@ -284,20 +284,20 @@ SELECT date, count(*) AS trades, sum(quantity) AS shares, sum(amount) AS amount
 FROM TradeLog WHERE date IN &#39;2026-09&#39; SAMPLE BY 1d;</code></pre>
 <p>The numbers must be the same. Also open a few charts in both consoles.</p>
 <h2 id="a-migration-checklist">A migration checklist</h2>
-<ol><li>Build KDB, run the tests (chapter 1).</li><li>Create the tables (above). Keep the SQL in a file in the 006 repo.</li><li>Export and load one small table (<code>LiveData</code> of one day). Compare.</li><li>Load <code>Ochl_Day</code>, one year at a time. Compare counts per year.</li><li>Load <code>Ochl_Minutes</code> and <code>Ochl_Minutes_Adj</code>, one month at a time.</li><li>Load <code>TradeLog</code>, one day or month at a time.</li><li>Change the queries that use the differences above (<code>DROP PARTITION LIST</code>, <code>&#39;2026-09-10;1d&#39;</code>).</li><li>Point the Go <code>pgx</code> connection at port 8832 (chapter 14), and the ILP writers at <code>POST /write</code> on port 9900.</li><li>Run 006 against KDB on a test PC for some days, next to QuestDB.</li><li>Set up the daily backup and check (chapters 7 and 9), and test a restore.</li></ol>
+<ol><li>Build KarelaDB, run the tests (chapter 1).</li><li>Create the tables (above). Keep the SQL in a file in the 006 repo.</li><li>Export and load one small table (<code>LiveData</code> of one day). Compare.</li><li>Load <code>Ochl_Day</code>, one year at a time. Compare counts per year.</li><li>Load <code>Ochl_Minutes</code> and <code>Ochl_Minutes_Adj</code>, one month at a time.</li><li>Load <code>TradeLog</code>, one day or month at a time.</li><li>Change the queries that use the differences above (<code>DROP PARTITION LIST</code>, <code>&#39;2026-09-10;1d&#39;</code>).</li><li>Point the Go <code>pgx</code> connection at port 8832 (chapter 14), and the ILP writers at <code>POST /write</code> on port 9900.</li><li>Run 006 against KarelaDB on a test PC for some days, next to QuestDB.</li><li>Set up the daily backup and check (chapters 7 and 9), and test a restore.</li></ol>
 <h2 id="try-it-yourself">Try it yourself</h2>
-<ol><li>Write the KDB <code>CREATE TABLE</code> for a QuestDB table <code>Index_Minutes (time TIMESTAMP, index_name SYMBOL INDEX, value DOUBLE) TIMESTAMP(time) PARTITION BY MONTH WAL DEDUP UPSERT KEYS(time, index_name)</code>.</li><li>Rewrite for KDB: <code>SELECT * FROM Ochl_Day WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 20,40</code>.</li><li>Rewrite for KDB: <code>SELECT timestamp_floor(&#39;1d&#39;, time) AS day, count() FROM LiveData GROUP BY day</code>.</li></ol>
+<ol><li>Write the KarelaDB <code>CREATE TABLE</code> for a QuestDB table <code>Index_Minutes (time TIMESTAMP, index_name SYMBOL INDEX, value DOUBLE) TIMESTAMP(time) PARTITION BY MONTH WAL DEDUP UPSERT KEYS(time, index_name)</code>.</li><li>Rewrite for KarelaDB: <code>SELECT * FROM Ochl_Day WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 20,40</code>.</li><li>Rewrite for KarelaDB: <code>SELECT timestamp_floor(&#39;1d&#39;, time) AS day, count() FROM LiveData GROUP BY day</code>.</li></ol>
 <details>
 <summary>Answers</summary>
 <ol><li><pre><code class="language-sql">CREATE TABLE IF NOT EXISTS &quot;Index_Minutes&quot; (
   time TIMESTAMP, index_name SYMBOL, value DOUBLE
 ) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (time, index_name);</code></pre></li><li><pre><code class="language-sql">SELECT * FROM Ochl_Day WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 20 OFFSET 20;</code></pre>
-<p>(QuestDB <code>LIMIT 20,40</code> means rows 21 to 40. KDB also takes <code>LIMIT 20,40</code> as it is.)</p></li><li><pre><code class="language-sql">SELECT timestamp, count(*) AS n FROM LiveData SAMPLE BY 1d;</code></pre>
+<p>(QuestDB <code>LIMIT 20,40</code> means rows 21 to 40. KarelaDB also takes <code>LIMIT 20,40</code> as it is.)</p></li><li><pre><code class="language-sql">SELECT timestamp, count(*) AS n FROM LiveData SAMPLE BY 1d;</code></pre>
 <p>or <code>SELECT date_trunc(&#39;day&#39;, timestamp) AS day, count(*) AS n FROM LiveData GROUP BY date_trunc(&#39;day&#39;, timestamp);</code>. The QuestDB text with <code>timestamp_floor</code> and <code>count()</code> also runs as it is.</p></li></ol>
 </details>
 <hr>
 <p>Next: <a href="11-sql-reference.html">11. SQL reference</a></p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/10-migrating-from-questdb.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/10-migrating-from-questdb.md">This page as markdown</a>.</footer>
 </body>
 </html>

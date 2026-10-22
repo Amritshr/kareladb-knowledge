@@ -3,8 +3,8 @@
 > Load many rows fast with the InfluxDB line format over HTTP - one line per row, answered with 204.
 
 - Category: Writing data
-- Keywords: line protocol, ILP, InfluxDB, auto-create, create table from lines, ilp\_auto\_create, KDB\_ILP\_AUTO\_CREATE, influx, /write, /api/v2/write, precision, nanoseconds, seconds, milliseconds, 1970, timestamps look like seconds, tag, field, measurement, ticks, live feed, bulk load, 204, 503, 507, disk full, table is busy, errorId, QuestDB ILP, upsert, upsert, merge, partial update, 3i, integer suffix, t suffix, Telegraf
-- See also: [INSERT](insert.md), [Loading many rows](loading-data.md), [Triggers](triggers.md), [HTTP API overview](http-overview.md), [CREATE TABLE](create-table.md), [Performance tips](performance-tips.md)
+- Keywords: line protocol, ILP, InfluxDB, auto-create, create table from lines, ilp\_auto\_create, KARELADB\_ILP\_AUTO\_CREATE, influx, /write, /api/v2/write, precision, nanoseconds, seconds, milliseconds, 1970, timestamps look like seconds, tag, field, measurement, ticks, live feed, bulk load, 204, 503, 507, disk full, table is busy, errorId, QuestDB ILP, upsert, upsert, merge, partial update, 3i, integer suffix, t suffix, Telegraf
+- See also: [INSERT](insert.md), [Loading many rows](loading-data.md), [Triggers](triggers.md), [HTTP API overview](http-overview.md), [CREATE TABLE](create-table.md), [Performance tips](performance-tips.md), [Grafana and Prometheus](grafana.md)
 
 The **line protocol** is a very short text format for rows, made by InfluxDB and used by QuestDB. Each line is one row. It is faster to make and to read than `INSERT` statements, so it is good for live feeds (market ticks or sensor readings every second) and big loads.
 
@@ -54,25 +54,25 @@ Rules for writing lines:
 - Columns not in a line get their `DEFAULT`, or NULL.
 - A decimal number like `5.0` cannot go into an `INT` or `LONG` column: write `5i`.
 - The time column itself cannot be a field: send its value as the line's timestamp.
-- KDB keeps times in milliseconds. Finer parts (microseconds, nanoseconds) are cut off.
+- KarelaDB keeps times in milliseconds. Finer parts (microseconds, nanoseconds) are cut off.
 - `precision=` is only for the timestamp at the **end** of the line. A `TIMESTAMP` field always needs microseconds and `t`.
 
 <a id="wrong-unit"></a>
 
 ## Times in the wrong unit
 
-A time in the wrong unit is the easiest way to load wrong data: `1757750400` read as nanoseconds is 1.7 seconds after midnight on 1 January 1970. KDB **refuses** such a request with 400 and says how to fix it. Nothing of the request is written.
+A time in the wrong unit is the easiest way to load wrong data: `1757750400` read as nanoseconds is 1.7 seconds after midnight on 1 January 1970. KarelaDB **refuses** such a request with 400 and says how to fix it. Nothing of the request is written.
 
-| You send | KDB answers |
+| You send | KarelaDB answers |
 |---|---|
 | No `precision=`, and **every** line timestamp is before 1990 as nanoseconds, while one of them is a 1990-2200 time in seconds, milliseconds or microseconds | 400 `timestamps look like seconds (1757750400) but precision= is not set: add ?precision=s` |
 | A `t` field whose number is a 1990-2200 time in seconds or milliseconds (`1757750400000t`) | 400 `column 'at' cannot take 1757750400000t: a t value is microseconds, and this number looks like milliseconds ...; write 1757750400000000t` |
 | A plain whole number for a `TIMESTAMP` or `DATE` field (`at=1757750400000` or `at=1757750400000i`) | 400 `... cannot take the plain number 1757750400000i: a time field needs microseconds with a t suffix (this number looks like milliseconds: write 1757750400000000t)` |
 
 - **Always send `precision=`** when your timestamps are not nanoseconds. With `precision=` the numbers are taken as sent, with no check.
-- The ranges of seconds, milliseconds and microseconds do not overlap, so the message names the one unit that fits. KDB never guesses and writes.
+- The ranges of seconds, milliseconds and microseconds do not overlap, so the message names the one unit that fits. KarelaDB never guesses and writes.
 - Real nanosecond data still goes in, also a small test time like `5`: no unit makes that a 1990-2200 time.
-- **QuestDB:** QuestDB takes the same bodies without an error and writes 1970 times. A plain integer for a `TIMESTAMP` field is read as microseconds there; KDB refuses it, because apps often mean milliseconds.
+- **QuestDB:** QuestDB takes the same bodies without an error and writes 1970 times. A plain integer for a `TIMESTAMP` field is read as microseconds there; KarelaDB refuses it, because apps often mean milliseconds.
 
 **HTTP: Seconds without precision=: refused, nothing written** (sample data: sample)
 
@@ -91,7 +91,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: timestamps look like seconds (1789103700) but precision= is not set: add ?precision=s (without it they are read as nanoseconds and would land on 1970-01-01T00:00:01.789Z)",
   "line": 1,
-  "errorId": "d0e4b1bc074d-1"
+  "errorId": "58c760f66a84-1"
 }
 ```
 
@@ -133,10 +133,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 15, "execute_us": 89}
+      "timings": {"parse_us": 12, "execute_us": 88}
     }
   ],
-  "timings": {"parse_us": 15, "execute_us": 89}
+  "timings": {"parse_us": 12, "execute_us": 88}
 }
 ```
 
@@ -163,7 +163,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'orders_log', column 'placed' cannot take 1789103700000t: a t value is microseconds, and this number looks like milliseconds (it would be 1970-01-21T16:58:23.700Z); write 1789103700000000t",
   "line": 1,
-  "errorId": "d0e4b1bc074d-2"
+  "errorId": "58c760f66a84-2"
 }
 ```
 
@@ -235,10 +235,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 56, "execute_us": 166}
+      "timings": {"parse_us": 9, "execute_us": 45}
     }
   ],
-  "timings": {"parse_us": 56, "execute_us": 166}
+  "timings": {"parse_us": 9, "execute_us": 45}
 }
 ```
 
@@ -295,10 +295,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 130}
+      "timings": {"parse_us": 23, "execute_us": 163}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 130}
+  "timings": {"parse_us": 23, "execute_us": 163}
 }
 ```
 
@@ -322,7 +322,7 @@ When the lines name a table the database does not have, `POST /write` makes it, 
 - Making a table needs the role **ddl** (like [/imp](loading-data.md)). A user with role `write` gets 403 for a table that is not there.
 - A column sent as two kinds (`3i` in one line, `1.5` in another) is refused with 400, and no table is made: a guess could lose digits. So is a field named `timestamp`.
 - A request with a bad line makes no table.
-- The admin turns this off with `--ilp-auto-create off`, `"ilp_auto_create": "off"` in kdb.conf, or `KDB_ILP_AUTO_CREATE=off`. Then a table that is not there is an error, 400 `table 'x' does not exist; create it first`.
+- The admin turns this off with `--ilp-auto-create off`, `"ilp_auto_create": "off"` in kareladb.conf, or `KARELADB_ILP_AUTO_CREATE=off`. Then a table that is not there is an error, 400 `table 'x' does not exist; create it first`.
 - Columns are not added to a table that is already there: a line with a new field is an error. Add the column with `ALTER TABLE ... ADD COLUMN`.
 
 **HTTP: A table that is not there is made from the lines**
@@ -369,10 +369,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 4, "execute_us": 9}
+      "timings": {"parse_us": 13, "execute_us": 6}
     }
   ],
-  "timings": {"parse_us": 4, "execute_us": 9}
+  "timings": {"parse_us": 13, "execute_us": 6}
 }
 ```
 
@@ -423,7 +423,7 @@ Parses every line, then writes all the rows in **one transaction**. Rows are **u
 # Market ticks from a file, sent gzip-compressed
 gzip -c ticks.lp | curl --data-binary @- -H "Content-Encoding: gzip" "http://127.0.0.1:9900/write?precision=ms"
 ```
-  - **QuestDB:** QuestDB creates missing tables and columns; KDB refuses them with a clear message. QuestDB's line protocol over TCP (port 9009) is not available: use HTTP. The error answer has QuestDB's shape.
+  - **QuestDB:** QuestDB creates missing tables and columns; KarelaDB refuses them with a clear message. QuestDB's line protocol over TCP (port 9009) is not available: use HTTP. The error answer has QuestDB's shape.
 
 **HTTP: Three market ticks, times in seconds** (sample data: sample)
 
@@ -469,10 +469,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 41, "execute_us": 108}
+      "timings": {"parse_us": 16, "execute_us": 71}
     }
   ],
-  "timings": {"parse_us": 41, "execute_us": 108}
+  "timings": {"parse_us": 16, "execute_us": 71}
 }
 ```
 
@@ -532,10 +532,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 14, "execute_us": 101}
+      "timings": {"parse_us": 13, "execute_us": 76}
     }
   ],
-  "timings": {"parse_us": 14, "execute_us": 101}
+  "timings": {"parse_us": 13, "execute_us": 76}
 }
 ```
 
@@ -604,10 +604,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 83}
+      "timings": {"parse_us": 43, "execute_us": 96}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 83}
+  "timings": {"parse_us": 43, "execute_us": 96}
 }
 ```
 
@@ -657,10 +657,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 115}
+      "timings": {"parse_us": 11, "execute_us": 63}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 115}
+  "timings": {"parse_us": 11, "execute_us": 63}
 }
 ```
 
@@ -687,7 +687,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 2: table 'live_data', column 'volume' is LONG and cannot take a float; write whole numbers with an i suffix, like 3i",
   "line": 2,
-  "errorId": "d0e4b1bc074d-3"
+  "errorId": "58c760f66a84-3"
 }
 ```
 
@@ -711,10 +711,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 15, "execute_us": 75}
+      "timings": {"parse_us": 11, "execute_us": 60}
     }
   ],
-  "timings": {"parse_us": 15, "execute_us": 75}
+  "timings": {"parse_us": 11, "execute_us": 60}
 }
 ```
 
@@ -735,7 +735,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'live_data' has no column 'turnover'; add it first (ALTER TABLE live_data ADD COLUMN ...)",
   "line": 1,
-  "errorId": "d0e4b1bc074d-4"
+  "errorId": "58c760f66a84-4"
 }
 ```
 
@@ -789,10 +789,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 84}
+      "timings": {"parse_us": 10, "execute_us": 48}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 84}
+  "timings": {"parse_us": 10, "execute_us": 48}
 }
 ```
 
@@ -813,7 +813,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "unsupported precision 'minutes': use n, u, ms or s",
   "line": 0,
-  "errorId": "d0e4b1bc074d-5"
+  "errorId": "58c760f66a84-5"
 }
 ```
 
@@ -899,7 +899,7 @@ The same as [POST /write](line-protocol.md#post-write), at the path InfluxDB 2 c
 | 204, or `{"code", "message", "line", "errorId"}` | as for [POST /write](line-protocol.md#post-write) |
 
 - **Status codes:** as for POST /write.
-- **Notes:** an InfluxDB client library can send here when its URL is the KDB server and the database is given with `db=` (or the `X-KDB-Database` header). With a KDB `--token`, send it as `Authorization: Bearer <token>`; InfluxDB's `Authorization: Token ...` is not accepted. The client's gzip setting can stay on: gzip bodies are unpacked.
+- **Notes:** an InfluxDB client library can send here when its URL is the KarelaDB server and the database is given with `db=` (or the `X-KDB-Database` header). With a KarelaDB `--token`, send it as `Authorization: Bearer <token>`; InfluxDB's `Authorization: Token ...` is not accepted. The client's gzip setting can stay on: gzip bodies are unpacked.
 
 **HTTP: The InfluxDB 2 path** (sample data: sample)
 
@@ -940,9 +940,9 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 119}
+      "timings": {"parse_us": 11, "execute_us": 64}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 119}
+  "timings": {"parse_us": 11, "execute_us": 64}
 }
 ```

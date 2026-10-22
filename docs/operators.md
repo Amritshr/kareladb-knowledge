@@ -1,13 +1,13 @@
 # Operators
 
-> Every operator of KDB SQL, which one is done first, and what NULL does to each of them.
+> Every operator of KarelaDB SQL, which one is done first, and what NULL does to each of them.
 
 - Category: Querying
 - Keywords: operator, precedence, order of operations, parentheses, +, -, \*, /, %, ||, concat, join text, -\>, -\>\>, ::, cast, , !, \<\>, NULL rules, three-valued logic, unary minus, precedence, ||, ::, -\>, -\>\>, int\_division, integer division, integer division, int\_division, 7 / 2
 - See also: [WHERE](where.md), [Math functions (operators)](functions-math.md#operators), [Conversion functions](functions-conversion.md), [JSON functions](functions-json.md), [Conditional and NULL functions](functions-conditional.md), [Text functions](functions-text.md)
 
 An **operator** is a sign or a word between values, like `+`, `=`, `AND` or `||`.
-When an expression has many operators, KDB does the tight ones first: `2 + 3 * 4` is `14`, because `*` binds tighter than `+`.
+When an expression has many operators, KarelaDB does the tight ones first: `2 + 3 * 4` is `14`, because `*` binds tighter than `+`.
 Use `( )` to choose the order yourself, and to make long conditions easy to read.
 
 **Example: A trade log report line: value, commission and a flag** (sample data: sample)
@@ -242,7 +242,7 @@ Syntax:
 SET int_division = integer | float | default
 ```
 
-In KDB, `/` gives a `DOUBLE`: `7 / 2` is `3.5`. PostgreSQL gives `3`: a whole number divided by a whole number stays a whole number there. An app written for PostgreSQL may count on that, for example to read `sum(ms) / 1000` into an integer.
+In KarelaDB, `/` gives a `DOUBLE`: `7 / 2` is `3.5`. PostgreSQL gives `3`: a whole number divided by a whole number stays a whole number there. An app written for PostgreSQL may count on that, for example to read `sum(ms) / 1000` into an integer.
 
 | Setting | `7 / 2` | `-7 / 2` | `7 / 2.0` |
 |---|---|---|---|
@@ -251,7 +251,7 @@ In KDB, `/` gives a `DOUBLE`: `7 / 2` is `3.5`. PostgreSQL gives `3`: a whole nu
 
 - **Returns:** with `integer`, `LONG` / `LONG` is a `LONG`, cut toward zero. When either side is a `DOUBLE`, the result is still a `DOUBLE`; a `DECIMAL` divided by a `DECIMAL` or a whole number is an exact `DECIMAL` in both settings ([DECIMAL](column-types.md#decimal)).
 - **Scope:** the setting is for the **session**: the rest of one `/exec` request, a shell, or one Postgres connection. Triggers and procedures that its statements run use it too. `default` goes back to what the session started with.
-- **Postgres port:** `kdb serve --pg-int-division on` (or `KDB_PG_INT_DIVISION=on`) makes `integer` the start value of every Postgres connection. A connection can also ask for it in its connection string (the startup parameter `int_division=integer`), or send `SET int_division = integer`. `SHOW int_division` gives the value.
+- **Postgres port:** `kareladb serve --pg-int-division on` (or `KARELADB_PG_INT_DIVISION=on`) makes `integer` the start value of every Postgres connection. A connection can also ask for it in its connection string (the startup parameter `int_division=integer`), or send `SET int_division = integer`. `SHOW int_division` gives the value.
 - **Table expressions:** a table's own `CHECK`, `DEFAULT`, computed columns, index expressions and materialized view queries always use the default `DOUBLE` division, whatever the session that writes or reads. They are shared by every session, so the answer must not depend on who asked. A query in `integer` mode does not use an index on an expression with `/`; it reads the table instead.
 - **Notes:** division by zero is an error in both modes. To get a `DOUBLE` in `integer` mode, cast one side: `CAST(x AS DOUBLE) / y`. To get a whole number in `float` mode, use `trunc(x / y)`.
 

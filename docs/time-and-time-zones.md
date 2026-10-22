@@ -1,18 +1,18 @@
 # Time and time zones
 
-> How KDB stores times (UTC milliseconds), how to write a local time with its offset (like +05:45), the session's time zone (SET TIME ZONE, --timezone), time zone names, and time ranges with IN '...'.
+> How KarelaDB stores times (UTC milliseconds), how to write a local time with its offset (like +05:45), the session's time zone (SET TIME ZONE, --timezone), time zone names, and time ranges with IN '...'.
 
 - Category: Time-series
-- Keywords: time, times, UTC, Z, time zone, timezone, summer time, daylight saving, DST, America/New\_York, Europe/London, tzdata, zoneinfo, KDB\_ZONEINFO, SET TIME ZONE, SHOW TIME ZONE, --timezone, KDB\_TIMEZONE, CURRENT\_DATE, today, local time, zone offset, NPT, Nepal time, +05:45, Asia/Kathmandu, Asia/Katmandu, Asia/Kolkata, IST, GMT, daylight saving, TIMESTAMP, DATE, milliseconds, microseconds, epoch, time format, date format, ISO 8601, IN 'interval', time range, interval, trading hours, 20700000, to\_char, market open, market close
+- Keywords: time, times, UTC, Z, time zone, timezone, summer time, daylight saving, DST, America/New\_York, Europe/London, tzdata, zoneinfo, KARELADB\_ZONEINFO, SET TIME ZONE, SHOW TIME ZONE, --timezone, KARELADB\_TIMEZONE, CURRENT\_DATE, today, local time, zone offset, NPT, Nepal time, +05:45, Asia/Kathmandu, Asia/Katmandu, Asia/Kolkata, IST, GMT, daylight saving, TIMESTAMP, DATE, milliseconds, microseconds, epoch, time format, date format, ISO 8601, IN 'interval', time range, interval, trading hours, 20700000, to\_char, market open, market close
 - See also: [SAMPLE BY (time-zone)](sample-by.md#time-zone), [WHERE (in-interval)](where.md#in-interval), [WHERE (between)](where.md#between), [Partitions, SORT BY and DEDUP KEY (partition-by)](partitions-and-dedup.md#partition-by), [Date and time functions](functions-date-time.md), [Operators (arithmetic)](operators.md#arithmetic), [Column types](column-types.md)
 
-KDB keeps every time in **UTC** (world time, the time at longitude 0). A local time is UTC plus or minus an offset: New York in summer is `-04:00`, Tokyo is `+09:00`. Most examples here use Nepal time (NPT), which is **5 hours 45 minutes ahead** of UTC and has no daylight saving time. So 11:00 in Kathmandu is 05:15 UTC.
+KarelaDB keeps every time in **UTC** (world time, the time at longitude 0). A local time is UTC plus or minus an offset: New York in summer is `-04:00`, Tokyo is `+09:00`. Most examples here use Nepal time (NPT), which is **5 hours 45 minutes ahead** of UTC and has no daylight saving time. So 11:00 in Kathmandu is 05:15 UTC.
 
 Three rules cover almost everything:
 
 1. When you **write** a local time, add its zone offset, for example `+05:45`: `'2026-09-10T11:00:00+05:45'`.
 2. A time **without** a zone is UTC: `'2026-09-10 11:00:00'` is 11:00 UTC, which is 16:45 in Nepal.
-3. KDB always **shows** times in UTC, with a `Z` at the end.
+3. KarelaDB always **shows** times in UTC, with a `Z` at the end.
 
 To make `CURRENT_DATE`, `::date`, `date_trunc` and `EXTRACT` work on the Nepal clock, set the [session's time zone](#session-time-zone): `SET TIME ZONE 'Asia/Kathmandu'`, or start the server with `--timezone Asia/Kathmandu`.
 
@@ -48,7 +48,7 @@ A `TIMESTAMP` column holds one number: milliseconds since the start of 1970 in U
 - **Returns:** a `TIMESTAMP` is shown as `2026-09-10T05:15:00.000Z`, a `DATE` as `2026-09-10`.
 - **NULL:** a time can be `NULL` (no value).
 - **Notes:**
-  - Milliseconds only. More digits after the second are **cut**: `.1234567` becomes `.123`. QuestDB keeps microseconds; KDB does not.
+  - Milliseconds only. More digits after the second are **cut**: `.1234567` becomes `.123`. QuestDB keeps microseconds; KarelaDB does not.
   - Partitions (the files of a time-series table) are made by the **UTC** date. See [PARTITION BY](partitions-and-dedup.md#partition-by).
   - `ROUND 1d` on a column cuts times to the UTC day when a row is written ([create-table](create-table.md)). `ROUND 1d TIME ZONE 'Asia/Kathmandu'` cuts to Nepal midnight instead ([TIME ZONE](sample-by.md#time-zone)).
   - Adding a number to a `TIMESTAMP` adds milliseconds; `TIMESTAMP - TIMESTAMP` gives milliseconds. Adding a number to a `DATE` adds days ([operators](operators.md#arithmetic)).
@@ -133,9 +133,9 @@ Syntax:
 number  (milliseconds since 1970, UTC)
 ```
 
-KDB reads a time from text in these forms. It reads them in `INSERT`, `UPDATE`, `CAST`, and when text is compared with a time column in `WHERE`.
+KarelaDB reads a time from text in these forms. It reads them in `INSERT`, `UPDATE`, `CAST`, and when text is compared with a time column in `WHERE`.
 
-| You write | KDB reads it as |
+| You write | KarelaDB reads it as |
 |---|---|
 | `'2026-09-10'` | 00:00 UTC of that day |
 | `'2026-09-10 11:00'` or `'2026-09-10T11:00:00'` | 11:00 **UTC** (not Nepal time!) |
@@ -151,7 +151,7 @@ KDB reads a time from text in these forms. It reads them in `INSERT`, `UPDATE`, 
   - `T` or one space goes between the date and the time. No space before the zone: `'... 11:00:00 +05:45'` is an error.
   - The date must exist: `'2026-02-30'` and hour `24` are errors.
   - Only in `IN '...'` can the text stop after the year or month (`'2026-09'`). In `>=`, `<`, `=` and `BETWEEN` the text needs at least the day.
-  - Newer KDB builds also read `'+05:45:00'` (with seconds), which PostgreSQL drivers send.
+  - Newer KarelaDB builds also read `'+05:45:00'` (with seconds), which PostgreSQL drivers send.
   - Change other formats in your program before you send them.
 
 **Example: Many spellings of a time** (sample data: sample)
@@ -247,12 +247,12 @@ The examples use Nepal Standard Time, UTC + 5 hours 45 minutes, all year; any ot
 | Nepal midnight | 00:00 | 18:15 of the day before |
 
 - **Notes:**
-  - **The most common mistake:** a local time written without its offset (here `+05:45`). KDB reads it as UTC, and the row is 5 h 45 min wrong. Fix bad rows with `UPDATE t SET time = time - 20700000 WHERE ...` (check the DEDUP KEY first).
+  - **The most common mistake:** a local time written without its offset (here `+05:45`). KarelaDB reads it as UTC, and the row is 5 h 45 min wrong. Fix bad rows with `UPDATE t SET time = time - 20700000 WHERE ...` (check the DEDUP KEY first).
   - `hour()`, `day()`, `date_trunc()` and `is_trading_day()` work on the [session's time zone](#session-time-zone), which is **UTC** unless you set one. `time IN '...'` is always UTC. For the Nepal hour in a UTC session write `hour(to_timezone(time, 'Asia/Kathmandu'))`. For Nepal days: `time IN '2026-09-10' TIME ZONE 'Asia/Kathmandu'`, `date_trunc('day', time, 'Asia/Kathmandu')` ([date functions](functions-date-time.md#date_trunc)).
   - `time + 20700000` shows the Nepal clock, but the result still ends with `Z`. Use it only for showing or for `hour()`, never to store.
   - For candles on the Nepal clock use [SAMPLE BY ... TIME ZONE](sample-by.md#time-zone).
   - The whole trading day of the sample data (05:15 to 09:15 UTC) is inside one UTC day, so `time IN '2026-09-10'` finds exactly one trading day.
-  - `to_char(t, format, 'Asia/Kathmandu')` makes Nepal-time text; it is in newer KDB builds ([date and time functions](functions-date-time.md)).
+  - `to_char(t, format, 'Asia/Kathmandu')` makes Nepal-time text; it is in newer KarelaDB builds ([date and time functions](functions-date-time.md)).
 
 **Example: Trades between 11:00 and 11:05 Nepal time** (sample data: sample)
 
@@ -382,12 +382,12 @@ Syntax:
 SET TIME ZONE 'Asia/Kathmandu'      -- also: SET timezone = 'Asia/Kathmandu', SET TIME ZONE '+05:45'
 SET TIME ZONE LOCAL                 -- back to the server's zone (also DEFAULT, RESET TIME ZONE)
 SHOW TIME ZONE                      -- also SHOW timezone, current_setting('TimeZone')
-kdb serve --timezone Asia/Kathmandu -- the server's zone: env KDB_TIMEZONE, kdb.conf "timezone"; else the computer's
+kareladb serve --timezone Asia/Kathmandu -- the server's zone: env KARELADB_TIMEZONE, kareladb.conf "timezone"; else the computer's
 ALTER USER asha SET timezone = 'Asia/Kathmandu' -- one user's zone: their sessions start on it
 X-KDB-Time-Zone: Asia/Kathmandu     -- HTTP header: the zone for one request
 ```
 
-Times are still **stored** in UTC. The time zone only decides on which **day** and at which **clock time** a stored moment falls. A session starts with its user's zone when an admin gave the user one ([ALTER USER ... SET timezone](users-and-roles.md#user-timezone)), else the server's: `kdb serve --timezone`, else **the computer's own zone** (`SHOW TIME ZONE` says which; a container without a zone is UTC). `SET TIME ZONE` changes it for the rest of the session: a PostgreSQL connection, an HTTP session (`X-KDB-Session`), or the rest of one `/exec` request.
+Times are still **stored** in UTC. The time zone only decides on which **day** and at which **clock time** a stored moment falls. A session starts with its user's zone when an admin gave the user one ([ALTER USER ... SET timezone](users-and-roles.md#user-timezone)), else the server's: `kareladb serve --timezone`, else **the computer's own zone** (`SHOW TIME ZONE` says which; a container without a zone is UTC). `SET TIME ZONE` changes it for the rest of the session: a PostgreSQL connection, an HTTP session (`X-KDB-Session`), or the rest of one `/exec` request.
 
 | What | In a UTC session | With `SET TIME ZONE 'Asia/Kathmandu'` |
 |---|---|---|
@@ -409,7 +409,7 @@ Times are still **stored** in UTC. The time zone only decides on which **day** a
   - Zones with summer time (`'America/New_York'`, `'Europe/London'`) work too: each moment is shown on the offset in force at that moment ([summer time](#summer-time)).
   - The PostgreSQL port tells the driver the zone (`TimeZone`) when it connects and after each `SET TIME ZONE`. With `--pg-timestamptz`, `TIMESTAMP` columns are sent as text on the session's clock, like `2026-09-10 11:00:00+05:45`.
   - `--timezone` also sets the clock of timer and backup schedules: `daily 15:10` runs at 15:10 on that clock. Without it, schedules use the machine's clock (UTC in a container).
-  - An `+05:45` offset means 5 h 45 min **ahead** of UTC, as everywhere in KDB. (PostgreSQL reads `SET TIME ZONE '+05:45'` the other way round.)
+  - An `+05:45` offset means 5 h 45 min **ahead** of UTC, as everywhere in KarelaDB. (PostgreSQL reads `SET TIME ZONE '+05:45'` the other way round.)
 
 **Example: Logins per UTC day and per Nepal day: 18:30 UTC is 00:15 the next day in Nepal** (sample data: sample)
 
@@ -473,7 +473,7 @@ the time zone of this session is Asia/Kathmandu; times are still stored as UTC
 
 | today_in_nepal (DATE) | nepal_clock (TIMESTAMP) | utc_now (TIMESTAMP) | as_text (STRING) | zone (STRING) |
 |---|---|---|---|---|
-| 2026-10-22 | 2026-10-22T11:29:30.621Z | 2026-10-22T05:44:30.621Z | 2026-10-22 11:29:30.621+05:45 | Asia/Kathmandu |
+| 2026-10-22 | 2026-10-22T15:41:33.066Z | 2026-10-22T09:56:33.066Z | 2026-10-22 15:41:33.066+05:45 | Asia/Kathmandu |
 
 (1 row)
 
@@ -556,7 +556,7 @@ Syntax:
 '+HH:MM' | '-HH:MM'
 ```
 
-The zone names KDB knows, for `SET TIME ZONE`, `kdb serve --timezone`, `SAMPLE BY ... TIME ZONE`, `time IN '...' TIME ZONE`, `ROUND ... TIME ZONE`, `date_trunc(unit, t, zone)`, `timestamp_floor`, `to_timezone`, `to_utc` and `to_char`.
+The zone names KarelaDB knows, for `SET TIME ZONE`, `kareladb serve --timezone`, `SAMPLE BY ... TIME ZONE`, `time IN '...' TIME ZONE`, `ROUND ... TIME ZONE`, `date_trunc(unit, t, zone)`, `timestamp_floor`, `to_timezone`, `to_utc` and `to_char`.
 
 | Name | Offset from UTC |
 |---|---|
@@ -614,17 +614,17 @@ Result:
 
 ## Zones with summer time
 
-A zone with **summer time** (daylight saving time) has two offsets a year: New York is `-05:00` in winter and `-04:00` in summer. KDB takes the rules from the IANA time zone files that every Linux keeps (package `tzdata`), so each moment gets the offset that was in force at that moment, in any year.
+A zone with **summer time** (daylight saving time) has two offsets a year: New York is `-05:00` in winter and `-04:00` in summer. KarelaDB takes the rules from the IANA time zone files that every Linux keeps (package `tzdata`), so each moment gets the offset that was in force at that moment, in any year.
 
 | Where | A zone with summer time |
 |---|---|
-| `SET TIME ZONE`, `kdb serve --timezone`, `X-KDB-Time-Zone` | yes: `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, `to_char`, a `DATE` met by a `TIMESTAMP` |
+| `SET TIME ZONE`, `kareladb serve --timezone`, `X-KDB-Time-Zone` | yes: `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, `to_char`, a `DATE` met by a `TIMESTAMP` |
 | `t AT TIME ZONE 'zone'`, `to_timezone`, `to_utc` | yes |
 | `SAMPLE BY ... TIME ZONE 'zone'` | yes: a day bucket is 23 or 25 hours on the days the clocks change |
 | [calendars](calendars.md) `TIME ZONE` | yes |
 | `ROUND ... TIME ZONE`, `time IN '...' TIME ZONE`, the zone argument of `date_trunc(unit, t, zone)`, `to_char(t, format, zone)`, `timestamp_floor` | not yet: fixed offsets only (an error says so) |
 
-- **Where the files are:** KDB looks in `KDB_ZONEINFO`, `TZDIR`, `/usr/share/zoneinfo`, then a `zoneinfo` folder next to the program. The Docker image has them. Without them a zone with summer time is an error that says where KDB looked; fixed zones always work.
+- **Where the files are:** KarelaDB looks in `KARELADB_ZONEINFO`, `TZDIR`, `/usr/share/zoneinfo`, then a `zoneinfo` folder next to the program. The Docker image has them. Without them a zone with summer time is an error that says where KarelaDB looked; fixed zones always work.
 - **A time that happens twice** (the hour after the clocks go back) is the first of the two; **a time that never happens** (the hour skipped when they go forward) is read with the offset from before the change, as in PostgreSQL.
 
 **Example: Day buckets in New York around the March change: 8 March is 23 hours long** (sample data: sample)
@@ -698,7 +698,7 @@ time_column [NOT] IN 'YYYY-MM-DDTHH[:MM[:SS]]'
 time_column [NOT] IN '...+HH:MM'
 ```
 
-`time IN '2026-09'` is true for every time **inside** that month. The text says how big the range is: a year, a month, a day, an hour, a minute or a second. It is the easy way to filter a time-series table by time, and KDB then reads only the partitions of that range.
+`time IN '2026-09'` is true for every time **inside** that month. The text says how big the range is: a year, a month, a day, an hour, a minute or a second. It is the easy way to filter a time-series table by time, and KarelaDB then reads only the partitions of that range.
 
 | You write | Range (start included, end not included) |
 |---|---|
@@ -843,7 +843,7 @@ TIMESTAMP  ->  YYYY-MM-DDTHH:MM:SS.fffZ
 DATE       ->  YYYY-MM-DD
 ```
 
-Every time in a result is shown in **UTC**, with 3 digits of milliseconds and a `Z`. The web console, `kdb sql`, the HTTP API and the PostgreSQL protocol all get UTC times.
+Every time in a result is shown in **UTC**, with 3 digits of milliseconds and a `Z`. The web console, `kareladb sql`, the HTTP API and the PostgreSQL protocol all get UTC times.
 
 - **Notes:**
   - Your program changes UTC to Nepal time for the screen (for example in Go: `t.In(time.FixedZone("NPT", 20700))`).

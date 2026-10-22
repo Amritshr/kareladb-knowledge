@@ -3,11 +3,11 @@
 > Save many SQL steps under one name and run them with CALL, as one transaction.
 
 - Category: Stored procedures
-- Keywords: procedure, stored procedure, CALL, PROCEDURES, DEBUG, WITH DEBUG, debug, print result, CREATE OR REPLACE PROCEDURE, one transaction, call each other too deeply, READ ONLY, read-only procedure, cannot be READ ONLY, --read-only-calls, KDB\_READ\_ONLY\_CALLS, rounding, 6 decimals, match old system
+- Keywords: procedure, stored procedure, CALL, PROCEDURES, DEBUG, WITH DEBUG, debug, print result, CREATE OR REPLACE PROCEDURE, one transaction, call each other too deeply, READ ONLY, read-only procedure, cannot be READ ONLY, --read-only-calls, KARELADB\_READ\_ONLY\_CALLS, rounding, 6 decimals, match old system
 - See also: [The procedure language](procedure-language.md), [Triggers](triggers.md), [Transactions](transactions.md), [Saved functions](saved-functions.md), [13. Functions, procedures and triggers](../tutorial/13-functions-procedures-triggers.md)
 
 A **stored procedure** (or just "procedure") is a list of SQL statements with a name. You run it with `CALL name(...)`.
-KDB keeps it in the database, like a table. Your app, the web console and `kdb sql` can all call it.
+KarelaDB keeps it in the database, like a table. Your app, the web console and `kareladb sql` can all call it.
 
 - A procedure can have **variables**, `IF`, loops, cursors and errors (see [the procedure language](procedure-language.md)).
 - **A `CALL` is one transaction** (a group of changes that are saved together, or not at all). If one step fails, nothing of the `CALL` is saved.
@@ -90,7 +90,7 @@ Saves a procedure. `OR REPLACE` changes one that already exists.
 |---|---|
 | `name` | the procedure name. Upper and lower case are the same. |
 | `parameter TYPE` | an input value and its type, like `day DATE` or `amt DECIMAL(2)`. Write `()` for none. |
-| `READ ONLY` | optional: the procedure changes no data. KDB refuses a body that does, and every `CALL` of it runs like a `SELECT`. See [a CALL that only reads](procedures.md#read-only-call). |
+| `READ ONLY` | optional: the procedure changes no data. KarelaDB refuses a body that does, and every `CALL` of it runs like a `SELECT`. See [a CALL that only reads](procedures.md#read-only-call). |
 | `BEGIN ... END` | the body. Every statement in it ends with `;`. |
 
 What a body can hold: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CALL`, `SHOW ...`, `EXPLAIN`, and the procedure statements `DECLARE`, `SET`, `IF`, `WHILE`, `FOR`, `OPEN`, `FETCH`, `CLOSE`, `RETURN`, `RAISE` and `PRINT` ([the procedure language](procedure-language.md)).
@@ -98,11 +98,11 @@ What a body can hold: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CALL`, `SHOW ...`
 - **Returns:** `procedure 'name' created` (or `replaced`).
 - **Notes:**
   - `CREATE`, `DROP`, `ALTER`, `BACKUP`, `BEGIN`, `COMMIT` and `ROLLBACK` cannot be used inside a body. A `CALL` is already one transaction.
-  - KDB checks the **grammar** of the body when you create the procedure. Tables and columns are checked only when it runs, so a procedure can use a table that you create later.
+  - KarelaDB checks the **grammar** of the body when you create the procedure. Tables and columns are checked only when it runs, so a procedure can use a table that you create later.
   - `found` cannot be a parameter name: every procedure already has a variable `FOUND`.
   - **A column name wins over a parameter with the same name.** Give parameters names that are not column names (`amt`, not `amount`; `wanted`, not `name`).
   - `CREATE PROCEDURE` cannot be used inside `BEGIN ... COMMIT`.
-  - In `kdb shell`, KDB knows that `CREATE PROCEDURE ... BEGIN ... END;` is one statement, even with `;` inside.
+  - In `kareladb shell`, KarelaDB knows that `CREATE PROCEDURE ... BEGIN ... END;` is one statement, even with `;` inside.
 
 Setup used by the examples below:
 
@@ -330,7 +330,7 @@ Runs a procedure. Each argument can be a value or an expression, like `'2026-09-
   1. the message `procedure 'name' done: N row(s) changed` (N counts the rows changed by `INSERT`, `UPDATE` and `DELETE` in the procedure and in the procedures it calls);
   2. the rows of every `SELECT` in the procedure, in order;
   3. a result called `print` with one row (column `output`) for each `PRINT`.
-  The web console, `kdb sql` and `POST /exec` show them like several statements.
+  The web console, `kareladb sql` and `POST /exec` show them like several statements.
 - **Notes:**
   - Each argument is changed to the type of its parameter: `CALL end_of_day('2026-09-10')` turns the text into a `DATE`. A value that does not fit is an error.
   - The number of arguments must match.
@@ -539,7 +539,7 @@ CALL name(...)                        -- one transaction by itself
 BEGIN; CALL a(...); CALL b(...); COMMIT;   -- part of a bigger transaction
 ```
 
-All changes of a `CALL` are saved **together** when it ends, with one write to the log (the file where KDB writes every change first).
+All changes of a `CALL` are saved **together** when it ends, with one write to the log (the file where KarelaDB writes every change first).
 If any statement fails, or `RAISE` runs, **nothing** of the `CALL` is saved, also not the steps before the error.
 
 - Statements inside the procedure see the changes made earlier in the same `CALL`.
@@ -568,13 +568,13 @@ END;
 ```
 
 ```bash
-kdb sql market "CALL transfer(1, 99, 100)"
-kdb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"
+kareladb sql market "CALL transfer(1, 99, 100)"
+kareladb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"
 ```
 
 Output:
 
-`> kdb sql market "CALL transfer(1, 99, 100)"`
+`> kareladb sql market "CALL transfer(1, 99, 100)"`
 
 ```text
 error: procedure 'transfer', line 4: column 'to_account' = '99' has no matching row in accounts(id)
@@ -582,14 +582,14 @@ error: procedure 'transfer', line 4: column 'to_account' = '99' has no matching 
 
 exit code 1
 
-`> kdb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"`
+`> kareladb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"`
 
 ```text
 id | owner | balance
 ---+-------+--------
  1 | Ram   | 1000.00
  2 | Sita  |    0.00
-(2 rows, 0.3 ms)
+(2 rows, 0.2 ms)
 ```
 
 **Example: Two CALLs in one transaction, then ROLLBACK**
@@ -676,7 +676,7 @@ A procedure that only reads (a report, a lookup, a chart query) runs like a `SEL
 - it sees the last committed rows, like a `SELECT`. Changes of an open transaction are not seen.
 - a long one does not hold writers up either: when a writer waits, it lets it in between two of its statements. So each statement sees the rows committed when that statement starts.
 
-KDB works this out by itself before each `CALL`, from everything the body runs: the procedures it calls, the views and saved functions it uses.
+KarelaDB works this out by itself before each `CALL`, from everything the body runs: the procedures it calls, the views and saved functions it uses.
 A `CALL` stays a normal transaction (it locks its tables) when its body, or anything it calls, has one of these:
 
 | In the body | Why |
@@ -684,7 +684,7 @@ A `CALL` stays a normal transaction (it locks its tables) when its body, or anyt
 | `INSERT`, `UPDATE`, `DELETE` | it changes data |
 | `SELECT ... FOR UPDATE` | it locks rows for a later change |
 | `nextval`, `setval`, `set_config`, `pg_advisory_...`, `pg_sleep` | they change state, or wait on purpose |
-| [`EXECUTE`](procedure-language.md#execute) of text made while it runs (`'...' \|\| name`) | KDB cannot tell what it runs |
+| [`EXECUTE`](procedure-language.md#execute) of text made while it runs (`'...' \|\| name`) | KarelaDB cannot tell what it runs |
 | `SHOW ...`, `information_schema` or `pg_catalog` | they read the whole database |
 | `EXPLAIN CALL` | it works through another procedure's steps |
 
@@ -697,8 +697,8 @@ Write **`READ ONLY`** to make it a promise:
 
 - **Notes:**
   - Inside `BEGIN ... COMMIT`, a read-only `CALL` is part of the transaction and sees its changes, like any statement there.
-  - `kdb serve --read-only-calls off` (or `KDB_READ_ONLY_CALLS=off`) makes every `CALL` a transaction again, as before. `READ ONLY` is then only checked when the procedure is created.
-  - A database with a `READ ONLY` procedure cannot be opened by a KDB older than 2026-09-24 ([versions](versions.md)).
+  - `kareladb serve --read-only-calls off` (or `KARELADB_READ_ONLY_CALLS=off`) makes every `CALL` a transaction again, as before. `READ ONLY` is then only checked when the procedure is created.
+  - A database with a `READ ONLY` procedure cannot be opened by a KarelaDB older than 2026-09-24 ([versions](versions.md)).
 
 **Example: A report procedure that only reads**
 
@@ -757,7 +757,7 @@ Error: `procedure 'empty_accounts' cannot be READ ONLY: it changes table 'accoun
 
 ## Matching another system's rounding
 
-A `DOUBLE` keeps about 16 digits: `9609.0 / 17` is `565.2352941176...` in KDB.
+A `DOUBLE` keeps about 16 digits: `9609.0 / 17` is `565.2352941176...` in KarelaDB.
 Many programs round a rate before they store it, for example to 6 places: `565.235294`.
 
 When a procedure takes over a job from such a program, round the same way, with [`round(x, 6)`](functions-math.md#round):
@@ -888,14 +888,14 @@ procedure 'transfer' done: 3 row(s) changed
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL transfer(1, 2, 600) WITH DEBUG | 3 | 3276 |  |
-| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 123 | have=1000.00 |
+| 1 |  | CALL transfer(1, 2, 600) WITH DEBUG | 3 | 1863 |  |
+| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 79 | have=1000.00 |
 | 3 | transfer | IF have < amt THEN | 0 | 5 | false |
 | 4 | transfer | ELSIF amt >= 500 THEN | 0 | 2 | true |
 | 5 | transfer | PRINT 'big transfer: check it by hand' | 0 | 1 | big transfer: check it by hand |
-| 6 | transfer | UPDATE accounts SET balance = balance - amt WHERE id = from_id | 1 | 61 |  |
-| 7 | transfer | UPDATE accounts SET balance = balance + amt WHERE id = to_id | 1 | 17 |  |
-| 8 | transfer | INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt) | 1 | 94 |  |
+| 6 | transfer | UPDATE accounts SET balance = balance - amt WHERE id = from_id | 1 | 59 |  |
+| 7 | transfer | UPDATE accounts SET balance = balance + amt WHERE id = to_id | 1 | 10 |  |
+| 8 | transfer | INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt) | 1 | 168 |  |
 
 (8 rows)
 
@@ -925,10 +925,10 @@ procedure 'transfer' created
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL transfer(2, 1, 50) WITH DEBUG | 0 | 314 | failed |
-| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 157 | have=0.00 |
-| 3 | transfer | IF have < amt THEN | 0 | 10 | true |
-| 4 | transfer | RAISE concat('not enough money in account ', from_id, ': it has ', have) | 0 | 97 | failed: not enough money in account 2: it has 0.00 |
+| 1 |  | CALL transfer(2, 1, 50) WITH DEBUG | 0 | 219 | failed |
+| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 92 | have=0.00 |
+| 3 | transfer | IF have < amt THEN | 0 | 5 | true |
+| 4 | transfer | RAISE concat('not enough money in account ', from_id, ': it has ', have) | 0 | 83 | failed: not enough money in account 2: it has 0.00 |
 
 (4 rows)
 
@@ -947,7 +947,7 @@ DROP PROCEDURE [IF EXISTS] name
 Removes a procedure.
 
 - **Returns:** `procedure 'name' dropped`. With `IF EXISTS`, a name that does not exist gives the message `procedure 'name' does not exist` and no error.
-- **Notes:** KDB does not check who uses the procedure. Other procedures and triggers that `CALL` it fail when they run, with `procedure 'name' does not exist`. `DROP PROCEDURE` cannot be used inside `BEGIN ... COMMIT`.
+- **Notes:** KarelaDB does not check who uses the procedure. Other procedures and triggers that `CALL` it fail when they run, with `procedure 'name' does not exist`. `DROP PROCEDURE` cannot be used inside `BEGIN ... COMMIT`.
 
 **Example**
 
@@ -1031,9 +1031,9 @@ Lists the procedures of the database, in name order.
 |---|---|
 | `name` | the procedure name |
 | `arguments` | the parameters and their types |
-| `definition` | the whole `CREATE PROCEDURE` statement, written again by KDB (one statement per line) |
+| `definition` | the whole `CREATE PROCEDURE` statement, written again by KarelaDB (one statement per line) |
 
-- **Notes:** the line numbers in error messages (`procedure 'transfer', line 4: ...`) count the lines of this `definition`: `CREATE PROCEDURE ... AS BEGIN` is line 1. The text table of `kdb sql` cuts long text after 48 characters; use `--format csv` or `--format json` to see all of it.
+- **Notes:** the line numbers in error messages (`procedure 'transfer', line 4: ...`) count the lines of this `definition`: `CREATE PROCEDURE ... AS BEGIN` is line 1. The text table of `kareladb sql` cuts long text after 48 characters; use `--format csv` or `--format json` to see all of it.
 
 **Example**
 

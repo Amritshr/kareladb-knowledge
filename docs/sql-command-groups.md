@@ -1,6 +1,6 @@
 # SQL command groups: DDL, DML, DCL, TCL, DQL
 
-> The five groups of SQL statements, every KDB statement in its group, and the role each group needs.
+> The five groups of SQL statements, every KarelaDB statement in its group, and the role each group needs.
 
 - Category: Getting started
 - Keywords: DDL, DML, DCL, TCL, DQL, data definition language, data manipulation language, data control language, transaction control language, data query language, command groups, statement types, kinds of statements, sublanguage, which role do I need, TRUNCATE, SAVEPOINT
@@ -16,8 +16,8 @@ SQL statements are sorted into five **groups** by what they do. The group tells 
 | **TCL** | Transaction Control Language | groups changes so they are saved **together or not at all** | `BEGIN`, `COMMIT`, `ROLLBACK` | `read` |
 | **DQL** | Data Query Language | **reads** rows and never changes anything | `SELECT`, `EXPLAIN`, `SHOW` | `read` |
 
-- Roles are checked only by `kdb serve` (HTTP, web console and the PostgreSQL port). `kdb sql` and `kdb shell` open the files directly and may run everything.
-- Some books put `SELECT` into DML. KDB's help keeps it apart as DQL, because a read needs only the `read` role.
+- Roles are checked only by `kareladb serve` (HTTP, web console and the PostgreSQL port). `kareladb sql` and `kareladb shell` open the files directly and may run everything.
+- Some books put `SELECT` into DML. KarelaDB's help keeps it apart as DQL, because a read needs only the `read` role.
 - The web console lists what DDL made: open the **Objects** list on the left (see [web console](web-console.md#tables)).
 
 <a id="ddl"></a>
@@ -194,7 +194,7 @@ The roles, from least to most: `none` < `read` < `write` < `admin`. Each role ma
 
 - **Role:** `admin` as the user's **own** `ROLE` (a `GRANT` of admin on one database is not enough), because users belong to the whole server. Changing your own password needs no role.
 - **Notes:**
-  - The **first** user must have `ROLE admin`. From then on, `kdb serve` asks everyone to log in.
+  - The **first** user must have `ROLE admin`. From then on, `kareladb serve` asks everyone to log in.
   - Users are kept in the `_system` database, not in the database you are using.
   - Give each program only what it needs: an app's backend `write` on its own database, a report script `read`.
 
@@ -237,9 +237,9 @@ user 'shop_app' has role write on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:28.977Z | 2026-10-22T05:44:28.977Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-22T05:44:29.197Z | 2026-10-22T05:44:29.197Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-22T05:44:29.265Z | 2026-10-22T05:44:29.268Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:31.450Z | 2026-10-22T09:56:31.450Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-22T09:56:31.620Z | 2026-10-22T09:56:31.620Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-22T09:56:31.677Z | 2026-10-22T09:56:31.679Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -247,7 +247,7 @@ user 'shop_app' has role write on database 'demo'
 
 ## TCL: Transaction Control Language
 
-TCL statements group DML into one **transaction**: KDB saves all of its changes together, or none of them.
+TCL statements group DML into one **transaction**: KarelaDB saves all of its changes together, or none of them.
 
 | Statement | What it does | Help |
 |---|---|---|
@@ -259,7 +259,7 @@ TCL statements group DML into one **transaction**: KDB saves all of its changes 
 - **Role:** `read` to start and end one. The statements inside still need their own role (`write` for DML).
 - **Notes:**
   - Without `BEGIN`, every statement is its own small transaction and is saved at once.
-  - When a statement inside the transaction fails, KDB undoes the whole transaction.
+  - When a statement inside the transaction fails, KarelaDB undoes the whole transaction.
   - `SAVEPOINT`, `ROLLBACK TO SAVEPOINT` and `RELEASE SAVEPOINT` undo part of a transaction ([savepoints](transactions.md#savepoint)).
   - One writer at a time: while a transaction changes rows, other writers wait (see [one writer at a time](transactions.md#one-writer)).
 
@@ -349,7 +349,7 @@ DQL statements **read**. They never change a row or an object, so they are safe 
 | `SELECT` | reads rows: `WHERE`, `JOIN`, `GROUP BY`, `ORDER BY`, `LIMIT` | [select](select.md) |
 | `SELECT ... SAMPLE BY`, `LATEST ON` | time-series candles and the newest row per key | [sample-by](sample-by.md), [latest-on](latest-on.md) |
 | `WITH ... SELECT` | a query with named parts | [union-subqueries](union-subqueries.md) |
-| `EXPLAIN SELECT ...` | shows how KDB will run a query, without running it | [explain](explain.md) |
+| `EXPLAIN SELECT ...` | shows how KarelaDB will run a query, without running it | [explain](explain.md) |
 | `SHOW TABLES`, `SHOW VIEWS`, `SHOW INDEXES`, ... | lists the objects of a database | [show-tables](show-tables.md) |
 | `DECLARE`, `FETCH`, `CLOSE` | reads a big result a part at a time | [cursors](cursors.md) |
 

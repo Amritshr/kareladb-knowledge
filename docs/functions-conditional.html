@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Conditional and NULL functions - KDB (KARELA DataBase) docs</title>
+<title>Conditional and NULL functions - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Choose a value with CASE, replace NULL with coalesce, and turn a value into NULL with nullif.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-conditional.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conditional.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/functions-conditional.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-conditional.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="conditional-and-null-functions">Conditional and NULL functions</h1>
 <blockquote><p>Choose a value with CASE, replace NULL with coalesce, and turn a value into NULL with nullif.</p></blockquote>
 <ul><li>Category: Functions — conditional and NULL</li><li>Keywords: if, if then else, else, switch, decode, iif, ifnull, nvl, isnull, zeroifnull, default value, empty text, missing value, three-valued logic, unknown, NULL</li><li>See also: <a href="where.html">WHERE</a>, <a href="operators.html">Operators</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="functions-aggregate.html#sum">Aggregate functions (sum)</a>, <a href="group-by.html">GROUP BY and HAVING</a></li></ul>
 <p>These tools choose a value for each row.</p>
 <ul><li><code>CASE</code> is SQL&#39;s &quot;if ... then ... else&quot;. It gives the value of the first condition that is true.</li><li><code>coalesce</code> gives the first value that is not <code>NULL</code>. Use it to show <code>0</code> or <code>&#39;-&#39;</code> instead of an empty cell.</li><li><code>nullif</code> does the opposite: it turns one value (like <code>0</code> or <code>&#39;&#39;</code>) into <code>NULL</code>.</li></ul>
-<p><code>NULL</code> means &quot;no value&quot; or &quot;not known&quot;. The last entry, <a href="functions-conditional.html#null-rules">NULL rules</a>, lists how every part of KDB treats it.</p>
+<p><code>NULL</code> means &quot;no value&quot; or &quot;not known&quot;. The last entry, <a href="functions-conditional.html#null-rules">NULL rules</a>, lists how every part of KarelaDB treats it.</p>
 <p><strong>Example: Label each CITY day as up, down or flat</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT time, open, close,
        CASE WHEN close &gt; open THEN &#39;up&#39;
@@ -64,10 +64,10 @@ INSERT INTO app_users VALUES
      [WHEN condition THEN result ...]
      [ELSE other_result]
 END</code></pre>
-<p>KDB checks the conditions from top to bottom. The result of the <strong>first</strong> true condition is the answer. When no condition is true, the answer is the <code>ELSE</code> value, or <code>NULL</code> when there is no <code>ELSE</code>.</p>
+<p>KarelaDB checks the conditions from top to bottom. The result of the <strong>first</strong> true condition is the answer. When no condition is true, the answer is the <code>ELSE</code> value, or <code>NULL</code> when there is no <code>ELSE</code>.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>condition</code></td><td>true/false</td><td>a test like <code>close &gt; open</code> or <code>plan IS NULL</code></td></tr><tr><td><code>result</code></td><td>any</td><td>the value when this condition is true</td></tr><tr><td><code>other_result</code></td><td>any</td><td>the value when no condition is true (optional)</td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> the value of the chosen branch.</li><li><strong>NULL:</strong> a condition that is <code>NULL</code> counts as not true, so KDB goes on to the next <code>WHEN</code>. Without <code>ELSE</code>, no match gives <code>NULL</code>.</li><li><strong>Notes:</strong>
-<ul><li>A condition must be true, false or <code>NULL</code>. <code>CASE WHEN 1 THEN ...</code> is an error (write <code>WHEN x = 1</code>).</li><li>Only the chosen branch is worked out. The other results are not computed.</li><li>You can use <code>CASE</code> everywhere a value can go: <code>SELECT</code>, <code>WHERE</code>, <code>ORDER BY</code>, <code>GROUP BY</code>, inside <code>sum(...)</code>, and inside another <code>CASE</code>.</li><li>KDB does not make the branches one type. <code>CASE WHEN ... THEN 1 ELSE &#39;low&#39; END</code> gives a number in some rows and text in others. Give every branch the same type.</li><li><code>GROUP BY</code> cannot use the name after <code>AS</code>. Repeat the whole <code>CASE</code> in <code>GROUP BY</code> (see the example).</li></ul></li></ul>
+<ul><li><strong>Returns:</strong> the value of the chosen branch.</li><li><strong>NULL:</strong> a condition that is <code>NULL</code> counts as not true, so KarelaDB goes on to the next <code>WHEN</code>. Without <code>ELSE</code>, no match gives <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>A condition must be true, false or <code>NULL</code>. <code>CASE WHEN 1 THEN ...</code> is an error (write <code>WHEN x = 1</code>).</li><li>Only the chosen branch is worked out. The other results are not computed.</li><li>You can use <code>CASE</code> everywhere a value can go: <code>SELECT</code>, <code>WHERE</code>, <code>ORDER BY</code>, <code>GROUP BY</code>, inside <code>sum(...)</code>, and inside another <code>CASE</code>.</li><li>KarelaDB does not make the branches one type. <code>CASE WHEN ... THEN 1 ELSE &#39;low&#39; END</code> gives a number in some rows and text in others. Give every branch the same type.</li><li><code>GROUP BY</code> cannot use the name after <code>AS</code>. Repeat the whole <code>CASE</code> in <code>GROUP BY</code> (see the example).</li></ul></li></ul>
 <p><strong>Example: Live price moves in five groups</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT symbol, ltp, pct_change,
        CASE WHEN pct_change &gt;= 2  THEN &#39;strong up&#39;
@@ -120,7 +120,7 @@ ORDER BY phone_status;</code></pre>
      [WHEN match THEN result ...]
      [ELSE other_result]
 END</code></pre>
-<p>The short form. KDB compares <code>value</code> with each <code>match</code>, like <code>value = match</code>, and gives the result of the first one that is equal.</p>
+<p>The short form. KarelaDB compares <code>value</code> with each <code>match</code>, like <code>value = match</code>, and gives the result of the first one that is equal.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to look at, worked out once</td></tr><tr><td><code>match</code></td><td>any</td><td>a value to compare with</td></tr><tr><td><code>result</code>, <code>other_result</code></td><td>any</td><td>as in <a href="functions-conditional.html#case">CASE WHEN</a></td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> the value of the chosen branch.</li><li><strong>NULL:</strong> <code>NULL</code> never matches, not even <code>WHEN NULL</code>. Use <code>CASE WHEN value IS NULL THEN ...</code> for that.</li><li><strong>Notes:</strong>
 <ul><li>Numbers match numeric text: <code>CASE 5 WHEN &#39;5&#39; THEN ...</code> matches.</li><li>Values that cannot be compared (a number and <code>&#39;abc&#39;</code>) simply do not match. There is no error, unlike <code>=</code>.</li></ul></li></ul>
@@ -162,7 +162,7 @@ ORDER BY id;</code></pre>
 <p>Gives the first value that is not <code>NULL</code>. <code>coalesce(phone, &#39;no phone&#39;)</code> shows the phone, or <code>&#39;no phone&#39;</code> when there is none.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>1 to 64 values, checked from left to right</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> the first value that is not <code>NULL</code>, with its own type.</li><li><strong>NULL:</strong> <code>NULL</code> only when every value is <code>NULL</code>.</li><li><strong>Notes:</strong>
-<ul><li>KDB stops at the first value that is not <code>NULL</code>. The values after it are not worked out.</li><li>The values keep their types. <code>coalesce(debit, 0)</code> gives a <code>DECIMAL(2)</code> in some rows and the whole number <code>0</code> in others. Then <code>sum</code> of it becomes a <code>DOUBLE</code>. For exact money write <code>coalesce(debit, 0::DECIMAL(2))</code>.</li><li>Other databases call this <code>ifnull</code>, <code>nvl</code> or <code>isnull</code>. KDB has only <code>coalesce</code>.</li></ul></li></ul>
+<ul><li>KarelaDB stops at the first value that is not <code>NULL</code>. The values after it are not worked out.</li><li>The values keep their types. <code>coalesce(debit, 0)</code> gives a <code>DECIMAL(2)</code> in some rows and the whole number <code>0</code> in others. Then <code>sum</code> of it becomes a <code>DOUBLE</code>. For exact money write <code>coalesce(debit, 0::DECIMAL(2))</code>.</li><li>Other databases call this <code>ifnull</code>, <code>nvl</code> or <code>isnull</code>. KarelaDB has only <code>coalesce</code>.</li></ul></li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT coalesce(NULL, &#39;n/a&#39;) AS a, coalesce(NULL, NULL, 3) AS b, coalesce(7, 8) AS c, coalesce(NULL, NULL) AS d;</code></pre>
 <p>Result:</p>
@@ -252,6 +252,6 @@ FROM app_users;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>users (LONG)</th><th>with_phone (LONG)</th><th>with_email (LONG)</th><th>with_plan (LONG)</th></tr></thead><tbody><tr><td>4</td><td>2</td><td>2</td><td>3</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conditional.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-conditional.md">This page as markdown</a>.</footer>
 </body>
 </html>

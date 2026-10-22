@@ -1,15 +1,15 @@
 # PostgreSQL-compatible functions
 
-> Functions a PostgreSQL app expects: arrays, sequence numbers (nextval), who you are and what you may do (current_user, has_table_privilege), comments (COMMENT ON), advisory locks and session settings, so app code runs on KDB without changes.
+> Functions a PostgreSQL app expects: arrays, sequence numbers (nextval), who you are and what you may do (current_user, has_table_privilege), comments (COMMENT ON), advisory locks and session settings, so app code runs on KarelaDB without changes.
 
 - Category: Postgres protocol
 - Keywords: PostgreSQL functions, to\_regclass, pg\_relation\_size, pg\_total\_relation\_size, pg\_table\_size, pg\_indexes\_size, pg\_database\_size, pg\_size\_pretty, table size, database size, current\_database, postgres compatibility, array, ARRAY\[\], arrays, list of values, watchlist, tags, sequence, auto number, order number, invoice number, advisory lock, named lock, job lock, one worker at a time, pg\_advisory, nextval, currval, lastval, setval, unnest, cardinality, current\_setting, set\_config, SET LOCAL, session setting, custom setting, current\_user, session\_user, current\_role, current\_schema, current\_schemas, current\_catalog, version, has\_table\_privilege, has\_column\_privilege, has\_database\_privilege, has\_schema\_privilege, pg\_has\_role, privileges, rights, COMMENT ON, comment, description, obj\_description, col\_description, pg\_get\_indexdef, pg\_get\_constraintdef, pg\_get\_viewdef, pg\_get\_expr, format\_type, pg\_table\_is\_visible
 - See also: [PostgreSQL protocol (port 8832)](postgres-protocol.md), [JSON functions](functions-json.md), [Text functions](functions-text.md), [Date and time functions](functions-date-time.md), [Constraints](constraints.md), [Transactions](transactions.md)
 
 A PostgreSQL app sends more than plain SQL. It also calls **arrays**, **sequences** and **advisory locks**.
-KDB answers all three with the PostgreSQL names, so the same app code runs here.
+KarelaDB answers all three with the PostgreSQL names, so the same app code runs here.
 
-- An **array** is a list of values in one value: `ARRAY['CITY', 'COAST']`. KDB keeps an array as a [JSON](functions-json.md) list, so a `JSON` column can hold one and every JSON function still works on it.
+- An **array** is a list of values in one value: `ARRAY['CITY', 'COAST']`. KarelaDB keeps an array as a [JSON](functions-json.md) list, so a `JSON` column can hold one and every JSON function still works on it.
 - A **sequence** is a counter the database keeps for you: order numbers, invoice numbers. `nextval` gives the next one. See `CREATE SEQUENCE` in [constraints](constraints.md#auto) for how to make one.
 - An **advisory lock** is a name (a number) your app takes so two copies of it do not do the same job twice.
 
@@ -33,7 +33,7 @@ Result:
 
 <a id="arrays"></a>
 
-## Arrays in KDB
+## Arrays in KarelaDB
 
 Syntax:
 
@@ -43,10 +43,10 @@ ARRAY[value, value, ...]        an array value
 '{CITY,COAST}'                  PostgreSQL array text an array function reads too
 ```
 
-An array is a list of values kept as one value. KDB stores it as a JSON list, so `ARRAY['CITY','COAST']` shows as `["CITY","COAST"]` and fits in a `JSON` column.
+An array is a list of values kept as one value. KarelaDB stores it as a JSON list, so `ARRAY['CITY','COAST']` shows as `["CITY","COAST"]` and fits in a `JSON` column.
 
 - **Counting starts at 1**, as in PostgreSQL: the first element is number 1.
-- An array may hold text, numbers, `TRUE`/`FALSE` and `NULL` mixed together. KDB does not check that all elements are of one type.
+- An array may hold text, numbers, `TRUE`/`FALSE` and `NULL` mixed together. KarelaDB does not check that all elements are of one type.
 - The functions on this page also read **text**: text that starts with `[` as JSON, text that starts with `{` as PostgreSQL array text (`'{CITY,COAST}'`). So a value a PostgreSQL driver sends still works.
 - A `JSON` **column** keeps JSON only. To save a PostgreSQL array text in one, read it first: `string_to_array(t, ',')`, or `array_cat(t, ARRAY[])`.
 - There are no arrays of arrays with their own functions. `array_length(a, 2)` (a second dimension) always gives `NULL`.
@@ -93,7 +93,7 @@ The array with one more value at the **end**.
 
 - **Returns:** the new array (`JSON`). The old one is not changed.
 - **NULL:** `array_append(NULL, 'CITY')` is `["CITY"]` (a NULL array counts as empty). A `NULL` value is added as JSON `null`.
-- **Notes:** PostgreSQL writes this as `array || value`. In KDB `||` joins text, so use the function name.
+- **Notes:** PostgreSQL writes this as `array || value`. In KarelaDB `||` joins text, so use the function name.
 
 **Example: Add a company to a user's watchlist** (sample data: sample)
 
@@ -285,7 +285,7 @@ array_length(array, dimension)
 array_upper(array, dimension)
 ```
 
-How many elements the array has. `dimension` must be `1`; KDB has one dimension only. `array_upper` gives the number of the last place, which is the same number.
+How many elements the array has. `dimension` must be `1`; KarelaDB has one dimension only. `array_upper` gives the number of the last place, which is the same number.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -724,7 +724,7 @@ current_database()
 - **Arguments:** a relation is a name in single quotes (`'public.orders'` and `'"Orders"'` work) or an oid from `pg_class`.
 - **Returns:** a table's size is its partition files plus its new rows that are still in the log (they move into the files at the next checkpoint), so a table that was just filled is never `0`.
 - **NULL:** a `NULL` argument, or an oid nothing has, gives `NULL`. A name that does not exist is an error (`42P01`), as in PostgreSQL.
-- **Notes:** KDB keeps indexes in memory only (built from the rows when the database opens), so they take `0` bytes on disk. `pg_database_size` measures only the database the statement runs in.
+- **Notes:** KarelaDB keeps indexes in memory only (built from the rows when the database opens), so they take `0` bytes on disk. `pg_database_size` measures only the database the statement runs in.
 - **Waits:** a size reads the table the way a query of it does. `pg_total_relation_size('t')` waits for a statement that is writing `t` (never for writers of other tables), even with snapshot reads on. With an oid or a column instead of a name in quotes - `pg_total_relation_size(c.oid)` over `pg_class` - the size waits for every writer, as `SHOW TABLES` does.
 
 **Example: How big are the tables?**
@@ -772,7 +772,7 @@ version()
 | `version()` | `PostgreSQL 14.0 (KDB ...), compatible server` - drivers read the `14` |
 
 - The same answers over HTTP [`/exec`](http-exec.md) and the [Postgres port](postgres-protocol.md). With an [API token](api-tokens.md) you are its user.
-- **No user:** with the server's `--token` or a local tool (`kdb sql`) there is no user; the name is `kdb`. On the Postgres port of a server without users it is the name the client connected as.
+- **No user:** with the server's `--token` or a local tool (`kareladb sql`) there is no user; the name is `kareladb`. On the Postgres port of a server without users it is the name the client connected as.
 - Write the first four without brackets, as SQL does. A column of that name wins: `SELECT user FROM _audit_log` reads the column.
 
 **Example: Who am I, and on what?**
@@ -809,13 +809,13 @@ pg_has_role([user,] role, privilege)
 | Function | Privileges | `TRUE` when |
 |---|---|---|
 | `has_table_privilege` | `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, `TRIGGER` | `SELECT` needs role `read`, the changes `write` (`TRUNCATE` counts as `DELETE`), each changed by the table's grants; `REFERENCES` and `TRIGGER` need `ddl` |
-| `has_column_privilege` | `SELECT`, `INSERT`, `UPDATE`, `REFERENCES` | as for the table: KDB has no rights per column |
+| `has_column_privilege` | `SELECT`, `INSERT`, `UPDATE`, `REFERENCES` | as for the table: KarelaDB has no rights per column |
 | `has_database_privilege` | `CONNECT`, `TEMPORARY` (`TEMP`), `CREATE` | any role on that database; `CREATE` needs `ddl` |
 | `has_schema_privilege` | `USAGE`, `CREATE` | `USAGE` of `public` needs a role; `pg_catalog` and `information_schema` are open to all. `CREATE` in `public` needs `ddl` |
 | `pg_has_role` | `MEMBER`, `USAGE` | the role is the user, or one of `read`, `write`, `ddl`, `admin` the user has here |
 
 - **user:** a user name; without it, the current user. `public` is PostgreSQL's everyone and has no rights. A user whose own `ROLE` is `admin` has every right, as a PostgreSQL superuser.
-- **privilege:** one word or a list, `'SELECT, INSERT'`: `TRUE` when any of them is allowed. `... WITH GRANT OPTION` is `TRUE` only for an admin: KDB has no grant options.
+- **privilege:** one word or a list, `'SELECT, INSERT'`: `TRUE` when any of them is allowed. `... WITH GRANT OPTION` is `TRUE` only for an admin: KarelaDB has no grant options.
 - **Objects:** a name (`'orders'`, `'public.orders'`) or an oid from `pg_class` or `pg_database`. An oid nothing has gives `NULL`; a name that does not exist is an error.
 - **Errors**, as PostgreSQL: `22023` unrecognized privilege type, `42704` a user that does not exist, `42P01` a table, `42703` a column, `3D000` a database, `3F000` a schema.
 
@@ -888,7 +888,7 @@ pg_table_is_visible(relation)               pg_get_expr(text, relation)
 | `pg_table_is_visible(oid)` | `TRUE`: everything is in `public` |
 
 - `COMMENT ON` other objects (an index, a function, a schema) is accepted and says it is not kept. A view is not a table: `COMMENT ON TABLE v` is error `42809`.
-- `pg_get_partkeydef` and `pg_get_functiondef` give `NULL`: KDB tables are not PostgreSQL partitioned tables and `pg_proc` lists no functions. `pg_get_serial_sequence('t', 'id')` gives `public.t_id_seq` for a `SERIAL` column: that is the name of the column's counter, which `nextval`, `currval`, `setval`, `lastval` and `ALTER SEQUENCE ... RESTART WITH n` take, so a `pg_dump` restore that ends with `SELECT setval('t_id_seq', max)` works as it is. The counter only goes up: a `setval` below the ids already in the table means their largest + 1.
+- `pg_get_partkeydef` and `pg_get_functiondef` give `NULL`: KarelaDB tables are not PostgreSQL partitioned tables and `pg_proc` lists no functions. `pg_get_serial_sequence('t', 'id')` gives `public.t_id_seq` for a `SERIAL` column: that is the name of the column's counter, which `nextval`, `currval`, `setval`, `lastval` and `ALTER SEQUENCE ... RESTART WITH n` take, so a `pg_dump` restore that ends with `SELECT setval('t_id_seq', max)` works as it is. The counter only goes up: a `setval` below the ids already in the table means their largest + 1.
 - Over HTTP, `'orders'::regclass` stays the name `'orders'`; these functions take the name as well as an oid.
 
 **Example: Describe a table and a column**
@@ -1036,7 +1036,7 @@ Takes a **session** lock and waits until it is free. The lock is held until `pg_
 | `key` | `LONG` | the lock name as one whole number |
 | `key1`, `key2` | `INT` | the lock name as two numbers (a different set of names) |
 
-- **Returns:** nothing (PostgreSQL calls this `void`; KDB shows an empty value).
+- **Returns:** nothing (PostgreSQL calls this `void`; KarelaDB shows an empty value).
 - **NULL:** a `NULL` key gives `NULL` and takes no lock.
 - **Notes:** `_shared` lets several connections hold the same key at once; a lock without `_shared` waits for all of them. Taking the same key twice in one connection works and needs two unlocks. Waiting stops after 30 seconds with an error.
 
@@ -1362,7 +1362,7 @@ A **setting** is a named text value your connection keeps. Apps use names of the
 - Triggers and procedures that your statement sets off see your values. Triggers made `DEFERRED` run later, outside your connection, so they do not.
 - A `LOCAL` value outside `BEGIN ... COMMIT` lasts for the call only, as each call is its own transaction. On the Postgres port, `SET LOCAL` outside a transaction does nothing and sends warning `25P01`, as PostgreSQL does.
 - After a `LOCAL` value ends, the name reads `''` (empty text), as in PostgreSQL.
-- Built-in names answer too: `current_setting('TimeZone')` is the session's zone (`UTC` unless `SET TIME ZONE` or `kdb serve --timezone` names one).
+- Built-in names answer too: `current_setting('TimeZone')` is the session's zone (`UTC` unless `SET TIME ZONE` or `kareladb serve --timezone` names one).
 
 **Example: Set a value, read it back, and ask for one never set** (sample data: sample)
 

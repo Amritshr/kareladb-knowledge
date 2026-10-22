@@ -4,23 +4,23 @@
 
 ## What you will learn
 
-- How `kdb serve` speaks the **PostgreSQL protocol** on port **8832**.
+- How `kareladb serve` speaks the **PostgreSQL protocol** on port **8832**.
 - How to connect from Go (`pgx`), Python, Node, `psql` and DBeaver.
-- How KDB types become Postgres types. How times work.
+- How KarelaDB types become Postgres types. How times work.
 - Transactions, error codes, and what does not work yet.
 
-KDB is not PostgreSQL. But it speaks the same "wire protocol" (the messages between a program and the database). So a normal Postgres driver can send SQL to KDB and read the rows. You write **KDB SQL** (chapter 11). Much everyday PostgreSQL SQL works too: `SERIAL`, `ON CONFLICT`, `RETURNING`, `WITH`, arrays, `information_schema` (chapters 22 and 23).
+KarelaDB is not PostgreSQL. But it speaks the same "wire protocol" (the messages between a program and the database). So a normal Postgres driver can send SQL to KarelaDB and read the rows. You write **KarelaDB SQL** (chapter 11). Much everyday PostgreSQL SQL works too: `SERIAL`, `ON CONFLICT`, `RETURNING`, `WITH`, arrays, `information_schema` (chapters 22 and 23).
 
 ## Start the server
 
-`kdb serve` starts the Postgres port together with the HTTP port:
+`kareladb serve` starts the Postgres port together with the HTTP port:
 
 ```powershell
-kdb serve --token my-long-secret
+kareladb serve --token my-long-secret
 ```
 
 ```text
-KDB 0.2.0-dev
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   postgres  127.0.0.1:8832 (PostgreSQL protocol, no TLS; password = the token)
   ...
@@ -33,11 +33,11 @@ Options:
 | `--pg-port N` | The Postgres port. `--pg-port 0` turns it off. | `8832` |
 | `--bind ADDRESS` | The address for **both** ports (HTTP and Postgres). | `127.0.0.1` |
 | `--token T` | The password for every Postgres user. | none |
-| `--pg-timestamptz` | Send KDB `TIMESTAMP` as `timestamptz` (see [Times](#times)). | off |
+| `--pg-timestamptz` | Send KarelaDB `TIMESTAMP` as `timestamptz` (see [Times](#times)). | off |
 
 ## Security: read this first
 
-- **No TLS.** KDB answers "no" when a client asks for TLS (SSL). The password is safe (SCRAM-SHA-256 never sends it), but **the data is not encrypted**.
+- **No TLS.** KarelaDB answers "no" when a client asks for TLS (SSL). The password is safe (SCRAM-SHA-256 never sends it), but **the data is not encrypted**.
 - So keep port 8832 on `127.0.0.1` (the default). Your Go backend on the same VPS connects to `127.0.0.1`.
 - From your PC, use an **SSH tunnel**:
 
@@ -48,7 +48,7 @@ Options:
   Then connect to `127.0.0.1:8832` on your PC. The tunnel encrypts everything.
 - **Without `--token`**, only programs on the same computer (`127.x.x.x`) can connect, and no password is asked. Other computers are refused.
 - **With `--token`**, every user name works, and the password is the token.
-- **With users** (chapter 16), log in with a KDB user name and its password (SCRAM-SHA-256). Each statement runs with that user's role; a refused one gets SQLSTATE `42501`. Connecting needs at least `read` on the database. With users **and** `--token`, a name that is not a KDB user may still log in with the token. Failed logins are slowed down like HTTP logins.
+- **With users** (chapter 16), log in with a KarelaDB user name and its password (SCRAM-SHA-256). Each statement runs with that user's role; a refused one gets SQLSTATE `42501`. Connecting needs at least `read` on the database. With users **and** `--token`, a name that is not a KarelaDB user may still log in with the token. Failed logins are slowed down like HTTP logins.
 - Clients must use `sslmode=disable` or `sslmode=prefer` (the default of most drivers). `sslmode=require` fails, because there is no TLS.
 
 ## Connection settings
@@ -59,7 +59,7 @@ Options:
 | Port | `8832` |
 | User | any name (for example `app`) |
 | Password | the `--token` value |
-| Database | a KDB database name, like `db=` in the HTTP API. Empty, `postgres` or the user name means the **default** database. |
+| Database | a KarelaDB database name, like `db=` in the HTTP API. Empty, `postgres` or the user name means the **default** database. |
 
 A connection string:
 
@@ -138,7 +138,7 @@ ALL OK
 Run it yourself:
 
 ```powershell
-kdb serve --data-dir D:\kdb-pg-test --port 9950 --pg-port 8850 --token secret-token
+kareladb serve --data-dir D:\kdb-pg-test --port 9950 --pg-port 8850 --token secret-token
 # in another window:
 cd tests\pg_go
 go run . "postgres://app:secret-token@127.0.0.1:8850/default"
@@ -204,7 +204,7 @@ market=*> INSERT INTO brokers VALUES (99, 'Test Broker');
 market=*> ROLLBACK;
 ```
 
-Plain SQL works. KDB also answers the Postgres catalog (`pg_catalog`, `information_schema`), so `\l` (databases), `\dt` (tables), `\di` (indexes) and `\du` work. A full `\d ochl_day` still fails on one of the queries psql sends; use `SHOW COLUMNS FROM ochl_day;` and `SHOW CREATE TABLE ochl_day;` instead. `\du` shows one user, `kdb`: use `SHOW USERS;` for the real list.
+Plain SQL works. KarelaDB also answers the Postgres catalog (`pg_catalog`, `information_schema`), so `\l` (databases), `\dt` (tables), `\di` (indexes) and `\du` work. A full `\d ochl_day` still fails on one of the queries psql sends; use `SHOW COLUMNS FROM ochl_day;` and `SHOW CREATE TABLE ochl_day;` instead. `\du` shows one user, `kareladb`: use `SHOW USERS;` for the real list.
 
 `\copy` works too, because psql sends it as `COPY ... FROM STDIN` (see [Loading many rows: COPY](#loading-many-rows-copy)).
 
@@ -216,15 +216,15 @@ Plain SQL works. KDB also answers the Postgres catalog (`pg_catalog`, `informati
 2. Host `127.0.0.1`, port `8832`, database `market`, user `app`, password = the token.
 3. **Driver properties**: set `sslmode` to `disable`.
 4. **Connection settings → Initialization**: turn off "Show all databases".
-5. Open an **SQL editor** and run KDB SQL.
+5. Open an **SQL editor** and run KarelaDB SQL.
 
-The SQL editor and the result grid work. The **Database Navigator** (the tree of schemas and tables) reads the Postgres catalog, which KDB answers: it lists the tables, their columns with types and defaults, indexes and constraints. Sizes stay empty, and row counts are not known.
+The SQL editor and the result grid work. The **Database Navigator** (the tree of schemas and tables) reads the Postgres catalog, which KarelaDB answers: it lists the tables, their columns with types and defaults, indexes and constraints. Sizes stay empty, and row counts are not known.
 
 (DBeaver was not run on the test PC.)
 
 ## Types
 
-| KDB type | Postgres type (OID) | Go (pgx) |
+| KarelaDB type | Postgres type (OID) | Go (pgx) |
 |---|---|---|
 | `BOOL` | `bool` (16) | `bool` |
 | `BYTE`, `SHORT` | `int2` (21) | `int16` |
@@ -241,13 +241,13 @@ The SQL editor and the result grid work. The **Database Navigator** (the tree of
 
 Values go both ways in **text** and **binary** form. A driver picks the form; you do not have to.
 
-**Parameters get their type from where you use them.** In `WHERE volume > $1`, `$1` is `LONG` because `volume` is `LONG`. In `INSERT INTO t (a, b) VALUES ($1, $2)`, each parameter gets its column's type. A parameter KDB cannot place (`SELECT $1`) has no type; the driver then sends it as text.
+**Parameters get their type from where you use them.** In `WHERE volume > $1`, `$1` is `LONG` because `volume` is `LONG`. In `INSERT INTO t (a, b) VALUES ($1, $2)`, each parameter gets its column's type. A parameter KarelaDB cannot place (`SELECT $1`) has no type; the driver then sends it as text.
 
-**Computed columns.** Before a query runs, KDB works out the type of each result column. For columns, `count(*)`, `sum`, `avg`, arithmetic and most functions it knows the type. For a few (a saved function, say) it runs the query once with empty values to learn it. If a type is still unknown, the column is `text`. When Go then says `cannot scan text into *float64`, add a cast: `SELECT my_func(close)::DOUBLE AS x ...`.
+**Computed columns.** Before a query runs, KarelaDB works out the type of each result column. For columns, `count(*)`, `sum`, `avg`, arithmetic and most functions it knows the type. For a few (a saved function, say) it runs the query once with empty values to learn it. If a type is still unknown, the column is `text`. When Go then says `cannot scan text into *float64`, add a cast: `SELECT my_func(close)::DOUBLE AS x ...`.
 
 ## Times
 
-KDB keeps a `TIMESTAMP` as one exact moment in **UTC** (chapter 4).
+KarelaDB keeps a `TIMESTAMP` as one exact moment in **UTC** (chapter 4).
 
 By default it is sent as Postgres `timestamp` (without time zone), like QuestDB does. With this type, drivers **drop the time zone** of a value you send:
 
@@ -260,7 +260,7 @@ Times have **milliseconds**. Microseconds from a driver are cut.
 
 ## Transactions
 
-`BEGIN`, `COMMIT` and `ROLLBACK` work across messages, one transaction per connection. Postgres forms are accepted too: `BEGIN ISOLATION LEVEL ...`, `START TRANSACTION`, `END`, `ABORT`. (Every KDB transaction is serializable; the level is ignored.)
+`BEGIN`, `COMMIT` and `ROLLBACK` work across messages, one transaction per connection. Postgres forms are accepted too: `BEGIN ISOLATION LEVEL ...`, `START TRANSACTION`, `END`, `ABORT`. (Every KarelaDB transaction is serializable; the level is ignored.)
 
 When a statement fails inside a transaction, the transaction is **aborted**, like in PostgreSQL. Every next statement gets error `25P02` until you send `ROLLBACK` (a `COMMIT` then also rolls back, and its tag is `ROLLBACK`). pgx does this for you: `tx.Rollback(ctx)`.
 
@@ -295,22 +295,22 @@ Errors carry a **SQLSTATE** code, so `errors.As(err, &pgErr)` and `pgErr.Code` w
 | `53300` | Too many connections (at most 100) |
 | `XX000` | Anything else (read the message) |
 
-## What drivers send, and KDB answers
+## What drivers send, and KarelaDB answers
 
-Drivers send a few Postgres commands that KDB SQL does not have. KDB answers them itself:
+Drivers send a few Postgres commands that KarelaDB SQL does not have. KarelaDB answers them itself:
 
 | Command | Answer |
 |---|---|
 | `SET name = value` / `SET name TO value` | accepted and remembered (`client_encoding` must be UTF8) |
-| `SET statement_timeout = 5000` (or `'5s'`), `SET safe_updates = on` | KDB uses them (chapter 21); a user who is not an admin can only make the timeout shorter than the server's |
+| `SET statement_timeout = 5000` (or `'5s'`), `SET safe_updates = on` | KarelaDB uses them (chapter 21); a user who is not an admin can only make the timeout shorter than the server's |
 | CancelRequest (Ctrl+C in psql, a cancelled context in pgx) | stops the running statement of that connection: `57014` |
-| `SHOW server_version`, `SHOW TimeZone`, ... | the setting; `server_version` is `14.0 (KDB ...)` |
+| `SHOW server_version`, `SHOW TimeZone`, ... | the setting; `server_version` is `14.0 (KarelaDB ...)` |
 | `SELECT version()` | `PostgreSQL 14.0 (KDB 0.2.0-dev), compatible server` |
-| `SELECT current_database()` | the KDB database name |
+| `SELECT current_database()` | the KarelaDB database name |
 | `SELECT current_user`, `current_schema()` | the user name, `public` |
 | `RESET ...`, `DISCARD ALL`, `DEALLOCATE ...` | accepted |
 
-`SHOW TABLES`, `SHOW COLUMNS FROM t` and the other KDB `SHOW` statements still work as KDB statements.
+`SHOW TABLES`, `SHOW COLUMNS FROM t` and the other KarelaDB `SHOW` statements still work as KarelaDB statements.
 
 ## Loading many rows: COPY
 
@@ -330,15 +330,15 @@ n, err := pool.CopyFrom(ctx, pgx.Identifier{"brokers"}, []string{"id", "name"}, 
 
 - **All or nothing.** One bad row (a wrong type, a key used twice, an empty `NOT NULL` column) fails the whole `COPY`, and nothing is written. The error names the row: `COPY brokers: row 301: ...`.
 - Inside `BEGIN` ... `COMMIT` the rows join the transaction; `ROLLBACK` removes them.
-- A file name instead of `STDIN` or `STDOUT` is refused: KDB never reads or writes files on the server for a client.
+- A file name instead of `STDIN` or `STDOUT` is refused: KarelaDB never reads or writes files on the server for a client.
 
 ## Not supported yet
 
 - **TLS** (use localhost or an SSH tunnel).
 - A few parts of the **Postgres catalog**: a full psql `\d <table>` (use `SHOW COLUMNS`), sizes and row counts in the catalog tables, the real user list in `pg_roles` (use `SHOW USERS`).
-- **Postgres SQL** that KDB does not have (for example `::regclass`, `MERGE`). Chapters 22 and 23 list what works.
+- **Postgres SQL** that KarelaDB does not have (for example `::regclass`, `MERGE`). Chapters 22 and 23 list what works.
 - `LISTEN`/`NOTIFY` (accepted, but no notifications come), functions calls of the old protocol, `SAVEPOINT`.
-- Parameters in `FILL(...)`, `SAMPLE BY` and other places where KDB needs a fixed value. `LIMIT $1` and `OFFSET $1` work.
+- Parameters in `FILL(...)`, `SAMPLE BY` and other places where KarelaDB needs a fixed value. `LIMIT $1` and `OFFSET $1` work.
 - A simple query with several statements is not one transaction: statements before an error stay done. Use `BEGIN` ... `COMMIT`.
-- `SET ROLE`, `CREATE ROLE`, PostgreSQL's full `GRANT` syntax: KDB has users with roles per database (chapter 16) and `GRANT SELECT|INSERT|UPDATE|DELETE ON TABLE t TO user` (chapter 21); no column or row rights.
+- `SET ROLE`, `CREATE ROLE`, PostgreSQL's full `GRANT` syntax: KarelaDB has users with roles per database (chapter 16) and `GRANT SELECT|INSERT|UPDATE|DELETE ON TABLE t TO user` (chapter 21); no column or row rights.
 - Users with **two-factor login** (chapter 21) cannot log in on this port (a driver cannot ask for the code). Give programs their own user.

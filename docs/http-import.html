@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CSV import over HTTP (POST /imp) - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="Send a CSV file to kdb serve and it loads the rows, making the table from the file when it is new - QuestDB&#39;s /imp.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-import.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-import.md">
+<title>CSV import over HTTP (POST /imp) - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="Send a CSV file to kareladb serve and it loads the rows, making the table from the file when it is new - QuestDB&#39;s /imp.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/http-import.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/http-import.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="csv-import-over-http-post-imp">CSV import over HTTP (POST /imp)</h1>
-<blockquote><p>Send a CSV file to kdb serve and it loads the rows, making the table from the file when it is new - QuestDB&#39;s /imp.</p></blockquote>
+<blockquote><p>Send a CSV file to kareladb serve and it loads the rows, making the table from the file when it is new - QuestDB&#39;s /imp.</p></blockquote>
 <ul><li>Category: HTTP API</li><li>Keywords: /imp, imp, CSV import, timings, Server-Timing, parse_ms, lock_wait_ms, wal_ms, apply_ms, durable_ms, durable, queued, gzip upload, import CSV, upload CSV, load a file, QuestDB import, multipart, form-data, overwrite, atomicity, skipCol, skipRow, abort, forceHeader, partitionBy, delimiter, fmt, rowsImported, rowsRejected, schema</li><li>See also: <a href="line-protocol.html">Line protocol (POST /write)</a>, <a href="loading-data.html">Loading many rows</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="http-overview.html">HTTP API overview</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a></li></ul>
 <p><code>POST /imp</code> loads a <strong>CSV file</strong> into a table. It is QuestDB&#39;s import route, so a QuestDB script or the QuestDB web console can send here without changes.</p>
 <ul><li>A table that is <strong>not there yet</strong> is made from the file: the column names come from the first line, the types from the values.</li><li>A table that <strong>is</strong> there gets the rows added (upserted, like the <a href="line-protocol.html#post-write">line protocol</a>).</li><li>Everything is written in <strong>one transaction</strong>: after a good answer all rows are in, after an error nothing changed.</li></ul>
@@ -26,7 +26,7 @@
          [&amp;delimiter=,][&amp;forceHeader=true][&amp;fmt=json]
 body: the CSV itself, or multipart/form-data with a file part named &quot;data&quot;</code></pre>
 <p>Reads the CSV, makes the table when it is new, and writes the rows.</p>
-<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>name</code></td><td>URL</td><td>The table to load into. Without it, the file name of the upload (without <code>.csv</code>) is used.</td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). Without it: the one database that already has the table (<a href="#which-database">which database</a>).</td><td>see the left</td></tr><tr><td><code>overwrite</code></td><td>URL</td><td><code>true</code>: drop the table first and make it again from the file.</td><td><code>false</code></td></tr><tr><td><code>atomicity</code></td><td>URL</td><td>What a value that does not fit its column does: <code>skipCol</code> the value becomes <code>NULL</code>, <code>skipRow</code> the whole row is left out, <code>abort</code> nothing at all is written.</td><td><code>skipCol</code></td></tr><tr><td><code>dedup</code></td><td>URL</td><td><code>skip</code>: no duplicate lookups in days that already hold rows. <strong>A key already stored may then be there twice</strong>; the answer has <code>dedupSkipped</code> (<a href="partitions-and-dedup.html#dedup-skip">dedup=skip</a>).</td><td><code>on</code></td></tr><tr><td><code>timestamp</code></td><td>URL</td><td>Which column is the time column of a <strong>new</strong> table (<code>TIMESERIES(...)</code>).</td><td>none</td></tr><tr><td><code>partitionBy</code></td><td>URL</td><td><code>NONE</code>, <code>DAY</code>, <code>MONTH</code> or <code>YEAR</code> for a <strong>new</strong> table. Anything but <code>NONE</code> needs <code>timestamp=</code>.</td><td><code>NONE</code></td></tr><tr><td><code>delimiter</code></td><td>URL</td><td>The character between the values; <code>\t</code> or <code>tab</code> for a tab. Without it KDB guesses from the first lines.</td><td>guessed</td></tr><tr><td><code>forceHeader</code></td><td>URL</td><td><code>true</code>: the first line is column names. Without it KDB decides: names that match the table, or a first line with nothing that looks like data.</td><td>guessed</td></tr><tr><td><code>fmt</code></td><td>URL</td><td><code>json</code>: answer as JSON. Anything else: a short text answer.</td><td>text</td></tr><tr><td><code>schema</code></td><td>form part</td><td>JSON that sets column types: <code>[{&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}]</code>.</td><td>types guessed</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>name</code></td><td>URL</td><td>The table to load into. Without it, the file name of the upload (without <code>.csv</code>) is used.</td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). Without it: the one database that already has the table (<a href="#which-database">which database</a>).</td><td>see the left</td></tr><tr><td><code>overwrite</code></td><td>URL</td><td><code>true</code>: drop the table first and make it again from the file.</td><td><code>false</code></td></tr><tr><td><code>atomicity</code></td><td>URL</td><td>What a value that does not fit its column does: <code>skipCol</code> the value becomes <code>NULL</code>, <code>skipRow</code> the whole row is left out, <code>abort</code> nothing at all is written.</td><td><code>skipCol</code></td></tr><tr><td><code>dedup</code></td><td>URL</td><td><code>skip</code>: no duplicate lookups in days that already hold rows. <strong>A key already stored may then be there twice</strong>; the answer has <code>dedupSkipped</code> (<a href="partitions-and-dedup.html#dedup-skip">dedup=skip</a>).</td><td><code>on</code></td></tr><tr><td><code>timestamp</code></td><td>URL</td><td>Which column is the time column of a <strong>new</strong> table (<code>TIMESERIES(...)</code>).</td><td>none</td></tr><tr><td><code>partitionBy</code></td><td>URL</td><td><code>NONE</code>, <code>DAY</code>, <code>MONTH</code> or <code>YEAR</code> for a <strong>new</strong> table. Anything but <code>NONE</code> needs <code>timestamp=</code>.</td><td><code>NONE</code></td></tr><tr><td><code>delimiter</code></td><td>URL</td><td>The character between the values; <code>\t</code> or <code>tab</code> for a tab. Without it KarelaDB guesses from the first lines.</td><td>guessed</td></tr><tr><td><code>forceHeader</code></td><td>URL</td><td><code>true</code>: the first line is column names. Without it KarelaDB decides: names that match the table, or a first line with nothing that looks like data.</td><td>guessed</td></tr><tr><td><code>fmt</code></td><td>URL</td><td><code>json</code>: answer as JSON. Anything else: a short text answer.</td><td>text</td></tr><tr><td><code>schema</code></td><td>form part</td><td>JSON that sets column types: <code>[{&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}]</code>.</td><td>types guessed</td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Answer (with <code>fmt=json</code>)</th><th>Meaning</th></tr></thead><tbody><tr><td><code>status</code></td><td><code>&quot;OK&quot;</code>, or the error message</td></tr><tr><td><code>database</code></td><td>the database the rows went into</td></tr><tr><td><code>location</code></td><td>the table the rows went into</td></tr><tr><td><code>rowsImported</code></td><td>how many rows were written</td></tr><tr><td><code>rowsRejected</code></td><td>how many rows were left out (<code>atomicity=skipRow</code>)</td></tr><tr><td><code>header</code></td><td>whether the first line was read as column names</td></tr><tr><td><code>partitionBy</code>, <code>timestamp</code></td><td>the table&#39;s partitioning and time column</td></tr><tr><td><code>columns</code></td><td>one entry per column: <code>name</code>, <code>type</code>, <code>size</code> in bytes, <code>errors</code> (values that did not fit)</td></tr><tr><td><code>timings</code></td><td>where the time of the request went, in milliseconds (<a href="#timings">timings</a>)</td></tr></tbody></table></div>
 <ul><li><strong>Status codes:</strong> 200 loaded (read <code>rowsRejected</code>: a 200 can still have left rows out); 400 a bad CSV, a bad parameter, an unknown column, <code>atomicity=abort</code> with a bad value, or no <code>db</code> when the database cannot be worked out; 401/403 login or role (403 also when a <a href="table-rights.html">table right</a> does not allow inserts into this table); 404 unknown database; 405 for a <code>GET</code>; 408 a trigger ran past the statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble (nothing written); 503 while the server is stopping; 507 the disk is full: free space, then send the same file again, unless the message says <code>do not send it again</code> (the disk filled while the log was flushed: the rows are already in the table and are saved once space is back, see <a href="backup-and-safety.html">backup and safety</a>).</li><li><strong>Roles:</strong> loading into a table that is there needs the <strong>write</strong> role. Making a table (a new name, or <code>overwrite=true</code>) needs <strong>admin</strong>.</li><li><strong>Types of a new table:</strong> <code>BOOLEAN</code>, <code>LONG</code>, <code>DOUBLE</code>, <code>DATE</code>, <code>TIMESTAMP</code>, else <code>STRING</code>. Send <code>schema</code> (or make the table yourself with <a href="create-table.html">CREATE TABLE</a>) when you want <code>SYMBOL</code>, <code>DECIMAL(2)</code> or a <code>PRIMARY KEY</code>.</li><li><strong>Notes:</strong>
 <ul><li>Rows are <strong>upserted</strong>: a row with the same <code>PRIMARY KEY</code> or <code>DEDUP KEY</code> replaces the old one, so sending the same file twice makes no duplicates.</li><li>The first 5000 lines are read first, to find the header and the types. A column whose later values do not fit follows <code>atomicity</code>.</li><li>The body may be compressed with <code>Content-Encoding: gzip</code> or <code>deflate</code>. The 64 MB limit counts the unpacked CSV. A damaged body gives 400 and imports nothing. With curl: <code>gzip -c prices.csv | curl --data-binary @- -H &quot;Content-Encoding: gzip&quot; &quot;http://127.0.0.1:9900/imp?name=prices&quot;</code>.</li><li><a href="triggers.html">Triggers</a> run once for the whole request, like the line protocol. Their time counts toward the <a href="protection.html#statement-timeout">statement timeout</a>; send <code>X-KDB-Statement-Timeout</code> for a longer one (admins only). A trigger that runs too long gives status 408 and <code>trigger &lt;name&gt;: statement timeout (&lt;N&gt; s) (nothing was imported)</code>.</li></ul></li></ul>
@@ -40,7 +40,7 @@ body: the CSV itself, or multipart/form-data with a file part named &quot;data&q
 <h3 id="which-database">Which database, without db=</h3>
 <p>A QuestDB client has no <code>db=</code> to send, so <code>/imp</code> works out the database from the table name:</p>
 <div class="table-wrap"><table><thead><tr><th>The server has</th><th>Without <code>db=</code> the rows go to</th></tr></thead><tbody><tr><td>one database</td><td>that database</td></tr><tr><td>several, and one of them has the table</td><td>that database (the default one wins when it is among several that have it)</td></tr><tr><td>several, and more than one has the table (not the default)</td><td>nothing: 400, add <code>db=</code></td></tr><tr><td>several, and none has the table</td><td>nothing: 400, add <code>db=</code> or create the table first</td></tr></tbody></table></div>
-<p>KDB refuses rather than guessing, so a load meant for another database never makes a new table with guessed types in the default one. The answer&#39;s <code>database</code> says where the rows went.</p>
+<p>KarelaDB refuses rather than guessing, so a load meant for another database never makes a new table with guessed types in the default one. The answer&#39;s <code>database</code> says where the rows went.</p>
 <p><strong>HTTP: A new table straight from a CSV of daily closes</strong></p>
 <pre><code class="language-http">POST /imp?name=day_closes&amp;timestamp=time&amp;partitionBy=YEAR&amp;fmt=json
 Content-Type: text/csv
@@ -70,13 +70,13 @@ GET /exec?compat=0&amp;query=SELECT * FROM day_closes ORDER BY time, symbol</cod
     {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 0}
   ],
   &quot;timings&quot;: {
-    &quot;parse_ms&quot;: 22.162,
-    &quot;lock_wait_ms&quot;: 0.012,
-    &quot;wal_ms&quot;: 5.798,
-    &quot;apply_ms&quot;: 6.818,
+    &quot;parse_ms&quot;: 86.319,
+    &quot;lock_wait_ms&quot;: 0.029,
+    &quot;wal_ms&quot;: 1.59,
+    &quot;apply_ms&quot;: 3.168,
     &quot;trigger_ms&quot;: 0,
-    &quot;durable_ms&quot;: 34.79,
-    &quot;total_ms&quot;: 34.79
+    &quot;durable_ms&quot;: 91.106,
+    &quot;total_ms&quot;: 91.106
   }
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT * FROM day_closes ORDER BY time, symbol</code></p>
@@ -101,10 +101,10 @@ GET /exec?compat=0&amp;query=SELECT * FROM day_closes ORDER BY time, symbol</cod
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 31, &quot;execute_us&quot;: 87}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 62}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 31, &quot;execute_us&quot;: 87}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 62}
 }</code></pre>
 <p><strong>HTTP: Add rows to a table that already exists</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /imp?name=securities&amp;fmt=json
@@ -130,13 +130,13 @@ GET /exec?compat=0&amp;query=SELECT symbol, name FROM securities ORDER BY symbol
     {&quot;name&quot;: &quot;sector&quot;, &quot;type&quot;: &quot;STRING&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0}
   ],
   &quot;timings&quot;: {
-    &quot;parse_ms&quot;: 0.164,
-    &quot;lock_wait_ms&quot;: 0.012,
-    &quot;wal_ms&quot;: 3.957,
-    &quot;apply_ms&quot;: 3.514,
+    &quot;parse_ms&quot;: 0.152,
+    &quot;lock_wait_ms&quot;: 0.016,
+    &quot;wal_ms&quot;: 5.984,
+    &quot;apply_ms&quot;: 5.898,
     &quot;trigger_ms&quot;: 0,
-    &quot;durable_ms&quot;: 7.647,
-    &quot;total_ms&quot;: 7.647
+    &quot;durable_ms&quot;: 12.05,
+    &quot;total_ms&quot;: 12.05
   }
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT symbol, name FROM securities ORDER BY symbol</code></p>
@@ -162,10 +162,10 @@ GET /exec?compat=0&amp;query=SELECT symbol, name FROM securities ORDER BY symbol
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 193}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 192}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 193}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 192}
 }</code></pre>
 <p><strong>HTTP: The short text answer (no fmt=json)</strong></p>
 <pre><code class="language-http">POST /imp?name=broker_list
@@ -207,13 +207,13 @@ GET /exec?compat=0&amp;query=SELECT * FROM day_closes2 ORDER BY symbol</code></p
     {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 1}
   ],
   &quot;timings&quot;: {
-    &quot;parse_ms&quot;: 0.063,
-    &quot;lock_wait_ms&quot;: 0.014,
-    &quot;wal_ms&quot;: 1.918,
-    &quot;apply_ms&quot;: 5.278,
+    &quot;parse_ms&quot;: 0.047,
+    &quot;lock_wait_ms&quot;: 0.008,
+    &quot;wal_ms&quot;: 1.956,
+    &quot;apply_ms&quot;: 3.747,
     &quot;trigger_ms&quot;: 0,
-    &quot;durable_ms&quot;: 7.273,
-    &quot;total_ms&quot;: 7.273
+    &quot;durable_ms&quot;: 5.758,
+    &quot;total_ms&quot;: 5.758
   }
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT * FROM day_closes2 ORDER BY symbol</code></p>
@@ -235,10 +235,10 @@ GET /exec?compat=0&amp;query=SELECT * FROM day_closes2 ORDER BY symbol</code></p
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 105}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 55}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 105}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 55}
 }</code></pre>
 <p><strong>HTTP: skipRow leaves the bad row out</strong></p>
 <p>Setup:</p>
@@ -266,13 +266,13 @@ GET /exec?compat=0&amp;query=SELECT * FROM day_closes3 ORDER BY symbol</code></p
     {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 1}
   ],
   &quot;timings&quot;: {
-    &quot;parse_ms&quot;: 0.07,
-    &quot;lock_wait_ms&quot;: 0.012,
-    &quot;wal_ms&quot;: 1.845,
-    &quot;apply_ms&quot;: 3.957,
+    &quot;parse_ms&quot;: 0.065,
+    &quot;lock_wait_ms&quot;: 0.01,
+    &quot;wal_ms&quot;: 1.168,
+    &quot;apply_ms&quot;: 4.216,
     &quot;trigger_ms&quot;: 0,
-    &quot;durable_ms&quot;: 5.884,
-    &quot;total_ms&quot;: 5.884
+    &quot;durable_ms&quot;: 5.459,
+    &quot;total_ms&quot;: 5.459
   }
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT * FROM day_closes3 ORDER BY symbol</code></p>
@@ -293,10 +293,10 @@ GET /exec?compat=0&amp;query=SELECT * FROM day_closes3 ORDER BY symbol</code></p
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 100}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 63}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 100}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 63}
 }</code></pre>
 <p><strong>HTTP: atomicity=abort: one bad value and nothing is written</strong></p>
 <p>Setup:</p>
@@ -332,13 +332,13 @@ id	note
     {&quot;name&quot;: &quot;note&quot;, &quot;type&quot;: &quot;STRING&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0}
   ],
   &quot;timings&quot;: {
-    &quot;parse_ms&quot;: 14.877,
-    &quot;lock_wait_ms&quot;: 0.013,
-    &quot;wal_ms&quot;: 3.195,
-    &quot;apply_ms&quot;: 3.204,
+    &quot;parse_ms&quot;: 12.392,
+    &quot;lock_wait_ms&quot;: 0.008,
+    &quot;wal_ms&quot;: 1.181,
+    &quot;apply_ms&quot;: 3.065,
     &quot;trigger_ms&quot;: 0,
-    &quot;durable_ms&quot;: 21.289,
-    &quot;total_ms&quot;: 21.289
+    &quot;durable_ms&quot;: 16.646,
+    &quot;total_ms&quot;: 16.646
   }
 }</code></pre>
 <p><strong>HTTP: The table must be named</strong></p>
@@ -370,6 +370,6 @@ if answer[&quot;status&quot;] != &quot;OK&quot;:
     raise RuntimeError(answer[&quot;status&quot;])
 print(answer[&quot;rowsImported&quot;], &quot;rows in&quot;, answer[&quot;location&quot;])</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-import.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/http-import.md">This page as markdown</a>.</footer>
 </body>
 </html>

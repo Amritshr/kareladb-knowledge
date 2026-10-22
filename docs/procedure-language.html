@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The procedure language - KDB (KARELA DataBase) docs</title>
+<title>The procedure language - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/procedure-language.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/procedure-language.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/procedure-language.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/procedure-language.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="the-procedure-language">The procedure language</h1>
 <blockquote><p>Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body.</p></blockquote>
@@ -526,21 +526,21 @@ CREATE PROCEDURE withdraw(account INT, amt DECIMAL(2)) AS BEGIN
     RAISE concat(&#39;not enough money in account &#39;, account, &#39; for &#39;, amt);
   END IF;
 END;</code></pre>
-<pre><code class="language-bash">kdb sql market &quot;CALL withdraw(1, 400)&quot;
-kdb sql market &quot;CALL withdraw(1, 700)&quot;
-kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></pre>
+<pre><code class="language-bash">kareladb sql market &quot;CALL withdraw(1, 400)&quot;
+kareladb sql market &quot;CALL withdraw(1, 700)&quot;
+kareladb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb sql market &quot;CALL withdraw(1, 400)&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;CALL withdraw(1, 400)&quot;</code></p>
 <pre><code class="language-text">procedure &#39;withdraw&#39; done: 1 row(s) changed</code></pre>
-<p><code>&gt; kdb sql market &quot;CALL withdraw(1, 700)&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;CALL withdraw(1, 700)&quot;</code></p>
 <pre><code class="language-text">error: procedure &#39;withdraw&#39;, line 4: not enough money in account 1 for 700.00</code></pre>
 <p>exit code 1</p>
-<p><code>&gt; kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></p>
+<p><code>&gt; kareladb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></p>
 <pre><code class="language-text">id | owner | balance
 ---+-------+--------
  1 | Ram   |  600.00
  2 | Sita  |    0.00
-(2 rows, 0.3 ms)</code></pre>
+(2 rows, 0.2 ms)</code></pre>
 <h2 id="print">PRINT</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">PRINT expression</code></pre>
@@ -579,7 +579,7 @@ EXECUTE text [INTO ...] USING value, ...;</code></pre>
 <p>Runs SQL that is made while the procedure runs. Use it when a table or column name comes from an argument. It works as in PostgreSQL PL/pgSQL.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>What it does</th></tr></thead><tbody><tr><td><code>text</code></td><td>any expression that gives the SQL text, for example <a href="functions-text.html#format">format</a><code>(...)</code> or <code>&#39;...&#39; || name</code></td></tr><tr><td><code>USING a, b</code></td><td>the values of <code>$1</code>, <code>$2</code>, ... in the text. They go in as <strong>values</strong>, never as SQL.</td></tr><tr><td><code>INTO v, w</code></td><td>puts the first row into the variables (one variable for each column). No row: the variables become <code>NULL</code>.</td></tr><tr><td><code>INTO STRICT v</code></td><td>the same, but exactly one row is needed; no row or more rows is an error</td></tr></tbody></table></div>
 <ul><li><strong>Notes:</strong>
-<ul><li>Put values in with <code>USING</code>, or with <code>%L</code> of <code>format</code>. Put names in with <code>%I</code> of <code>format</code> or <code>quote_ident</code>. Then a quote in a value cannot change the statement.</li><li>The text may hold <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> (with <code>RETURNING</code> for <code>INTO</code>), <code>CALL</code>, <code>EXPLAIN</code> or <code>SHOW</code>: what a body may hold. <code>CREATE</code>, <code>DROP</code>, <code>BEGIN</code> and <code>COMMIT</code> are refused.</li><li>The statement runs with the <strong>rights of the user who called</strong> the procedure, inside the same transaction. An error undoes the whole <code>CALL</code>.</li><li><code>FOUND</code> is <code>TRUE</code> when the statement gave or changed at least one row.</li><li>A <code>SELECT</code> without <code>INTO</code> returns its rows as an extra result of the <code>CALL</code>.</li><li>Speed: a date in <code>USING</code> skips partitions like a date written in the SQL. <code>CALL ... WITH DEBUG</code> shows the text that ran and <code>partitions read</code>.</li><li>The text is parsed each time it runs. In a loop over many rows, a normal statement with variables is faster.</li><li>Locks: KDB locks the tables a <code>CALL</code> uses before it starts. Text written out in the body (<code>EXECUTE &#39;INSERT INTO t VALUES ($1)&#39; USING x</code>) is known then, so only its tables are locked. Text made while the procedure runs (<code>format(...)</code>, <code>&#39;...&#39; || name</code>) could name any table, so such a <code>CALL</code> (or trigger) locks <strong>every</strong> table of the database while it runs, and writers of all other tables wait for it. See <a href="transactions.html#one-writer">one writer per table</a>.</li></ul></li></ul>
+<ul><li>Put values in with <code>USING</code>, or with <code>%L</code> of <code>format</code>. Put names in with <code>%I</code> of <code>format</code> or <code>quote_ident</code>. Then a quote in a value cannot change the statement.</li><li>The text may hold <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> (with <code>RETURNING</code> for <code>INTO</code>), <code>CALL</code>, <code>EXPLAIN</code> or <code>SHOW</code>: what a body may hold. <code>CREATE</code>, <code>DROP</code>, <code>BEGIN</code> and <code>COMMIT</code> are refused.</li><li>The statement runs with the <strong>rights of the user who called</strong> the procedure, inside the same transaction. An error undoes the whole <code>CALL</code>.</li><li><code>FOUND</code> is <code>TRUE</code> when the statement gave or changed at least one row.</li><li>A <code>SELECT</code> without <code>INTO</code> returns its rows as an extra result of the <code>CALL</code>.</li><li>Speed: a date in <code>USING</code> skips partitions like a date written in the SQL. <code>CALL ... WITH DEBUG</code> shows the text that ran and <code>partitions read</code>.</li><li>The text is parsed each time it runs. In a loop over many rows, a normal statement with variables is faster.</li><li>Locks: KarelaDB locks the tables a <code>CALL</code> uses before it starts. Text written out in the body (<code>EXECUTE &#39;INSERT INTO t VALUES ($1)&#39; USING x</code>) is known then, so only its tables are locked. Text made while the procedure runs (<code>format(...)</code>, <code>&#39;...&#39; || name</code>) could name any table, so such a <code>CALL</code> (or trigger) locks <strong>every</strong> table of the database while it runs, and writers of all other tables wait for it. See <a href="transactions.html#one-writer">one writer per table</a>.</li></ul></li></ul>
 <p><strong>Example: One procedure for two tables: the table name is an argument</strong></p>
 <pre><code class="language-sql">CREATE TABLE daily_prices (symbol STRING, close DOUBLE);
 CREATE TABLE weekly_prices (symbol STRING, close DOUBLE);
@@ -743,6 +743,6 @@ END;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 3, column 5: expected an operator (AND, OR, =, +, ...) or DO after the WHILE condition but found &#39;SET&#39;</code></p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/procedure-language.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/procedure-language.md">This page as markdown</a>.</footer>
 </body>
 </html>

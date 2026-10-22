@@ -17,11 +17,11 @@ Chapter 22 is about the app's tables. This chapter is about the app's **queries 
 - **Part I.** QuestDB apps: `ALTER DATABASE ... SET dialect`, `/imp`, `to_str`.
 - What is **different** from PostgreSQL, and **speed**.
 
-The output under each example is real (`kdb sql`). Times print in KDB's style (`2026-09-10T05:20:00.000Z`); over the PostgreSQL protocol they have PostgreSQL's style.
+The output under each example is real (`kareladb sql`). Times print in KarelaDB's style (`2026-09-10T05:20:00.000Z`); over the PostgreSQL protocol they have PostgreSQL's style.
 
 ## The short version
 
-| PostgreSQL | KDB |
+| PostgreSQL | KarelaDB |
 |---|---|
 | `INSERT ... ON CONFLICT (key) DO NOTHING / DO UPDATE SET c = EXCLUDED.c` | Works, with `WHERE`, `ON CONSTRAINT` and `RETURNING (xmax = 0)`. |
 | `INSERT ... SELECT`, `DEFAULT VALUES` | Works. |
@@ -37,7 +37,7 @@ The output under each example is real (`kdb sql`). Times print in KDB's style (`
 | `jsonb_build_object`, `json_agg`, `jsonb_set`, `->`, `->>`, `#>>` | Works. JSON sorts like `jsonb` (9 before 10). |
 | `pg_advisory_lock`, `pg_try_advisory_xact_lock`, ... | Real locks between sessions. |
 
-When all 2143 statements of the app run on KDB, **1971** work over HTTP (92.0%) and **1952** over the PostgreSQL protocol (91.1%) (checked on 2026-09-23). Before this work (and the schema work of chapter 22) it was 950 and 930. Most of the rest come from the test data or from table definitions the test schema left out (see the end).
+When all 2143 statements of the app run on KarelaDB, **1971** work over HTTP (92.0%) and **1952** over the PostgreSQL protocol (91.1%) (checked on 2026-09-23). Before this work (and the schema work of chapter 22) it was 950 and 930. Most of the rest come from the test data or from table definitions the test schema left out (see the end).
 
 ---
 
@@ -130,7 +130,7 @@ UPDATE ai_models SET is_default = TRUE WHERE (provider, model) = (SELECT provide
 
 ## Part C: WITH queries
 
-A `WITH` query names a result for the statement. KDB runs it the first time the statement reads it, once, and keeps its rows for the statement.
+A `WITH` query names a result for the statement. KarelaDB runs it the first time the statement reads it, once, and keeps its rows for the statement.
 
 `WITH RECURSIVE` runs its second part again on the rows found last, until no new rows come. `UNION` (without `ALL`) stops at rows it has seen, so a loop in the data ends.
 
@@ -191,9 +191,9 @@ ticket_id | title           | votes | i_voted
         3 | Nepali calendar |     0 | false
 ```
 
-**How KDB keeps this fast.** It does not run the subquery once per outer row.
+**How KarelaDB keeps this fast.** It does not run the subquery once per outer row.
 
-- When the subquery joins the outer row with `=` (`v.ticket_id = t.ticket_id`), KDB runs it **once** for all keys (grouped by `ticket_id`), puts the answers in a hash table, and every outer row looks its answer up. The work is one pass over `votes` plus one lookup per ticket.
+- When the subquery joins the outer row with `=` (`v.ticket_id = t.ticket_id`), KarelaDB runs it **once** for all keys (grouped by `ticket_id`), puts the answers in a hash table, and every outer row looks its answer up. The work is one pass over `votes` plus one lookup per ticket.
 - `count(*)` of a key without rows is 0, and `sum` is NULL, as in PostgreSQL.
 - `EXISTS`, `NOT EXISTS`, `IN (SELECT ...)` and `NOT IN (SELECT ...)` work the same way (a set of keys).
 - Other shapes (`v.amount > t.limit`) run once per **different** outer value, and the answers are kept for the statement.
@@ -278,7 +278,7 @@ n    | rounded | e        | next_month
 - `x::text` of a time gives PostgreSQL's text: `2026-09-10 12:00:00` (with `+00` for a `timestamptz`).
 - A text constant next to a number is read as a number: `'1.50' + 1` is `2.50` (a numeric parameter sent as text works too). Text from a column or a function is not: `doc ->> 'n' + 1` is an error; write `(doc ->> 'n')::int + 1`.
 - `md5(text)` and `initcap(text)` work as in PostgreSQL.
-- `CURRENT_TIMESTAMP`, `CURRENT_DATE`, `LOCALTIMESTAMP`, `now()` are the time the statement started. KDB times are UTC.
+- `CURRENT_TIMESTAMP`, `CURRENT_DATE`, `LOCALTIMESTAMP`, `now()` are the time the statement started. KarelaDB times are UTC.
 - `DATE - DATE` is a number of days. A month added to the 31st ends on the last day of the next month.
 
 **Intervals** keep months, days and time apart, as in PostgreSQL:
@@ -312,11 +312,11 @@ utc_instant            | local_clock
 2026-09-10 06:15:00+00 | 2026-09-10 12:00:00
 ```
 
-A `TIMESTAMP` column holds UTC instants in KDB, so KDB treats `now()`, `CURRENT_TIMESTAMP`, `timestamptz` casts and `TIMESTAMPTZ` columns as instants, and other `TIMESTAMP` values as clock times. Zones are fixed offsets (`'+05:45'`, `'UTC'`, `'Asia/Kathmandu'`, ...); zones with daylight saving time are refused.
+A `TIMESTAMP` column holds UTC instants in KarelaDB, so KarelaDB treats `now()`, `CURRENT_TIMESTAMP`, `timestamptz` casts and `TIMESTAMPTZ` columns as instants, and other `TIMESTAMP` values as clock times. Zones are fixed offsets (`'+05:45'`, `'UTC'`, `'Asia/Kathmandu'`, ...); zones with daylight saving time are refused.
 
 ## Part G: Arrays and JSON
 
-KDB keeps an array as a JSON array. Over the PostgreSQL protocol it is a real array (`text[]` is type 1009, `bigint[]` 1016, ...) in text and binary form, so `pgx` scans it into a Go slice and sends Go slices as parameters.
+KarelaDB keeps an array as a JSON array. Over the PostgreSQL protocol it is a real array (`text[]` is type 1009, `bigint[]` 1016, ...) in text and binary form, so `pgx` scans it into a Go slice and sends Go slices as parameters.
 
 ```sql
 CREATE TABLE feeds (id BIGINT PRIMARY KEY, tags TEXT[], roles JSONB);
@@ -357,7 +357,7 @@ JSON values sort like PostgreSQL's `jsonb`: numbers by value (9 before 10), stri
 
 ## Part H: Advisory locks
 
-Advisory locks are named by a number (or two). KDB keeps them between sessions of one database.
+Advisory locks are named by a number (or two). KarelaDB keeps them between sessions of one database.
 
 | Function | Meaning |
 |---|---|
@@ -401,7 +401,7 @@ curl -F "data=@Ochl_Day.csv" "http://127.0.0.1:9900/imp?name=Ochl_Day&timestamp=
 - Arrays have one dimension in binary form; nested arrays are sent as text.
 - `refdata.companies` means the table `companies` of the **database** `refdata` on the same server (PostgreSQL would look for a schema `refdata`). You can read it in `SELECT`, joins, subqueries and `INSERT ... SELECT`. A statement changes only the database it runs in. `public.companies` is your own table. The help topic **Queries across databases** has the details.
 
-## The app's queries on KDB
+## The app's queries on KarelaDB
 
 `tests/app_compat/run_compat.mjs` runs all 2143 statements of the app against a fresh server with sample data.
 
@@ -419,7 +419,7 @@ curl -F "data=@Ochl_Day.csv" "http://127.0.0.1:9900/imp?name=Ochl_Day&timestamp=
 
 Most of the statements that still fail are not about query support:
 
-- 44 "no unique key" for `ON CONFLICT`: the test schema (`schema_kdb.sql`) was written for an older KDB and left out composite keys. With the app's own `CREATE TABLE` they work.
+- 44 "no unique key" for `ON CONFLICT`: the test schema (`schema_kdb.sql`) was written for an older KarelaDB and left out composite keys. With the app's own `CREATE TABLE` they work.
 - Sample values that do not fit (`'test'` for a number), and template parts the test cannot fill (`{{spec.conflict}}`).
 - A few features of other chapters: QuestDB's `tables()` functions, and `COPY` sent over HTTP (over the PostgreSQL port `COPY` works, chapter 14).
 

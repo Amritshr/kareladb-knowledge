@@ -4,11 +4,11 @@
 
 ## What you will learn
 
-- Keep users (register and login) and money (accounts and a ledger) in KDB.
+- Keep users (register and login) and money (accounts and a ledger) in KarelaDB.
 - Stop bad data with **CHECK constraints** (for example: no balance below zero).
 - Move money with a **transaction**: all steps are saved, or none.
 - Get a new id back with **RETURNING**.
-- Keep a transaction open over **many requests** (kdb shell, HTTP, PostgreSQL protocol).
+- Keep a transaction open over **many requests** (kareladb shell, HTTP, PostgreSQL protocol).
 - What happens when many programs write at the same time, and what the **timeouts** do.
 - What happens on an **error** and after a **crash**.
 
@@ -68,7 +68,7 @@ Some choices here are important for money:
 
 ## Register and login
 
-KDB has the functions `password_hash(password)` and `password_verify(password, hash)`. They keep only a salted, slow hash of the password, never the password itself.
+KarelaDB has the functions `password_hash(password)` and `password_verify(password, hash)`. They keep only a salted, slow hash of the password, never the password itself.
 
 ```sql
 -- Register two users. RETURNING gives the new AUTO id back.
@@ -156,7 +156,7 @@ id | user_id | balance
 
 ## CHECK constraints
 
-A `CHECK` is a rule for every row. KDB checks it on `INSERT`, `INSERT OR REPLACE`, `UPDATE`, `InsertRows` and the line protocol. A row that makes the condition **false** is not written, and the statement fails:
+A `CHECK` is a rule for every row. KarelaDB checks it on `INSERT`, `INSERT OR REPLACE`, `UPDATE`, `InsertRows` and the line protocol. A row that makes the condition **false** is not written, and the statement fails:
 
 ```sql
 -- A balance below zero breaks the CHECK constraint: nothing is written.
@@ -176,7 +176,7 @@ balance DECIMAL(2) NOT NULL CHECK (balance >= 0)              -- after a column
 CONSTRAINT positive_amount CHECK (amount > 0)                 -- after the columns, with a name
 ```
 
-Without a name, KDB makes one: `table_column_check` (for a column) or `table_check`. `SHOW CREATE TABLE` shows every `CHECK` with its name:
+Without a name, KarelaDB makes one: `table_column_check` (for a column) or `table_check`. `SHOW CREATE TABLE` shows every `CHECK` with its name:
 
 ```sql
 SHOW CREATE TABLE accounts;
@@ -257,7 +257,7 @@ Why each part is there:
 | Part | Why |
 |---|---|
 | `BEGIN` | Starts the transaction. Every table it changes (or reads with `FOR UPDATE`) is locked from then on until `COMMIT` or `ROLLBACK`: no other program can change those tables meanwhile. |
-| `SELECT ... FOR UPDATE` | Reads the balances. Your app can check them (for example, show "not enough money" before trying). `FOR UPDATE` tells the reader: these rows are read to be changed. In KDB it locks the table `accounts` at once, so the balances you just read cannot change before your `UPDATE`. Other databases need it too: write it, and your SQL stays correct everywhere. |
+| `SELECT ... FOR UPDATE` | Reads the balances. Your app can check them (for example, show "not enough money" before trying). `FOR UPDATE` tells the reader: these rows are read to be changed. In KarelaDB it locks the table `accounts` at once, so the balances you just read cannot change before your `UPDATE`. Other databases need it too: write it, and your SQL stays correct everywhere. |
 | `balance = balance - 250.50` | Let the database do the math, in one statement. **Do not** read the balance in your app, subtract there, and write the result back (`SET balance = 749.50`) outside a transaction: two programs could both read 1000.00. |
 | `CHECK (balance >= 0)` | Even if your app forgets to check, the database refuses a negative balance. |
 | `RETURNING id` | The ledger id, for the receipt. |
@@ -319,7 +319,7 @@ Run queries like these every night. The total must not change (except for money 
 | Your app sends `ROLLBACK` | Nothing is saved. |
 | The client disconnects before `COMMIT` | Rolled back. |
 | No statement for 30 seconds | Rolled back (see [Timeouts](#timeouts)). |
-| KDB crashes or the power goes off before `COMMIT` returns | Nothing is saved. |
+| KarelaDB crashes or the power goes off before `COMMIT` returns | Nothing is saved. |
 | `COMMIT` returned OK | Saved, also after a crash or power cut. |
 | The disk is full at `COMMIT` | `COMMIT` returns an error, and nothing is saved. |
 
@@ -327,14 +327,14 @@ Run queries like these every night. The total must not change (except for money 
 
 A transaction can go over many requests when the program keeps a **session**:
 
-- **kdb shell**: one session for the whole shell.
+- **kareladb shell**: one session for the whole shell.
 - **HTTP**: `POST /session`, then the header `X-KDB-Session` on every `/exec`.
 - **PostgreSQL protocol** (psql, and drivers for Python, Go, Node, Java, .NET): every connection is a session. Use `BEGIN` and `COMMIT` as usual.
 
 Inside a session there is one more rule: **after an error, the session accepts only `ROLLBACK`**. Your next statements do not run by mistake outside the transaction:
 
 ```powershell
-# In kdb shell, a transaction goes over many lines. After an error, only ROLLBACK is accepted.
+# In kareladb shell, a transaction goes over many lines. After an error, only ROLLBACK is accepted.
 @"
 BEGIN;
 UPDATE accounts SET balance = balance + 10 WHERE id = 2;
@@ -343,23 +343,23 @@ UPDATE accounts SET balance = balance + 1 WHERE id = 2;
 ROLLBACK;
 SELECT id, balance FROM accounts ORDER BY id;
 .exit
-"@ | kdb shell market
+"@ | kareladb shell market
 ```
 
 ```text
-KDB 0.2.0-dev shell on market
+KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> transaction started
-kdb> 1 row(s) updated
-kdb> error: CHECK constraint 'accounts_balance_check' of table 'accounts' failed: balance >= 0 is false for the row id='1', balance='-9250.50' (the transaction was rolled back; send ROLLBACK to end it)
-kdb> error: the transaction of this session was rolled back (a statement in it failed); nothing of it was saved. Send ROLLBACK to end it, then start again
-kdb> transaction rolled back (it was already rolled back: a statement in it failed)
-kdb> id | balance
+kareladb> transaction started
+kareladb> 1 row(s) updated
+kareladb> error: CHECK constraint 'accounts_balance_check' of table 'accounts' failed: balance >= 0 is false for the row id='1', balance='-9250.50' (the transaction was rolled back; send ROLLBACK to end it)
+kareladb> error: the transaction of this session was rolled back (a statement in it failed); nothing of it was saved. Send ROLLBACK to end it, then start again
+kareladb> transaction rolled back (it was already rolled back: a statement in it failed)
+kareladb> id | balance
 ---+--------
  1 |  749.50
  2 |  250.50
 (2 rows, 0.1 ms)
-kdb>
+kareladb>
 ```
 
 The third line (`+ 1` for account 2) was **not** run: it would have given money without taking it anywhere. `COMMIT` in this state also fails (`COMMIT saved nothing: ...`), so your app cannot think the transfer was saved.
@@ -415,7 +415,7 @@ The request **without** the session header saw 749.50: the open transaction was 
 
 ## Many programs at the same time
 
-KDB locks **tables**, not the whole database. A writer locks every table it uses until its statement ends; inside `BEGIN` ... `COMMIT` it keeps them until the transaction ends. Two transfers can never mix, and every transaction sees the data exactly as the one before it left it (this is called *serializable*).
+KarelaDB locks **tables**, not the whole database. A writer locks every table it uses until its statement ends; inside `BEGIN` ... `COMMIT` it keeps them until the transaction ends. Two transfers can never mix, and every transaction sees the data exactly as the one before it left it (this is called *serializable*).
 
 - **Writers of the same table wait.** While session A has an open transaction that changed `accounts`, session B's `UPDATE`, `INSERT`, `DELETE` or `CALL` on `accounts` **waits** until A ends. Writers wait in a queue: the one that came first goes first. Line-protocol writes and `InsertRows` into that table wait too.
 - **Writers of other tables do not wait.** A price feed into `live_data` goes on while a transfer holds `accounts` and `ledger`.
@@ -426,7 +426,7 @@ KDB locks **tables**, not the whole database. A writer locks every table it uses
 - A normal statement without `BEGIN` is its own small transaction, so it also waits for an open transaction that holds its table.
 - **Commits share the disk.** Writers that commit at the same moment share one wait for the disk (group commit). Each one is still told "committed" only when its changes are on the disk.
 
-A read can still wait for a writer's **running** statement, usually a millisecond. A long `CALL` or a slow trigger body can make reads wait for seconds. `kdb serve --reader-yield on` (in Docker: `KDB_READER_YIELD=on`) lets reads in between the statements of such a writer: they read the last committed rows at once.
+A read can still wait for a writer's **running** statement, usually a millisecond. A long `CALL` or a slow trigger body can make reads wait for seconds. `kareladb serve --reader-yield on` (in Docker: `KARELADB_READER_YIELD=on`) lets reads in between the statements of such a writer: they read the last committed rows at once.
 
 A transfer takes about a millisecond, so waiting is short. It becomes a problem only when a transaction stays open for a long time. **Never** keep a transaction open while you wait for a person (a click, a form, an SMS code). Read first, ask the person, then do `BEGIN ... COMMIT` quickly.
 
@@ -444,12 +444,12 @@ In your app:
 
 ## After a crash
 
-Changes of a transaction are written to the log only at `COMMIT`, in one write, and KDB waits until the disk has them. So:
+Changes of a transaction are written to the log only at `COMMIT`, in one write, and KarelaDB waits until the disk has them. So:
 
 - a transaction that got `COMMIT` OK is there after a crash or a power cut;
 - a transaction without `COMMIT` leaves **no trace**, not even half of a transfer.
 
-KDB tests this all the time. `test_accounting` runs 8 threads doing 2,000 random transfers (with errors, rollbacks and clients that go away) while readers check the total at every moment, and copies the database folder in the middle of open transactions and opens the copies. `crash_test` kills a program doing transfers more than 200 times at random moments and checks every time: the total is the same, no balance is negative, the ledger matches the balances, and every confirmed transfer is there.
+KarelaDB tests this all the time. `test_accounting` runs 8 threads doing 2,000 random transfers (with errors, rollbacks and clients that go away) while readers check the total at every moment, and copies the database folder in the middle of open transactions and opens the copies. `crash_test` kills a program doing transfers more than 200 times at random moments and checks every time: the total is the same, no balance is negative, the ledger matches the balances, and every confirmed transfer is there.
 
 ## Checklist for an accounting app
 

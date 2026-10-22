@@ -4,11 +4,11 @@
 
 - Category: Users & security
 - Keywords: protection, statement timeout, statement\_timeout, timeout, cancel, cancel query, stop query, kill query, CancelRequest, 57014, query\_canceled, X-KDB-Request-Id, X-KDB-Statement-Timeout, X-KDB-Safe-Updates, memory limit, too many rows, too many groups, 54000, max\_result\_memory, max\_groups, safe updates, safe\_updates, read-only, READ, ONLY, WRITE, --statement-timeout, --max-result-memory, --max-groups, --max-queries-per-user, --rate-limit-ip, --rate-limit-user, rate limit, 53400, --safe-updates, --read-only, 408, 413, 429, 503, Retry-After, drain, --drain-timeout, graceful shutdown
-- See also: [Keeping kdb serve safe](server-security.md), [Audit log](audit-log.md), [The trash - UNDROP TABLE](trash.md), [Table rights - GRANT ON TABLE](table-rights.md), [Two-factor login (TOTP)](two-factor-login.md), [Backups on a schedule](backup-schedule.md), [kdb serve](cli-serve.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md)
+- See also: [Keeping kareladb serve safe](server-security.md), [Audit log](audit-log.md), [The trash - UNDROP TABLE](trash.md), [Table rights - GRANT ON TABLE](table-rights.md), [Two-factor login (TOTP)](two-factor-login.md), [Backups on a schedule](backup-schedule.md), [kareladb serve](cli-serve.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md)
 
 These settings keep one bad query, one busy user or one typing mistake from hurting the server. They cost almost nothing: a running query looks at one flag every 16,384 rows, never at every row.
 
-| Protection | Turn it on | Default of `kdb serve` |
+| Protection | Turn it on | Default of `kareladb serve` |
 |---|---|---|
 | statement timeout | `--statement-timeout 30s`, `SET statement_timeout = '5s'`, `ALTER USER u SET statement_timeout = '2s'` | 60 s |
 | cancel a running statement | Postgres cancel (pgx context, psql Ctrl+C), `DELETE /exec/<id>`, closing the HTTP connection | on |
@@ -19,7 +19,7 @@ These settings keep one bad query, one busy user or one typing mistake from hurt
 | safe updates | `--safe-updates`, `SET safe_updates = on` | off |
 | read-only | `--read-only`, `ALTER DATABASE x SET READ ONLY` | off |
 
-`kdb sql`, `kdb shell` and programs that use the KDB library have no limits unless they set `DatabaseOptions`.
+`kareladb sql`, `kareladb shell` and programs that use the KarelaDB library have no limits unless they set `DatabaseOptions`.
 
 <a id="statement-timeout"></a>
 
@@ -28,7 +28,7 @@ These settings keep one bad query, one busy user or one typing mistake from hurt
 Syntax:
 
 ```sql
-kdb serve --statement-timeout 60s          (0 = no limit)
+kareladb serve --statement-timeout 60s          (0 = no limit)
 SET statement_timeout = '5s' | 5000 | 0 | DEFAULT
 HTTP header:  X-KDB-Statement-Timeout: 5s
 ```
@@ -92,7 +92,7 @@ Stops a statement that is running now.
 - **Returns:** the stopped statement gets `canceling statement due to user request` (HTTP 408, SQLSTATE `57014`).
 - **Notes:**
   - The Postgres port answers the CancelRequest of the connection's key only, like PostgreSQL.
-  - When an HTTP client closes the connection, KDB notices it within a fifth of a second and stops the statement.
+  - When an HTTP client closes the connection, KarelaDB notices it within a fifth of a second and stops the statement.
   - From SQL, over either port: find the statement in [pg_stat_activity](server-activity.md#pg-stat-activity) and stop it with [pg_cancel_backend](server-activity.md#pg-cancel-backend). Users may stop only their own; admins every one.
 
 <a id="delete-exec"></a>
@@ -131,7 +131,7 @@ HTTP 404 (application/json)
 Syntax:
 
 ```sql
-kdb serve --max-result-memory 1GB --max-groups 5000000        (0 = no limit)
+kareladb serve --max-result-memory 1GB --max-groups 5000000        (0 = no limit)
 ```
 
 Stops a query that would keep too much in memory: the rows of the result, rows waiting for `ORDER BY`, `DISTINCT` or window functions, and the groups of `GROUP BY`, `SAMPLE BY` and `LATEST ON`.
@@ -149,7 +149,7 @@ Stops a query that would keep too much in memory: the rows of the result, rows w
 Syntax:
 
 ```sql
-kdb serve --max-queries-per-user 32        (0 = no limit)
+kareladb serve --max-queries-per-user 32        (0 = no limit)
 ```
 
 How many statements one user may run at the same time, over HTTP and the Postgres port together.
@@ -164,9 +164,9 @@ How many statements one user may run at the same time, over HTTP and the Postgre
 Syntax:
 
 ```sql
-kdb serve --rate-limit-ip 50 --rate-limit-user 20       (requests per second, 0 = no limit)
-kdb.conf:  "rate_limit_ip": 50, "rate_limit_user": 20
-env:       KDB_RATE_LIMIT_IP=50  KDB_RATE_LIMIT_USER=20
+kareladb serve --rate-limit-ip 50 --rate-limit-user 20       (requests per second, 0 = no limit)
+kareladb.conf:  "rate_limit_ip": 50, "rate_limit_user": 20
+env:       KARELADB_RATE_LIMIT_IP=50  KARELADB_RATE_LIMIT_USER=20
 ```
 
 How many requests one client address, and one user, may send per second. Both are off unless set.
@@ -182,7 +182,7 @@ How many requests one client address, and one user, may send per second. Both ar
   - The address limit is checked **before** the login, so a flood of wrong passwords is slowed too. The user limit is checked after it.
   - Requests from this computer (`127.x`) are never limited by address, so the console and health checks always get through. The `--token` (no user) is limited only by address.
   - The web console's files, `/health` and `/help` are not counted.
-  - **Behind Docker's port mapping or a proxy**, every client may reach KDB from the same address. Then use `--rate-limit-user`, or set `--rate-limit-ip` high.
+  - **Behind Docker's port mapping or a proxy**, every client may reach KarelaDB from the same address. Then use `--rate-limit-user`, or set `--rate-limit-ip` high.
   - Read when the server starts. The Settings page shows the values in use.
 
 <a id="safe-updates"></a>
@@ -192,7 +192,7 @@ How many requests one client address, and one user, may send per second. Both ar
 Syntax:
 
 ```sql
-kdb serve --safe-updates
+kareladb serve --safe-updates
 SET safe_updates = on | off
 HTTP header:  X-KDB-Safe-Updates: on | off
 ```
@@ -226,7 +226,7 @@ Syntax:
 ```sql
 ALTER DATABASE <name> SET READ ONLY
 ALTER DATABASE <name> SET READ WRITE
-kdb serve --read-only
+kareladb serve --read-only
 ```
 
 A read-only database takes no changes: `INSERT`, `UPDATE`, `DELETE`, DDL, `CALL`, the line protocol. `SELECT`, backups and checks work.
@@ -234,7 +234,7 @@ A read-only database takes no changes: `INSERT`, `UPDATE`, `DELETE`, DDL, `CALL`
 - **Returns:** `database 'x' is read-only now: only reads are allowed`. A refused change gets `the database is read-only (...)`, HTTP 403, SQLSTATE `25006`.
 - **Notes:**
   - Needs a server admin. The setting is kept in the data folder (`_system`) and holds after a restart. A read-only database cannot be dropped.
-  - `kdb serve --read-only` makes **every** database read-only, and refuses new databases and user changes. Good for a report server on a copy of the data.
+  - `kareladb serve --read-only` makes **every** database read-only, and refuses new databases and user changes. Good for a report server on a copy of the data.
 
 **Example: Read-only, then writable again** (shows an error)
 
@@ -259,7 +259,7 @@ Error: `the database is read-only (ALTER DATABASE demo SET READ ONLY; undo with 
 Syntax:
 
 ```sql
-kdb serve --drain-timeout 30s          (0 = do not wait; env KDB_DRAIN_TIMEOUT; 5s in the Docker image)
+kareladb serve --drain-timeout 30s          (0 = do not wait; env KARELADB_DRAIN_TIMEOUT; 5s in the Docker image)
 ```
 
 When the server is asked to stop (Ctrl+C, SIGTERM, `docker stop`), it does not drop what is running:

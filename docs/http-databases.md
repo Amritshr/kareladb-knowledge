@@ -4,13 +4,13 @@
 
 - Category: HTTP API
 - Keywords: api/databases, list databases, create database, drop database, \_trash, can\_create, data\_dir, default database, --data-dir, --db, 409, name rules
-- See also: [Databases and the data folder](databases.md), [HTTP API overview (database)](http-overview.md#database), [Health, info, check and backup over HTTP](http-server-info.md), [kdb serve](cli-serve.md)
+- See also: [Databases and the data folder](databases.md), [HTTP API overview (database)](http-overview.md#database), [Health, info, check and backup over HTTP](http-server-info.md), [kareladb serve](cli-serve.md)
 
-A server started for a **data folder** (`kdb serve`, or `kdb serve --data-dir <folder>`) serves every database in that folder. A **database** is one folder with its own tables. These routes list, create and drop them.
+A server started for a **data folder** (`kareladb serve`, or `kareladb serve --data-dir <folder>`) serves every database in that folder. A **database** is one folder with its own tables. These routes list, create and drop them.
 
 - Every other route picks its database with `db=<name>` or the header `X-KDB-Database` ([choosing the database](http-overview.md#database)).
 - The same can be done in SQL: `SHOW DATABASES`, `CREATE DATABASE`, `DROP DATABASE` ([databases](databases.md)).
-- A server started for one folder (`kdb serve D:\kdb\market`) has just that one database and cannot create or drop others.
+- A server started for one folder (`kareladb serve D:\kdb\market`) has just that one database and cannot create or drop others.
 
 ## GET /api/databases
 
@@ -44,9 +44,9 @@ Lists the databases of the server, sorted by name.
 | `databases[].wal_archive_source` | `database` when it has its own `ALTER DATABASE ... SET WAL_ARCHIVE`, else `server` (the server default) |
 | `databases[].wal_archive_bytes` | Old log on disk now, or `null` when it is not open |
 | `default` | The name of the default database |
-| `data_dir` | The data folder (empty for `kdb serve <folder>`) |
+| `data_dir` | The data folder (empty for `kareladb serve <folder>`) |
 | `can_create` | `true` when you may create and drop databases here: the server has a data folder, and you have full rights |
-| `wal_archive_default_bytes` | The server default for old log kept per database (`wal_archive_mb` in `kdb.conf`, or `KDB_WAL_ARCHIVE_MB`) |
+| `wal_archive_default_bytes` | The server default for old log kept per database (`wal_archive_mb` in `kareladb.conf`, or `KARELADB_WAL_ARCHIVE_MB`) |
 
 - **Status codes:** 200; 401 without a needed login.
 - **Notes:** listing never opens a database, so it answers at once, also while a big one is being opened. A database is opened by the first request that uses it (`db=<name>`); until then it is listed with `open: false` and no table count. With users, the list has only the databases the user may read, and `can_create` is `true` only for a user whose own ROLE is `admin`. The default database is made the first time it is used, so on a new server it may not be in the list yet.
@@ -96,8 +96,8 @@ HTTP 200 (application/json)
       "result_cache_source": "server"
     },
     {
-      "name": "h1385",
-      "dir": "kdb-data/h1385",
+      "name": "h1399",
+      "dir": "kdb-data/h1399",
       "default": false,
       "encrypted": false,
       "open": true,
@@ -111,8 +111,8 @@ HTTP 200 (application/json)
       "result_cache_source": "server"
     },
     {
-      "name": "h234",
-      "dir": "kdb-data/h234",
+      "name": "h1400",
+      "dir": "kdb-data/h1400",
       "default": false,
       "encrypted": false,
       "open": true,
@@ -126,8 +126,23 @@ HTTP 200 (application/json)
       "result_cache_source": "server"
     },
     {
-      "name": "h315",
-      "dir": "kdb-data/h315",
+      "name": "h241",
+      "dir": "kdb-data/h241",
+      "default": false,
+      "encrypted": false,
+      "open": true,
+      "tables": 0,
+      "bytes": 0,
+      "opening": false,
+      "wal_archive_max_bytes": 1073741824,
+      "wal_archive_source": "server",
+      "wal_archive_bytes": 0,
+      "result_cache_bytes": 268435456,
+      "result_cache_source": "server"
+    },
+    {
+      "name": "h322",
+      "dir": "kdb-data/h322",
       "default": false,
       "encrypted": false,
       "open": true,
@@ -141,8 +156,8 @@ HTTP 200 (application/json)
       "result_cache_source": "server"
     },
     {
-      "name": "h316",
-      "dir": "kdb-data/h316",
+      "name": "h323",
+      "dir": "kdb-data/h323",
       "default": false,
       "encrypted": false,
       "open": true,
@@ -214,7 +229,7 @@ Creates an empty database: a new folder in the data folder.
 | `created` | `true` |
 
 - **Status codes:** 200 created; 400 no name or a bad name; 401/403 login or role; 409 a database with this name already exists.
-- **Notes:** needs full rights (the `--token`, a server without login, or a user whose own ROLE is `admin`). A `GET` never creates a database. A server for one folder (`kdb serve <folder>`) refuses. In SQL: `CREATE DATABASE name` (with `POST /exec`).
+- **Notes:** needs full rights (the `--token`, a server without login, or a user whose own ROLE is `admin`). A `GET` never creates a database. A server for one folder (`kareladb serve <folder>`) refuses. In SQL: `CREATE DATABASE name` (with `POST /exec`).
 
 **HTTP: Create with ?name=, then with a JSON body**
 
@@ -266,7 +281,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'items' created",
-      "timings": {"parse_us": 15, "execute_us": 19598}
+      "timings": {"parse_us": 11, "execute_us": 14864}
     },
     {
       "statement": "SHOW TABLES",
@@ -284,10 +299,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 15, "execute_us": 13}
+      "timings": {"parse_us": 11, "execute_us": 14}
     }
   ],
-  "timings": {"parse_us": 30, "execute_us": 19611}
+  "timings": {"parse_us": 22, "execute_us": 14878}
 }
 ```
 
@@ -404,7 +419,7 @@ HTTP 200 (application/json)
 {
   "name": "help_scratch",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792647850424-help_scratch"
+  "moved_to": "kdb-data/_trash/1792662964248-help_scratch"
 }
 ```
 

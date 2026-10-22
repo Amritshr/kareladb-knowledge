@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keep data page (how long tables keep their rows) - KDB (KARELA DataBase) docs</title>
+<title>Keep data page (how long tables keep their rows) - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="See every table of a database with how long it keeps its rows, and set &quot;keep only the last N months or years&quot;: the older days, months or years are dropped, the newest stay.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/console-keep-data.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-keep-data.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/console-keep-data.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/console-keep-data.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="keep-data-page-how-long-tables-keep-their-rows">Keep data page (how long tables keep their rows)</h1>
 <blockquote><p>See every table of a database with how long it keeps its rows, and set &quot;keep only the last N months or years&quot;: the older days, months or years are dropped, the newest stay.</p></blockquote>
@@ -26,7 +26,7 @@
 | [ ]| floorsheet_v1 | time-series, DAY  | 69.3M  | 5.3 GB  | 2022-01-25 to 2026-09-11 | everything        | [6][months v] [Keep] [Drop older now]              |
 | [ ]| bg_config     | relational        | 2      | 4 KB    | no partitions            | everything (no partitions to drop)                                    |
 +------------------------------------------------------------------------------------------+</code></pre>
-<div class="table-wrap"><table><thead><tr><th>Part</th><th>What it is</th></tr></thead><tbody><tr><td>rows, on disk</td><td>the table&#39;s row count and the bytes its files take</td></tr><tr><td>data from / to</td><td>the oldest and newest time in the table (read from the block statistics, so it costs nothing)</td></tr><tr><td>keeps</td><td><code>everything</code>, or <code>the last 6 months</code>: the table&#39;s <a href="alter-table.html#set-ttl">TTL</a></td></tr><tr><td><strong>Keep</strong></td><td>sets the TTL: <code>ALTER TABLE t SET TTL 6 MONTHS</code>. From then on KDB drops, every minute and by itself, every partition whose last moment is older than that</td></tr><tr><td><strong>Everything</strong></td><td>takes the TTL off: <code>ALTER TABLE t SET TTL NONE</code></td></tr><tr><td><strong>Drop older now</strong></td><td>one drop, now: <code>ALTER TABLE t DROP PARTITION OLDER THAN 6 MONTHS</code>. It shows the statement and asks first</td></tr><tr><td>the top bar</td><td>the same three for every ticked table at once (<strong>Keep everything</strong> takes the TTL off them)</td></tr><tr><td><strong>Refresh</strong></td><td>reads the tables and the disk box again</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>What it is</th></tr></thead><tbody><tr><td>rows, on disk</td><td>the table&#39;s row count and the bytes its files take</td></tr><tr><td>data from / to</td><td>the oldest and newest time in the table (read from the block statistics, so it costs nothing)</td></tr><tr><td>keeps</td><td><code>everything</code>, or <code>the last 6 months</code>: the table&#39;s <a href="alter-table.html#set-ttl">TTL</a></td></tr><tr><td><strong>Keep</strong></td><td>sets the TTL: <code>ALTER TABLE t SET TTL 6 MONTHS</code>. From then on KarelaDB drops, every minute and by itself, every partition whose last moment is older than that</td></tr><tr><td><strong>Everything</strong></td><td>takes the TTL off: <code>ALTER TABLE t SET TTL NONE</code></td></tr><tr><td><strong>Drop older now</strong></td><td>one drop, now: <code>ALTER TABLE t DROP PARTITION OLDER THAN 6 MONTHS</code>. It shows the statement and asks first</td></tr><tr><td>the top bar</td><td>the same three for every ticked table at once (<strong>Keep everything</strong> takes the TTL off them)</td></tr><tr><td><strong>Refresh</strong></td><td>reads the tables and the disk box again</td></tr></tbody></table></div>
 <p>The period is a number and a unit: <code>days</code>, <code>weeks</code>, <code>months</code> or <code>years</code>.</p>
 <ul><li>Only time-series tables with <code>PARTITION BY DAY</code>, <code>MONTH</code> or <code>YEAR</code> can keep &quot;the last N&quot;: everything else has no partitions to drop, is listed greyed, and keeps everything. Use <a href="update-delete.html#delete">DELETE</a> there.</li><li>A partition goes when its <strong>last</strong> moment is older than the period, so &quot;the last 6 months&quot; always holds at least 6 full months. Months and years follow the calendar.</li><li>Whole partitions go, never single rows, and a dropped partition cannot be brought back. Every drop is written to the audit log.</li><li>A <code>read</code> user sees the page; the buttons need <code>write</code>.</li></ul>
 <h2 id="disk">Disk space</h2>
@@ -45,6 +45,6 @@ SHOW CREATE TABLE trades;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE trades (   time TIMESTAMP,   symbol SYMBOL,   qty LONG ) TIMESERIES(time) PARTITION BY MONTH SORT BY (symbol, time) TTL 6 MONTHS</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-keep-data.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/console-keep-data.md">This page as markdown</a>.</footer>
 </body>
 </html>

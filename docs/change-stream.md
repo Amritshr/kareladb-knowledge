@@ -6,7 +6,7 @@
 - Keywords: change stream, changes, cdc, change data capture, GET /api/changes, api/changes, GET /api/subscribe, api/subscribe, subscribe, SUBSCRIBE, live query, push, server-sent events, sse, EventSource, Last-Event-ID, lsn, resume, exactly once, wal\_archive
 - See also: [Change revisions: GET /api/rev and kdb_rev()](revisions.md), [Backup, check, repair and restore](backup-and-safety.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Databases and the data folder](databases.md)
 
-Every committed change of a table is already in KDB's log, in commit order, numbered by a **log sequence number** (LSN). The change stream reads it back:
+Every committed change of a table is already in KarelaDB's log, in commit order, numbered by a **log sequence number** (LSN). The change stream reads it back:
 
 - in SQL: `SELECT * FROM changes('t')`
 - over HTTP: `GET /api/changes?table=t&from=<lsn>`, as server-sent events or JSON
@@ -155,7 +155,7 @@ HTTP 200 (application/json)
     {
       "lsn": 2,
       "seq": 0,
-      "committed_at": "2026-10-22T05:43:31.573Z",
+      "committed_at": "2026-10-22T09:55:00.994Z",
       "op": "ddl",
       "key": "CREATE TABLE acct (\n  id INT PRIMARY KEY,\n  name STRING,\n  bal DOUBLE\n)",
       "row": null
@@ -163,7 +163,7 @@ HTTP 200 (application/json)
     {
       "lsn": 4,
       "seq": 0,
-      "committed_at": "2026-10-22T05:43:31.577Z",
+      "committed_at": "2026-10-22T09:55:01.022Z",
       "op": "upsert",
       "key": null,
       "row": {"id": 1, "name": "Asha", "bal": 10}
@@ -182,7 +182,7 @@ It needs read rights on the table: role `read` on the database, or `GRANT SELECT
 
 ## How long changes are kept
 
-The stream reads the log, and the log is kept as long as the database's `wal_archive` setting allows: `ALTER DATABASE ... SET WAL_ARCHIVE = '2GB'`, the server default `KDB_WAL_ARCHIVE_MB` / `wal_archive_mb` in `kdb.conf` (1 GB unless set). A reader that falls further behind than that is **never** given a stream with a hole: `changes()` fails and `GET /api/changes` answers **410 Gone**, with `gone_before`, the first LSN still kept. Such a reader starts again from a fresh copy of the table (`SELECT *`) and then reads on from `oldest_lsn`.
+The stream reads the log, and the log is kept as long as the database's `wal_archive` setting allows: `ALTER DATABASE ... SET WAL_ARCHIVE = '2GB'`, the server default `KARELADB_WAL_ARCHIVE_MB` / `wal_archive_mb` in `kareladb.conf` (1 GB unless set). A reader that falls further behind than that is **never** given a stream with a hole: `changes()` fails and `GET /api/changes` answers **410 Gone**, with `gone_before`, the first LSN still kept. Such a reader starts again from a fresh copy of the table (`SELECT *`) and then reads on from `oldest_lsn`.
 
 A slow or lost reader cannot fill the disk: it keeps no log for itself. While one read runs (milliseconds), only the log after its position stays where it is; older log and replaced data files are cleaned up as usual. Readers never slow down writers: a poll does not list the log folders.
 

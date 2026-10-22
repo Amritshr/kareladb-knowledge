@@ -3,7 +3,7 @@
 > GET, SET, INCR, EXPIRE, DEL, KEYS, MGET and the other Redis string commands, hashes, sets, sorted sets, lists (with BLPOP), SORT and WATCH / MULTI / EXEC over HTTP (POST /kv, one command or a pipeline) and as SQL functions (kv_get, kv_set, kv_incr); PUBLISH / SUBSCRIBE and keyspace events. Keys are kept in memory and in the table _kv.
 
 - Category: HTTP API
-- Keywords: key-value, key value, kv, redis, POST /kv, /kv, GET, SET, SET NX, SET XX, SET EX, SETNX, SETEX, PSETEX, GETSET, GETDEL, GETEX, MGET, MSET, MSETNX, INCR, INCRBY, DECR, DECRBY, INCRBYFLOAT, counter, rate limit, APPEND, STRLEN, GETRANGE, SUBSTR, SETRANGE, LCS, DEL, UNLINK, EXISTS, TYPE, EXPIRE, PEXPIRE, EXPIREAT, PEXPIREAT, PERSIST, TTL, PTTL, EXPIRETIME, PEXPIRETIME, expiry, KEYS, SCAN, RANDOMKEY, DBSIZE, RENAME, RENAMENX, COPY, FLUSHDB, FLUSHALL, PING, ECHO, TIME, COMMAND, INFO, PUBLISH, SPUBLISH, PUBSUB, PUBSUB NUMSUB, PUBSUB CHANNELS, SUBSCRIBE, PSUBSCRIBE, pub/sub, keyspace events, notify-keyspace-events, CONFIG SET, CONFIG GET, \_\_keyspace@0\_\_, \_\_keyevent@0\_\_, expired event, KDB\_NOTIFY\_KEYSPACE\_EVENTS, pipeline, kv\_get, kv\_set, kv\_incr, kv\_del, kv\_expire, kv\_ttl, kv(), \_kv, sync, session store, cache, OTP, one-time code, CONFIG, maxmemory, maxmemory-policy, allkeys-lru, volatile-ttl, noeviction, appendonly, MEMORY USAGE, MEMORY STATS, kv\_memory, eviction, LRU, hash, HSET, HGET, HGETALL, HINCRBY, HDEL, set, SADD, SMEMBERS, SINTER, SUNION, SDIFF, sorted set, ZADD, ZRANGE, ZRANK, ZINCRBY, ZPOPMIN, leaderboard, list, LPUSH, RPUSH, LPOP, LRANGE, LMOVE, queue, BLPOP, BRPOP, BLMOVE, BZPOPMIN, blocking pop, SORT, WATCH, MULTI, EXEC, UNWATCH, DISCARD, optimistic lock, session, \_kv\_items
+- Keywords: key-value, key value, kv, redis, POST /kv, /kv, GET, SET, SET NX, SET XX, SET EX, SETNX, SETEX, PSETEX, GETSET, GETDEL, GETEX, MGET, MSET, MSETNX, INCR, INCRBY, DECR, DECRBY, INCRBYFLOAT, counter, rate limit, APPEND, STRLEN, GETRANGE, SUBSTR, SETRANGE, LCS, DEL, UNLINK, EXISTS, TYPE, EXPIRE, PEXPIRE, EXPIREAT, PEXPIREAT, PERSIST, TTL, PTTL, EXPIRETIME, PEXPIRETIME, expiry, KEYS, SCAN, RANDOMKEY, DBSIZE, RENAME, RENAMENX, COPY, FLUSHDB, FLUSHALL, PING, ECHO, TIME, COMMAND, INFO, PUBLISH, SPUBLISH, PUBSUB, PUBSUB NUMSUB, PUBSUB CHANNELS, SUBSCRIBE, PSUBSCRIBE, pub/sub, keyspace events, notify-keyspace-events, CONFIG SET, CONFIG GET, \_\_keyspace@0\_\_, \_\_keyevent@0\_\_, expired event, KARELADB\_NOTIFY\_KEYSPACE\_EVENTS, pipeline, kv\_get, kv\_set, kv\_incr, kv\_del, kv\_expire, kv\_ttl, kv(), \_kv, sync, session store, cache, OTP, one-time code, CONFIG, maxmemory, maxmemory-policy, allkeys-lru, volatile-ttl, noeviction, appendonly, MEMORY USAGE, MEMORY STATS, kv\_memory, eviction, LRU, hash, HSET, HGET, HGETALL, HINCRBY, HDEL, set, SADD, SMEMBERS, SINTER, SUNION, SDIFF, sorted set, ZADD, ZRANGE, ZRANK, ZINCRBY, ZPOPMIN, leaderboard, list, LPUSH, RPUSH, LPOP, LRANGE, LMOVE, queue, BLPOP, BRPOP, BLMOVE, BZPOPMIN, blocking pop, SORT, WATCH, MULTI, EXEC, UNWATCH, DISCARD, optimistic lock, session, \_kv\_items
 - See also: [CREATE TABLE (row-ttl)](create-table.md#row-ttl), [CREATE TABLE (cache-table)](create-table.md#cache-table), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [LISTEN and NOTIFY](listen-notify.md)
 
 Every database has a **key-value store** that answers Redis's commands with Redis 7's answers: `GET`, `SET` (with `EX`, `NX`, `XX`, `GET`, `KEEPTTL`), `INCR`, `EXPIRE`, `TTL`, `DEL`, `KEYS`, `MGET`, `MSET` and more, and [hashes, sets, sorted sets and lists](#kv-collections). Use it for counters, rate limits, login sessions, one-time codes, caches, leaderboards and job queues.
@@ -71,7 +71,7 @@ A command that fails does not stop the ones after it, as in a Redis pipeline. A 
 | `?sync=on`, or `CONFIG SET appendfsync always` | once the change is **on disk** | nothing confirmed is lost |
 | `?sync=off` | at once, whatever `appendfsync` says | as the default |
 
-- `CONFIG SET appendfsync always` makes every request wait for the disk (each waiting request holds one HTTP thread until its sync, so many writing clients need more HTTP threads: `kdb serve --http-threads`). It is saved as the `_kv` table's `synchronous_commit = on` ([durability per table](performance-tips.md#table-sync-commit)) and survives a restart. `everysec` or `no` goes back to the default.
+- `CONFIG SET appendfsync always` makes every request wait for the disk (each waiting request holds one HTTP thread until its sync, so many writing clients need more HTTP threads: `kareladb serve --http-threads`). It is saved as the `_kv` table's `synchronous_commit = on` ([durability per table](performance-tips.md#table-sync-commit)) and survives a restart. `everysec` or `no` goes back to the default.
 - Before 2026-10-03 the default waited for the disk; send `?sync=on` (or set `appendfsync always`) to keep that.
 
 <a id="kv-commands"></a>
@@ -130,7 +130,7 @@ Redis's `PUBLISH` sends a message to every client that listens on a channel. Her
 
 To subscribe, open a stream that stays open: a request and its answer cannot carry later messages, so `SUBSCRIBE` in `/kv` answers an error that says where to go.
 
-| Redis | KDB |
+| Redis | KarelaDB |
 |---|---|
 | `SUBSCRIBE news` | `GET /listen?channel=news` ([server-sent events](listen-notify.md#listen-http)), or `LISTEN news` on the PostgreSQL port |
 | `PSUBSCRIBE price.*` | `GET /listen?pattern=price.*`: each message also says which `"pattern"` it matched |
@@ -176,7 +176,7 @@ With keyspace events on, every key change is published too, on Redis's channels:
 | `__keyspace@0__:<key>` (letter `K`) | the event: `set`, `del`, `expire`, `expired`, ... |
 | `__keyevent@0__:<event>` (letter `E`) | the key |
 
-`@0` is Redis's first database, so a Redis client's subscription works unchanged; the channels still belong to one KDB database.
+`@0` is Redis's first database, so a Redis client's subscription works unchanged; the channels still belong to one KarelaDB database.
 
 Turn them on with Redis's letters, as a server admin:
 
@@ -221,7 +221,7 @@ Result:
 
 Error: `line 1, column 8: kv: NOPERM CONFIG SET notify-keyspace-events changes the whole server: it needs a server admin`
 
-- The setting is for the **whole server**, as in Redis, and is off by default. `CONFIG SET` lasts until a restart; set `KDB_NOTIFY_KEYSPACE_EVENTS=Ex` in the environment to have it from the start. `CONFIG SET notify-keyspace-events ""` turns it off.
+- The setting is for the **whole server**, as in Redis, and is off by default. `CONFIG SET` lasts until a restart; set `KARELADB_NOTIFY_KEYSPACE_EVENTS=Ex` in the environment to have it from the start. `CONFIG SET notify-keyspace-events ""` turns it off.
 - While nobody listens anywhere, a key change does not build any event: the setting costs nothing until it is used.
 - `FLUSHDB` sends no event per key, as in Redis.
 
@@ -359,7 +359,7 @@ const [job] = await (await fetch('/kv', { method: 'POST', body: JSON.stringify([
 // -> ["jobs", "job-17"] as soon as someone runs ['RPUSH', 'jobs', 'job-17'], or null after 5 s
 ```
 
-- The wait holds one HTTP thread: many waiting workers need more threads (`kdb serve --http-threads`).
+- The wait holds one HTTP thread: many waiting workers need more threads (`kareladb serve --http-threads`).
 - From SQL (`kv('BLPOP', ...)`) a blocking pop never waits: it answers at once, so a statement cannot hang.
 
 <a id="kv-watch"></a>

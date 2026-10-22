@@ -4,7 +4,7 @@
 
 - Category: Tables
 - Keywords: alter table, change table, add column, new column, drop column, remove column, rename column, COLUMN, TO, drop partition, delete old data, OLDER THAN, DROP PARTITION LIST, DROP PARTITION WHERE, add constraint, add check, drop constraint, rename table, drop table, delete table, remove table, IF EXISTS, IF NOT EXISTS, ALTER COLUMN, SET DATA TYPE, TYPE ... USING, USING, change column type, SET DEFAULT, DROP DEFAULT, SET NOT NULL, DROP NOT NULL, ADD UNIQUE, ADD FOREIGN KEY, FOREIGN KEY, NOT VALID, DEDUP ENABLE, DEDUP DISABLE, DEDUP ENABLE UPSERT KEYS, SET (dedup\_insert, RESET (dedup\_insert, SET (compression, RESET (compression, compression, SET (resident, RESET (resident, resident, keep in memory, ALTER TABLE RENAME TO, schema change, migration
-- See also: [CREATE TABLE](create-table.md), [Constraints](constraints.md), [SHOW TABLES, COLUMNS, CREATE TABLE](show-tables.md), [UPDATE and DELETE](update-delete.md), [Triggers](triggers.md), [Indexes](indexes.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md)
+- See also: [CREATE TABLE](create-table.md), [Constraints](constraints.md), [SHOW TABLES, COLUMNS, CREATE TABLE](show-tables.md), [UPDATE and DELETE](update-delete.md), [Triggers](triggers.md), [Indexes](indexes.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md), [Cold storage (S3, MinIO, R2, B2)](cold-storage.md)
 
 Tables change when your app grows: a new column for the phone number, a better column name, old data to remove. Most of these statements change a table **without** copying its rows; changing a column's type and turning DEDUP on or off rewrite the rows.
 
@@ -24,6 +24,8 @@ Tables change when your app grows: a new column for the phone number, a better c
 | `ALTER TABLE t DEDUP ENABLE UPSERT KEYS (...)` / `DEDUP DISABLE` | sets or removes the `DEDUP KEY` of a time-series table |
 | `ALTER TABLE t SET (dedup_insert = 'upsert')` / `RESET (dedup_insert)` | a plain `INSERT` of a key that is there replaces the row, or fails again ([dedup_insert](partitions-and-dedup.md#dedup-insert)) |
 | `ALTER TABLE t SET (compression = on)` / `SET (compression = off)` / `RESET (compression)` | stores the sealed partitions packed, about 5 times smaller on disk, or plain again ([compression](partitions-and-dedup.md#compression)) |
+| `ALTER TABLE t SET (cold_storage = 'archive', cold_after = '90 days')` / `RESET (cold_storage)` | moves partitions older than 90 days to an S3-compatible object store, where queries still read them ([cold storage](cold-storage.md)) |
+| `ALTER TABLE t MOVE PARTITION '2025-01' TO COLD` / `FROM COLD` | moves a partition to the table's cold store now, or brings it back as a local file ([cold storage](cold-storage.md#move-partition)) |
 | `ALTER TABLE t SET (resident = on)` / `SET (resident = off)` / `RESET (resident)` | keeps the table's partitions in memory once read, whoever needs memory ([resident](#resident)) |
 | `RENAME TABLE a TO b`, `ALTER TABLE a RENAME TO b` | renames a table |
 | `DROP TABLE [IF EXISTS] t` | deletes a table and all its rows |
@@ -328,7 +330,7 @@ ALTER TABLE table RENAME [COLUMN] old_name TO new_name
 
 Gives a column a new name. The rows do not change. The word `COLUMN` is optional.
 
-- KDB also renames the column inside computed columns, `CHECK` rules, and `REFERENCES` of other tables.
+- KarelaDB also renames the column inside computed columns, `CHECK` rules, and `REFERENCES` of other tables.
 - **Returns:** `table 'name' altered`.
 - **Notes:** views, saved functions, procedures and triggers that use the old name are **not** changed; fix them yourself. Your app's SQL must use the new name too.
 
@@ -436,7 +438,7 @@ Changes one column. These are the PostgreSQL forms, so a PostgreSQL migration sc
 - **Returns:** `table 'name' altered`, with `(N row change(s) written)` when rows were rewritten, or `table 'name' not changed (already as asked)`.
 - **Notes:**
   - When one stored value does not fit the new type, nothing changes and the message names the value: `12.7 is not a whole number`. Write a `USING` that fits, or fix the rows first.
-  - The time column, a `SORT BY` column and a `DEDUP KEY` column cannot change type: the rows are stored by them, and KDB refuses. A `PRIMARY KEY` column can: KDB writes the whole table again in the new key order, in one commit (it takes as long as a copy of the table). A change that makes two keys equal, such as `TYPE INT USING round(id)`, is refused with "(duplicate)".
+  - The time column, a `SORT BY` column and a `DEDUP KEY` column cannot change type: the rows are stored by them, and KarelaDB refuses. A `PRIMARY KEY` column can: KarelaDB writes the whole table again in the new key order, in one commit (it takes as long as a copy of the table). A change that makes two keys equal, such as `TYPE INT USING round(id)`, is refused with "(duplicate)".
   - An index on the column is built again for the new type.
   - `COLLATE` after the type is read and ignored. Write `COLLATE` in the query instead ([ORDER BY](order-by-limit.md#collate)).
 
@@ -820,7 +822,7 @@ ALTER TABLE table SET TTL NONE
 CREATE TABLE ... TIMESERIES(time) PARTITION BY DAY TTL 90 DAYS
 ```
 
-A TTL (time to live) keeps a time-series table small. KDB drops **whole partitions** whose time ended more than the TTL ago. It never deletes single rows.
+A TTL (time to live) keeps a time-series table small. KarelaDB drops **whole partitions** whose time ended more than the TTL ago. It never deletes single rows.
 
 - A background thread checks once a minute. It only runs when no statement is writing.
 - A partition goes when its **last** moment is older than the TTL. With `TTL 3 DAYS` on 2026-09-10 12:00, the day `2026-09-06` goes and `2026-09-07` stays.
@@ -987,9 +989,9 @@ Syntax:
 ALTER TABLE table ADD [CONSTRAINT name] CHECK (condition)
 ```
 
-Adds a rule that every row must follow. KDB first reads **every** row: if one row already breaks the rule, the rule is refused and the message names that row.
+Adds a rule that every row must follow. KarelaDB first reads **every** row: if one row already breaks the rule, the rule is refused and the message names that row.
 
-- Without `CONSTRAINT name`, KDB makes the name `table_check` (or `table_check1`, ...).
+- Without `CONSTRAINT name`, KarelaDB makes the name `table_check` (or `table_check1`, ...).
 - **Returns:** `table 'name' altered`.
 - **Notes:** on a very big time-series table this reads all rows once, so it can take a while. The rules for the condition are in [CHECK](constraints.md#check).
 
@@ -1044,9 +1046,9 @@ ALTER TABLE table ADD [CONSTRAINT name] FOREIGN KEY (column [, ...]) REFERENCES 
                       [ON DELETE action] [ON UPDATE action] [NOT VALID]
 ```
 
-Adds a key to a table that already has rows, the PostgreSQL way. KDB first reads every row.
+Adds a key to a table that already has rows, the PostgreSQL way. KarelaDB first reads every row.
 
-| Form | KDB checks first | After it |
+| Form | KarelaDB checks first | After it |
 |---|---|---|
 | `UNIQUE (...)` | no two rows have the same values | a new duplicate is refused |
 | `FOREIGN KEY (...) REFERENCES other (...)` | every row has a matching row in `other` | a new row must point at a row that is there |
@@ -1054,7 +1056,7 @@ Adds a key to a table that already has rows, the PostgreSQL way. KDB first reads
 
 - **Returns:** `table 'name' altered`.
 - **Notes:**
-  - Without `CONSTRAINT name`, KDB makes the name: `trades_ref_key`, `trades_buyer_fkey`. `SHOW CREATE TABLE` shows it, and [DROP CONSTRAINT](#drop-constraint) removes it.
+  - Without `CONSTRAINT name`, KarelaDB makes the name: `trades_ref_key`, `trades_buyer_fkey`. `SHOW CREATE TABLE` shows it, and [DROP CONSTRAINT](#drop-constraint) removes it.
   - A `FOREIGN KEY` must point at the `PRIMARY KEY` or a `UNIQUE` column of the other table, of the same kind of type. The `ON DELETE` actions are in [REFERENCES](constraints.md#references).
   - When a row breaks the rule, nothing changes and the message names the row.
 
@@ -1148,7 +1150,7 @@ Syntax:
 ALTER TABLE table DROP CONSTRAINT name
 ```
 
-Removes a `CHECK` rule, a `UNIQUE` key or a `FOREIGN KEY` by its name. `SHOW CREATE TABLE` shows the names, also the names KDB made for you (like `accounts_balance_check`). The `PRIMARY KEY` cannot be dropped: the rows are stored by it.
+Removes a `CHECK` rule, a `UNIQUE` key or a `FOREIGN KEY` by its name. `SHOW CREATE TABLE` shows the names, also the names KarelaDB made for you (like `accounts_balance_check`). The `PRIMARY KEY` cannot be dropped: the rows are stored by it.
 
 - **Returns:** `table 'name' altered`.
 - **Notes:** a name that does not exist is an error; the message lists the names the table has. A column called `constraint` is dropped with `ALTER TABLE t DROP constraint` (no name after it).
@@ -1282,7 +1284,7 @@ Deletes a table with all its rows and its indexes. With `IF EXISTS`, a table tha
 
 - **Returns:** `table 'name' dropped`, or `table 'name' does not exist` with `IF EXISTS`.
 - **Notes:** the table goes to the [trash](trash.md) for some days, and `UNDROP TABLE` brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while another table `REFERENCES` it, and while it has triggers. To remove all rows and keep the table, use [TRUNCATE](update-delete.md#truncate).
-- **CASCADE and RESTRICT:** PostgreSQL writes `DROP TABLE t CASCADE` (drop what depends on it too) or `DROP TABLE t RESTRICT` (refuse while something depends on it). KDB always works like `RESTRICT`: it never drops anything but the table.
+- **CASCADE and RESTRICT:** PostgreSQL writes `DROP TABLE t CASCADE` (drop what depends on it too) or `DROP TABLE t RESTRICT` (refuse while something depends on it). KarelaDB always works like `RESTRICT`: it never drops anything but the table.
   - `RESTRICT` is read and changes nothing.
   - `CASCADE` works when nothing uses the table, so a PostgreSQL script with `DROP TABLE IF EXISTS t CASCADE` runs.
   - `CASCADE` is **refused** while a view, a materialized view or another table's foreign key uses the table: `DROP TABLE ... CASCADE is not supported` (PostgreSQL `0A000`). The message names what uses it. Drop those first, then the table.
@@ -1423,7 +1425,7 @@ A table an app reads on every request (sessions, users, symbols) should not be r
   - It loads nothing by itself: the first read that needs the rows loads them.
   - What it holds still counts in `--memory` and in the database's [`MEMORY_LIMIT`](databases.md#memory), so keep it for small and medium tables.
   - `GET /api/stats` shows what resident tables hold as `resident_bytes` in each database's `memory`.
-  - A database with a resident table needs KDB 2026-10-02 or newer; `RESET (resident)` lets an older KDB open it again.
+  - A database with a resident table needs KarelaDB 2026-10-02 or newer; `RESET (resident)` lets an older KarelaDB open it again.
 
 **Example: The sessions table of an app stays loaded**
 

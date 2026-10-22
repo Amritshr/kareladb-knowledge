@@ -4,7 +4,7 @@
 
 - Category: Backup, check, repair, restore
 - Keywords: troubleshooting, runbook, production problem, incident, server slow, slow server, slow queries, readers wait, reads wait, busy, table is busy, 55P03, 40001, lock timeout, memory high, out of memory, memory full, disk full, disk growing, disk space, trash, keep\_versions, last shutdown: not clean, slow start, start-up slow, log replay, timer not running, timer did not run, backup failed, restore, what to do, symptom
-- See also: [Monitor panel (memory, processor, caches)](console-monitor.md), [Health, info, check and backup over HTTP (metrics)](http-server-info.md#metrics), [Health, info, check and backup over HTTP (slow-queries)](http-server-info.md#slow-queries), [Transactions (lock-timeout)](transactions.md#lock-timeout), [kdb serve (memory-limit)](cli-serve.md#memory-limit), [Databases and the data folder (purge-trash)](databases.md#purge-trash), [Timers](timers.md), [Backups on a schedule](backup-schedule.md), [Backup, check, repair and restore (after-damage)](backup-and-safety.md#after-damage)
+- See also: [Monitor panel (memory, processor, caches)](console-monitor.md), [Health, info, check and backup over HTTP (metrics)](http-server-info.md#metrics), [Health, info, check and backup over HTTP (slow-queries)](http-server-info.md#slow-queries), [Transactions (lock-timeout)](transactions.md#lock-timeout), [kareladb serve (memory-limit)](cli-serve.md#memory-limit), [Databases and the data folder (purge-trash)](databases.md#purge-trash), [Timers](timers.md), [Backups on a schedule](backup-schedule.md), [Backup, check, repair and restore (after-damage)](backup-and-safety.md#after-damage)
 
 Each part below is one **symptom**: what you see, where to **check**, and the **fix**. Start with the console's [Monitor](console-monitor.md): it shows memory, the statements running now and the slow statements on one page.
 
@@ -88,8 +88,8 @@ A `SELECT` that is quick at night takes seconds by day, while a load, a trigger 
 | `snapshot_reads` in `/api/stats` | whether [snapshot reads](transactions.md#snapshot-reads) are on and used |
 
 - **Fix:**
-  - Keep reader yield on (`--reader-yield on`, `KDB_READER_YIELD=on`; on unless set). Readers then get in between the writer's statements.
-  - Turn on snapshot reads (`--snapshot-reads on`, `KDB_SNAPSHOT_READS=on`) so readers do not wait even for one long statement, also on tables with an index of up to 1,000,000 rows (`--snapshot-index-rows`).
+  - Keep reader yield on (`--reader-yield on`, `KARELADB_READER_YIELD=on`; on unless set). Readers then get in between the writer's statements.
+  - Turn on snapshot reads (`--snapshot-reads on`, `KARELADB_SNAPSHOT_READS=on`) so readers do not wait even for one long statement, also on tables with an index of up to 1,000,000 rows (`--snapshot-index-rows`).
   - Split one huge statement (`INSERT ... SELECT` of millions of rows) into smaller ones: readers can only get in between statements.
 
 <a id="busy"></a>
@@ -145,8 +145,8 @@ lock_timeout is the server's default again
 
 | Setting | What it limits |
 |---|---|
-| `--memory <MB>` (`KDB_MEMORY`) | table data kept loaded. Data over it is read from disk again. |
-| `--memory-limit <size>` (`KDB_MEMORY_LIMIT`) | everything together. Keep `--memory` at about half of it. |
+| `--memory <MB>` (`KARELADB_MEMORY`) | table data kept loaded. Data over it is read from disk again. |
+| `--memory-limit <size>` (`KARELADB_MEMORY_LIMIT`) | everything together. Keep `--memory` at about half of it. |
 | `--max-result-memory` | one query's result ([protection](protection.md#memory-limits)) |
 | `GLIBC_TUNABLES=glibc.malloc.arena_max=8:glibc.malloc.trim_threshold=67108864` | Linux and Docker: how much freed memory the C library keeps; without it the process can hold far more than it uses |
 
@@ -163,7 +163,7 @@ lock_timeout is the server's default again
 
 | Big part | Why | Fix |
 |---|---|---|
-| `previous_bytes` | every checkpoint keeps older versions of each file for repairs (`keep_versions`, 2 unless set) | `PURGE VERSIONS KEEP 1`, or a lower `keep_versions` in `kdb.conf` ([versions](databases.md#purge-versions)) |
+| `previous_bytes` | every checkpoint keeps older versions of each file for repairs (`keep_versions`, 2 unless set) | `PURGE VERSIONS KEEP 1`, or a lower `keep_versions` in `kareladb.conf` ([versions](databases.md#purge-versions)) |
 | `trash_bytes` | replaced files wait `trash_keep_hours` (1 hour), dropped databases wait for ever | `PURGE TRASH`, or `PURGE TRASH ALL` for dropped databases ([trash](databases.md#purge-trash)) |
 | dropped tables | `DROP TABLE` keeps a table for `--trash-days` (7) so `UNDROP TABLE` works | `SHOW DROPPED TABLES`, then `DROP TABLE _dropped_...` ([the trash](trash.md)) |
 | `wal_archive_bytes` | the old log is kept for point-in-time restores | a shorter `WAL_ARCHIVE` ([databases](databases.md#wal-archive)) |
@@ -238,7 +238,7 @@ removed 0 folder(s) from the trash, freed 0 bytes
 
 ## The start is slow, or says "last shutdown: not clean"
 
-`last shutdown: not clean (crash or kill)` in the start-up lines means the server was killed, not stopped. That is not damage: KDB replays the log, and every confirmed change comes back. Replaying a long log takes time.
+`last shutdown: not clean (crash or kill)` in the start-up lines means the server was killed, not stopped. That is not damage: KarelaDB replays the log, and every confirmed change comes back. Replaying a long log takes time.
 
 | Check | What it tells you |
 |---|---|
@@ -276,7 +276,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792647875758,
+  "now_ms": 1792662997690,
   "timers": []
 }
 ```
@@ -289,7 +289,7 @@ HTTP 200 (application/json)
 |---|---|
 | `backup_schedule` in [`GET /api/info`](backup-schedule.md#backup-status) | `last_run_ok`, `warning` (`the last good backup of 'x' is N hours old`), and per database `error` |
 | `backup_command` in `/api/info` | the copy command's exit code and the end of what it printed |
-| `kdb backups <dir>` | the backups there, and whether each is whole |
+| `kareladb backups <dir>` | the backups there, and whether each is whole |
 
 | Cause | Fix |
 |---|---|
@@ -307,26 +307,26 @@ Then run one backup now to see that it works: `POST /api/backup`, or **Back up n
 |---|---|
 | a table was dropped | `UNDROP TABLE t` within `--trash-days` ([the trash](trash.md)) |
 | a bad `UPDATE` or `DELETE` | [restore while the server runs](backup-and-safety.md#restore-online): `POST /api/restore` with `"until"` one second before the mistake into a new name, check it, then `POST /api/databases/swap` |
-| damaged files (`failed its checksum`, `DAMAGED`) | stop, copy the folder, `kdb check`, `kdb repair --backups <dir>` ([after damage](backup-and-safety.md#after-damage)) |
-| the whole folder is lost | `kdb restore <newest backup> <new folder>`, `kdb check <new folder>`, then start the server on it ([kdb restore](backup-and-safety.md#kdb-restore)) |
+| damaged files (`failed its checksum`, `DAMAGED`) | stop, copy the folder, `kareladb check`, `kareladb repair --backups <dir>` ([after damage](backup-and-safety.md#after-damage)) |
+| the whole folder is lost | `kareladb restore <newest backup> <new folder>`, `kareladb check <new folder>`, then start the server on it ([kareladb restore](backup-and-safety.md#kareladb-restore)) |
 
 **Command line: Check a database, then repair it from the backups** (sample data: sample)
 
 ```bash
-kdb check market
-kdb repair market --backups backups
+kareladb check market
+kareladb repair market --backups backups
 ```
 
 Output:
 
-`> kdb check market`
+`> kareladb check market`
 
 ```text
 checked 14 files (76.1 KB) and 1 log segments
 OK: no damage found
 ```
 
-`> kdb repair market --backups backups`
+`> kareladb repair market --backups backups`
 
 ```text
 manifest copy: a, last shutdown: clean

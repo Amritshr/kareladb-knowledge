@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Statistics functions - KDB (KARELA DataBase) docs</title>
+<title>Statistics functions - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Describe a set of numbers: spread (stddev, variance, mad, iqr, range), shape (skewness, kurtosis), other averages (geomean, harmonic_mean, mode) and exact percentiles.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-statistics.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-statistics.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/functions-statistics.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-statistics.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="statistics-functions">Statistics functions</h1>
 <blockquote><p>Describe a set of numbers: spread (stddev, variance, mad, iqr, range), shape (skewness, kurtosis), other averages (geomean, harmonic_mean, mode) and exact percentiles.</p></blockquote>
@@ -193,7 +193,7 @@ FROM (SELECT 1 AS x UNION ALL SELECT 2) t;</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">kurtosis(x)
 kurt(x)</code></pre>
-<p>The <strong>kurtosis</strong> tells how often <strong>very big values</strong> come, compared with a normal bell curve. KDB gives the <strong>excess</strong> kurtosis: a normal curve has <code>0</code>.</p>
+<p>The <strong>kurtosis</strong> tells how often <strong>very big values</strong> come, compared with a normal bell curve. KarelaDB gives the <strong>excess</strong> kurtosis: a normal curve has <code>0</code>.</p>
 <ul><li><strong>Positive kurtosis (&quot;fat tails&quot;):</strong> very big moves, up or down, happen more often than a bell curve says. Most share returns are like this: a model that expects a normal curve under-guesses the risk of a crash day.</li><li><strong>Negative kurtosis:</strong> the values stay inside a band; very big moves are rare.</li></ul>
 <p>It is the <strong>sample</strong> excess kurtosis, the same as Excel <code>KURT</code>. <code>kurt</code> is the same function.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values, usually returns</td></tr></tbody></table></div>
@@ -365,7 +365,7 @@ FROM app_users;</code></pre>
 <pre><code class="language-sql">percentile_cont(fraction) WITHIN GROUP (ORDER BY x)
 percentile_disc(fraction) WITHIN GROUP (ORDER BY x)
 mode() WITHIN GROUP (ORDER BY x)</code></pre>
-<p>The SQL standard (PostgreSQL) way to write <code>percentile_cont</code>, <code>percentile_disc</code> and <code>mode</code>. KDB reads <code>percentile_cont(0.9) WITHIN GROUP (ORDER BY x)</code> as <code>percentile_cont(x, 0.9)</code>, so both spellings give the same result. It helps when you copy SQL from PostgreSQL.</p>
+<p>The SQL standard (PostgreSQL) way to write <code>percentile_cont</code>, <code>percentile_disc</code> and <code>mode</code>. KarelaDB reads <code>percentile_cont(0.9) WITHIN GROUP (ORDER BY x)</code> as <code>percentile_cont(x, 0.9)</code>, so both spellings give the same result. It helps when you copy SQL from PostgreSQL.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>fraction</code></td><td>the part from <code>0</code> to <code>1</code> (not for <code>mode</code>, which has empty <code>()</code>)</td></tr><tr><td><code>ORDER BY x</code></td><td>the values; exactly one, in ascending order</td></tr></tbody></table></div>
 <ul><li><strong>Works with:</strong> <code>percentile_cont</code>, <code>percentile_disc</code>, <code>quantile_cont</code>, <code>quantile_disc</code> and <code>mode</code>. Other functions give an error.</li><li><strong>Notes:</strong> <code>DESC</code> is not accepted: for the 90th percentile from the top, use <code>1 - 0.9 = 0.1</code>. Several values in <code>ORDER BY</code> are not accepted.</li></ul>
 <p><strong>Example: Volume of CITY&#39;s one-minute candles on 10 September</strong> (sample data: sample)</p>
@@ -511,9 +511,9 @@ FROM (SELECT &#39;CITY&#39; AS x UNION ALL SELECT &#39;CITY&#39;) t;</code></pre
 <h2 id="approx_count_distinct">approx_count_distinct</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">approx_count_distinct(x)</code></pre>
-<p>The number of <strong>different</strong> values of <code>x</code>. Other databases (DuckDB, ClickHouse, BigQuery) guess this number to save memory. In KDB today the count is <strong>exact</strong>: it gives the same result as <code>count(DISTINCT x)</code>. The name exists so SQL from those databases works.</p>
+<p>The number of <strong>different</strong> values of <code>x</code>. Other databases (DuckDB, ClickHouse, BigQuery) guess this number to save memory. In KarelaDB today the count is <strong>exact</strong>: it gives the same result as <code>count(DISTINCT x)</code>. The name exists so SQL from those databases works.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the values</td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> NULL values are not counted. No values give <code>0</code>.</li><li><strong>Notes:</strong> equal numbers of different types count as one value (<code>1</code> and <code>1.0</code>). KDB keeps every different value in memory while it counts.</li></ul>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> NULL values are not counted. No values give <code>0</code>.</li><li><strong>Notes:</strong> equal numbers of different types count as one value (<code>1</code> and <code>1.0</code>). KarelaDB keeps every different value in memory while it counts.</li></ul>
 <p><strong>Example: Different buyers and sellers of each share</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT symbol, approx_count_distinct(buyer) AS buyers, count(DISTINCT buyer) AS same,
        approx_count_distinct(seller) AS sellers
@@ -531,6 +531,6 @@ WHERE symbol = &#39;NONE&#39;;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>buyers (LONG)</th><th>entropy (STRING)</th><th>mode (STRING)</th></tr></thead><tbody><tr><td>0</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-statistics.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-statistics.md">This page as markdown</a>.</footer>
 </body>
 </html>

@@ -6,9 +6,9 @@
 - Keywords: trash, undo drop, undrop, UNDROP, restore table, dropped table, recover table, DROPPED, \_dropped\_, --trash-days, PurgeDroppedTables
 - See also: [CREATE TABLE](create-table.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Backup, check, repair and restore](backup-and-safety.md), [Databases and the data folder](databases.md)
 
-`DROP TABLE` is easy to type by mistake. With the trash, the table is only hidden: its rows stay where they are, and `UNDROP TABLE` brings it back. After the keep time (7 days by default) KDB removes it for good.
+`DROP TABLE` is easy to type by mistake. With the trash, the table is only hidden: its rows stay where they are, and `UNDROP TABLE` brings it back. After the keep time (7 days by default) KarelaDB removes it for good.
 
-`kdb serve`, `kdb sql` and `kdb shell` keep dropped tables for `--trash-days 7`. Programs that use the KDB library set `DatabaseOptions::dropped_table_keep_ms` (0 = off, the default there).
+`kareladb serve`, `kareladb sql` and `kareladb shell` keep dropped tables for `--trash-days 7`. Programs that use the KarelaDB library set `DatabaseOptions::dropped_table_keep_ms` (0 = off, the default there).
 
 <a id="drop"></a>
 
@@ -18,7 +18,7 @@ Syntax:
 
 ```sql
 DROP TABLE [IF EXISTS] <name>                 -- kept in the trash
-kdb serve --trash-days 7                      (0 = DROP TABLE removes at once)
+kareladb serve --trash-days 7                      (0 = DROP TABLE removes at once)
 DROP TABLE _dropped_<time>_<name>             -- remove one from the trash for good
 ```
 
@@ -26,7 +26,7 @@ DROP TABLE _dropped_<time>_<name>             -- remove one from the trash for g
 - **Notes:**
   - A new table with the same name, and indexes with the same names, can be made at once.
   - Dropping takes no time and no space: nothing is copied. The rows use disk space until the table is removed for good.
-  - When it is removed for good, its files go and so do its entries in the database's list of files; any left by an older build are swept at the next checkpoint or open (`kdb info` counts them under `manifest keys`).
+  - When it is removed for good, its files go and so do its entries in the database's list of files; any left by an older build are swept at the next checkpoint or open (`kareladb info` counts them under `manifest keys`).
   - This trash is for tables. [PURGE TRASH](databases.md#purge-trash) empties the database's `_trash` folder of replaced files, and `PURGE TRASH ALL` also the dropped databases; it leaves dropped tables alone.
   - A dropped table is hidden from `SHOW TABLES`, `SHOW INDEXES` and `/api/info`, and nobody can read or change it.
   - A dropped table that REFERENCES another table is removed for good when that other table is dropped.
@@ -69,7 +69,7 @@ table 'live_data' dropped; UNDROP TABLE live_data brings it back within 7 days
 
 | name (STRING) | dropped (TIMESTAMP) | removed_after (TIMESTAMP) | rows (LONG) | stored_as (STRING) |
 |---|---|---|---|---|
-| live_data | 2026-10-22T05:44:32.842Z | 2026-10-29T05:44:32.842Z | 12 | _dropped_1792647872842_live_data |
+| live_data | 2026-10-22T09:56:35.394Z | 2026-10-29T09:56:35.394Z | 12 | _dropped_1792662995394_live_data |
 
 (1 row)
 
@@ -103,6 +103,6 @@ The tables in the trash of the current database, newest first.
 |---|---|
 | `name` | the name the table had |
 | `dropped` | when it was dropped |
-| `removed_after` | when KDB removes it for good |
+| `removed_after` | when KarelaDB removes it for good |
 | `rows` | rows in it |
 | `stored_as` | its hidden name, for `DROP TABLE` to remove it at once |

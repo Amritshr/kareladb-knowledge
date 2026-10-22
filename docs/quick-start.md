@@ -1,14 +1,14 @@
 # Quick start
 
-> Get kdb, make a database, create a table, add rows, query them and open the web console.
+> Get kareladb, make a database, create a table, add rows, query them and open the web console.
 
 - Category: Getting started
-- Keywords: install, build, first steps, getting started, hello world, kdb version, kdb sql, kdb shell, kdb serve, console, sample data, tutorial
-- See also: [Install packages and the Claude skill](install-packages.md), [SQL basics](sql-basics.md), [Sample data](sample-data.md), [Databases and the data folder](databases.md), [CREATE TABLE](create-table.md), [INSERT](insert.md), [Web console](web-console.md), [kdb serve](cli-serve.md), [What's new](whats-new.md)
+- Keywords: install, build, first steps, getting started, hello world, kareladb version, kareladb sql, kareladb shell, kareladb serve, console, sample data, tutorial
+- See also: [Install packages and the Claude skill](install-packages.md), [SQL basics](sql-basics.md), [Sample data](sample-data.md), [Databases and the data folder](databases.md), [CREATE TABLE](create-table.md), [INSERT](insert.md), [Web console](web-console.md), [kareladb serve](cli-serve.md), [What's new](whats-new.md)
 
-KDB is one program: `kdb` (`kdb.exe` on Windows), with three folders of plain files next to it: `web/` (the web console), `help/` (these pages) and `skill/` (the Claude skill). It keeps each **database** in a folder. You talk to it with **SQL** (the language of databases). This page takes about 10 minutes.
+KarelaDB is one program: `kareladb` (`kareladb.exe` on Windows), with three folders of plain files next to it: `web/` (the web console), `help/` (these pages) and `skill/` (the Claude skill). It keeps each **database** in a folder. You talk to it with **SQL** (the language of databases). This page takes about 10 minutes.
 
-KDB is a general-purpose database: market and time-series data, sensor readings, logs and metrics, accounting, users and logins, app backends. A small example: a table of daily stock prices, three rows, and a query.
+KarelaDB is a general-purpose database: market and time-series data, sensor readings, logs and metrics, accounting, users and logins, app backends. A small example: a table of daily stock prices, three rows, and a query.
 
 **Example: Your first table, rows and query**
 
@@ -51,15 +51,15 @@ table 'ochl_day' created
 
 <a id="get-kdb"></a>
 
-## Get kdb
+## Get KarelaDB
 
 There are three ways. Pick one.
 
 | Way | You run | Then |
 |---|---|---|
-| An install package | unpack `kdb-<version>-windows-x64.zip` (or the Linux `.tar.gz`) and run `install.ps1` (or `install.sh`) | `kdb` is on your PATH, with its `web`, `help` and `skill` folders |
-| Docker | `docker run` with the image `kdb` (below) | the server runs on port 9900, the PostgreSQL port on 8832 |
-| Build from the source | `cmake` (below) | the program is in `build\bin\kdb.exe` |
+| An install package | unpack `kareladb-<version>-windows-x64.zip` (or the Linux `.tar.gz`) and run `install.ps1` (or `install.sh`) | `kareladb` is on your PATH, with its `web`, `help` and `skill` folders |
+| Docker | `docker run` with the image `kareladb` (below) | the server runs on port 9900, the PostgreSQL port on 8832 |
+| Build from the source | `cmake` (below) | the program is in `build\bin\kareladb.exe` |
 
 [Install packages](install-packages.md) explains the packages and the Docker image in full.
 
@@ -70,20 +70,20 @@ There are three ways. Pick one.
 Syntax:
 
 ```sql
-docker run -d --name kdb -p 9900:9900 -p 8832:8832 -e KDB_TOKEN=<secret> -v <data>:/data kdb
+docker run -d --name kareladb -p 9900:9900 -p 8832:8832 -e KARELADB_TOKEN=<secret> -v <data>:/data kareladb
 ```
 
-The image holds the program and its three folders. Make it once from the source folder with `docker build -t kdb -f docker/Dockerfile .`. The data stays in the volume, so a new container keeps it.
+The image holds the program and its three folders. Make it once from the source folder with `docker build -t kareladb -f docker/Dockerfile .`. The data stays in the volume, so a new container keeps it.
 
-- **Notes:** the server does not start without `KDB_TOKEN`. Paste the token into the console's token box, or send it as `Authorization: Bearer <token>`. Add `--restart unless-stopped --stop-timeout 60` so it comes back after a restart and stops cleanly. See [Docker](install-packages.md#docker).
+- **Notes:** the server does not start without `KARELADB_TOKEN`. Paste the token into the console's token box, or send it as `Authorization: Bearer <token>`. Add `--restart unless-stopped --stop-timeout 60` so it comes back after a restart and stops cleanly. See [Docker](install-packages.md#docker).
 
 ```bash
-docker run -d --name kdb --restart unless-stopped --stop-timeout 60 \
-  -p 9900:9900 -p 8832:8832 -e KDB_TOKEN=my-secret -v kdb-data:/data kdb
+docker run -d --name kareladb --restart unless-stopped --stop-timeout 60 \
+  -p 9900:9900 -p 8832:8832 -e KARELADB_TOKEN=my-secret -v kdb-data:/data kareladb
 curl http://127.0.0.1:9900/health
 ```
 
-Then open <http://127.0.0.1:9900> and go on at [Open the web console](#console): the console and the HTTP API do everything the `kdb sql` steps below do.
+Then open <http://127.0.0.1:9900> and go on at [Open the web console](#console): the console and the HTTP API do everything the `kareladb sql` steps below do.
 
 <a id="build"></a>
 
@@ -93,17 +93,17 @@ Syntax:
 
 ```sql
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target kdb
+cmake --build build --target kareladb
 ```
 
-Build the program from the KDB source folder. You need CMake, Ninja and a C++17 compiler (on Windows: MSYS2 UCRT64). KDB needs no other libraries.
+Build the program from the KarelaDB source folder. You need CMake, Ninja and a C++17 compiler (on Windows: MSYS2 UCRT64). KarelaDB needs no other libraries.
 
-- **Returns:** the program `build\bin\kdb.exe` (Linux and macOS: `build/bin/kdb`).
-- **Notes:** a `kdb` run from `build\bin` finds the console, the help and the skill in the source folder by itself (`web/console`, `docs/help/site`, `.claude/skills/kdb`). To copy it to another PC, copy `kdb.exe` together with the folders `web`, `help` and `skill`, or make a package. Without `web/` the HTTP API still works, but `http://127.0.0.1:9900/` says the console is not installed. See [where kdb finds them](install-packages.md#folders). [Chapter 1](../tutorial/01-install.md) explains every step.
+- **Returns:** the program `build\bin\kareladb.exe` (Linux and macOS: `build/bin/kareladb`).
+- **Notes:** a `kareladb` run from `build\bin` finds the console, the help and the skill in the source folder by itself (`web/console`, `docs/help/site`, `.claude/skills/kareladb`). To copy it to another PC, copy `kareladb.exe` together with the folders `web`, `help` and `skill`, or make a package. Without `web/` the HTTP API still works, but `http://127.0.0.1:9900/` says the console is not installed. See [where kareladb finds them](install-packages.md#folders). [Chapter 1](../tutorial/01-install.md) explains every step.
 
 ```powershell
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target kdb
+cmake --build build --target kareladb
 $env:Path = "$PWD\build\bin;" + $env:Path
 ```
 
@@ -112,16 +112,16 @@ Check that it works:
 **Command line: Show the version**
 
 ```bash
-kdb version
+kareladb version
 ```
 
 Output:
 
 ```text
-kdb 0.2.0-dev (crc32c hardware: yes)
+KarelaDB 0.2.0-dev (crc32c hardware: yes)
 tls: OpenSSL 3.6.3 9 Jun 2026
 
-Stored-format features this build reads (51):
+Stored-format features this build reads (52):
   views                0.2.0-dev (2026-09-10)   CREATE VIEW: the "views" file
   partition_format_2   0.2.0-dev (2026-09-11)   table partition files in format 2 (one raw block per column)
   block_stats          0.2.0-dev (2026-09-11)   column stats section in partition files (count, min, max, sum per column)
@@ -169,12 +169,13 @@ Stored-format features this build reads (51):
   row_policies         0.2.0-dev (2026-10-02)   row-level security: CREATE POLICY and ALTER TABLE ... ENABLE ROW LEVEL SECURITY (_system.row_policies)
   partition_deltas     0.2.0-dev (2026-10-02)   delta files: a few rows of a partition replaced or deleted, saved in t/<id>/<partition>.delta.b<version>
   fulltext_segments    0.2.0-dev (2026-10-02)   full-text and JSON index segments in fts/*.kfs (the words of each partition's rows; never recorded: an older build ignores them)
-  compressed_log       0.2.0-dev (2026-10-02)   packed log records (type 3): the data records of a big commit written compressed (KDB_WAL_COMPRESS)
+  compressed_log       0.2.0-dev (2026-10-02)   packed log records (type 3): the data records of a big commit written compressed (KARELADB_WAL_COMPRESS)
   endpoints            0.2.0-dev (2026-10-03)   CREATE ENDPOINT: saved queries served at GET /v/<name>, kind 'E' in the routines file
   rules                0.2.0-dev (2026-10-03)   CREATE RULE: named checks, session hours and settings of a table (catalog part 'Q')
   sync_commit_tables   0.2.0-dev (2026-10-03)   WITH (synchronous_commit = on | off) of a table: catalog part 'G'
+  cold_storage         0.2.0-dev (2026-10-22)   cold storage: WITH / SET (cold_storage, cold_after), catalog part 'O', and partitions moved to an object store, kept as stub files (t/<id>/<partition>.cold.v<N>.kdb, header flag 1)
 
-A database that uses a feature not in this list needs a newer KDB (kdb check exits with 3).
+A database that uses a feature not in this list needs a newer KarelaDB (kareladb check exits with 3).
 ```
 
 <a id="first-database"></a>
@@ -184,10 +185,10 @@ A database that uses a feature not in this list needs a newer KDB (kdb check exi
 Syntax:
 
 ```sql
-kdb sql database "SQL"
+kareladb sql database "SQL"
 ```
 
-`kdb sql` opens a database, runs the SQL, prints the result and closes the database. When the database does not exist yet, KDB makes a new empty one.
+`kareladb sql` opens a database, runs the SQL, prints the result and closes the database. When the database does not exist yet, KarelaDB makes a new empty one.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -200,33 +201,33 @@ kdb sql database "SQL"
 **Command line: Make a table in a new database, add a row, read it**
 
 ```bash
-kdb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"
-kdb sql shop "INSERT INTO brokers VALUES (58, 'Northgate Securities'), (45, 'Imperial Securities')"
-kdb sql shop "SELECT id, name FROM brokers ORDER BY id"
+kareladb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"
+kareladb sql shop "INSERT INTO brokers VALUES (58, 'Northgate Securities'), (45, 'Imperial Securities')"
+kareladb sql shop "SELECT id, name FROM brokers ORDER BY id"
 ```
 
 Output:
 
-`> kdb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"`
+`> kareladb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"`
 
 ```text
 table 'brokers' created
 ```
 
-`> kdb sql shop "INSERT INTO brokers VALUES (58, 'Northgate Securities'), (45, 'Imperial Securities')"`
+`> kareladb sql shop "INSERT INTO brokers VALUES (58, 'Northgate Securities'), (45, 'Imperial Securities')"`
 
 ```text
 2 row(s) inserted
 ```
 
-`> kdb sql shop "SELECT id, name FROM brokers ORDER BY id"`
+`> kareladb sql shop "SELECT id, name FROM brokers ORDER BY id"`
 
 ```text
 id | name                
 ---+---------------------
 45 | Imperial Securities 
 58 | Northgate Securities
-(2 rows, 0.3 ms)
+(2 rows, 0.2 ms)
 ```
 
 A mistake gives a clear message and exit code 1:
@@ -234,19 +235,19 @@ A mistake gives a clear message and exit code 1:
 **Command line: A typing mistake in a table name** (shows an error)
 
 ```bash
-kdb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"
-kdb sql shop "SELECT * FROM brokerz"
+kareladb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"
+kareladb sql shop "SELECT * FROM brokerz"
 ```
 
 Output:
 
-`> kdb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"`
+`> kareladb sql shop "CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)"`
 
 ```text
 table 'brokers' created
 ```
 
-`> kdb sql shop "SELECT * FROM brokerz"`
+`> kareladb sql shop "SELECT * FROM brokerz"`
 
 ```text
 error: line 1, column 15: table or view 'brokerz' does not exist
@@ -270,7 +271,7 @@ The three statements you use most. `CREATE TABLE` makes a table. `INSERT` adds r
 
 - There are two kinds of tables: **relational** (lists of things, like users) and **time-series** (rows with a time, like prices). See [CREATE TABLE](create-table.md).
 - Text and times go in single quotes: `'CITY'`, `'2026-09-10'`.
-- KDB shows times in UTC (the `Z` at the end). Write a local time with its zone offset, for example `+05:45` (Nepal) or `-04:00` (New York).
+- KarelaDB shows times in UTC (the `Z` at the end). Write a local time with its zone offset, for example `+05:45` (Nepal) or `-04:00` (New York).
 
 **Example: App users: a relational table**
 
@@ -339,12 +340,12 @@ table 'live_prices' created
 
 <a id="shell"></a>
 
-## kdb shell
+## kareladb shell
 
 Syntax:
 
 ```sql
-kdb shell [database]
+kareladb shell [database]
 ```
 
 A prompt where you type SQL. End each statement with `;`. A statement can use many lines. Commands that start with a dot (`.tables`, `.help`, `.exit`) need no `;`.
@@ -354,7 +355,7 @@ A prompt where you type SQL. End each statement with `;`. A statement can use ma
 **Command line: Type SQL in the shell**
 
 ```bash
-kdb shell shop
+kareladb shell shop
 > CREATE TABLE posts (id LONG PRIMARY KEY AUTO, author STRING, body STRING);
 > INSERT INTO posts (author, body) VALUES ('ram', 'CITY dividend looks good.');
 > .tables
@@ -365,19 +366,19 @@ kdb shell shop
 Output:
 
 ```text
-KDB 0.2.0-dev shell on shop
+KarelaDB 0.2.0-dev shell on shop
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> table 'posts' created
-kdb> 1 row(s) inserted
-kdb> name  | kind       | partition | columns | rows
+kareladb> table 'posts' created
+kareladb> 1 row(s) inserted
+kareladb> name  | kind       | partition | columns | rows
 ------+------------+-----------+---------+-----
 posts | relational | NONE      |       3 |    1
 (1 row, 0.0 ms)
-kdb> id | author | body                     
+kareladb> id | author | body                     
 ---+--------+--------------------------
  1 | ram    | CITY dividend looks good.
-(1 row, 0.2 ms)
-kdb>
+(1 row, 0.1 ms)
+kareladb>
 ```
 
 <a id="sample-data"></a>
@@ -387,24 +388,24 @@ kdb>
 Syntax:
 
 ```sql
-Get-Content file.sql -Raw | kdb sql database -
+Get-Content file.sql -Raw | kareladb sql database -
 ```
 
-The tutorial has a small made-up stock market dataset: securities, brokers, daily and minute candles, a trade log and live prices. It is just one example of what KDB stores. The `-` means "read the SQL from the pipe". Run the two files once, in this order.
+The tutorial has a small made-up stock market dataset: securities, brokers, daily and minute candles, a trade log and live prices. It is just one example of what KarelaDB stores. The `-` means "read the SQL from the pipe". Run the two files once, in this order.
 
 - **Notes:** the help examples with `fixture=sample` use this data. [Sample data](sample-data.md) shows every table.
 
 ```powershell
-# from the KDB source folder
+# from the KarelaDB source folder
 $examples = "docs\tutorial\examples"
-Get-Content "$examples\setup\schema.sql" -Raw | kdb sql market -
-Get-Content "$examples\setup\sample-data.sql" -Raw | kdb sql market -
+Get-Content "$examples\setup\schema.sql" -Raw | kareladb sql market -
+Get-Content "$examples\setup\sample-data.sql" -Raw | kareladb sql market -
 ```
 
 **Command line: The tables of the sample data** (sample data: sample)
 
 ```bash
-kdb sql market "SHOW TABLES"
+kareladb sql market "SHOW TABLES"
 ```
 
 Output:
@@ -439,29 +440,30 @@ Result:
 
 <a id="console"></a>
 
-## Open the web console (kdb serve)
+## Open the web console (kareladb serve)
 
 Syntax:
 
 ```sql
-kdb serve [database] [--port 9900]
+kareladb serve [database] [--port 9900]
 ```
 
 Starts the server. Open <http://127.0.0.1:9900> in a browser. Type SQL, press **Ctrl+Enter**, and see a grid or a chart. Press **Ctrl+C** to stop the server.
 
-- **Notes:** while the server runs, other `kdb` commands cannot open the same database. Use the console or the HTTP API then. Without a database name, the server serves every database in the data folder. The same server answers PostgreSQL tools on port 8832 and serves these help pages at <http://127.0.0.1:9900/help/>. See [kdb serve](cli-serve.md) and [web console](web-console.md).
-- **In Docker** the server is already running: open <http://127.0.0.1:9900> and paste your `KDB_TOKEN` into the token box.
+- **Notes:** while the server runs, other `kareladb` commands cannot open the same database. Use the console or the HTTP API then. Without a database name, the server serves every database in the data folder. The same server answers PostgreSQL tools on port 8832 and serves these help pages at <http://127.0.0.1:9900/help/>. See [kareladb serve](cli-serve.md) and [web console](web-console.md).
+- **In Docker** the server is already running: open <http://127.0.0.1:9900> and paste your `KARELADB_TOKEN` into the token box.
 
 **Command line: Start the server on the sample data** (sample data: sample)
 
 ```bash
-kdb serve market
+kareladb serve market
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev
+cold store 'archive': folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      market
   backups   ./_backups/market (from default)
@@ -478,7 +480,7 @@ KDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 1 ms (0 transactions), clean-up 0 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```

@@ -3,7 +3,7 @@
 > http_get and http_post call a web address from SQL, a procedure or a timer. Off until an admin lists the hosts they may call.
 
 - Category: Stored procedures
-- Keywords: http\_get, http\_post, http, https, web service, webhook, call url, rest api, outbound, http\_functions, http\_timeout\_ms, KDB\_HTTP\_FUNCTIONS, allowlist, fetch, curl
+- Keywords: http\_get, http\_post, http, https, web service, webhook, call url, rest api, outbound, http\_functions, http\_timeout\_ms, KARELADB\_HTTP\_FUNCTIONS, allowlist, fetch, curl
 - See also: [Stored procedures](procedures.md), [Timers](timers.md), [Triggers](triggers.md), [JSON functions](functions-json.md), [Users and roles](users-and-roles.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md)
 
 `http_get` and `http_post` let SQL call another service. A procedure can tell a settlement service that a day is done. A timer can ask a checker every hour.
@@ -21,7 +21,7 @@ SELECT http_get('http://10.0.0.5:8080/health');
 
 Result:
 
-Error: `line 1, column 8: http_get: calling web addresses from SQL is off on this server; an admin turns it on by listing the hosts it may call in the setting http_functions (kdb.conf, KDB_HTTP_FUNCTIONS or the Settings page)`
+Error: `line 1, column 8: http_get: calling web addresses from SQL is off on this server; an admin turns it on by listing the hosts it may call in the setting http_functions (kareladb.conf, KARELADB_HTTP_FUNCTIONS or the Settings page)`
 
 ## http_get
 
@@ -95,10 +95,10 @@ END;
 
 | Setting | Where | Default | Meaning |
 |---|---|---|---|
-| `http_functions` | kdb.conf, `KDB_HTTP_FUNCTIONS`, the Settings page | `off` | the hosts SQL may call, separated by commas |
-| `http_timeout_ms` | kdb.conf, `KDB_HTTP_TIMEOUT_MS`, the Settings page | `10000` | the most milliseconds one call may take, redirects included |
+| `http_functions` | kareladb.conf, `KARELADB_HTTP_FUNCTIONS`, the Settings page | `off` | the hosts SQL may call, separated by commas |
+| `http_timeout_ms` | kareladb.conf, `KARELADB_HTTP_TIMEOUT_MS`, the Settings page | `10000` | the most milliseconds one call may take, redirects included |
 
-kdb.conf wins over the environment. A save on the Settings page applies at once, without a restart.
+kareladb.conf wins over the environment. A save on the Settings page applies at once, without a restart.
 
 How to write the list:
 

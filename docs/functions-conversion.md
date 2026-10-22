@@ -10,7 +10,7 @@ A value has a type: a number, a text, a time and so on. Sometimes a value has th
 
 - `CAST(x AS type)` and `x::type` do the same thing.
 - `to_timestamp(x)` turns text or seconds into a time; `to_date(x)` turns text or milliseconds into a date.
-- KDB never guesses. When a value does not fit the new type, you get an error like `cannot convert '5.5' to INT`. It does not round or cut the value for you.
+- KarelaDB never guesses. When a value does not fit the new type, you get an error like `cannot convert '5.5' to INT`. It does not round or cut the value for you.
 - `NULL` stays `NULL` in every conversion.
 
 The rules are the same as when a value goes into a table column of that type (see [column types](column-types.md)). The entries "Into ..." below list them for each type.
@@ -678,7 +678,7 @@ Syntax:
 CAST(value AS TIMESTAMP)
 ```
 
-A moment in time, stored as milliseconds since 1970-01-01 UTC. KDB always shows it in UTC, like `2026-09-10T05:15:00.000Z`.
+A moment in time, stored as milliseconds since 1970-01-01 UTC. KarelaDB always shows it in UTC, like `2026-09-10T05:15:00.000Z`.
 
 | From | Result |
 |---|---|
@@ -979,7 +979,7 @@ Syntax:
 CAST(value AS JSON | JSONB)
 ```
 
-A JSON document (a text format for data, like `{"name": "Sita", "tags": [1, 2]}`). KDB checks it and stores it without extra spaces.
+A JSON document (a text format for data, like `{"name": "Sita", "tags": [1, 2]}`). KarelaDB checks it and stores it without extra spaces.
 
 | From | Result |
 |---|---|

@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>5. Queries - KDB (KARELA DataBase) docs</title>
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/05-queries.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/05-queries.md">
+<title>5. Queries - KarelaDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/tutorial/05-queries.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/05-queries.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="5-queries">5. Queries</h1>
 <ul><li>Category: Tutorial</li></ul>
 <h2 id="what-you-will-learn">What you will learn</h2>
 <ul><li><code>SELECT</code> with <code>WHERE</code>, <code>ORDER BY</code>, <code>GROUP BY</code> and the special time filters.</li><li>Candles with <code>SAMPLE BY</code> (1m, 15m, 1h in Nepal time, 1d, Sunday weeks, months), <code>LATEST ON</code> and joins.</li><li>Indicators (<code>sma</code>, <code>ema</code>, <code>rsi</code>, <code>atr</code>, ...), window functions, views, and a cookbook of market-data queries.</li></ul>
 <p>The examples use the database <code>market</code> with the <strong>fresh</strong> sample data (load it again if you ran chapter 4). Each example is a file in <code>examples/05-queries/</code>.</p>
-<h2 id="the-order-kdb-works-in">The order KDB works in</h2>
+<h2 id="the-order-kareladb-works-in"><span class="old-id" id="the-order-kdb-works-in"></span>The order KarelaDB works in</h2>
 <p>A query is written in this order:</p>
 <pre><code class="language-sql">SELECT ... FROM ... [JOIN ...] WHERE ... [LATEST ON ...] [SAMPLE BY ...] [GROUP BY ...] [HAVING ...]
 [UNION ALL SELECT ...] [ORDER BY ...] [LIMIT n [OFFSET m]]</code></pre>
-<p>KDB runs it in this order:</p>
+<p>KarelaDB runs it in this order:</p>
 <div class="table-wrap"><table><thead><tr><th>Step</th><th>Part</th><th>What happens</th></tr></thead><tbody><tr><td>1</td><td><code>FROM</code>, <code>JOIN</code></td><td>Read the tables</td></tr><tr><td>2</td><td><code>WHERE</code></td><td>Keep only matching rows. A time condition skips whole partitions.</td></tr><tr><td>3</td><td><code>LATEST ON</code></td><td>Keep the newest row per group</td></tr><tr><td>4</td><td><code>SAMPLE BY</code> / <code>GROUP BY</code></td><td>Make groups, compute <code>sum</code>, <code>max</code>, ...</td></tr><tr><td>5</td><td><code>HAVING</code></td><td>Keep only matching groups</td></tr><tr><td>6</td><td>window functions</td><td><code>sma</code>, <code>lag</code>, <code>row_number</code>, ...</td></tr><tr><td>7</td><td><code>SELECT</code> list, <code>DISTINCT</code></td><td>Compute the output columns</td></tr><tr><td>8</td><td><code>UNION ALL</code></td><td>Add rows of the next query</td></tr><tr><td>9</td><td><code>ORDER BY</code>, <code>LIMIT</code>, <code>OFFSET</code></td><td>Sort and cut</td></tr></tbody></table></div>
 <h2 id="select-basics">SELECT basics</h2>
 <pre><code class="language-sql">SELECT * FROM brokers;
@@ -118,10 +118,10 @@ VOLT   |    8 |  167.3 |   192.1 |     179.3 |       713310
 (3 rows, 0.3 ms)</code></pre>
 <p>Aggregates: <code>count(*)</code>, <code>count(x)</code>, <code>count(DISTINCT x)</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>first</code>, <code>last</code>, <code>median</code>, <code>percentile(x, 0.9)</code>, <code>stddev</code>, <code>variance</code>, <code>vwap(price, volume)</code> and more (chapter 11).</p>
 <p><code>first(x)</code> and <code>last(x)</code> use the <strong>time order</strong> of the rows. <code>first(open)</code> is the open of the earliest row.</p>
-<p>A <code>GROUP BY</code> with very many groups still works. When the groups need more than half of the memory for results, KDB writes some of them to temporary files and adds them up at the end. The result is the same, only slower. <code>kdb serve</code> stops a query with more than 5,000,000 groups (<code>--max-groups</code>, chapter 21).</p>
+<p>A <code>GROUP BY</code> with very many groups still works. When the groups need more than half of the memory for results, KarelaDB writes some of them to temporary files and adds them up at the end. The result is the same, only slower. <code>kareladb serve</code> stops a query with more than 5,000,000 groups (<code>--max-groups</code>, chapter 21).</p>
 <h3 id="the-implicit-group-by-rule">The implicit GROUP BY rule</h3>
-<p>Like QuestDB, KDB does not need GROUP BY. <strong>Every column that is not inside an aggregate becomes a group key.</strong></p>
-<pre><code class="language-sql">-- No GROUP BY: symbol is not inside an aggregate, so KDB groups by symbol.
+<p>Like QuestDB, KarelaDB does not need GROUP BY. <strong>Every column that is not inside an aggregate becomes a group key.</strong></p>
+<pre><code class="language-sql">-- No GROUP BY: symbol is not inside an aggregate, so KarelaDB groups by symbol.
 SELECT symbol, max(high) AS highest FROM ochl_day WHERE time IN &#39;2026-09&#39;;</code></pre>
 <pre><code class="language-text">symbol | highest
 -------+--------
@@ -370,7 +370,7 @@ TELCO  |      6
 <p>Also available: <code>EXISTS (SELECT ...)</code> and <code>NOT IN (SELECT ...)</code>.</p>
 <p>A subquery <strong>may use columns of the outer query</strong> (&quot;correlated&quot;), for example
 <code>SELECT s.symbol, (SELECT max(close) FROM ochl_day d WHERE d.symbol = s.symbol) FROM securities s</code>.
-KDB does not run it once per row: it reads the inner table once and looks every outer row up in that
+KarelaDB does not run it once per row: it reads the inner table once and looks every outer row up in that
 result. See chapters 11 and 23.</p>
 <h2 id="union-all">UNION ALL</h2>
 <pre><code class="language-sql">SELECT symbol, &#39;buy&#39; AS side, sum(quantity) AS shares FROM trade_log WHERE buyer = 58 GROUP BY symbol
@@ -589,26 +589,26 @@ time                     | symbol | open  | high  | low   | close | volume
 2026-08-30T00:00:00.000Z | VOLT   | 172.5 | 177.3 | 167.3 |   176 | 368150
 2026-09-06T00:00:00.000Z | VOLT   | 174.2 | 192.1 | 172.4 | 191.2 | 486760
 (2 rows, 0.4 ms)</code></pre>
-<pre><code class="language-powershell">kdb sql market &quot;SHOW VIEWS; DROP VIEW candles_1w; SHOW VIEWS&quot; --format csv</code></pre>
+<pre><code class="language-powershell">kareladb sql market &quot;SHOW VIEWS; DROP VIEW candles_1w; SHOW VIEWS&quot; --format csv</code></pre>
 <pre><code class="language-text">name,query
 candles_1w,&quot;SELECT time, symbol, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume FROM ochl_day SAMPLE BY 1w WEEK START SUNDAY&quot;
 name,query</code></pre>
-<ul><li>The view runs its query <strong>every time</strong> you use it.</li><li>KDB moves a WHERE on the view into the view&#39;s query when it can, so it reads fewer rows. Here <code>symbol = &#39;VOLT&#39;</code> is moved in; the time condition is applied to the weekly candles after they are made. <code>EXPLAIN</code> shows <code>push 1 condition(s) into view candles_1w</code>.</li><li><code>CREATE VIEW IF NOT EXISTS</code>, <code>DROP VIEW IF EXISTS</code> work.</li><li>KDB checks the query when you create the view. A view with an error is refused.</li></ul>
-<p>A <strong>cached view</strong> runs its query once and keeps the rows. Reading it reads the kept rows, so a slow <code>GROUP BY</code> over a big table is paid once, not on every read. With <code>REFRESH ON COMMIT</code>, KDB makes the rows new at the first read after a change of a table the view reads:</p>
+<ul><li>The view runs its query <strong>every time</strong> you use it.</li><li>KarelaDB moves a WHERE on the view into the view&#39;s query when it can, so it reads fewer rows. Here <code>symbol = &#39;VOLT&#39;</code> is moved in; the time condition is applied to the weekly candles after they are made. <code>EXPLAIN</code> shows <code>push 1 condition(s) into view candles_1w</code>.</li><li><code>CREATE VIEW IF NOT EXISTS</code>, <code>DROP VIEW IF EXISTS</code> work.</li><li>KarelaDB checks the query when you create the view. A view with an error is refused.</li></ul>
+<p>A <strong>cached view</strong> runs its query once and keeps the rows. Reading it reads the kept rows, so a slow <code>GROUP BY</code> over a big table is paid once, not on every read. With <code>REFRESH ON COMMIT</code>, KarelaDB makes the rows new at the first read after a change of a table the view reads:</p>
 <pre><code class="language-sql">CREATE CACHED VIEW trades_per_symbol AS
 SELECT symbol, count(*) AS trades FROM trade_log
 REFRESH ON COMMIT;</code></pre>
 <pre><code class="language-text">view &#39;trades_per_symbol&#39; created (4 row(s) cached)</code></pre>
 <ul><li>Without <code>REFRESH ON COMMIT</code>, the rows stay as they are until you run <code>REFRESH VIEW trades_per_symbol</code>.</li><li>The kept rows live in memory. After a restart they are made again at the first read.</li><li>A <code>WHERE</code> on a cached view filters the kept rows. It does not run the view&#39;s query again.</li></ul>
-<h2 id="explain-what-will-kdb-read">EXPLAIN: what will KDB read?</h2>
+<h2 id="explain-what-will-kareladb-read"><span class="old-id" id="explain-what-will-kdb-read"></span>EXPLAIN: what will KarelaDB read?</h2>
 <p><code>EXPLAIN</code> shows the plan, without running the query. Use CSV format so lines are not cut.</p>
-<pre><code class="language-powershell">kdb sql market &quot;EXPLAIN SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09&#39;&quot; --format csv</code></pre>
+<pre><code class="language-powershell">kareladb sql market &quot;EXPLAIN SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09&#39;&quot; --format csv</code></pre>
 <pre><code class="language-text">plan
 &quot;scan table ochl_day (1 of 2 partitions, about 57 rows)&quot;
 read only 1 key range(s) of each partition
 &quot;build 3 of 7 stored column(s) per row: time, symbol, close&quot;
 filter while scanning: 2 condition(s)</code></pre>
-<ul><li><code>1 of 2 partitions</code>: the <code>2025</code> file is skipped because of the time condition.</li><li><code>read only 1 key range(s)</code>: rows are sorted by symbol and time, so KDB jumps straight to CITY&#39;s rows of September and reads nothing else. This works for <code>symbol = &#39;...&#39;</code>, <code>symbol IN (...)</code>, and a time range on top of them.</li><li><code>build 3 of 7 stored column(s)</code>: the table has 7 columns, but KDB makes only the 3 that the query needs (<code>symbol</code> for the filter, <code>time</code> and <code>close</code> for the result).</li></ul>
+<ul><li><code>1 of 2 partitions</code>: the <code>2025</code> file is skipped because of the time condition.</li><li><code>read only 1 key range(s)</code>: rows are sorted by symbol and time, so KarelaDB jumps straight to CITY&#39;s rows of September and reads nothing else. This works for <code>symbol = &#39;...&#39;</code>, <code>symbol IN (...)</code>, and a time range on top of them.</li><li><code>build 3 of 7 stored column(s)</code>: the table has 7 columns, but KarelaDB makes only the 3 that the query needs (<code>symbol</code> for the filter, <code>time</code> and <code>close</code> for the result).</li></ul>
 <p>A second example with a join:</p>
 <pre><code class="language-sql">EXPLAIN SELECT b.name, sum(f.amount) AS turnover
 FROM trade_log f JOIN brokers b ON f.buyer = b.id
@@ -621,9 +621,9 @@ filter while scanning: 1 condition(s)
 &quot;group by 1 key(s), 1 aggregate(s)&quot;
 sort by 1 key(s)
 limit 3</code></pre>
-<p>Only the day 2026-09-10 is read. (For a <code>DATE</code> time column KDB also reads the partition of the next day, to be safe.)</p>
+<p>Only the day 2026-09-10 is read. (For a <code>DATE</code> time column KarelaDB also reads the partition of the next day, to be safe.)</p>
 <p><strong>Speed tips:</strong></p>
-<ul><li>Always filter time-series tables by time (<code>time IN &#39;...&#39;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>BETWEEN</code>) on the first table of the query.</li><li>Filter by symbol with <code>symbol = &#39;...&#39;</code> or <code>symbol IN (...)</code> written plainly: <code>upper(symbol) = &#39;CITY&#39;</code> or <code>concat(symbol, &#39;&#39;) = ...</code> makes KDB read every row.</li><li>Put the big table first in FROM, and join small tables to it.</li><li>Select only the columns you need.</li></ul>
+<ul><li>Always filter time-series tables by time (<code>time IN &#39;...&#39;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>BETWEEN</code>) on the first table of the query.</li><li>Filter by symbol with <code>symbol = &#39;...&#39;</code> or <code>symbol IN (...)</code> written plainly: <code>upper(symbol) = &#39;CITY&#39;</code> or <code>concat(symbol, &#39;&#39;) = ...</code> makes KarelaDB read every row.</li><li>Put the big table first in FROM, and join small tables to it.</li><li>Select only the columns you need.</li></ul>
 <h2 id="cookbook">Cookbook</h2>
 <p>Ready-made market-data queries. Each one is verified on the sample data.</p>
 <h3 id="weekly-candles-for-all-symbols">Weekly candles for all symbols</h3>
@@ -840,6 +840,6 @@ ORDER BY turnover DESC;</code></pre></li></ol>
 <hr>
 <p>Next: <a href="06-web-console.html">6. Web console</a></p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/05-queries.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/05-queries.md">This page as markdown</a>.</footer>
 </body>
 </html>

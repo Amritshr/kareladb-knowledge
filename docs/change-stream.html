@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Change stream and live subscriptions: changes(&#39;t&#39;), GET /api/changes, GET /api/subscribe - KDB (KARELA DataBase) docs</title>
+<title>Change stream and live subscriptions: changes(&#39;t&#39;), GET /api/changes, GET /api/subscribe - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Every committed INSERT, UPDATE and DELETE of a table as an ordered stream you can resume from its LSN, in SQL or over HTTP, and queries that push their changed rows.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/change-stream.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/change-stream.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/change-stream.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/change-stream.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="change-stream-and-live-subscriptions-changes-t-get-api-changes-get-api-subscribe">Change stream and live subscriptions: changes(&#39;t&#39;), GET /api/changes, GET /api/subscribe</h1>
 <blockquote><p>Every committed INSERT, UPDATE and DELETE of a table as an ordered stream you can resume from its LSN, in SQL or over HTTP, and queries that push their changed rows.</p></blockquote>
 <ul><li>Category: HTTP API</li><li>Keywords: change stream, changes, cdc, change data capture, GET /api/changes, api/changes, GET /api/subscribe, api/subscribe, subscribe, SUBSCRIBE, live query, push, server-sent events, sse, EventSource, Last-Event-ID, lsn, resume, exactly once, wal_archive</li><li>See also: <a href="revisions.html">Change revisions: GET /api/rev and kdb_rev()</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="databases.html">Databases and the data folder</a></li></ul>
-<p>Every committed change of a table is already in KDB&#39;s log, in commit order, numbered by a <strong>log sequence number</strong> (LSN). The change stream reads it back:</p>
+<p>Every committed change of a table is already in KarelaDB&#39;s log, in commit order, numbered by a <strong>log sequence number</strong> (LSN). The change stream reads it back:</p>
 <ul><li>in SQL: <code>SELECT * FROM changes(&#39;t&#39;)</code></li><li>over HTTP: <code>GET /api/changes?table=t&amp;from=&lt;lsn&gt;</code>, as server-sent events or JSON</li></ul>
 <p>A reader keeps the LSN it read last and asks for what came after it. It gets <strong>every change exactly once, in commit order</strong>, also after a restart or a crash of the server, because the stream only shows commits that are safe on disk and the log is what the server itself replays.</p>
 <p>Nothing extra is written for this: a commit costs what it cost before.</p>
@@ -71,7 +71,7 @@ INSERT INTO acct VALUES (1, &#39;Asha&#39;, 10);</code></pre>
     {
       &quot;lsn&quot;: 2,
       &quot;seq&quot;: 0,
-      &quot;committed_at&quot;: &quot;2026-10-22T05:43:31.573Z&quot;,
+      &quot;committed_at&quot;: &quot;2026-10-22T09:55:00.994Z&quot;,
       &quot;op&quot;: &quot;ddl&quot;,
       &quot;key&quot;: &quot;CREATE TABLE acct (\n  id INT PRIMARY KEY,\n  name STRING,\n  bal DOUBLE\n)&quot;,
       &quot;row&quot;: null
@@ -79,7 +79,7 @@ INSERT INTO acct VALUES (1, &#39;Asha&#39;, 10);</code></pre>
     {
       &quot;lsn&quot;: 4,
       &quot;seq&quot;: 0,
-      &quot;committed_at&quot;: &quot;2026-10-22T05:43:31.577Z&quot;,
+      &quot;committed_at&quot;: &quot;2026-10-22T09:55:01.022Z&quot;,
       &quot;op&quot;: &quot;upsert&quot;,
       &quot;key&quot;: null,
       &quot;row&quot;: {&quot;id&quot;: 1, &quot;name&quot;: &quot;Asha&quot;, &quot;bal&quot;: 10}
@@ -92,7 +92,7 @@ INSERT INTO acct VALUES (1, &#39;Asha&#39;, 10);</code></pre>
 }</code></pre>
 <p>It needs read rights on the table: role <code>read</code> on the database, or <code>GRANT SELECT</code> on the table. An unknown table is a 404.</p>
 <h2 id="retention">How long changes are kept</h2>
-<p>The stream reads the log, and the log is kept as long as the database&#39;s <code>wal_archive</code> setting allows: <code>ALTER DATABASE ... SET WAL_ARCHIVE = &#39;2GB&#39;</code>, the server default <code>KDB_WAL_ARCHIVE_MB</code> / <code>wal_archive_mb</code> in <code>kdb.conf</code> (1 GB unless set). A reader that falls further behind than that is <strong>never</strong> given a stream with a hole: <code>changes()</code> fails and <code>GET /api/changes</code> answers <strong>410 Gone</strong>, with <code>gone_before</code>, the first LSN still kept. Such a reader starts again from a fresh copy of the table (<code>SELECT *</code>) and then reads on from <code>oldest_lsn</code>.</p>
+<p>The stream reads the log, and the log is kept as long as the database&#39;s <code>wal_archive</code> setting allows: <code>ALTER DATABASE ... SET WAL_ARCHIVE = &#39;2GB&#39;</code>, the server default <code>KARELADB_WAL_ARCHIVE_MB</code> / <code>wal_archive_mb</code> in <code>kareladb.conf</code> (1 GB unless set). A reader that falls further behind than that is <strong>never</strong> given a stream with a hole: <code>changes()</code> fails and <code>GET /api/changes</code> answers <strong>410 Gone</strong>, with <code>gone_before</code>, the first LSN still kept. Such a reader starts again from a fresh copy of the table (<code>SELECT *</code>) and then reads on from <code>oldest_lsn</code>.</p>
 <p>A slow or lost reader cannot fill the disk: it keeps no log for itself. While one read runs (milliseconds), only the log after its position stays where it is; older log and replaced data files are cleaned up as usual. Readers never slow down writers: a poll does not list the log folders.</p>
 <h2 id="api-subscribe">GET /api/subscribe</h2>
 <p>A <strong>live query</strong>: the answer of one <code>SELECT</code>, and afterwards only the rows a commit changed.</p>
@@ -110,6 +110,6 @@ es.addEventListener(&#39;rows&#39;, (e) =&gt; JSON.parse(e.data).rows.forEach(up
 <p>Limits: one table (no joins, subqueries in <code>FROM</code>, <code>UNION</code> or <code>WITH</code>); at most 10,000 rows in the answer; 10,000 subscriptions per server (when that is reached, the one asked for longest ago makes room, and its client gets a fresh <code>snapshot</code> when it asks again); a subscription nobody asked for in 2 minutes is dropped, and asking with an unknown id gives a fresh <code>snapshot</code>. The query runs with the caller&#39;s rights, like <code>/exec</code>.</p>
 <p><code>SUBSCRIBE</code> sent to <code>/exec</code> or the PostgreSQL port is an error that points here: those answer once and cannot push.</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/change-stream.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/change-stream.md">This page as markdown</a>.</footer>
 </body>
 </html>

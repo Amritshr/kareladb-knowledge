@@ -1,6 +1,6 @@
 # Rules
 
-> Name a check, the trading hours or the dedup choice of a table once, and KDB applies it to every row written - saying which rule refused a row and why.
+> Name a check, the trading hours or the dedup choice of a table once, and KarelaDB applies it to every row written - saying which rule refused a row and why.
 
 - Category: Tables
 - Keywords: rule, rules, CREATE RULE, ALTER RULE, DROP RULE, SHOW RULES, kdb\_rules, price guard, value range, session hours, trading hours, ON FAIL SKIP, ON FAIL REJECT, dedup\_keep, keep first, check rule

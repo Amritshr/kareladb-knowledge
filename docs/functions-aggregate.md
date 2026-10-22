@@ -10,7 +10,7 @@ An **aggregate** function reads many rows and gives back one value. For example,
 
 - With `GROUP BY` (or `SAMPLE BY`) you get one result row for each **group**. A group is all the rows with the same key, for example the same symbol.
 - Without `GROUP BY`, all rows are one group, and you get one row.
-- **Implicit GROUP BY:** like QuestDB, KDB groups by itself. Every select item that is **not** inside an aggregate becomes a group key. `SELECT symbol, max(high) FROM ochl_day` gives one row per symbol.
+- **Implicit GROUP BY:** like QuestDB, KarelaDB groups by itself. Every select item that is **not** inside an aggregate becomes a group key. `SELECT symbol, max(high) FROM ochl_day` gives one row per symbol.
 - Aggregates **skip NULL values**. `avg` of 10, NULL and 20 is 15. Only `count(*)` counts every row, and `first` and `last` take the first / last row's value even when it is NULL (as in QuestDB; `first_not_null` and `last_not_null` skip NULLs).
 - On **no rows** (without GROUP BY) `count` gives `0` and the others give `NULL`. With GROUP BY, no rows give no groups.
 - Aggregates can only be in the select list and in `HAVING`. To keep only some groups, use `HAVING` ([group-by](group-by.md)), not `WHERE`.
@@ -293,7 +293,7 @@ The total of all values of `x`.
 - **Returns:** `LONG` when every value is a whole number, an exact `DECIMAL` when every value is a `DECIMAL` (with the largest scale of them), else `DOUBLE`.
 - **NULL:** NULL values are skipped. When there are no values (or all are NULL), the result is `NULL`, not `0`. Write `coalesce(sum(x), 0)` to get `0` ([coalesce](functions-conditional.md#coalesce)); for a `DECIMAL(2)` column write `coalesce(sum(x), CAST(0 AS DECIMAL(2)))`, because a plain `0` is a `LONG`.
 - **Notes:** a `LONG` total too big for 64 bits (more than about 9.2e18) is an error: `sum() is out of range` (SQLSTATE `22003`). A `DECIMAL` total is exact up to 38 digits, also past 64 bits; only past that is it an error. It never comes back rounded. For an approximate total add `DOUBLE` values: `sum(x::DOUBLE)`. Text gives an error (`sum needs numbers`). For money, use `DECIMAL(2)` columns: their sum is exact.
-- **DOUBLE totals:** a `DOUBLE` total is **compensated** (the Neumaier method): the rounding error of each step is carried along and added back, so the total does not depend on the order of the rows and is as close to the exact total as a `DOUBLE` can be. QuestDB's plain `sum` adds without this, so its last digit can differ: five NEPSE volumes that add up to exactly 55128735 give 55128734.99999999 there. QuestDB's `ksum` and `nsum` give KDB's answer; KDB accepts both names as `sum`.
+- **DOUBLE totals:** a `DOUBLE` total is **compensated** (the Neumaier method): the rounding error of each step is carried along and added back, so the total does not depend on the order of the rows and is as close to the exact total as a `DOUBLE` can be. QuestDB's plain `sum` adds without this, so its last digit can differ: five NEPSE volumes that add up to exactly 55128735 give 55128734.99999999 there. QuestDB's `ksum` and `nsum` give KarelaDB's answer; KarelaDB accepts both names as `sum`.
 
 **Example: Broker buy totals on one day (trade log)** (sample data: sample)
 
@@ -590,7 +590,7 @@ The value of `x` in the **earliest** row. On a time-series table, earliest means
 
 - **Returns:** the type of `x`.
 - **NULL:** the earliest row's value, **even when it is NULL**, as in QuestDB. To skip NULLs, use [first_not_null](#first_not_null). No rows give `NULL`.
-- **Notes:** the order is the table's time column, not `ORDER BY`. On a relational table (no time column) it is the order of the primary key. When many rows have the **same** time, KDB takes the first in storage order; do not count on which one.
+- **Notes:** the order is the table's time column, not `ORDER BY`. On a relational table (no time column) it is the order of the primary key. When many rows have the **same** time, KarelaDB takes the first in storage order; do not count on which one.
 - **Changed 2026-09-25:** before, `first` and `last` skipped NULLs (what `first_not_null` and `last_not_null` do now).
 
 **Example: Open, close and change of each symbol in September** (sample data: sample)
@@ -746,7 +746,7 @@ The middle value: half of the values are smaller, half are bigger. With an even 
 
 - **Returns:** `DOUBLE`.
 - **NULL:** NULL values are skipped. No values give `NULL`.
-- **Notes:** the same as `percentile(x, 0.5)`. KDB keeps all values of a group in memory to find it.
+- **Notes:** the same as `percentile(x, 0.5)`. KarelaDB keeps all values of a group in memory to find it.
 
 **Example: Typical trade size: median against average** (sample data: sample)
 
@@ -791,7 +791,7 @@ Syntax:
 percentile(x, p)
 ```
 
-The value below which a part `p` of the values lie. `percentile(x, 0.9)` is the value that 90% of the values are at or below. Between two values, KDB goes the right part of the way from one to the other (linear interpolation, like PostgreSQL `percentile_cont`).
+The value below which a part `p` of the values lie. `percentile(x, 0.9)` is the value that 90% of the values are at or below. Between two values, KarelaDB goes the right part of the way from one to the other (linear interpolation, like PostgreSQL `percentile_cont`).
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -1090,7 +1090,7 @@ Counts the rows where the condition is **true**. `count_if(plan = 'pro')` is the
 
 - **Returns:** `LONG`.
 - **NULL:** rows where the condition is NULL are not counted. No rows give `0`, not NULL.
-- **Notes:** the condition must be true/false: `count_if(plan)` is an error. PostgreSQL writes `count(*) FILTER (WHERE ...)`; KDB has no `FILTER`, use `count_if`.
+- **Notes:** the condition must be true/false: `count_if(plan)` is an error. PostgreSQL writes `count(*) FILTER (WHERE ...)`; KarelaDB has no `FILTER`, use `count_if`.
 
 **Example: App users per city: all, pro, and who logged in since 10 September** (sample data: query-app)
 
@@ -1723,7 +1723,7 @@ Collects the rows into one **JSON object**: the key of each row, and its value. 
 
 - **Returns:** `JSON`. `jsonb_object_agg` keeps each key once, with the **last** value given; `json_object_agg` keeps every pair. Postgres clients get `jsonb_object_agg` as `jsonb` (`{"a": 1, "b": 2}`, keys in `jsonb` order).
 - **NULL:** a `NULL` value becomes JSON `null`. A `NULL` key is an error (SQLSTATE `22023`), as in PostgreSQL. No rows give `NULL`.
-- **Notes:** `ORDER BY` inside the call sets the order of the keys: `jsonb_object_agg(k, v ORDER BY k)`. PostgreSQL writes `json_object_agg` as `{ "a" : 1 }`; KDB keeps JSON compact: `{"a":1}`.
+- **Notes:** `ORDER BY` inside the call sets the order of the keys: `jsonb_object_agg(k, v ORDER BY k)`. PostgreSQL writes `json_object_agg` as `{ "a" : 1 }`; KarelaDB keeps JSON compact: `{"a":1}`.
 
 **Example: Prices by symbol in one object (a symbol seen twice keeps its last row)** (sample data: sample)
 

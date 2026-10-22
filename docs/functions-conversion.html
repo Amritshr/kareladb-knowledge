@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Conversion functions - KDB (KARELA DataBase) docs</title>
+<title>Conversion functions - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Change a value from one type to another with CAST, ::, to_timestamp and to_date.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-conversion.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conversion.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/functions-conversion.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-conversion.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="conversion-functions">Conversion functions</h1>
 <blockquote><p>Change a value from one type to another with CAST, ::, to_timestamp and to_date.</p></blockquote>
 <ul><li>Category: Functions — conversion</li><li>Keywords: convert, conversion, type conversion, change type, cast, ::, to number, to text, parse number, parse date, epoch, unix time, milliseconds, cannot convert, INTEGER, BIGINT, BOOLEAN, VARCHAR, TEXT, JSONB, BYTEA, BLOB, FLOAT, SHORT, BYTE</li><li>See also: <a href="column-types.html">Column types</a>, <a href="functions-date-time.html#to_char">Date and time functions (to_char)</a>, <a href="functions-conditional.html#coalesce">Conditional and NULL functions (coalesce)</a>, <a href="functions-math.html#round">Math functions (round)</a>, <a href="functions-json.html">JSON functions</a>, <a href="operators.html">Operators</a></li></ul>
 <p>A value has a type: a number, a text, a time and so on. Sometimes a value has the wrong type for what you want to do. A price read from a text file is the text <code>&#39;512.50&#39;</code>, not a number. <code>CAST</code> changes the type.</p>
-<ul><li><code>CAST(x AS type)</code> and <code>x::type</code> do the same thing.</li><li><code>to_timestamp(x)</code> turns text or seconds into a time; <code>to_date(x)</code> turns text or milliseconds into a date.</li><li>KDB never guesses. When a value does not fit the new type, you get an error like <code>cannot convert &#39;5.5&#39; to INT</code>. It does not round or cut the value for you.</li><li><code>NULL</code> stays <code>NULL</code> in every conversion.</li></ul>
+<ul><li><code>CAST(x AS type)</code> and <code>x::type</code> do the same thing.</li><li><code>to_timestamp(x)</code> turns text or seconds into a time; <code>to_date(x)</code> turns text or milliseconds into a date.</li><li>KarelaDB never guesses. When a value does not fit the new type, you get an error like <code>cannot convert &#39;5.5&#39; to INT</code>. It does not round or cut the value for you.</li><li><code>NULL</code> stays <code>NULL</code> in every conversion.</li></ul>
 <p>The rules are the same as when a value goes into a table column of that type (see <a href="column-types.html">column types</a>). The entries &quot;Into ...&quot; below list them for each type.</p>
 <p><strong>Example: Prices, quantities and times that arrived as text</strong></p>
 <p>Setup:</p>
@@ -280,7 +280,7 @@ ORDER BY account;</code></pre>
 <h2 id="into-timestamp">Into TIMESTAMP</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">CAST(value AS TIMESTAMP)</code></pre>
-<p>A moment in time, stored as milliseconds since 1970-01-01 UTC. KDB always shows it in UTC, like <code>2026-09-10T05:15:00.000Z</code>.</p>
+<p>A moment in time, stored as milliseconds since 1970-01-01 UTC. KarelaDB always shows it in UTC, like <code>2026-09-10T05:15:00.000Z</code>.</p>
 <div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>time text</td><td><code>&#39;2026-09-10&#39;</code>, <code>&#39;2026-09-10 11:00&#39;</code>, <code>&#39;2026-09-10T11:00:00.123&#39;</code>, with an optional <code>Z</code>, <code>+05:45</code> or <code>+0545</code> at the end. No zone means UTC</td></tr><tr><td><code>DATE</code></td><td>midnight UTC of that day</td></tr><tr><td>a whole number</td><td>that many milliseconds after 1970-01-01 UTC</td></tr><tr><td><code>DOUBLE</code>, <code>BOOL</code>, <code>JSON</code>, <code>BYTES</code></td><td>error</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong>
 <ul><li>A local time must be written with its zone offset, for example <code>+05:45</code> for Nepal. <code>&#39;2026-09-10 11:00&#39;</code> is 11:00 <strong>UTC</strong>, which is 16:45 in Nepal.</li><li>Zone names (<code>NPT</code>, <code>Asia/Kathmandu</code>) are not allowed inside the text. Only an offset like <code>+05:45</code>.</li><li>Other date orders (<code>&#39;10/09/2026&#39;</code>), one-digit months (<code>&#39;2026-9-1&#39;</code>) and <code>24:00</code> are errors. More than 3 digits after the second are cut to milliseconds.</li><li>The same as <a href="functions-conversion.html#to_timestamp">to_timestamp</a>.</li></ul></li></ul>
@@ -392,7 +392,7 @@ LIMIT 3;</code></pre>
 <h2 id="into-json">Into JSON</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">CAST(value AS JSON | JSONB)</code></pre>
-<p>A JSON document (a text format for data, like <code>{&quot;name&quot;: &quot;Sita&quot;, &quot;tags&quot;: [1, 2]}</code>). KDB checks it and stores it without extra spaces.</p>
+<p>A JSON document (a text format for data, like <code>{&quot;name&quot;: &quot;Sita&quot;, &quot;tags&quot;: [1, 2]}</code>). KarelaDB checks it and stores it without extra spaces.</p>
 <div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>text</td><td>parsed as JSON; bad JSON is an error that says where the problem is</td></tr><tr><td>numbers, <code>DECIMAL</code></td><td>a JSON number: <code>5</code>, <code>1.50</code></td></tr><tr><td><code>BOOL</code></td><td><code>true</code> / <code>false</code></td></tr><tr><td><code>TIMESTAMP</code>, <code>DATE</code>, <code>BYTES</code></td><td>a JSON string with their text: <code>&quot;2026-09-10&quot;</code></td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> SQL <code>NULL</code> stays <code>NULL</code>. The text <code>&#39;null&#39;</code> becomes the JSON value <code>null</code>, which is <strong>not</strong> SQL <code>NULL</code> (<code>IS NULL</code> is false).</li><li><strong>Notes:</strong>
 <ul><li>A text value must be valid JSON. The word <code>CITY</code> is not JSON; <code>&#39;&quot;CITY&quot;&#39;</code> (with double quotes inside) is. See <a href="functions-json.html">JSON functions</a> for reading parts of a document.</li><li>The result tables on this page show a JSON string without its quotes, and a JSON <code>null</code> as <code>NULL</code>.</li></ul></li></ul>
@@ -439,6 +439,6 @@ ORDER BY user_id;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: cannot convert &#39;5&#39; to BYTES: expected bytes like X&#39;0A0B&#39; or &#39;\x0a0b&#39;, got LONG 5</code></p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conversion.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-conversion.md">This page as markdown</a>.</footer>
 </body>
 </html>

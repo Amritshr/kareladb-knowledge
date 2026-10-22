@@ -9,8 +9,8 @@
 A **saved function** is a formula with a name. Its body is **one expression** (one formula, like `(close - open) / open * 100`).
 You write the formula once. Then every query can use it, like `round` or `concat`.
 
-- KDB keeps the function in the database. It is still there after a restart and in a backup.
-- A call costs nothing extra: when the query starts, KDB puts the body in the place of the call.
+- KarelaDB keeps the function in the database. It is still there after a restart and in a backup.
+- A call costs nothing extra: when the query starts, KarelaDB puts the body in the place of the call.
 - Only **one expression**. For many steps, variables or loops, use a [stored procedure](procedures.md).
 
 **Example: The change of each share today, in percent** (sample data: sample)
@@ -68,7 +68,7 @@ Saves a new function. `OR REPLACE` changes a function that already exists.
   - Each argument is changed to the type of its parameter, like `CAST`. So `change_pct('5', '4')` works: the text becomes a `DOUBLE`.
   - `RETURNS DECIMAL(2)` fails when the value has more than 2 decimals, for example `112.9887`. Round first: `AS (round(amount * 0.13, 2))`.
   - Without `OR REPLACE`, a name that is already used gives an error.
-  - KDB checks the body when you create the function: unknown functions, wrong argument counts and a function that calls itself are refused at once. The [rules](saved-functions.md#rules) list everything a body cannot hold.
+  - KarelaDB checks the body when you create the function: unknown functions, wrong argument counts and a function that calls itself are refused at once. The [rules](saved-functions.md#rules) list everything a body cannot hold.
   - There are no default values for parameters, and no two functions with the same name and other parameters.
 
 **Example: VAT of 13% on an amount of money, exact to the cent**
@@ -441,7 +441,7 @@ DROP FUNCTION [IF EXISTS] name
 Removes a saved function.
 
 - **Returns:** `function 'name' dropped`. With `IF EXISTS`, a name that does not exist gives the message `function 'name' does not exist` and no error.
-- **Notes:** KDB does not check who uses the function. Other functions, views, procedures and triggers that use it fail later, when they run.
+- **Notes:** KarelaDB does not check who uses the function. Other functions, views, procedures and triggers that use it fail later, when they run.
 
 **Example**
 
@@ -531,7 +531,7 @@ Lists the saved functions of the database, in name order.
 | `returns` | the `RETURNS` type, or `NULL` when there is none |
 | `definition` | the whole `CREATE FUNCTION` statement |
 
-- **Notes:** built-in functions are not listed. The text table of `kdb sql` cuts long text after 48 characters; use `--format csv` or `--format json` to see the whole definition.
+- **Notes:** built-in functions are not listed. The text table of `kareladb sql` cuts long text after 48 characters; use `--format csv` or `--format json` to see the whole definition.
 
 **Example**
 

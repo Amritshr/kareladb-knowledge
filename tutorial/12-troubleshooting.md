@@ -4,7 +4,7 @@
 
 ## What you will learn
 
-- The common error messages, exactly as KDB prints them.
+- The common error messages, exactly as KarelaDB prints them.
 - What each one means and how to fix it.
 - Answers to frequent questions.
 
@@ -36,21 +36,21 @@ All messages below are real output (`examples/12-troubleshooting/`). Use `Ctrl+F
 ## Database is locked
 
 ```text
-error: Locked: the database is open in another program (for example kdb serve). Stop it, or query it through that server's console or HTTP API (kdb serve)
+error: Locked: the database is open in another program (for example kareladb serve). Stop it, or query it through that server's console or HTTP API (kareladb serve)
 exit code: 1
 error: the database is open in another program. Stop it first, or run BACKUP DATABASE in that server's console or API.
 exit code: 1
 ```
 
-(The first line is from `kdb sql`, the second from `kdb backup`, while `kdb serve` had the database open.)
+(The first line is from `kareladb sql`, the second from `kareladb backup`, while `kareladb serve` had the database open.)
 
-**Why:** only one program can open a database folder. `kdb serve`, `kdb shell` or another `kdb sql` has it open.
+**Why:** only one program can open a database folder. `kareladb serve`, `kareladb shell` or another `kareladb sql` has it open.
 
 **Fix:**
 
 - Use the running server: the console, `POST /exec`, `POST /api/backup`, `POST /api/check` (chapter 8).
 - Or stop the other program (Ctrl+C in its window), then run your command.
-- Look for a forgotten `kdb shell` in another window. In PowerShell: `Get-Process kdb`.
+- Look for a forgotten `kareladb shell` in another window. In PowerShell: `Get-Process kareladb`.
 - Do not delete `kdb.lock`. The lock is held by the running program, not by the file. When no program runs, the lock is free.
 
 ## Duplicate key
@@ -95,7 +95,7 @@ SELECT * FROM ochl_days;
 error: line 1, column 15: table or view 'ochl_days' does not exist
 ```
 
-**Fix:** `SHOW TABLES` or `.tables` in the shell. Check that you opened the right database **folder**: `kdb sql` creates a new empty database when the folder does not exist, so a wrong folder name gives "does not exist" for every table.
+**Fix:** `SHOW TABLES` or `.tables` in the shell. Check that you opened the right database **folder**: `kareladb sql` creates a new empty database when the folder does not exist, so a wrong folder name gives "does not exist" for every table.
 
 ## Syntax error
 
@@ -107,7 +107,7 @@ SELECT symbol close FROM ochl_day WHERE;
 error: line 1, column 40: expected an expression (a value, column name, function call or '(') but found ';'
 ```
 
-**Why:** the SQL does not follow the grammar. The message says what KDB expected at that place.
+**Why:** the SQL does not follow the grammar. The message says what KarelaDB expected at that place.
 
 Watch out: `SELECT symbol close` is **not** an error. It means "column symbol, named close". A missing comma changes your column names quietly.
 
@@ -143,7 +143,7 @@ error: line 1, column 45: cannot compare TIMESTAMP '2025-12-28T00:00:00.000Z' wi
 
 **Fix:** always `YYYY-MM-DD` with two digits for month and day: `'2026-09-01'`. Add `+05:45` for Nepal times. Convert other formats in your script before sending (for example in PowerShell: `([datetime]::ParseExact('10/09/2026', 'dd/MM/yyyy', $null)).ToString('yyyy-MM-dd')`).
 
-**Times are 5:45 hours wrong?** You wrote Nepal time without `+05:45`. KDB read it as UTC. Fix the data with an UPDATE: `UPDATE t SET time = time - 20700000 WHERE ...` (this subtracts 5 h 45 min), but check the DEDUP KEY first.
+**Times are 5:45 hours wrong?** You wrote Nepal time without `+05:45`. KarelaDB read it as UTC. Fix the data with an UPDATE: `UPDATE t SET time = time - 20700000 WHERE ...` (this subtracts 5 h 45 min), but check the DEDUP KEY first.
 
 ## Decimal places
 
@@ -160,7 +160,7 @@ table 'wallet' created
 error: column 'balance' (DECIMAL(2)): 102.0075 has more than 2 decimal places
 ```
 
-**Why:** KDB never rounds money by itself.
+**Why:** KarelaDB never rounds money by itself.
 
 **Fix:** round it yourself, the way your business rule says:
 
@@ -178,7 +178,7 @@ id | balance
 (1 row, 0.1 ms)
 ```
 
-For amounts with more than about 15 digits, send the value as **text** (`'123456789012345.67'`). A number that big cannot be stored exactly as a DOUBLE, so KDB refuses it and tells you to write it as text.
+For amounts with more than about 15 digits, send the value as **text** (`'123456789012345.67'`). A number that big cannot be stored exactly as a DOUBLE, so KarelaDB refuses it and tells you to write it as text.
 
 ## REFERENCES failure
 
@@ -286,7 +286,7 @@ error: Already exists: port 9945 on 127.0.0.1 is already in use
 exit code: 1
 ```
 
-**Why:** another program (often another `kdb serve`) listens on that port.
+**Why:** another program (often another `kareladb serve`) listens on that port.
 
 **Fix:** use another port (`--port 9901`), or find the program:
 
@@ -314,11 +314,11 @@ Get-Process -Id <OwningProcess>
 {"error":"host name 'market.example.com' is not allowed without an access token; use localhost or start the server with --token"}   (HTTP 403)
 ```
 
-**Why:** protection against web pages that try to use your local KDB (chapter 8).
+**Why:** protection against web pages that try to use your local KarelaDB (chapter 8).
 
 **Fix:**
 
-- Call KDB from a program or your backend, not from JavaScript on another web site.
+- Call KarelaDB from a program or your backend, not from JavaScript on another web site.
 - Open the console with `http://127.0.0.1:9900` or `http://localhost:9900`.
 - Behind a reverse proxy or with a host name: start the server with `--token`.
 
@@ -336,17 +336,17 @@ Get-Process -Id <OwningProcess>
 ## Text in other languages looks broken
 
 ```powershell
-kdb sql market "CREATE TABLE IF NOT EXISTS names_np (symbol SYMBOL PRIMARY KEY, name_np STRING)"
+kareladb sql market "CREATE TABLE IF NOT EXISTS names_np (symbol SYMBOL PRIMARY KEY, name_np STRING)"
 
 # Text in any language (here Nepali) works directly on the command line:
-kdb sql market "INSERT OR REPLACE INTO names_np VALUES ('VOLT', 'भोल्ट रिभर')"
-kdb sql market "SELECT symbol, name_np FROM names_np"
+kareladb sql market "INSERT OR REPLACE INTO names_np VALUES ('VOLT', 'भोल्ट रिभर')"
+kareladb sql market "SELECT symbol, name_np FROM names_np"
 
 # It also works from a UTF-8 file (or over HTTP):
 $OutputEncoding = New-Object System.Text.UTF8Encoding $false
 "INSERT OR REPLACE INTO names_np VALUES ('VOLT', 'भोल्ट रिभर');" | Set-Content np.sql -Encoding UTF8
-Get-Content np.sql -Raw -Encoding UTF8 | kdb sql market -
-kdb sql market "SELECT symbol, name_np FROM names_np"
+Get-Content np.sql -Raw -Encoding UTF8 | kareladb sql market -
+kareladb sql market "SELECT symbol, name_np FROM names_np"
 ```
 
 ```text
@@ -363,7 +363,7 @@ VOLT   | भोल्ट रिभर
 (1 row, 0.2 ms)
 ```
 
-**If you see `????`:** Windows PowerShell 5.1 sends pipe text as ASCII unless `$OutputEncoding` is UTF-8. Set it (as above) before you pipe SQL into `kdb sql -` or `kdb shell`. Text in command-line arguments and over HTTP is fine.
+**If you see `????`:** Windows PowerShell 5.1 sends pipe text as ASCII unless `$OutputEncoding` is UTF-8. Set it (as above) before you pipe SQL into `kareladb sql -` or `kareladb shell`. Text in command-line arguments and over HTTP is fine.
 
 If the letters look broken only in the **console window**, the window font may not have Devanagari. Use Windows Terminal, or save the output as CSV and open it in an editor.
 
@@ -373,29 +373,29 @@ Messages like `failed its checksum`, `DAMAGED`, `the end of the log is damaged`,
 
 1. Stop the server and all programs that use the database.
 2. Copy the whole database folder to a safe place.
-3. `kdb check <db>` to see the damage.
-4. `kdb repair <db> --backups <backups>`.
-5. If it still fails: `kdb restore <newest backup> <new folder> --logs-from <db>`.
+3. `kareladb check <db>` to see the damage.
+4. `kareladb repair <db> --backups <backups>`.
+5. If it still fails: `kareladb restore <newest backup> <new folder> --logs-from <db>`.
 
 Chapter 9 shows a full real example.
 
 ## The server stopped
 
-If the server process ends without Ctrl+C (crash, closed window, killed), start it again. The banner then shows `last shutdown: not clean (crash or kill)` and KDB replays the log. Committed data is not lost.
+If the server process ends without Ctrl+C (crash, closed window, killed), start it again. The banner then shows `last shutdown: not clean (crash or kill)` and KarelaDB replays the log. Committed data is not lost.
 
 ## FAQ
 
 **Where are my times? They look 5:45 hours early.**
-KDB shows UTC. `05:15Z` is 11:00 in Nepal. The chart in the console shows your local time.
+KarelaDB shows UTC. `05:15Z` is 11:00 in Nepal. The chart in the console shows your local time.
 
 **Can two programs write at the same time?**
-Not to the same folder directly. Run one `kdb serve` and let all programs use its HTTP API or its PostgreSQL port. In the server, writers of **different** tables run at the same time. Writers of the **same** table take turns. A read waits for a long write of the same database unless the server runs with `--reader-yield on` (the Docker image does), then it runs between the writer's statements (chapter 15).
+Not to the same folder directly. Run one `kareladb serve` and let all programs use its HTTP API or its PostgreSQL port. In the server, writers of **different** tables run at the same time. Writers of the **same** table take turns. A read waits for a long write of the same database unless the server runs with `--reader-yield on` (the Docker image does), then it runs between the writer's statements (chapter 15).
 
-**Is a statement saved when KDB says "inserted"?**
+**Is a statement saved when KarelaDB says "inserted"?**
 Yes, it is on the disk. A power cut after that does not lose it.
 
 **How do I undo a change?**
-Inside `BEGIN` ... `COMMIT`, `ROLLBACK` undoes everything since `BEGIN` (chapter 13). A dropped table comes back with `UNDROP TABLE` for 7 days (chapter 21). After a committed change, restore a backup to the time before it (`kdb restore --until`, chapter 9). Make a backup before big changes.
+Inside `BEGIN` ... `COMMIT`, `ROLLBACK` undoes everything since `BEGIN` (chapter 13). A dropped table comes back with `UNDROP TABLE` for 7 days (chapter 21). After a committed change, restore a backup to the time before it (`kareladb restore --until`, chapter 9). Make a backup before big changes.
 
 **How big can a table be?**
 There is no fixed limit. Very old data can be removed quickly with `ALTER TABLE ... DROP PARTITION OLDER THAN 1 YEAR`, or by itself with a TTL (`ALTER TABLE ... SET TTL 90 DAYS`, chapter 3).
@@ -404,19 +404,19 @@ There is no fixed limit. Very old data can be removed quickly with `ALTER TABLE 
 Add a time filter on the time-series table (`time IN '2026-09'`), select fewer columns, and check with `EXPLAIN` how many partitions are read (chapter 5).
 
 **Can I use DBeaver, psql or Excel to connect?**
-DBeaver and `psql`: yes, through the PostgreSQL port 8832 (chapter 14). For Excel, export CSV (`kdb sql ... --format csv`, or the console's **Export CSV**).
+DBeaver and `psql`: yes, through the PostgreSQL port 8832 (chapter 14). For Excel, export CSV (`kareladb sql ... --format csv`, or the console's **Export CSV**).
 
-**Does KDB know stock exchange holidays?**
+**Does KarelaDB know stock exchange holidays?**
 No. `is_trading_day()` only checks for a Sunday-to-Thursday week (as on some exchanges). Keep a holiday table if you need it.
 
 **Can I copy the database folder to another PC?**
-Yes, when no program has it open. Better: `kdb backup`, copy the backup folder, `kdb restore` on the other PC. The restore checks every file.
+Yes, when no program has it open. Better: `kareladb backup`, copy the backup folder, `kareladb restore` on the other PC. The restore checks every file.
 
 **Do Linux and Windows use the same files?**
 The file format is the same on all systems (chapter 1, FORMAT.md).
 
-**Where is `kdb.conf`?**
-Next to the `kdb` program (or the file named with `--config <file>`). It is a small JSON file that the console's **Settings** page writes. It holds `data_dir`, `wal_archive_mb`, `trash_keep_hours`, `keep_versions`, and the folders of the console, the help and the Claude skill (`web_dir`, `help_dir`, `skill_dir`). An option on the command line always wins over it. Everything else is a command-line option (`kdb` with no command lists them).
+**Where is `kareladb.conf`?**
+Next to the `kareladb` program (or the file named with `--config <file>`). It is a small JSON file that the console's **Settings** page writes. It holds `data_dir`, `wal_archive_mb`, `trash_keep_hours`, `keep_versions`, and the folders of the console, the help and the Claude skill (`web_dir`, `help_dir`, `skill_dir`). An option on the command line always wins over it. Everything else is a command-line option (`kareladb` with no command lists them).
 
 ## Try it yourself
 
@@ -428,7 +428,7 @@ Next to the `kdb` program (or the file named with `--config <file>`). It is a sm
 <summary>Answers</summary>
 
 1. Look at line 3, column 5 of your SQL, and fix the name to `volume` (the message lists the real columns).
-2. A `kdb shell` or `kdb sql` in another window, or a scheduled task (backup script) that is running. Check with `Get-Process kdb`.
+2. A `kareladb shell` or `kareladb sql` in another window, or a scheduled task (backup script) that is running. Check with `Get-Process kareladb`.
 3. None. One statement is all or nothing. Use `INSERT OR REPLACE` or `INSERT OR IGNORE`, or remove the duplicates.
 
 </details>

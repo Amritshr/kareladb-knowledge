@@ -44,7 +44,7 @@ The page remembers the table you were looking at, the rows-per-page and each tab
 
 ## Which tables can be edited
 
-To change or delete **one** row, KDB has to be able to name that row on its own. That is what a [`PRIMARY KEY`](constraints.md#primary-key) is for.
+To change or delete **one** row, KarelaDB has to be able to name that row on its own. That is what a [`PRIMARY KEY`](constraints.md#primary-key) is for.
 
 | Table | Browse | Add a row | Edit or delete one row |
 |---|---|---|---|

@@ -1,23 +1,23 @@
 # Database models: relational, hierarchical, network, NoSQL, object
 
-> The five classic kinds of database, and how much of each KDB can be - with a picture and a working example for each.
+> The five classic kinds of database, and how much of each KarelaDB can be - with a picture and a working example for each.
 
 - Category: Getting started
 - Keywords: data model, database model, database type, kinds of database, relational database, RDBMS, hierarchical database, tree, org chart, parent child, network database, graph, graph database, nodes and edges, many parents, shortest route, non-relational, NoSQL, document database, document store, MongoDB, key-value, key value store, Redis, time-series database, full-text search engine, object-oriented database, OODBMS, object database, inheritance, ORM, WITH RECURSIVE, recursive query
 - See also: [Constraints](constraints.md), [Joins](joins.md), [UNION and subqueries](union-subqueries.md), [Column types](column-types.md), [JSON functions](functions-json.md), [INSERT](insert.md), [SAMPLE BY](sample-by.md), [Full-text search](full-text-search.md), [Saved functions](saved-functions.md), [Stored procedures](procedures.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md)
 
-Books sort databases into five **models**, by the shape their data takes. KDB is a **relational** database, but its tables, keys, `JSON` columns and recursive queries let it act like four of the five. Only the **object-oriented** model is missing.
+Books sort databases into five **models**, by the shape their data takes. KarelaDB is a **relational** database, but its tables, keys, `JSON` columns and recursive queries let it act like four of the five. Only the **object-oriented** model is missing.
 
-| Model | Data looks like | In KDB | How |
+| Model | Data looks like | In KarelaDB | How |
 |---|---|---|---|
-| [Relational](#relational) | tables linked by keys | **full** - what KDB is | tables, `PRIMARY KEY`, `REFERENCES`, joins, transactions |
+| [Relational](#relational) | tables linked by keys | **full** - what KarelaDB is | tables, `PRIMARY KEY`, `REFERENCES`, joins, transactions |
 | [Hierarchical](#hierarchical) | a tree: one parent each | **yes** | a column that points to its own table, read with `WITH RECURSIVE` |
 | [Network](#network) | a web: many parents, loops | **yes** | a table of items and a table of links, read with `WITH RECURSIVE` |
 | [Non-relational (NoSQL)](#non-relational) | documents, key-value, time-series, search | **yes**, four kinds | `JSON` columns, `INSERT OR REPLACE`, `SAMPLE BY`, `CREATE FULLTEXT INDEX` |
 | [Object-oriented](#object-oriented) | classes with inheritance and methods | **partly** | objects as `JSON`, behaviour in saved functions; no classes |
 
 - All five work through the same SQL, over HTTP, in the web console and on the [PostgreSQL port](postgres-protocol.md). One query may mix them, for example join a tree to a `JSON` column.
-- KDB is one server. It is not a cluster that spreads data over many machines.
+- KarelaDB is one server. It is not a cluster that spreads data over many machines.
 
 <a id="relational"></a>
 
@@ -27,9 +27,9 @@ Data lives in **tables** of rows and columns. Tables are linked by **keys**: a c
 
 > **Diagram:** Two tables, brokers and trades. The buyer column of trades references the id column of brokers.
 >
-> A trade can only name a broker that exists. KDB refuses any other row.
+> A trade can only name a broker that exists. KarelaDB refuses any other row.
 
-| KDB gives you | Help |
+| KarelaDB gives you | Help |
 |---|---|
 | `PRIMARY KEY`, `UNIQUE`, `NOT NULL`, `CHECK`, `DEFAULT` | [constraints](constraints.md) |
 | foreign keys: `REFERENCES` | [constraints](constraints.md#references) |
@@ -95,7 +95,7 @@ Error: `column 'buyer' = '99' has no matching row in brokers(id)`
 
 Data forms a **tree**. Every item has **one** parent, and a parent may have many children: an org chart, folders, sectors and sub-sectors, forum replies.
 
-In KDB, give the table a column that holds the parent's key and `REFERENCES` the same table. The top row has `NULL` there. A `WITH RECURSIVE` query then walks the tree: it starts at the top, and adds the children of the rows it found last, again and again, until no new rows come.
+In KarelaDB, give the table a column that holds the parent's key and `REFERENCES` the same table. The top row has `NULL` there. A `WITH RECURSIVE` query then walks the tree: it starts at the top, and adds the children of the rows it found last, again and again, until no new rows come.
 
 > **Diagram:** A tree. CEO at the top; CTO and CFO under the CEO; Dev Lead under the CTO; Developer under the Dev Lead.
 >
@@ -175,14 +175,14 @@ Result:
 
 Like a tree, but an item may have **many** parents, and links may go round in a loop. The data is a web of **nodes** and **links**: roads between cities, share holdings between companies, friends of friends.
 
-In KDB, keep the nodes in one table and the links in a second table with two `REFERENCES` columns. A `WITH RECURSIVE` query follows the links. Give it a stop rule (a maximum number of steps), because a loop in the data would otherwise go round again and again.
+In KarelaDB, keep the nodes in one table and the links in a second table with two `REFERENCES` columns. A `WITH RECURSIVE` query follows the links. Give it a stop rule (a maximum number of steps), because a loop in the data would otherwise go round again and again.
 
 > **Diagram:** Four cities and the roads between them. Kathmandu to Pokhara 200 km, Kathmandu to Chitwan 150 km, Chitwan to Butwal 110 km, Pokhara to Butwal 160 km. The shortest way to Butwal is through Chitwan, 260 km.
 >
 > Butwal has two parents, Pokhara and Chitwan - a tree cannot hold that. The coloured route is the shortest.
 
 - **Good for:** routes, networks of links, who owns shares in whom, recommendations.
-- **Notes:** KDB is not a graph database like Neo4j: there is no Cypher language and no built-in shortest-path function. For networks of thousands of links, SQL is enough.
+- **Notes:** KarelaDB is not a graph database like Neo4j: there is no Cypher language and no built-in shortest-path function. For networks of thousands of links, SQL is enough.
 
 **Example: Every route from Kathmandu to Butwal, shortest first**
 
@@ -219,20 +219,20 @@ Result:
 
 ## Non-relational (NoSQL)
 
-"Non-relational" is not one model but a family. KDB has four members of it, and each one is still a table you can join to the others.
+"Non-relational" is not one model but a family. KarelaDB has four members of it, and each one is still a table you can join to the others.
 
-| Kind | Other products like it | In KDB | Help |
+| Kind | Other products like it | In KarelaDB | Help |
 |---|---|---|---|
 | **document** | MongoDB | a `JSON` column: every row may have different fields | [column-types](column-types.md#json), [functions-json](functions-json.md) |
 | **key-value** | Redis | a two-column table with a `PRIMARY KEY`, written with `INSERT OR REPLACE` | [insert](insert.md#insert-or-replace) |
 | **time-series** | QuestDB, InfluxDB | a table with a time column, `PARTITION BY`, `SAMPLE BY`, `LATEST ON` | [create-table](create-table.md), [sample-by](sample-by.md) |
 | **search** | Elasticsearch | `CREATE FULLTEXT INDEX`, `match`, `search_rank` | [full-text-search](full-text-search.md) |
 
-> **Diagram:** One KDB server with four non-relational kinds: document, key-value, time-series and search, all used through the same SQL.
+> **Diagram:** One KarelaDB server with four non-relational kinds: document, key-value, time-series and search, all used through the same SQL.
 >
 > Not four products: four ways to use one database.
 
-- **Not in KDB:** a wide-column store (like Cassandra), a graph query language, and spreading data over many servers.
+- **Not in KarelaDB:** a wide-column store (like Cassandra), a graph query language, and spreading data over many servers.
 - A `JSON` value, and a whole row, can be up to 16 MB. Keep images and PDF files outside the database, and store their path.
 
 **Example: Document: products whose fields differ**
@@ -359,13 +359,13 @@ Result:
 
 ## Object-oriented
 
-An object database stores the objects of a program as they are: **classes**, **inheritance** (`class Car extends Vehicle`) and **methods** kept with the data. KDB does not have classes or inheritance. You can get part of the way:
+An object database stores the objects of a program as they are: **classes**, **inheritance** (`class Car extends Vehicle`) and **methods** kept with the data. KarelaDB does not have classes or inheritance. You can get part of the way:
 
-> **Diagram:** An object database has nested fields, methods and inheritance. In KDB, nested fields become a JSON column and methods become saved functions or procedures; inheritance has no match.
+> **Diagram:** An object database has nested fields, methods and inheritance. In KarelaDB, nested fields become a JSON column and methods become saved functions or procedures; inheritance has no match.
 >
-> Two of the three parts have a match in KDB. Inheritance does not.
+> Two of the three parts have a match in KarelaDB. Inheritance does not.
 
-| An object database has | In KDB | Help |
+| An object database has | In KarelaDB | Help |
 |---|---|---|
 | nested fields and lists | a `JSON` column; arrays are kept as JSON lists | [functions-json](functions-json.md), [arrays](functions-postgres.md#arrays) |
 | methods | saved functions and stored procedures | [saved-functions](saved-functions.md), [procedures](procedures.md) |
@@ -373,7 +373,7 @@ An object database stores the objects of a program as they are: **classes**, **i
 | classes and inheritance | **none**: use one table per class, or a `kind` column | |
 | object ids and links between objects | a `PRIMARY KEY` and `REFERENCES` | [constraints](constraints.md) |
 
-- **Tip:** most apps do not use an object database. They map objects to tables with an **ORM** (SQLAlchemy, Prisma, Entity Framework, GORM), which talks to KDB over the [PostgreSQL port](postgres-protocol.md).
+- **Tip:** most apps do not use an object database. They map objects to tables with an **ORM** (SQLAlchemy, Prisma, Entity Framework, GORM), which talks to KarelaDB over the [PostgreSQL port](postgres-protocol.md).
 
 **Example: Vehicles of different kinds: shared columns, extra fields as JSON, a function as a method**
 

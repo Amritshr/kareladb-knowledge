@@ -10,7 +10,7 @@
 
 The examples use the database `market` with the **fresh** sample data (load it again if you ran chapter 4). Each example is a file in `examples/05-queries/`.
 
-## The order KDB works in
+## The order KarelaDB works in
 
 A query is written in this order:
 
@@ -19,7 +19,7 @@ SELECT ... FROM ... [JOIN ...] WHERE ... [LATEST ON ...] [SAMPLE BY ...] [GROUP 
 [UNION ALL SELECT ...] [ORDER BY ...] [LIMIT n [OFFSET m]]
 ```
 
-KDB runs it in this order:
+KarelaDB runs it in this order:
 
 | Step | Part | What happens |
 |---|---|---|
@@ -182,14 +182,14 @@ Aggregates: `count(*)`, `count(x)`, `count(DISTINCT x)`, `sum`, `avg`, `min`, `m
 
 `first(x)` and `last(x)` use the **time order** of the rows. `first(open)` is the open of the earliest row.
 
-A `GROUP BY` with very many groups still works. When the groups need more than half of the memory for results, KDB writes some of them to temporary files and adds them up at the end. The result is the same, only slower. `kdb serve` stops a query with more than 5,000,000 groups (`--max-groups`, chapter 21).
+A `GROUP BY` with very many groups still works. When the groups need more than half of the memory for results, KarelaDB writes some of them to temporary files and adds them up at the end. The result is the same, only slower. `kareladb serve` stops a query with more than 5,000,000 groups (`--max-groups`, chapter 21).
 
 ### The implicit GROUP BY rule
 
-Like QuestDB, KDB does not need GROUP BY. **Every column that is not inside an aggregate becomes a group key.**
+Like QuestDB, KarelaDB does not need GROUP BY. **Every column that is not inside an aggregate becomes a group key.**
 
 ```sql
--- No GROUP BY: symbol is not inside an aggregate, so KDB groups by symbol.
+-- No GROUP BY: symbol is not inside an aggregate, so KarelaDB groups by symbol.
 SELECT symbol, max(high) AS highest FROM ochl_day WHERE time IN '2026-09';
 ```
 
@@ -580,7 +580,7 @@ Also available: `EXISTS (SELECT ...)` and `NOT IN (SELECT ...)`.
 
 A subquery **may use columns of the outer query** ("correlated"), for example
 `SELECT s.symbol, (SELECT max(close) FROM ochl_day d WHERE d.symbol = s.symbol) FROM securities s`.
-KDB does not run it once per row: it reads the inner table once and looks every outer row up in that
+KarelaDB does not run it once per row: it reads the inner table once and looks every outer row up in that
 result. See chapters 11 and 23.
 
 ## UNION ALL
@@ -919,7 +919,7 @@ time                     | symbol | open  | high  | low   | close | volume
 ```
 
 ```powershell
-kdb sql market "SHOW VIEWS; DROP VIEW candles_1w; SHOW VIEWS" --format csv
+kareladb sql market "SHOW VIEWS; DROP VIEW candles_1w; SHOW VIEWS" --format csv
 ```
 
 ```text
@@ -929,11 +929,11 @@ name,query
 ```
 
 - The view runs its query **every time** you use it.
-- KDB moves a WHERE on the view into the view's query when it can, so it reads fewer rows. Here `symbol = 'VOLT'` is moved in; the time condition is applied to the weekly candles after they are made. `EXPLAIN` shows `push 1 condition(s) into view candles_1w`.
+- KarelaDB moves a WHERE on the view into the view's query when it can, so it reads fewer rows. Here `symbol = 'VOLT'` is moved in; the time condition is applied to the weekly candles after they are made. `EXPLAIN` shows `push 1 condition(s) into view candles_1w`.
 - `CREATE VIEW IF NOT EXISTS`, `DROP VIEW IF EXISTS` work.
-- KDB checks the query when you create the view. A view with an error is refused.
+- KarelaDB checks the query when you create the view. A view with an error is refused.
 
-A **cached view** runs its query once and keeps the rows. Reading it reads the kept rows, so a slow `GROUP BY` over a big table is paid once, not on every read. With `REFRESH ON COMMIT`, KDB makes the rows new at the first read after a change of a table the view reads:
+A **cached view** runs its query once and keeps the rows. Reading it reads the kept rows, so a slow `GROUP BY` over a big table is paid once, not on every read. With `REFRESH ON COMMIT`, KarelaDB makes the rows new at the first read after a change of a table the view reads:
 
 ```sql
 CREATE CACHED VIEW trades_per_symbol AS
@@ -949,12 +949,12 @@ view 'trades_per_symbol' created (4 row(s) cached)
 - The kept rows live in memory. After a restart they are made again at the first read.
 - A `WHERE` on a cached view filters the kept rows. It does not run the view's query again.
 
-## EXPLAIN: what will KDB read?
+## EXPLAIN: what will KarelaDB read?
 
 `EXPLAIN` shows the plan, without running the query. Use CSV format so lines are not cut.
 
 ```powershell
-kdb sql market "EXPLAIN SELECT time, close FROM ochl_day WHERE symbol = 'CITY' AND time IN '2026-09'" --format csv
+kareladb sql market "EXPLAIN SELECT time, close FROM ochl_day WHERE symbol = 'CITY' AND time IN '2026-09'" --format csv
 ```
 
 ```text
@@ -966,8 +966,8 @@ filter while scanning: 2 condition(s)
 ```
 
 - `1 of 2 partitions`: the `2025` file is skipped because of the time condition.
-- `read only 1 key range(s)`: rows are sorted by symbol and time, so KDB jumps straight to CITY's rows of September and reads nothing else. This works for `symbol = '...'`, `symbol IN (...)`, and a time range on top of them.
-- `build 3 of 7 stored column(s)`: the table has 7 columns, but KDB makes only the 3 that the query needs (`symbol` for the filter, `time` and `close` for the result).
+- `read only 1 key range(s)`: rows are sorted by symbol and time, so KarelaDB jumps straight to CITY's rows of September and reads nothing else. This works for `symbol = '...'`, `symbol IN (...)`, and a time range on top of them.
+- `build 3 of 7 stored column(s)`: the table has 7 columns, but KarelaDB makes only the 3 that the query needs (`symbol` for the filter, `time` and `close` for the result).
 
 A second example with a join:
 
@@ -988,12 +988,12 @@ sort by 1 key(s)
 limit 3
 ```
 
-Only the day 2026-09-10 is read. (For a `DATE` time column KDB also reads the partition of the next day, to be safe.)
+Only the day 2026-09-10 is read. (For a `DATE` time column KarelaDB also reads the partition of the next day, to be safe.)
 
 **Speed tips:**
 
 - Always filter time-series tables by time (`time IN '...'`, `>=`, `<`, `BETWEEN`) on the first table of the query.
-- Filter by symbol with `symbol = '...'` or `symbol IN (...)` written plainly: `upper(symbol) = 'CITY'` or `concat(symbol, '') = ...` makes KDB read every row.
+- Filter by symbol with `symbol = '...'` or `symbol IN (...)` written plainly: `upper(symbol) = 'CITY'` or `concat(symbol, '') = ...` makes KarelaDB read every row.
 - Put the big table first in FROM, and join small tables to it.
 - Select only the columns you need.
 

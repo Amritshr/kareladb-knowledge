@@ -6,7 +6,7 @@
 - Keywords: date, time, timestamp, UTC, milliseconds, weekday, weekday, trading day, holiday, truncate time, timestamp\_floor, timestamp floor, local midnight, start of month, start of week, add days, add months, date\_add, timestampadd, interval, month end, difference between dates, age, date\_diff, timestampdiff, format date, strftime, date\_format, format, time zone, timezone, Nepal time, NPT, Asia/Kathmandu, +05:45, 20700000, current\_timestamp, getdate, EXTRACT, datepart, date part, epoch, ISO week, week number, weekofyear, dayofyear, day of year, quarter of the year, end of month, EOMONTH, last day of month, build a date, date from parts, datefromparts, how old, time between, financial year, FY, fiscal year, Nepal fiscal year, Nepali fiscal year, Shrawan, Bikram Sambat, BS year, arthik barsa, to\_timezone, to\_utc, AT TIME ZONE, timestamp\_ceil, round up time, timestamp\_floor\_utc, today, yesterday, tomorrow, interval\_start, interval\_end, days\_in\_month, is\_leap\_year, leap year, is\_end\_of\_month, day\_of\_week\_sunday\_first, millis, to\_pg\_date, sysdate, timestamp\_sequence, timestamp\_shuffle, QuestDB
 - See also: [Conversion functions (to_timestamp)](functions-conversion.md#to_timestamp), [Conversion functions (cast)](functions-conversion.md#cast), [Time and time zones](time-and-time-zones.md), [SAMPLE BY](sample-by.md), [SAMPLE BY (time-zone)](sample-by.md#time-zone), [WHERE (in-interval)](where.md#in-interval), [Aggregate functions](functions-aggregate.md), [Finance and price functions](functions-finance.md)
 
-KDB keeps a `TIMESTAMP` as the number of **milliseconds** (1/1000 of a second) since 1970-01-01, in **UTC**. UTC is the world clock time with no time zone. A local time is UTC plus its zone offset: Nepal is `+05:45` (11:00 in Kathmandu is 05:15 UTC), New York is `-04:00` in summer (07:00 there is 11:00 UTC).
+KarelaDB keeps a `TIMESTAMP` as the number of **milliseconds** (1/1000 of a second) since 1970-01-01, in **UTC**. UTC is the world clock time with no time zone. A local time is UTC plus its zone offset: Nepal is `+05:45` (11:00 in Kathmandu is 05:15 UTC), New York is `-04:00` in summer (07:00 there is 11:00 UTC).
 
 - Every function here works on the [session's time zone](time-and-time-zones.md#session-time-zone), which is **UTC** unless the session ran `SET TIME ZONE` or the server has `--timezone`. A time zone given in the call wins: [date_trunc](#date_trunc)`(unit, t, zone)`, [timestamp_floor](#timestamp_floor), [to_timezone and to_utc](#to_timezone), [to_char](#to_char)`(t, format, zone)`. `hour()` of 11:00 local time in Nepal is `5`. See [Local time](#nepal-time).
 - A time argument can be a `TIMESTAMP`, a `DATE`, time text like `'2026-09-10T11:00:00+05:45'`, or a whole number (milliseconds since 1970).
@@ -104,7 +104,7 @@ Result:
 
 (1 row)
 
-**Example: getdate is not KDB SQL** (shows an error)
+**Example: getdate is not KarelaDB SQL** (shows an error)
 
 ```sql
 SELECT getdate();
@@ -1002,7 +1002,7 @@ The QuestDB function: cuts the time down to a whole number of units. `timestamp_
 - **NULL:** `NULL` when any argument is `NULL`.
 - **Notes:**
   - Counts start at 1970-01-01 00:00 (on the zone's clock when one is given): `'2d'` gives days 0, 2, 4, ... from then, `'3M'` gives January, April, July and October. Weeks start on **Monday**; for Sunday weeks use [date_trunc](#date_trunc)`('week', t)` or [SAMPLE BY ... WEEK START SUNDAY](sample-by.md#week-start).
-  - `U` (microseconds) is not a unit: KDB keeps milliseconds.
+  - `U` (microseconds) is not a unit: KarelaDB keeps milliseconds.
   - For candles, [SAMPLE BY](sample-by.md) does the same cut and the aggregates in one step.
 
 **Example: Cut one moment by several units**
@@ -1055,7 +1055,7 @@ Result:
 
 Error: `line 1, column 8: timestamp_floor: unit must be T, s, m, h, d, w, M or y with an optional count, like '15m' or '1d'; got '1x'`
 
-`timestamp_floor_utc(unit, t [, zone])` is QuestDB's name for the same function: its answer is in UTC, and KDB's always is.
+`timestamp_floor_utc(unit, t [, zone])` is QuestDB's name for the same function: its answer is in UTC, and KarelaDB's always is.
 
 <a id="timestamp_ceil"></a>
 
@@ -1226,7 +1226,7 @@ Small QuestDB calendar functions.
 | `to_pg_date(t)` | the day of `t` as a `DATE` |
 
 - **NULL:** `NULL` for a `NULL` argument.
-- **Notes:** the day is taken on the [session's time zone](time-and-time-zones.md#session-time-zone), as for [day_of_week](#day_of_week). KDB's own `day_of_week` is 0 Sunday to 6 Saturday; a database set to the QuestDB dialect numbers it as QuestDB does, 1 Monday to 7 Sunday.
+- **Notes:** the day is taken on the [session's time zone](time-and-time-zones.md#session-time-zone), as for [day_of_week](#day_of_week). KarelaDB's own `day_of_week` is 0 Sunday to 6 Saturday; a database set to the QuestDB dialect numbers it as QuestDB does, 1 Monday to 7 Sunday.
 
 **Example: Facts about a date**
 
@@ -1260,7 +1260,7 @@ sysdate()
 
 QuestDB's clock: the time now, the same as [now](#now)`()`.
 
-- **Returns:** `TIMESTAMP` (KDB keeps milliseconds, which is what QuestDB's `DATE` holds).
+- **Returns:** `TIMESTAMP` (KarelaDB keeps milliseconds, which is what QuestDB's `DATE` holds).
 
 **Example: sysdate is now**
 
@@ -1292,7 +1292,7 @@ QuestDB's test-data helpers. `timestamp_sequence` gives `start` on the first row
 | Argument | Type | Meaning |
 |---|---|---|
 | `start` | a time | the first time |
-| `step_microseconds` | whole number | the step, in **microseconds** as in QuestDB (`60000000` is one minute); KDB keeps milliseconds, so the time is cut to the millisecond |
+| `step_microseconds` | whole number | the step, in **microseconds** as in QuestDB (`60000000` is one minute); KarelaDB keeps milliseconds, so the time is cut to the millisecond |
 | `from`, `to` | a time | the range for a random time, both ends included |
 
 - **Returns:** `TIMESTAMP`.
@@ -2153,7 +2153,7 @@ The name of **Nepal's fiscal year** of a date, as Nepal writes it in the Bikram 
 - **Returns:** `STRING` like `'2082/83'`: the BS year in which the fiscal year starts, a slash, and the last two digits of the next BS year.
 - **NULL:** `nepal_fiscal_year(NULL)` is `NULL`.
 - **Notes:**
-  - KDB does **not** convert dates to the BS calendar. It uses a fixed start of **17 July** every year and adds 57 years. Shrawan 1 moves by a day between years, so a date on 16 or 17 July can be in the wrong year; check those days with the official calendar when it matters.
+  - KarelaDB does **not** convert dates to the BS calendar. It uses a fixed start of **17 July** every year and adds 57 years. Shrawan 1 moves by a day between years, so a date on 16 or 17 July can be in the wrong year; check those days with the official calendar when it matters.
   - The same as `fiscal_year(t)` plus 57, written as a text. The date is the UTC date.
 
 **Example**
@@ -2226,11 +2226,11 @@ date_trunc('day', time, 'Asia/Kathmandu')
 SAMPLE BY 1h TIME ZONE 'Asia/Kathmandu'
 ```
 
-KDB stores and shows every time in UTC. These tips use Nepal time as the example local zone: UTC + 5 hours 45 minutes, all year (Nepal has no summer time). For another zone change the offset and the milliseconds, for example `-05:00` and `- 18000000` for New York in winter. In a zone with summer time the fixed number is right for only part of the year.
+KarelaDB stores and shows every time in UTC. These tips use Nepal time as the example local zone: UTC + 5 hours 45 minutes, all year (Nepal has no summer time). For another zone change the offset and the milliseconds, for example `-05:00` and `- 18000000` for New York in winter. In a zone with summer time the fixed number is right for only part of the year.
 
 | Task | Write |
 |---|---|
-| Put a Nepal time into KDB | `'2026-09-10T11:00:00+05:45'` (without `+05:45` the text is read as UTC) |
+| Put a Nepal time into KarelaDB | `'2026-09-10T11:00:00+05:45'` (without `+05:45` the text is read as UTC) |
 | Nepal hour, minute, day, weekday | `hour(to_timezone(time, 'Asia/Kathmandu'))`, or add 20700000 ms: `day_of_week(time + 20700000)` |
 | Show a time in Nepal time | `to_char(time, 'YYYY-MM-DD HH24:MI', 'Asia/Kathmandu')` |
 | Rows of one Nepal day | `WHERE time IN '2026-09-10' TIME ZONE 'Asia/Kathmandu'` (see [time IN](where.md#in-interval)) |
@@ -2322,7 +2322,7 @@ current_date
 current_date()
 ```
 
-Today's date on the [session's clock](time-and-time-zones.md#session-time-zone) (UTC unless `SET TIME ZONE` names a zone). The PostgreSQL name; KDB gives the same as `CAST(now() AS DATE)`.
+Today's date on the [session's clock](time-and-time-zones.md#session-time-zone) (UTC unless `SET TIME ZONE` names a zone). The PostgreSQL name; KarelaDB gives the same as `CAST(now() AS DATE)`.
 
 - **Returns:** `DATE`.
 - **NULL:** never `NULL`.
@@ -2382,7 +2382,7 @@ The clock time of day now, on the [session's clock](time-and-time-zones.md#sessi
 
 - **Returns:** `STRING`, 12 characters, like `05:15:00.000`.
 - **NULL:** never `NULL`.
-- **Notes:** KDB has no `TIME` type, so this is text. To compare times of day, compare the text (`current_time < '09:00:00.000'`) or use `hour(now())`. For a Nepal clock time use `to_str(now() + 20700000, 'HH:mm:ss')`.
+- **Notes:** KarelaDB has no `TIME` type, so this is text. To compare times of day, compare the text (`current_time < '09:00:00.000'`) or use `hour(now())`. For a Nepal clock time use `to_str(now() + 20700000, 'HH:mm:ss')`.
 
 **Example: Is the market session open right now (Nepal clock)?**
 
@@ -2396,7 +2396,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 05:43:50.533 | 11:28 | true |
+| 09:55:32.212 | 15:40 | true |
 
 (1 row)
 
@@ -2416,7 +2416,7 @@ The time now on the [session's clock](time-and-time-zones.md#session-time-zone),
 
 | Argument | Type | Meaning |
 |---|---|---|
-| `digits` | `INT` | how many digits after the second PostgreSQL would keep; KDB always keeps milliseconds, so it changes nothing |
+| `digits` | `INT` | how many digits after the second PostgreSQL would keep; KarelaDB always keeps milliseconds, so it changes nothing |
 
 - **Returns:** `TIMESTAMP`.
 - **NULL:** never `NULL`.
@@ -2448,11 +2448,11 @@ statement_timestamp()
 clock_timestamp()
 ```
 
-Three PostgreSQL names for the time now. In PostgreSQL they differ (start of the transaction, start of the statement, the clock right now). KDB gives the same time for all three: the time the statement started.
+Three PostgreSQL names for the time now. In PostgreSQL they differ (start of the transaction, start of the statement, the clock right now). KarelaDB gives the same time for all three: the time the statement started.
 
 - **Returns:** `TIMESTAMP`.
 - **NULL:** never `NULL`.
-- **Notes:** `clock_timestamp()` in PostgreSQL moves on inside one statement; in KDB it does not, so you cannot use it to time a loop. Use it only for app code that came from PostgreSQL.
+- **Notes:** `clock_timestamp()` in PostgreSQL moves on inside one statement; in KarelaDB it does not, so you cannot use it to time a loop. Use it only for app code that came from PostgreSQL.
 
 **Example: All three are the time this statement started**
 

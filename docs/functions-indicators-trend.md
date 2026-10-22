@@ -737,7 +737,7 @@ ichimoku_senkou_a(high, low, short, long, shift)
 ichimoku_senkou_a(high, low, short, long, shift) OVER ([PARTITION BY ...] [ORDER BY ...])
 ```
 
-**Senkou span A**, the first edge of the Ichimoku **cloud** (kumo): `(tenkan + kijun) / 2`, made `shift` candles ago. A chart draws the cloud 26 candles ahead of the price; KDB puts on each row the cloud value that the chart shows **under that candle**, so you can compare it with the row's price directly.
+**Senkou span A**, the first edge of the Ichimoku **cloud** (kumo): `(tenkan + kijun) / 2`, made `shift` candles ago. A chart draws the cloud 26 candles ahead of the price; KarelaDB puts on each row the cloud value that the chart shows **under that candle**, so you can compare it with the row's price directly.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -841,7 +841,7 @@ ichimoku_chikou(close, shift)
 ichimoku_chikou(close, shift) OVER ([PARTITION BY ...] [ORDER BY ...])
 ```
 
-**Chikou span** (the lagging line) of Ichimoku. A chart draws today's close `shift` candles **back** in time. So in KDB, each row gets the close from `shift` rows **later**. It lets you compare the price then with the price 26 candles later: chikou above the old price means the price has risen since.
+**Chikou span** (the lagging line) of Ichimoku. A chart draws today's close `shift` candles **back** in time. So in KarelaDB, each row gets the close from `shift` rows **later**. It lets you compare the price then with the price 26 candles later: chikou above the old price means the price has risen since.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -900,7 +900,7 @@ The line is `(high + low) / 2 ± multiplier × ATR`. The ATR (average true range
 
 - **Returns:** `DOUBLE` (a price).
 - **NULL:** `NULL` for the first `n - 1` candles. A NULL price stops the series (that candle and every later one is `NULL`).
-- **Notes:** the same as TradingView `ta.supertrend(multiplier, n)`. Its ATR is TradingView's: the first true range is `high - low`, and the first ATR is on candle `n`. So it is a little different from KDB's [atr](functions-indicators.md#atr), which starts on candle `n + 1`. A bigger `multiplier` gives fewer, later flips.
+- **Notes:** the same as TradingView `ta.supertrend(multiplier, n)`. Its ATR is TradingView's: the first true range is `high - low`, and the first ATR is on candle `n`. So it is a little different from KarelaDB's [atr](functions-indicators.md#atr), which starts on candle `n + 1`. A bigger `multiplier` gives fewer, later flips.
 
 **Example: SuperTrend of CITY in the last 5 minutes** (sample data: sample)
 
@@ -972,7 +972,7 @@ The side of the [SuperTrend](#supertrend) line: **1** for an up trend (the line 
 
 - **Returns:** `LONG`: `1` or `-1`.
 - **NULL:** `NULL` for the first `n - 1` candles. A NULL price stops the series.
-- **Notes:** **careful:** TradingView's `ta.supertrend` gives the opposite sign (-1 for up). KDB uses 1 for up because it is easier to read. The first value is always `-1`, like TradingView's first value.
+- **Notes:** **careful:** TradingView's `ta.supertrend` gives the opposite sign (-1 for up). KarelaDB uses 1 for up because it is easier to read. The first value is always `-1`, like TradingView's first value.
 
 **Example: SuperTrend flips of CITY: buy and sell signals** (sample data: sample)
 
@@ -1037,7 +1037,7 @@ linearreg(x, n)
 linreg(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])
 ```
 
-A **moving linear regression**. For every candle, KDB draws the best straight line through the last `n` values (the "least squares" line: the one with the smallest squared distances to the points). `linearreg` is the value of that line **on this candle**. It is a moving average that follows the trend with less delay than [sma](functions-indicators.md#sma). `linreg` is the same function.
+A **moving linear regression**. For every candle, KarelaDB draws the best straight line through the last `n` values (the "least squares" line: the one with the smallest squared distances to the points). `linearreg` is the value of that line **on this candle**. It is a moving average that follows the trend with less delay than [sma](functions-indicators.md#sma). `linreg` is the same function.
 
 The other functions of this family read the same line: [linearreg_slope](#linearreg_slope) (its steepness), [linearreg_intercept](#linearreg_intercept) (its start), [linearreg_angle](#linearreg_angle) and [tsf](#tsf) (the next candle's forecast).
 

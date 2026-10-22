@@ -4,22 +4,22 @@
 
 - Category: HTTP API
 - Keywords: login, logout, api/login, api/logout, api/me, api/session, whoami, token, --token, Bearer, Authorization, HTTP Basic, curl -u, cookie, kdb\_login, kdb\_auth, kdb\_token, CSRF, X-KDB-CSRF, remember me, HttpOnly, SameSite, 401, 403, 429, Retry-After, WWW-Authenticate, roles, read, write, admin, password, session token, failed logins
-- See also: [Users and roles](users-and-roles.md), [Keeping kdb serve safe](server-security.md), [HTTP API overview (auth)](http-overview.md#auth), [kdb user](cli-users.md), [PostgreSQL protocol (port 8832) (passwords)](postgres-protocol.md#passwords)
+- See also: [Users and roles](users-and-roles.md), [Keeping kareladb serve safe](server-security.md), [HTTP API overview (auth)](http-overview.md#auth), [kareladb user](cli-users.md), [PostgreSQL protocol (port 8832) (passwords)](postgres-protocol.md#passwords)
 
 A server can be open, need a **token**, or need a **user login**. This page shows how to send each one over HTTP.
 
 | Server | Login needed? |
 |---|---|
-| `kdb serve` on `127.0.0.1` (the default), no `--token`, no users | **No.** Only programs on the same computer can connect. |
+| `kareladb serve` on `127.0.0.1` (the default), no `--token`, no users | **No.** Only programs on the same computer can connect. |
 | started with `--token <secret>` | **Yes**: the token. It may do everything. |
-| the data folder has **users** (`CREATE USER`, `kdb user add`) | **Yes**: a user name and password, or a login token. Each user may do only what their role allows. With `--token` too, the token also works. |
+| the data folder has **users** (`CREATE USER`, `kareladb user add`) | **Yes**: a user name and password, or a login token. Each user may do only what their role allows. With `--token` too, the token also works. |
 | `--bind 0.0.0.0` (not 127.x) without `--token` and without users | the server does not start |
 
 - `GET /health`, `POST /api/login`, `POST /api/session`, `POST /api/logout` and the console page need no login. `/health` says `auth_required` and `login` (users exist).
 - Making users and roles: [users and roles](users-and-roles.md). Keeping a server on the internet safe: [server security](server-security.md).
 - Tutorial: [chapter 16, users, passwords and security](../tutorial/16-users-passwords-security.md).
 
-The examples below that need users or a token run on their own new `kdb serve` (a fresh data folder), so you see the real answers. On a new server without users, the first `CREATE USER ... ROLE admin` can be sent without a login; from then on every request needs one.
+The examples below that need users or a token run on their own new `kareladb serve` (a fresh data folder), so you see the real answers. On a new server without users, the first `CREATE USER ... ROLE admin` can be sent without a login; from then on every request needs one.
 
 <a id="ways"></a>
 
@@ -35,7 +35,7 @@ The examples below that need users or a token run on their own new `kdb serve` (
 | The token cookie | `POST /api/session` turns a token into the cookie `kdb_auth` | browsers: the web console, when you paste a token |
 
 - **Base64** is a way to write any bytes as plain letters; `curl -u` and every HTTP library do it for you.
-- A **cookie** is a small value the browser keeps and sends back by itself. KDB's cookies are `HttpOnly` (JavaScript in the page cannot read them) and `SameSite=Strict` (other web sites cannot make the browser send them).
+- A **cookie** is a small value the browser keeps and sends back by itself. KarelaDB's cookies are `HttpOnly` (JavaScript in the page cannot read them) and `SameSite=Strict` (other web sites cannot make the browser send them).
 - A change sent with a cookie (not a `GET`) also needs the header `X-KDB-CSRF`. See [CSRF](http-login.md#csrf). A header login needs nothing extra.
 - On a server that needs no login, the `Authorization` header is not checked at all.
 
@@ -71,7 +71,7 @@ Checks a user name and password. On success it starts a **login session** (12 ho
 - **Status codes:** 200 logged in; 400 no user name, or the server has no users; 401 `{"error": "wrong user name or password", "login": true}` (the same text for an unknown user, so nobody can find out which names exist); 403 the request comes from another web site; 429 too many failed logins, with a `Retry-After` header (seconds to wait).
 - **Notes:**
   - A login ends after 12 hours, at `POST /api/logout`, or when the user gets a new password or is dropped. A server restart does not end it: logins are kept in the data folder, as hashes only ([where](api-tokens.md#kept)).
-  - KDB keeps only the SHA-256 of the token, never the token itself.
+  - KarelaDB keeps only the SHA-256 of the token, never the token itself.
   - After 5 failed logins for one user from one address, that user must wait before the next try from that address: 1 s, 2 s, 4 s, ... up to 15 minutes. A good login ends the waiting for that user.
   - After 20 failed logins for one user from all addresses together, that user waits everywhere (someone is guessing from many machines).
   - Only the user who failed waits. Other users, and the right `--token` (with any name, on the [PostgreSQL port](postgres-protocol.md#passwords) too), still work from the same address. This matters behind Docker or a NAT, where every client has the same address.
@@ -120,10 +120,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 168626}
+      "timings": {"parse_us": 0, "execute_us": 135289}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 168626}
+  "timings": {"parse_us": 0, "execute_us": 135289}
 }
 ```
 
@@ -147,9 +147,9 @@ HTTP 200 (application/json)
   "user": "boss",
   "role": "admin",
   "grants": {},
-  "expires_ms": 1792691051375,
-  "csrf": "6add673dff4486d3334de25d2d56f4eb",
-  "token": "ddmM7HyYgI-RWGiA7sCk2US_DZikXzBnrjhDFkr2bQE"
+  "expires_ms": 1792706165360,
+  "csrf": "7c1a699e8d942242d9b47d42ea27527f",
+  "token": "h9xyPFE-Io7JxFuZbKf9A-t-KRa8WOMeKbGQR7jJSHw"
 }
 ```
 
@@ -173,10 +173,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 58}
+      "timings": {"parse_us": 12, "execute_us": 55}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 58}
+  "timings": {"parse_us": 12, "execute_us": 55}
 }
 ```
 
@@ -252,10 +252,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 163793}
+      "timings": {"parse_us": 0, "execute_us": 126869}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 163793}
+  "timings": {"parse_us": 0, "execute_us": 126869}
 }
 ```
 
@@ -364,46 +364,46 @@ Log in once, then use the token (Python, `requests`):
 ```python
 import requests
 
-KDB = "http://127.0.0.1:9900"
-r = requests.post(f"{KDB}/api/login", json={"user": "shop_app", "password": "Another-long-secret-42"})
+KarelaDB = "http://127.0.0.1:9900"
+r = requests.post(f"{KarelaDB}/api/login", json={"user": "shop_app", "password": "Another-long-secret-42"})
 if r.status_code == 429:
     raise RuntimeError(f"too many failed logins: wait {r.headers['Retry-After']} s")
 if r.status_code != 200:
     raise RuntimeError(r.json()["error"])
 auth = {"Authorization": "Bearer " + r.json()["token"]}
 
-rows = requests.post(f"{KDB}/exec", params={"db": "shop", "compat": 0},
+rows = requests.post(f"{KarelaDB}/exec", params={"db": "shop", "compat": 0},
                      data="SELECT count(*) FROM orders", headers=auth).json()
 print(rows["results"][0]["dataset"])
 
-requests.post(f"{KDB}/api/logout", headers=auth)
+requests.post(f"{KarelaDB}/api/logout", headers=auth)
 ```
 
 ```js
 // Node 18+
-const KDB = "http://127.0.0.1:9900";
-const login = await fetch(`${KDB}/api/login`, {
+const KarelaDB = "http://127.0.0.1:9900";
+const login = await fetch(`${KarelaDB}/api/login`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ user: "shop_app", password: process.env.KDB_PASSWORD }),
+  body: JSON.stringify({ user: "shop_app", password: process.env.KARELADB_PASSWORD }),
 });
 const me = await login.json();
 if (!login.ok) throw new Error(me.error);
 const auth = { Authorization: `Bearer ${me.token}` };
-const res = await fetch(`${KDB}/exec?db=shop&compat=0`, { method: "POST", headers: auth, body: "SELECT 1" });
+const res = await fetch(`${KarelaDB}/exec?db=shop&compat=0`, { method: "POST", headers: auth, body: "SELECT 1" });
 console.log(res.status, (await res.json()).results);
 ```
 
 ```powershell
 $login = Invoke-RestMethod -Method Post "http://127.0.0.1:9900/api/login" -ContentType "application/json" `
-  -Body (@{ user = "shop_app"; password = $env:KDB_PASSWORD } | ConvertTo-Json)
+  -Body (@{ user = "shop_app"; password = $env:KARELADB_PASSWORD } | ConvertTo-Json)
 $auth = @{ Authorization = "Bearer $($login.token)" }
 Invoke-RestMethod -Method Post "http://127.0.0.1:9900/exec?db=shop&compat=0" -Headers $auth -ContentType "text/plain" -Body "SELECT 1"
 ```
 
 ```csharp
 using var http = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:9900") };
-var login = await http.PostAsJsonAsync("/api/login", new { user = "shop_app", password = Environment.GetEnvironmentVariable("KDB_PASSWORD") });
+var login = await http.PostAsJsonAsync("/api/login", new { user = "shop_app", password = Environment.GetEnvironmentVariable("KARELADB_PASSWORD") });
 var body = await login.Content.ReadFromJsonAsync<JsonElement>();
 if (!login.IsSuccessStatusCode) throw new Exception(body.GetProperty("error").GetString());
 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", body.GetProperty("token").GetString());
@@ -540,7 +540,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 162348}
+      "timings": {"parse_us": 0, "execute_us": 139447}
     },
     {
       "statement": "CREATE USER shop_app WITH PASSWORD '***'",
@@ -550,7 +550,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'shop_app' created with role none",
-      "timings": {"parse_us": 0, "execute_us": 60424}
+      "timings": {"parse_us": 0, "execute_us": 52525}
     },
     {
       "statement": "CREATE DATABASE shop",
@@ -560,7 +560,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "database 'shop' created",
-      "timings": {"parse_us": 0, "execute_us": 9231}
+      "timings": {"parse_us": 0, "execute_us": 12538}
     },
     {
       "statement": "GRANT write ON DATABASE shop TO shop_app",
@@ -570,10 +570,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'shop_app' has role write on database 'shop'",
-      "timings": {"parse_us": 0, "execute_us": 1761}
+      "timings": {"parse_us": 0, "execute_us": 2685}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 233764}
+  "timings": {"parse_us": 0, "execute_us": 207195}
 }
 ```
 
@@ -586,9 +586,9 @@ HTTP 200 (application/json)
   "user": "shop_app",
   "role": "none",
   "grants": {"shop": "write"},
-  "expires_ms": 1792691051520,
-  "csrf": "5993b92d7d2144c05a35e348320d66f3",
-  "token": "DX6j_aIpvcyeyR62ZcpAJIjbbb62tzatkYwCMvnLlbI"
+  "expires_ms": 1792706165523,
+  "csrf": "7eb7b9a080f30df061b823995d8c3c6e",
+  "token": "bLghcUM-srLtr1B12hebVbcksIBWBSyjH-7DbJv2VHs"
 }
 ```
 
@@ -619,7 +619,7 @@ HTTP 200 (application/json)
 Syntax:
 
 ```sql
-kdb serve --token <long random secret>
+kareladb serve --token <long random secret>
 Authorization: Bearer <token>
 ```
 
@@ -662,7 +662,8 @@ HTTP 200 (application/json)
 {
   "status": "ok",
   "version": "0.2.0-dev",
-  "server_time_ms": 1792647851208,
+  "product": "KarelaDB",
+  "server_time_ms": 1792662965258,
   "auth_required": true,
   "login": false,
   "tls": false,
@@ -707,10 +708,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 35, "execute_us": 72}
+      "timings": {"parse_us": 17, "execute_us": 53}
     }
   ],
-  "timings": {"parse_us": 35, "execute_us": 72}
+  "timings": {"parse_us": 17, "execute_us": 53}
 }
 ```
 
@@ -719,7 +720,7 @@ curl -s -H "Authorization: Bearer change-me-please" "http://127.0.0.1:9900/exec?
 ```
 
 ```powershell
-$h = @{ Authorization = "Bearer $env:KDB_TOKEN" }
+$h = @{ Authorization = "Bearer $env:KARELADB_TOKEN" }
 Invoke-RestMethod "http://127.0.0.1:9900/api/info" -Headers $h
 ```
 
@@ -750,7 +751,7 @@ A console session ends when:
 | the pasted token stops working (`DROP TOKEN`, an ended login) | the session has the token's rights, checked on every request |
 | the server restarts | sessions live in memory only: paste the token again |
 
-- A cookie from an older KDB held the token itself. The server no longer takes it: the console asks for the token once more.
+- A cookie from an older KarelaDB held the token itself. The server no longer takes it: the console asks for the token once more.
 
 | Answer field | Meaning |
 |---|---|
@@ -781,7 +782,7 @@ HTTP 200 (application/json)
   "role": "admin",
   "full_access": true,
   "remember": false,
-  "csrf": "d940cd8cd42f3877ccaf73469a7f075f"
+  "csrf": "818860815fc75e60b8241ae4d0da6fc1"
 }
 ```
 
@@ -833,7 +834,7 @@ HTTP 200 (application/json)
   "role": "admin",
   "full_access": true,
   "remember": false,
-  "csrf": "35b07c9baa23af37a447fc6924202791"
+  "csrf": "2f4ff4df9cb903c089bc5599bb37f941"
 }
 ```
 
@@ -864,7 +865,7 @@ Authorization: Basic <base64 of name:password>
 curl -u <name>:<password> ...
 ```
 
-Sends the user name and password with **every** request. KDB checks the password once and then remembers it for 10 minutes, so it stays fast.
+Sends the user name and password with **every** request. KarelaDB checks the password once and then remembers it for 10 minutes, so it stays fast.
 
 - Good for scripts and tools that cannot keep a token.
 - A wrong password: 401 `wrong user name or password`. Many wrong passwords: 429 with `Retry-After`.
@@ -908,7 +909,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 166112}
+      "timings": {"parse_us": 0, "execute_us": 134650}
     },
     {
       "statement": "CREATE USER reader WITH PASSWORD '***' ROLE read",
@@ -918,10 +919,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'reader' created with role read",
-      "timings": {"parse_us": 0, "execute_us": 62273}
+      "timings": {"parse_us": 0, "execute_us": 52784}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 228385}
+  "timings": {"parse_us": 0, "execute_us": 187434}
 }
 ```
 
@@ -947,10 +948,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 245}
+      "timings": {"parse_us": 20, "execute_us": 407}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 245}
+  "timings": {"parse_us": 20, "execute_us": 407}
 }
 ```
 
@@ -983,7 +984,7 @@ r = requests.get("http://127.0.0.1:9900/exec", params={"db": "shop", "query": "S
 
 ## Roles: what each route needs
 
-Each user has a **role**: `none`, `read`, `write` or `admin`. The user's own ROLE counts for every database; a `GRANT ... ON DATABASE` gives a role on one database. KDB uses the stronger of the two.
+Each user has a **role**: `none`, `read`, `write` or `admin`. The user's own ROLE counts for every database; a `GRANT ... ON DATABASE` gives a role on one database. KarelaDB uses the stronger of the two.
 
 | Route | Needs |
 |---|---|
@@ -1012,7 +1013,7 @@ Each user has a **role**: `none`, `read`, `write` or `admin`. The user's own ROL
 | 401 `{"error": "your login has expired; log in again"}` | an old login cookie | log in again |
 | 401 `{"error": "access token required"}` / `{"error": "wrong access token"}` | a server with `--token` | send the right token |
 | 403 `{"error": "INSERT needs role write on database 'shop'; user 'report' has read"}` | logged in, but the role is too weak | use another user, or `GRANT` |
-| 403 `{"error": "cross-site requests are not allowed"}` | a browser request from another site | call KDB from your backend |
+| 403 `{"error": "cross-site requests are not allowed"}` | a browser request from another site | call KarelaDB from your backend |
 | 403 `{"error": "this change came with a login cookie but without the right X-KDB-CSRF header; ...", "csrf": true}` | a change sent with a cookie but no `X-KDB-CSRF` | send the `csrf` value, see [CSRF](http-login.md#csrf) |
 | 429 `{"error": "too many failed logins; try again in 4 s", "login": true}` and `Retry-After: 4` | too many failed logins | wait that many seconds |
 

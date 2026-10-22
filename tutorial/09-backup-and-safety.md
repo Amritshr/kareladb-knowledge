@@ -12,17 +12,17 @@ The examples use the database `market` with the sample data. **No server may be 
 
 ## What protects your data
 
-| Danger | What KDB does |
+| Danger | What KarelaDB does |
 |---|---|
-| Power cut or crash while writing | Every change goes into the **log** first, and the log is saved to disk before KDB says "done". At the next start KDB plays the log again. Nothing that was confirmed is lost. |
-| A file only half written | Data files are **never changed**. KDB writes a new version, checks it, and then switches to it. A crash leaves the old version complete. |
-| A bit on the disk goes bad | Every block of every file has a **checksum**. KDB notices one wrong bit and knows which file and block is bad. It never returns wrong data without telling you. |
-| A damaged file | **Repair ladder:** KDB tries the previous version of the file (+ the log), then a copy from a backup (+ the log). |
+| Power cut or crash while writing | Every change goes into the **log** first, and the log is saved to disk before KarelaDB says "done". At the next start KarelaDB plays the log again. Nothing that was confirmed is lost. |
+| A file only half written | Data files are **never changed**. KarelaDB writes a new version, checks it, and then switches to it. A crash leaves the old version complete. |
+| A bit on the disk goes bad | Every block of every file has a **checksum**. KarelaDB notices one wrong bit and knows which file and block is bad. It never returns wrong data without telling you. |
+| A damaged file | **Repair ladder:** KarelaDB tries the previous version of the file (+ the log), then a copy from a backup (+ the log). |
 | The list of files is damaged | The list (manifest) is saved **twice**. One good copy is always left. |
 | A mistake (wrong UPDATE, bad import) | **Point-in-time restore:** a backup + the log, up to the second before the mistake. |
-| The whole disk dies | Only **backups on another disk** help. `kdb serve --backup-schedule "daily 16:00" --backup-copy <other disk>` makes them by itself (chapter 21). |
+| The whole disk dies | Only **backups on another disk** help. `kareladb serve --backup-schedule "daily 16:00" --backup-copy <other disk>` makes them by itself (chapter 21). |
 | `DROP TABLE` by mistake | The table goes to the **trash** for 7 days: `UNDROP TABLE t` (chapter 21). |
-| A slow query or a script in a loop | Statement timeout, memory limits and a limit per user in `kdb serve` (chapter 21). |
+| A slow query or a script in a loop | Statement timeout, memory limits and a limit per user in `kareladb serve` (chapter 21). |
 
 The details are in docs/FORMAT.md (for developers).
 
@@ -30,21 +30,21 @@ The details are in docs/FORMAT.md (for developers).
 
 | Command | What it does | Changes the database? |
 |---|---|---|
-| `kdb info <db>` | Lists the files, versions and log position | no |
-| `kdb check <db>` | Reads every block and every log record; reports damage | no |
-| `kdb backup <db> <backups>` | Makes a backup and checks it | no (it adds a backup) |
-| `kdb backups <backups>` | Lists backups, newest first | no |
-| `kdb verify-backup <backup>` | Reads the whole backup again | no |
-| `kdb repair <db> [--backups <folder>] [--accept-log-loss]` | Fixes damaged files | yes |
-| `kdb restore <backup> <new-db> [--logs-from <old-db>] [--until "YYYY-MM-DD HH:MM[:SS]"]` | Makes a **new** database from a backup | no (makes a new folder) |
-| `kdb dump-file <file.kdb>` | Header and block checksums of one file | no |
+| `kareladb info <db>` | Lists the files, versions and log position | no |
+| `kareladb check <db>` | Reads every block and every log record; reports damage | no |
+| `kareladb backup <db> <backups>` | Makes a backup and checks it | no (it adds a backup) |
+| `kareladb backups <backups>` | Lists backups, newest first | no |
+| `kareladb verify-backup <backup>` | Reads the whole backup again | no |
+| `kareladb repair <db> [--backups <folder>] [--accept-log-loss]` | Fixes damaged files | yes |
+| `kareladb restore <backup> <new-db> [--logs-from <old-db>] [--until "YYYY-MM-DD HH:MM[:SS]"]` | Makes a **new** database from a backup | no (makes a new folder) |
+| `kareladb dump-file <file.kdb>` | Header and block checksums of one file | no |
 
-Exit codes: `0` OK, `1` error (for example: the database is open in another program), `2` damage, `3` the database needs a newer KDB (chapter 24).
+Exit codes: `0` OK, `1` error (for example: the database is open in another program), `2` damage, `3` the database needs a newer KarelaDB (chapter 24).
 
-## kdb info
+## kareladb info
 
 ```powershell
-kdb info market
+kareladb info market
 ```
 
 ```text
@@ -68,7 +68,7 @@ t/5/2026-09-10                                 13     2.4 KB           30  ok
 t/6/2026-09-10                                 14     2.7 KB           30  ok
 
 9 files, 72.1 KB, 0 marked damaged
-(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)
+(STATUS is what the manifest records. To read every block and find new damage, run: kareladb check)
 ```
 
 | Line | Meaning |
@@ -77,19 +77,19 @@ t/6/2026-09-10                                 14     2.7 KB           30  ok
 | `last shutdown` | `clean`, or `not clean` after a crash or kill (then the log was replayed) |
 | `log position 30` | Number (LSN) of the last change |
 | `newest change` | Time of the last change, **local time** of this computer |
-| `features` | The stored-format features this database uses. An older KDB that does not know one of them refuses to open it (chapter 24). `batched_log_sync` is in every database this KDB writes: commits that come at the same moment share one write to the disk (group commit), and that needs this log format. |
-| `manifest keys` | How many extra entries the manifest keeps besides the files (counters, settings). When some belong to files that are gone, the line says so; KDB removes them the next time it opens the database for writing. |
+| `features` | The stored-format features this database uses. An older KarelaDB that does not know one of them refuses to open it (chapter 24). `batched_log_sync` is in every database this KarelaDB writes: commits that come at the same moment share one write to the disk (group commit), and that needs this log format. |
+| `manifest keys` | How many extra entries the manifest keeps besides the files (counters, settings). When some belong to files that are gone, the line says so; KarelaDB removes them the next time it opens the database for writing. |
 | `t/4/2026-09` | Table number 4 (tables are numbered in the order they were made), partition `2026-09` |
 | `catalog` | The list of tables and columns |
-| `LSN` | The file holds every change up to this log position. A checkpoint also raises it for files that had no changes, so an old table does not make KDB read old log. |
-| `STATUS` | `ok`, or `DAMAGED: ...` if KDB marked the file as damaged |
+| `LSN` | The file holds every change up to this log position. A checkpoint also raises it for files that had no changes, so an old table does not make KarelaDB read old log. |
+| `STATUS` | `ok`, or `DAMAGED: ...` if KarelaDB marked the file as damaged |
 
-`kdb info` only reads the list of files. It does **not** read the files. To find damage, use `kdb check`.
+`kareladb info` only reads the list of files. It does **not** read the files. To find damage, use `kareladb check`.
 
-## kdb check
+## kareladb check
 
 ```powershell
-kdb check market
+kareladb check market
 "exit code: $LASTEXITCODE"
 ```
 
@@ -99,12 +99,12 @@ OK: no damage found
 exit code: 0
 ```
 
-`kdb check` changes nothing. Run it every day (see the routine at the end). For a running server, use the console's **Check now** or `POST /api/check`.
+`kareladb check` changes nothing. Run it every day (see the routine at the end). For a running server, use the console's **Check now** or `POST /api/check`.
 
-## kdb backup
+## kareladb backup
 
 ```powershell
-kdb backup market backups --keep-daily 7 --keep-weekly 4
+kareladb backup market backups --keep-daily 7 --keep-weekly 4
 ```
 
 ```text
@@ -114,14 +114,14 @@ backup created and verified: backups/20260923-121259-430
 
 - A backup is a new folder inside `backups`. Its name is the **UTC** time: `20260923-121259-430` = 2026-09-23 12:12:59.430 UTC (17:57 Nepal time).
 - It holds a copy of the data files, the needed log files, and `backup.kdb` (the list, written last). A folder without `backup.kdb` is not finished and is never used.
-- After copying, KDB **reads the whole backup again**. Only then it prints "verified".
+- After copying, KarelaDB **reads the whole backup again**. Only then it prints "verified".
 - `--keep-daily 7 --keep-weekly 4` deletes old backups: it keeps the newest backup of each of the last 7 days and each of the last 4 weeks (weeks start on Sunday, UTC). Without these options, nothing is deleted.
-- `kdb backup` needs the database closed. With a running server, use `BACKUP DATABASE`, **Backup now**, or `POST /api/backup`. They work while the server keeps running.
+- `kareladb backup` needs the database closed. With a running server, use `BACKUP DATABASE`, **Backup now**, or `POST /api/backup`. They work while the server keeps running.
 
 ### --hard-links
 
 ```powershell
-kdb backup market backups-fast --hard-links
+kareladb backup market backups-fast --hard-links
 ```
 
 ```text
@@ -131,10 +131,10 @@ backup created and verified: backups-fast/20260923-121309-580
 
 Hard links are very fast and use no extra space. But the backup and the database then share the **same disk sectors**. If the disk goes bad, both are lost. Use hard links only as an extra "undo point" (for example before a big import), never as your only backup. The log files are always copied.
 
-## kdb backups and verify-backup
+## kareladb backups and verify-backup
 
 ```powershell
-kdb backups backups
+kareladb backups backups
 ```
 
 ```text
@@ -147,7 +147,7 @@ BACKUP                 CREATED               FILES       SIZE      LOG LSN
 
 ```powershell
 $newest = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
-kdb verify-backup "backups\$($newest.Name)"
+kareladb verify-backup "backups\$($newest.Name)"
 "exit code: $LASTEXITCODE"
 ```
 
@@ -204,9 +204,9 @@ damaging files\t\4\2026-09.v11.kdb (table ochl_minutes)
 Queries on other tables still work. A query that needs the damaged rows refuses to answer. **It never gives wrong numbers:**
 
 ```powershell
-kdb sql market-test "SELECT count(*) FROM ochl_day"
-kdb sql market-test "SELECT count(*) FROM ochl_minutes"
-kdb sql market-test "SELECT time, close FROM ochl_minutes WHERE symbol = 'CITY' ORDER BY time DESC LIMIT 1"
+kareladb sql market-test "SELECT count(*) FROM ochl_day"
+kareladb sql market-test "SELECT count(*) FROM ochl_minutes"
+kareladb sql market-test "SELECT time, close FROM ochl_minutes WHERE symbol = 'CITY' ORDER BY time DESC LIMIT 1"
 "exit code: $LASTEXITCODE"
 ```
 
@@ -219,19 +219,19 @@ count(*)
 --------
      956
 (1 row, 0.3 ms)
-error: table 'ochl_minutes' partition 2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum. Run: kdb repair <data-dir> --backups <dir>
+error: table 'ochl_minutes' partition 2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum. Run: kareladb repair <data-dir> --backups <dir>
 exit code: 2
 ```
 
-- `count(*)` of `ochl_minutes` still answers, and the number is right. KDB saves the row count and the min, max and sum of each column with every file. `count`, `sum`, `min` and `max` of a whole partition come from these saved numbers, so the damaged block is not read.
-- The third query needs the rows themselves. They are in the damaged block, so KDB refuses, names the file and the block, and exits with code `2`.
+- `count(*)` of `ochl_minutes` still answers, and the number is right. KarelaDB saves the row count and the min, max and sum of each column with every file. `count`, `sum`, `min` and `max` of a whole partition come from these saved numbers, so the damaged block is not read.
+- The third query needs the rows themselves. They are in the damaged block, so KarelaDB refuses, names the file and the block, and exits with code `2`.
 
 ### Step 2: stop everything and check
 
 Stop the server and all programs that use the database. Then:
 
 ```powershell
-kdb check market-test
+kareladb check market-test
 "exit code: $LASTEXITCODE"
 ```
 
@@ -241,7 +241,7 @@ DAMAGED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58
 PROBLEM: t/4/2026-09: marked DAMAGED: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum
 PROBLEM: t/4/2026-09 v11 (current): 1 damaged block(s): 0
 
-Damage found. Fix it with: kdb repair market-test --backups <backups-dir>
+Damage found. Fix it with: kareladb repair market-test --backups <backups-dir>
 exit code: 2
 ```
 
@@ -252,7 +252,7 @@ exit code: 2
 The minute table's file has no older version (it was written only once), so the first rung of the ladder does not help:
 
 ```powershell
-kdb repair market-test
+kareladb repair market-test
 "exit code: $LASTEXITCODE"
 ```
 
@@ -263,14 +263,14 @@ DAMAGED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58
 still damaged: t/4/2026-09: marked DAMAGED: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum
 still damaged: t/4/2026-09 v11 (current): 1 damaged block(s): 0
 
-Some damage could not be repaired. Restore a backup with: kdb restore
+Some damage could not be repaired. Restore a backup with: kareladb restore
 exit code: 2
 ```
 
 ### Step 4: repair with the backups
 
 ```powershell
-kdb repair market-test --backups backups
+kareladb repair market-test --backups backups
 "exit code: $LASTEXITCODE"
 ```
 
@@ -283,14 +283,14 @@ Repaired.
 exit code: 0
 ```
 
-KDB took the file from the backup and then **replayed the log** from the backup's position (30) to the end. So also the changes made **after** the backup are back.
+KarelaDB took the file from the backup and then **replayed the log** from the backup's position (30) to the end. So also the changes made **after** the backup are back.
 
 ### Step 5: check again
 
 ```powershell
-kdb check market-test
+kareladb check market-test
 "exit code: $LASTEXITCODE"
-kdb sql market-test "SELECT count(*) AS minute_rows FROM ochl_minutes; SELECT time, symbol, close, volume FROM ochl_day WHERE time >= '2026-09-10' ORDER BY symbol, time"
+kareladb sql market-test "SELECT count(*) AS minute_rows FROM ochl_minutes; SELECT time, symbol, close, volume FROM ochl_day WHERE time >= '2026-09-10' ORDER BY symbol, time"
 ```
 
 ```text
@@ -313,11 +313,11 @@ time                     | symbol | close | volume
 
 All 956 minute rows are back, and so are the two changes made after the backup (the 2026-09-13 row and the volume 41500).
 
-Also try: the damaged file was replaced from the **previous version** when one exists. Then `kdb repair` works even without `--backups`, and the message says `using previous version v10 and replaying the log`.
+Also try: the damaged file was replaced from the **previous version** when one exists. Then `kareladb repair` works even without `--backups`, and the message says `using previous version v10 and replaying the log`.
 
 ## When the log is damaged
 
-The log is only needed for changes that are **not yet saved** in the data files. `kdb sql`, `kdb shell` and a server stopped with Ctrl+C save everything when they close. So damage at the end of the log then costs nothing:
+The log is only needed for changes that are **not yet saved** in the data files. `kareladb sql`, `kareladb shell` and a server stopped with Ctrl+C save everything when they close. So damage at the end of the log then costs nothing:
 
 ```powershell
 # FOR LEARNING ONLY. Damage the end of the log in another copy.
@@ -329,7 +329,7 @@ $null = $fs.Seek(-40, [System.IO.SeekOrigin]::End)
 $fs.Write([byte[]](1..32), 0, 32)
 $fs.Close()
 
-kdb check market-log
+kareladb check market-log
 "exit code: $LASTEXITCODE"
 ```
 
@@ -339,10 +339,10 @@ OK: no damage found
 exit code: 0
 ```
 
-`kdb repair` cuts the damaged end away and continues the log in a new file. Nothing is lost:
+`kareladb repair` cuts the damaged end away and continues the log in a new file. Nothing is lost:
 
 ```powershell
-kdb repair market-log --backups backups
+kareladb repair market-log --backups backups
 "exit code: $LASTEXITCODE"
 ```
 
@@ -355,21 +355,21 @@ Nothing to repair.
 exit code: 0
 ```
 
-**After a crash** (power cut, killed server) the newest changes may be only in the log. If exactly that end is damaged, KDB cannot tell it from a write the crash cut in half, so it drops those last changes, as if the power had gone a moment earlier. After a crash, check the newest data and load it again if needed.
+**After a crash** (power cut, killed server) the newest changes may be only in the log. If exactly that end is damaged, KarelaDB cannot tell it from a write the crash cut in half, so it drops those last changes, as if the power had gone a moment earlier. After a crash, check the newest data and load it again if needed.
 
-If log records that KDB still **needs** are damaged (not only the very end), KDB refuses to open the database and names the damaged log file. The choices, in this order:
+If log records that KarelaDB still **needs** are damaged (not only the very end), KarelaDB refuses to open the database and names the damaged log file. The choices, in this order:
 
-1. `kdb repair <db> --backups <folder>`: when a backup has those log records, KDB copies the good bytes from it.
-2. `kdb restore` from the newest backup with `--logs-from <db>`: keeps everything up to the damage.
-3. `kdb repair <db> --accept-log-loss`: opens the database and accepts that the changes in the damaged part are lost.
+1. `kareladb repair <db> --backups <folder>`: when a backup has those log records, KarelaDB copies the good bytes from it.
+2. `kareladb restore` from the newest backup with `--logs-from <db>`: keeps everything up to the damage.
+3. `kareladb repair <db> --accept-log-loss`: opens the database and accepts that the changes in the damaged part are lost.
 ## A story: an UPDATE without WHERE
 
 At about 14:05 someone runs an UPDATE and forgets the WHERE. Every close price becomes 0.
 
-(`kdb serve --safe-updates` refuses such an UPDATE, see chapter 21. `kdb sql`, used here, does not.)
+(`kareladb serve --safe-updates` refuses such an UPDATE, see chapter 21. `kareladb sql`, used here, does not.)
 
 ```powershell
-kdb sql market "INSERT INTO ochl_day VALUES ('2026-09-14', 'CITY', 508, 512, 507, 511, 64000)"
+kareladb sql market "INSERT INTO ochl_day VALUES ('2026-09-14', 'CITY', 508, 512, 507, 511, 64000)"
 
 Start-Sleep -Seconds 2
 # Remember a time when the data was still good (local time of this computer).
@@ -377,8 +377,8 @@ Get-Date -Format "yyyy-MM-dd HH:mm:ss" | Set-Content good-time.txt
 Start-Sleep -Seconds 2
 
 # The mistake: an UPDATE without WHERE.
-kdb sql market "UPDATE ochl_day SET close = 0"
-kdb sql market "SELECT time, symbol, close FROM ochl_day WHERE time >= '2026-09-10' ORDER BY symbol, time"
+kareladb sql market "UPDATE ochl_day SET close = 0"
+kareladb sql market "SELECT time, symbol, close FROM ochl_day WHERE time >= '2026-09-10' ORDER BY symbol, time"
 ```
 
 ```text
@@ -402,9 +402,9 @@ time                     | symbol | close
 $goodTime = Get-Content good-time.txt
 $backup = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
 
-kdb restore "backups\$($backup.Name)" market-restored --logs-from market --until $goodTime
+kareladb restore "backups\$($backup.Name)" market-restored --logs-from market --until $goodTime
 "exit code: $LASTEXITCODE"
-kdb sql market-restored "SELECT time, symbol, close FROM ochl_day WHERE time >= '2026-09-10' ORDER BY symbol, time"
+kareladb sql market-restored "SELECT time, symbol, close FROM ochl_day WHERE time >= '2026-09-10' ORDER BY symbol, time"
 ```
 
 ```text
@@ -429,7 +429,7 @@ time                     | symbol | close
 
 ```powershell
 $backup = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
-kdb restore "backups\$($backup.Name)" market-restored
+kareladb restore "backups\$($backup.Name)" market-restored
 "exit code: $LASTEXITCODE"
 ```
 
@@ -447,7 +447,7 @@ Then switch over:
 Check the restored database before you switch:
 
 ```powershell
-kdb check market-restored
+kareladb check market-restored
 "exit code: $LASTEXITCODE"
 ```
 
@@ -465,27 +465,27 @@ The sample market closes at 15:00 Nepal time and trades Sunday to Thursday. Use 
 
 | When (NPT) | What | How |
 |---|---|---|
-| after 15:00, when the day's imports are done | Backup to **another disk** | `kdb serve --backup-schedule "daily 16:00" --backup-copy <other disk>` does it by itself; or `kdb backup` (server stopped) or `POST /api/backup` (server running). Keep 7 daily + 4 weekly. |
-| right after the backup | Check the database | `kdb check` or `POST /api/check`. Exit code 2 or `"ok":false` → act now. |
+| after 15:00, when the day's imports are done | Backup to **another disk** | `kareladb serve --backup-schedule "daily 16:00" --backup-copy <other disk>` does it by itself; or `kareladb backup` (server stopped) or `POST /api/backup` (server running). Keep 7 daily + 4 weekly. |
+| right after the backup | Check the database | `kareladb check` or `POST /api/check`. Exit code 2 or `"ok":false` → act now. |
 | every day | Look at the log of the backup script, or for `WARNING` and `FAILED` in the server's output | chapter 7, chapter 21 |
 | once a week | Copy the newest backup to a third place (another PC, NAS, cloud) | `robocopy` or your normal backup tool |
-| once a month | **Test restore** into a test folder, run a few queries | `kdb restore <backup> D:\restore-test`, then `kdb sql D:\restore-test "SELECT count(*) FROM ochl_day"` |
-| before a big import or a schema change | An extra backup | `kdb backup ...` (hard links are OK here) |
+| once a month | **Test restore** into a test folder, run a few queries | `kareladb restore <backup> D:\restore-test`, then `kareladb sql D:\restore-test "SELECT count(*) FROM ochl_day"` |
+| before a big import or a schema change | An extra backup | `kareladb backup ...` (hard links are OK here) |
 
 When a check finds damage:
 
 1. Stop the server.
 2. Copy the damaged database folder to a safe place.
-3. `kdb repair <db> --backups <backups>`.
-4. `kdb check <db>`. If it is OK, start the server again.
-5. If repair fails: `kdb restore <newest backup> <new folder> --logs-from <db>`, check it, and switch folders.
+3. `kareladb repair <db> --backups <backups>`.
+4. `kareladb check <db>`. If it is OK, start the server again.
+5. If repair fails: `kareladb restore <newest backup> <new folder> --logs-from <db>`, check it, and switch folders.
 6. Find out **why** (disk errors in Windows Event Viewer, a failing SSD). Replace bad hardware.
 
 ## Other safety facts
 
-- **Backups while the server runs:** `POST /api/backup` and scheduled backups do not stop the server. KDB waits for an open transaction (at most a few seconds), writes a checkpoint, and copies the files while reads and writes go on.
-- **Disk full:** KDB stops accepting writes when less than 64 MB is free, so a full disk never leaves something half written. A program gets HTTP 507 (`disk full`). Writes work again when there is space, without a restart.
-- **Old versions:** KDB keeps the 2 previous versions of each file (for the repair ladder) and moves older ones to `_trash`. Files older than 1 hour leave the trash while the server runs. `PURGE TRASH` frees that space at once.
+- **Backups while the server runs:** `POST /api/backup` and scheduled backups do not stop the server. KarelaDB waits for an open transaction (at most a few seconds), writes a checkpoint, and copies the files while reads and writes go on.
+- **Disk full:** KarelaDB stops accepting writes when less than 64 MB is free, so a full disk never leaves something half written. A program gets HTTP 507 (`disk full`). Writes work again when there is space, without a restart.
+- **Old versions:** KarelaDB keeps the 2 previous versions of each file (for the repair ladder) and moves older ones to `_trash`. Files older than 1 hour leave the trash while the server runs. `PURGE TRASH` frees that space at once.
 - **Log archive:** old log files go to `wal_archive` (up to 1 GB by default; `ALTER DATABASE ... SET WAL_ARCHIVE` or the Settings page changes it), for backups and repairs. With it `OFF`, a damaged file can only be repaired from a backup.
 - **Killing the server** (closing the window, `Stop-Process`) is safe: it is like a power cut. The next start shows `last shutdown: not clean` and replays the log. But **Ctrl+C is better**: it closes the database cleanly.
 
@@ -494,7 +494,7 @@ When a check finds damage:
 Shows the header and checks the blocks of one file:
 
 ```powershell
-kdb dump-file market-test\files\t\4\2026-09.v11.kdb
+kareladb dump-file market-test\files\t\4\2026-09.v11.kdb
 ```
 
 For a damaged file it ends with `DAMAGED block 0` and exit code 2. Example from a damaged test file:
@@ -517,21 +517,21 @@ DAMAGED block 0
 
 1. Make a backup of `market`, then list the backups.
 2. Delete all rows of `live_data` by mistake. Restore a new database from the backup with `--logs-from` and an `--until` time from before the delete.
-3. What exit code does `kdb check` give on a healthy database, and what on a damaged one?
+3. What exit code does `kareladb check` give on a healthy database, and what on a damaged one?
 
 <details>
 <summary>Answers</summary>
 
 1. ```powershell
-   kdb backup market backups
-   kdb backups backups
+   kareladb backup market backups
+   kareladb backups backups
    ```
 2. ```powershell
    Get-Date -Format "yyyy-MM-dd HH:mm:ss"      # note the time, e.g. 2026-09-11 15:40:10
-   kdb sql market "DELETE FROM live_data"
+   kareladb sql market "DELETE FROM live_data"
    $b = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
-   kdb restore "backups\$($b.Name)" market-undo --logs-from market --until "2026-09-11 15:40:10"
-   kdb sql market-undo "SELECT count(*) FROM live_data"
+   kareladb restore "backups\$($b.Name)" market-undo --logs-from market --until "2026-09-11 15:40:10"
+   kareladb sql market-undo "SELECT count(*) FROM live_data"
    ```
 3. `0` when healthy, `2` when damage is found (`1` when it cannot run at all, for example the database is open in another program).
 

@@ -1,15 +1,15 @@
 ---
-name: kdb-geometry
-description: "Use when a task stores or reads survey, CAD or 3D data in KDB: survey points, control points and lines, traverses, 2D entities (line, arc, circle, polyline, text), layers, blocks and groups, meshes and terrains, or a canvas / WebGL viewer that loads a drawing in parts. Trigger on: survey, coordinates, northing/easting, DXF, CAD, drawing, entity, polyline, arc, layer, block, mesh, TIN, bounding box, viewport, partial load, pan/zoom with KDB."
+name: kareladb-geometry
+description: "Use when a task stores or reads survey, CAD or 3D data in KarelaDB: survey points, control points and lines, traverses, 2D entities (line, arc, circle, polyline, text), layers, blocks and groups, meshes and terrains, or a canvas / WebGL viewer that loads a drawing in parts. Trigger on: survey, coordinates, northing/easting, DXF, CAD, drawing, entity, polyline, arc, layer, block, mesh, TIN, bounding box, viewport, partial load, pan/zoom with KarelaDB or KDB."
 ---
 
-# KDB for survey, CAD and 3D data
+# KarelaDB for survey, CAD and 3D data
 
-KDB has **no geometry type and no spatial index**. Do not look for `ST_*` functions or
+KarelaDB has **no geometry type and no spatial index**. Do not look for `ST_*` functions or
 `GEOMETRY` columns: they do not exist. Everything below uses plain columns, rows,
 triggers and SQL maths, and it is fast enough up to a few hundred thousand entities per
 drawing. The full topic with runnable examples is `/help/geometry-and-cad.html` on the server
-(`GET $KDB_URL/help/geometry-and-cad.html`). Connecting and running SQL is in the `kdb` skill.
+(`GET $KARELADB_URL/help/geometry-and-cad.html`). Connecting and running SQL is in the `kareladb` skill.
 
 ## The layout to use
 
@@ -46,7 +46,7 @@ Rules that keep it right:
 ## What stays in the client
 
 Pan, zoom, the view matrix, hover and window selection never touch the database. The client
-keeps a working set in memory, redraws from it every frame, and asks KDB again only when the
+keeps a working set in memory, redraws from it every frame, and asks KarelaDB again only when the
 view leaves the loaded region (ask with a margin of about one screen). Save the camera as a
 row in `saved_views` when the user stops moving or closes the drawing, not per frame.
 
@@ -77,5 +77,5 @@ is a writable copy for a design alternative.
 
 - Do not store the camera, selection or matrix per frame.
 - Do not put a whole drawing in one JSON document: it cannot be loaded in part or edited row by row.
-- Do not invent `GEOMETRY`, `POINT`, `ST_Intersects`, `<->` or GiST indexes; say they are not in KDB and use the box columns.
+- Do not invent `GEOMETRY`, `POINT`, `ST_Intersects`, `<->` or GiST indexes; say they are not in KarelaDB and use the box columns.
 - Do not convert between datums in SQL; that is not built in.

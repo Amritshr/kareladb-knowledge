@@ -1420,7 +1420,7 @@ A `DOUBLE` can hold three special values that are not normal numbers: **NaN** ("
 
 - **Returns:** `BOOL`.
 - **NULL:** `NULL` in, `NULL` out.
-- **Notes:** most KDB math functions give `NULL` instead of NaN or inf. The `*` operator does not: `1e308 * 10` is inf. Text is an error.
+- **Notes:** most KarelaDB math functions give `NULL` instead of NaN or inf. The `*` operator does not: `1e308 * 10` is inf. Text is an error.
 
 **Example**
 
@@ -1535,7 +1535,7 @@ Starts the random numbers from a fixed point, the **seed**. After the same `sets
 
 - **Returns:** always `NULL`.
 - **NULL:** `setseed(NULL)` gives `NULL` and changes nothing.
-- **Notes:** the seed is shared by the whole kdb program. On a server, another user's `random()` calls move the numbers on, so the order is only repeatable when nobody else uses `random()` at the same time.
+- **Notes:** the seed is shared by the whole kareladb program. On a server, another user's `random()` calls move the numbers on, so the order is only repeatable when nobody else uses `random()` at the same time.
 
 **Example: The same seed gives the same numbers**
 

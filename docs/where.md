@@ -8,7 +8,7 @@
 
 `WHERE` keeps the rows where the condition is **true**. Rows where it is false or `NULL` are left out.
 
-On a time-series table, a condition on the time column (like `time IN '2026-09'`) also makes the query fast: KDB does not read the other partitions (files). A condition like `symbol = 'CITY'` lets KDB jump straight to that symbol's rows. Some shapes of condition are much faster than others: see [fast conditions](where.md#fast-conditions).
+On a time-series table, a condition on the time column (like `time IN '2026-09'`) also makes the query fast: KarelaDB does not read the other partitions (files). A condition like `symbol = 'CITY'` lets KarelaDB jump straight to that symbol's rows. Some shapes of condition are much faster than others: see [fast conditions](where.md#fast-conditions).
 
 **Example: CITY and VOLT closes above 190 in September 2026** (sample data: sample)
 
@@ -504,7 +504,7 @@ A text after `IN` (without `( )`) means **the whole period** that the text names
 - **NULL:** a `NULL` time gives `NULL`.
 - **Notes:** without a zone, the period is in **UTC**. The whole trading day of the sample data (05:15 to 09:15 UTC) is inside one UTC day, so `time IN '2026-09-10'` is fine for market data. For a Nepal calendar day (daily bars stored at Nepal midnight) add `TIME ZONE 'Asia/Kathmandu'`, or `+05:45` in the text. Not both: text with its own offset and TIME ZONE is an error.
 - `TIME ZONE` takes the same [zone names](time-and-time-zones.md#time-zone-names) as SAMPLE BY. On a `DATE` column it changes nothing: a date is already a calendar day.
-- On the time column of a time-series table, KDB reads only the partitions of that period.
+- On the time column of a time-series table, KarelaDB reads only the partitions of that period.
 - The left side must be a `TIMESTAMP` or `DATE`.
 - QuestDB's longer forms with `;` and `today()` work too: see [interval lists](where.md#interval-lists).
 - More: [times and time zones](time-and-time-zones.md#in-interval).
@@ -613,7 +613,7 @@ The QuestDB forms of a time filter. Each part after a `;` is a count and a unit:
 - **Notes:**
   - The stretch moves the **end** later: the first part names a period, the stretch adds to its end.
   - `text;stretch;period;count` repeats the window `count` times, each one `period` after the one before. The count is at most 100,000.
-  - On the time column of a time-series table, KDB reads only the partitions that meet one of the windows, and skips the blocks in the gaps between them, as for a plain `time IN '2026-09-10'`.
+  - On the time column of a time-series table, KarelaDB reads only the partitions that meet one of the windows, and skips the blocks in the gaps between them, as for a plain `time IN '2026-09-10'`.
   - `today()`, `yesterday()`, `tomorrow()` and `interval()` are worked out once, when the query starts. The value after `IN` must be the same for every row: `time IN interval(time, time)` is an error.
   - `TIME ZONE` goes with a text only. Give `today()` the zone instead: `today('Asia/Kathmandu')`.
   - `DECLARE @name := value` in front of a query sets a name for a value. Each `@name` in the query stands for that value, as if it were written there. A name holds only for its own statement.
@@ -915,7 +915,7 @@ A pattern between `LIKE` and a [regular expression](functions-regex.md). The **w
 
 - **Returns:** `true` or `false`. `NOT SIMILAR TO` gives the opposite.
 - **NULL:** `NULL` when the text or the pattern is `NULL`.
-- **Notes:** upper and lower case must match. It works like PostgreSQL's `SIMILAR TO`: KDB turns the pattern into a regular expression (`similar_to_escape('a%')` shows it) and reads every row.
+- **Notes:** upper and lower case must match. It works like PostgreSQL's `SIMILAR TO`: KarelaDB turns the pattern into a regular expression (`similar_to_escape('a%')` shows it) and reads every row.
 
 **Example: Codes that are two letters and then 2 to 4 digits** (sample data: sample)
 
@@ -1164,7 +1164,7 @@ True when the values of the row are equal, **all together**, to one of the liste
 - **NULL:** a key with a `NULL` that is not ruled out by another value is unknown: `('CITY', NULL)` never matches, and `NOT IN` a list holding it is never true for CITY rows.
 - **Notes:**
   - Works in `SELECT`, `UPDATE` and `DELETE`. Every key must have as many values as the list; a subquery must give that many columns.
-  - Fast for long key lists: when the list covers the table's first key columns (the `PRIMARY KEY`, or the `SORT BY` / `DEDUP KEY` of a time-series table), KDB reads only those keys, and with the time column it reads only the partitions of those times. Deleting 200 `(symbol, time)` bars spread over a year reads their own partitions, not the whole year.
+  - Fast for long key lists: when the list covers the table's first key columns (the `PRIMARY KEY`, or the `SORT BY` / `DEDUP KEY` of a time-series table), KarelaDB reads only those keys, and with the time column it reads only the partitions of those times. Deleting 200 `(symbol, time)` bars spread over a year reads their own partitions, not the whole year.
   - A subquery that uses columns of the outer query is not supported here; write `EXISTS (SELECT ... WHERE x = a AND y = b)`.
 
 **Example: Two daily candles picked by (symbol, day)** (sample data: sample)
@@ -1317,7 +1317,7 @@ Syntax:
 column op value [AND column op value ...]
 ```
 
-KDB runs a query in one of two ways. The **column engine** reads whole columns at a time, on all threads. The **row engine** looks at one row after another. The column engine is many times faster. It takes a query only when **every** part of the `WHERE` (the parts joined by `AND`) has one of these shapes:
+KarelaDB runs a query in one of two ways. The **column engine** reads whole columns at a time, on all threads. The **row engine** looks at one row after another. The column engine is many times faster. It takes a query only when **every** part of the `WHERE` (the parts joined by `AND`) has one of these shapes:
 
 | Shape | Example |
 |---|---|
@@ -1347,9 +1347,9 @@ These send the whole query to the row engine. The result is the same, only slowe
   - The column engine runs `GROUP BY` and aggregates, `LATEST ON`, `ORDER BY column LIMIT n`, and plain lists of columns. What else keeps a `GROUP BY` in it: see [GROUP BY with many groups](performance-tips.md#many-groups).
   - `LIKE 'CITY'` without `%` or `_` is the same as `= 'CITY'`: it also reads only CITY's rows.
   - Inside `NOT`, `OR` and `AND` a comparison with a `NULL` is still `NULL`, as on the row engine: `NOT (volume > 10)` does not keep a row whose `volume` is `NULL`. One shape the column engine cannot read anywhere in the tree (`NOT (close * 2 > 400)`) sends the query to the row engine.
-  - Only a plain `OR` on one column (the same as an `IN` list) or a lone `symbol = ...` lets KDB skip other symbols' partitions; an `OR` across columns reads them all, in the column engine.
-  - `EXTRACT(YEAR FROM time) = 2026 AND EXTRACT(MONTH FROM time) = 8`, `year(time) = 2026` and `date_trunc('month', time) = '2026-08-01'` on a `TIMESTAMP` column are fast too: KDB reads them as the time range they mean (in UTC), so only that month's partitions are read (EXPLAIN: `time range from the calendar condition(s)`). `EXTRACT(MONTH FROM time) = 8` alone, without a year, is not a range and uses the row engine, and so does a month or day that no date has (`0`, `13`): it keeps no row.
-  - A condition on a number, `DATE` or `TIMESTAMP` column also lets KDB skip partitions whose values are all outside it (see [zone maps](explain.md#zone-maps)).
+  - Only a plain `OR` on one column (the same as an `IN` list) or a lone `symbol = ...` lets KarelaDB skip other symbols' partitions; an `OR` across columns reads them all, in the column engine.
+  - `EXTRACT(YEAR FROM time) = 2026 AND EXTRACT(MONTH FROM time) = 8`, `year(time) = 2026` and `date_trunc('month', time) = '2026-08-01'` on a `TIMESTAMP` column are fast too: KarelaDB reads them as the time range they mean (in UTC), so only that month's partitions are read (EXPLAIN: `time range from the calendar condition(s)`). `EXTRACT(MONTH FROM time) = 8` alone, without a year, is not a range and uses the row engine, and so does a month or day that no date has (`0`, `13`): it keeps no row.
+  - A condition on a number, `DATE` or `TIMESTAMP` column also lets KarelaDB skip partitions whose values are all outside it (see [zone maps](explain.md#zone-maps)).
 
 **Example: Fast: every part is a column against a value** (sample data: sample)
 

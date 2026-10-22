@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Users and roles - KDB (KARELA DataBase) docs</title>
+<title>Users and roles - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Database users with passwords, and the roles read, write, ddl and admin for every database or for one.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/users-and-roles.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/users-and-roles.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/users-and-roles.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/users-and-roles.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="users-and-roles">Users and roles</h1>
 <blockquote><p>Database users with passwords, and the roles read, write, ddl and admin for every database or for one.</p></blockquote>
-<ul><li>Category: Users &amp; security</li><li>Keywords: ALTER USER SET timezone, user time zone, user, users, database user, role, roles, rights, permissions, privileges, GRANT, REVOKE, PASSWORD, ROLE, USER, USERS, IF NOT EXISTS, IF EXISTS, WITH, ALL, admin, ddl, write, read, none, DDL right, schema changes, migrations, _system, last admin, REVOKE ALL ON DATABASE, 403, permission denied, SET ROLE, RESET ROLE, SET ROLE NONE, current_user, session_user</li><li>See also: <a href="server-security.html">Keeping kdb serve safe</a>, <a href="functions-security.html">Security functions</a>, <a href="cli-users.html">kdb user</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="databases.html">Databases and the data folder</a>, <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a></li></ul>
-<p><strong>Database users</strong> are the people and programs that connect to a running <code>kdb serve</code>: you in the web console, your app&#39;s backend, a report script. Each user has a password and a <strong>role</strong> (what it may do).</p>
-<ul><li>As soon as the first user exists, <code>kdb serve</code> asks for a login on every request (see <a href="server-security.html">Keeping kdb serve safe</a>).</li><li>The users of <strong>your app</strong> (customers who register on your web site) are something else. Keep them in your own table with <a href="functions-security.html#password-hash">password_hash</a>.</li><li><code>kdb sql</code> and <code>kdb shell</code> open the files directly. They never ask for a login and can run every statement here. Protect the data folder with the file rights of the operating system.</li></ul>
+<ul><li>Category: Users &amp; security</li><li>Keywords: ALTER USER SET timezone, user time zone, user, users, database user, role, roles, rights, permissions, privileges, GRANT, REVOKE, PASSWORD, ROLE, USER, USERS, IF NOT EXISTS, IF EXISTS, WITH, ALL, admin, ddl, write, read, none, DDL right, schema changes, migrations, _system, last admin, REVOKE ALL ON DATABASE, 403, permission denied, SET ROLE, RESET ROLE, SET ROLE NONE, current_user, session_user</li><li>See also: <a href="server-security.html">Keeping kareladb serve safe</a>, <a href="functions-security.html">Security functions</a>, <a href="cli-users.html">kareladb user</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="databases.html">Databases and the data folder</a>, <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a></li></ul>
+<p><strong>Database users</strong> are the people and programs that connect to a running <code>kareladb serve</code>: you in the web console, your app&#39;s backend, a report script. Each user has a password and a <strong>role</strong> (what it may do).</p>
+<ul><li>As soon as the first user exists, <code>kareladb serve</code> asks for a login on every request (see <a href="server-security.html">Keeping kareladb serve safe</a>).</li><li>The users of <strong>your app</strong> (customers who register on your web site) are something else. Keep them in your own table with <a href="functions-security.html#password-hash">password_hash</a>.</li><li><code>kareladb sql</code> and <code>kareladb shell</code> open the files directly. They never ask for a login and can run every statement here. Protect the data folder with the file rights of the operating system.</li></ul>
 <p>A small shop with three users: you (admin), the shop&#39;s backend (write on one database) and a report script (read everywhere).</p>
 <p><strong>Example: Three users for a small shop</strong></p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
@@ -34,7 +34,7 @@ SHOW USERS;</code></pre>
 <p><code>CREATE USER report WITH PASSWORD &#39;***&#39; ROLE read</code></p>
 <pre><code class="language-text">user &#39;report&#39; created with role read</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:39.234Z</td><td>2026-10-22T05:44:39.234Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:39.366Z</td><td>2026-10-22T05:44:39.366Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-22T05:44:39.299Z</td><td>2026-10-22T05:44:39.301Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:41.412Z</td><td>2026-10-22T09:56:41.412Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T09:56:41.521Z</td><td>2026-10-22T09:56:41.521Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-22T09:56:41.467Z</td><td>2026-10-22T09:56:41.468Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <h2 id="create-user">CREATE USER</h2>
 <p>Syntax:</p>
@@ -42,7 +42,7 @@ SHOW USERS;</code></pre>
 <p>Adds a database user with a password. <code>PASSWORD</code> and <code>ROLE</code> may come in any order.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>IF NOT EXISTS</code></td><td>no error when the user is already there (nothing is changed then)</td></tr><tr><td><code>name</code></td><td>letters, digits, <code>_</code> and <code>-</code>, 1 to 63 characters. <code>Bob</code> and <code>bob</code> are the same user.</td></tr><tr><td><code>PASSWORD &#39;secret&#39;</code></td><td>at least 12 characters, not the user name, at most 1024 bytes. Write <code>&#39;&#39;</code> for a <code>&#39;</code> inside. Required.</td></tr><tr><td><code>ROLE</code></td><td>the role on <strong>every</strong> database. Default <code>none</code> (nothing until a <code>GRANT</code>).</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> a message like <code>user &#39;report&#39; created with role read</code>.</li><li><strong>Notes:</strong>
-<ul><li>The <strong>first</strong> user must have <code>ROLE admin</code>. Once a user exists, the server asks for a login, and only an admin can manage users.</li><li>Only a user whose own <code>ROLE</code> is <code>admin</code> may run it (on a server with users).</li><li>KDB keeps a PBKDF2 hash of the password (600,000 rounds) and a SCRAM-SHA-256 secret for the PostgreSQL port. The password itself is never stored. The statement KDB shows back reads <code>PASSWORD &#39;***&#39;</code>.</li><li>Hashing takes about 0.1 second, so creating many users is not instant.</li><li>A name with other characters (a dot, a space, Nepali letters) is refused, also inside double quotes. The name is kept as you wrote it (<code>Sita-K</code>), but compared without case.</li><li>Different from PostgreSQL: there is no <code>CREATE ROLE</code>, no <code>LOGIN</code>/<code>NOLOGIN</code> and no <code>VALID UNTIL</code>. MySQL writes <code>&#39;name&#39;@&#39;host&#39; IDENTIFIED BY &#39;...&#39;</code>; KDB has no host part.</li></ul></li></ul>
+<ul><li>The <strong>first</strong> user must have <code>ROLE admin</code>. Once a user exists, the server asks for a login, and only an admin can manage users.</li><li>Only a user whose own <code>ROLE</code> is <code>admin</code> may run it (on a server with users).</li><li>KarelaDB keeps a PBKDF2 hash of the password (600,000 rounds) and a SCRAM-SHA-256 secret for the PostgreSQL port. The password itself is never stored. The statement KarelaDB shows back reads <code>PASSWORD &#39;***&#39;</code>.</li><li>Hashing takes about 0.1 second, so creating many users is not instant.</li><li>A name with other characters (a dot, a space, Nepali letters) is refused, also inside double quotes. The name is kept as you wrote it (<code>Sita-K</code>), but compared without case.</li><li>Different from PostgreSQL: there is no <code>CREATE ROLE</code>, no <code>LOGIN</code>/<code>NOLOGIN</code> and no <code>VALID UNTIL</code>. MySQL writes <code>&#39;name&#39;@&#39;host&#39; IDENTIFIED BY &#39;...&#39;</code>; KarelaDB has no host part.</li></ul></li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
 CREATE USER IF NOT EXISTS admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
@@ -94,7 +94,7 @@ SHOW USERS;</code></pre>
 <p><code>ALTER USER report ROLE write</code></p>
 <pre><code class="language-text">user &#39;report&#39; changed: role write</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:39.719Z</td><td>2026-10-22T05:44:39.719Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>write</td><td>NULL</td><td>2026-10-22T05:44:39.792Z</td><td>2026-10-22T05:44:40.030Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:41.880Z</td><td>2026-10-22T09:56:41.880Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>write</td><td>NULL</td><td>2026-10-22T09:56:41.935Z</td><td>2026-10-22T09:56:42.184Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: The last admin must stay an admin</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -131,7 +131,7 @@ SHOW USERS;</code></pre>
 <p><code>ALTER USER report SET statement_timeout = &#39;600000ms&#39;</code></p>
 <pre><code class="language-text">statement_timeout of user &#39;report&#39; is 10 min (from their next statement)</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.103Z</td><td>2026-10-22T05:44:40.103Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>charts</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:40.170Z</td><td>2026-10-22T05:44:40.381Z</td><td>NULL</td><td>false</td><td>2 s</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:40.237Z</td><td>2026-10-22T05:44:40.384Z</td><td>NULL</td><td>false</td><td>10 min</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:42.338Z</td><td>2026-10-22T09:56:42.338Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>charts</td><td>read</td><td>NULL</td><td>2026-10-22T09:56:42.393Z</td><td>2026-10-22T09:56:42.623Z</td><td>NULL</td><td>false</td><td>2 s</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T09:56:42.447Z</td><td>2026-10-22T09:56:42.625Z</td><td>NULL</td><td>false</td><td>10 min</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <p><strong>Example: Back to the server&#39;s limit</strong></p>
 <p>Setup:</p>
@@ -152,7 +152,7 @@ ALTER USER report SET statement_timeout = &#39;10min&#39;;</code></pre>
 <pre><code class="language-sql">ALTER USER name SET timezone = &#39;Asia/Kathmandu&#39; | &#39;America/New_York&#39; | &#39;+05:45&#39; | DEFAULT
 ALTER USER name SET TIME ZONE &#39;Asia/Kathmandu&#39;
 ALTER USER name RESET timezone</code></pre>
-<p>The clock one user&#39;s sessions start on: <code>CURRENT_DATE</code>, <code>::date</code>, <code>date_trunc</code>, <code>EXTRACT</code>, <code>to_char</code> and a <code>DATE</code> met by a <code>TIMESTAMP</code> use it (<a href="time-and-time-zones.html#session-time-zone">time zones</a>). The user&#39;s own <code>SET TIME ZONE</code> still changes it for a session. Users without one have the server&#39;s zone, which is the computer&#39;s own unless <code>kdb serve --timezone</code> names another.</p>
+<p>The clock one user&#39;s sessions start on: <code>CURRENT_DATE</code>, <code>::date</code>, <code>date_trunc</code>, <code>EXTRACT</code>, <code>to_char</code> and a <code>DATE</code> met by a <code>TIMESTAMP</code> use it (<a href="time-and-time-zones.html#session-time-zone">time zones</a>). The user&#39;s own <code>SET TIME ZONE</code> still changes it for a session. Users without one have the server&#39;s zone, which is the computer&#39;s own unless <code>kareladb serve --timezone</code> names another.</p>
 <ul><li><strong>Role:</strong> an admin sets it, for any user.</li><li><strong>Kept:</strong> with the user, across restarts and backups.</li></ul>
 <p><strong>Example: Asha sees days on the Nepal clock, the others on the server&#39;s</strong></p>
 <p>Setup:</p>
@@ -167,7 +167,7 @@ CREATE USER asha WITH PASSWORD &#39;Asha-Long-Passw0rd&#39; ROLE read;</code></p
 <p>Removes a user and its grants. Its logins stop working at once.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>IF EXISTS</code></td><td>no error when there is no such user</td></tr><tr><td><code>name</code></td><td>the user to remove</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>user &#39;name&#39; dropped</code>, or <code>user &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong>
-<ul><li>Needs <code>ROLE admin</code>.</li><li>The last user with <code>ROLE admin</code> can not be dropped while other users exist.</li><li>When the <strong>last</strong> user is dropped, the server has no users again and stops asking for a login (on <code>127.0.0.1</code>).</li><li>Tables and data are never touched: KDB has no &quot;owner&quot; of a table.</li></ul></li></ul>
+<ul><li>Needs <code>ROLE admin</code>.</li><li>The last user with <code>ROLE admin</code> can not be dropped while other users exist.</li><li>When the <strong>last</strong> user is dropped, the server has no users again and stops asking for a login (on <code>127.0.0.1</code>).</li><li>Tables and data are never touched: KarelaDB has no &quot;owner&quot; of a table.</li></ul></li></ul>
 <p><strong>Example</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
@@ -181,7 +181,7 @@ SHOW USERS;</code></pre>
 <p><code>DROP USER IF EXISTS report</code></p>
 <pre><code class="language-text">user &#39;report&#39; does not exist</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.692Z</td><td>2026-10-22T05:44:40.692Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:42.936Z</td><td>2026-10-22T09:56:42.936Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: The last admin can not be dropped while others exist</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -207,7 +207,7 @@ GRANT write ON DATABASE shop TO shop_app;
 GRANT read ON DATABASE demo TO shop_app;</code></pre>
 <pre><code class="language-sql">SHOW USERS;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.810Z</td><td>2026-10-22T05:44:40.810Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:40.953Z</td><td>2026-10-22T05:44:40.953Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=read, shop=write</td><td>2026-10-22T05:44:40.877Z</td><td>2026-10-22T05:44:40.985Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:42.950Z</td><td>2026-10-22T09:56:42.950Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T09:56:43.060Z</td><td>2026-10-22T09:56:43.060Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=read, shop=write</td><td>2026-10-22T09:56:43.005Z</td><td>2026-10-22T09:56:43.076Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <h2 id="grant">GRANT</h2>
 <p>Syntax:</p>
@@ -230,7 +230,7 @@ SHOW USERS;</code></pre>
 <p><code>GRANT admin ON DATABASE demo TO shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; has role admin on database &#39;demo&#39;</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.924Z</td><td>2026-10-22T05:44:40.924Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=admin, shop=write</td><td>2026-10-22T05:44:40.999Z</td><td>2026-10-22T05:44:41.200Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:43.118Z</td><td>2026-10-22T09:56:43.118Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=admin, shop=write</td><td>2026-10-22T09:56:43.173Z</td><td>2026-10-22T09:56:43.316Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: DROP DATABASE removes the grants on it</strong></p>
 <p>Setup:</p>
@@ -242,9 +242,9 @@ GRANT write ON DATABASE shop TO shop_app;</code></pre>
 SHOW USERS;</code></pre>
 <p>Result:</p>
 <p><code>DROP DATABASE shop</code></p>
-<pre><code class="language-text">database &#39;shop&#39; dropped; its folder was moved to kdb-data/_trash/1792647881547-shop</code></pre>
+<pre><code class="language-text">database &#39;shop&#39; dropped; its folder was moved to kdb-data/_trash/1792663003586-shop</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:41.285Z</td><td>2026-10-22T05:44:41.285Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-22T05:44:41.351Z</td><td>2026-10-22T05:44:41.553Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:43.339Z</td><td>2026-10-22T09:56:43.339Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-22T09:56:43.399Z</td><td>2026-10-22T09:56:43.592Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: The database must exist</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -265,7 +265,7 @@ CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39;;</code></pre
 <p>Removes the user&#39;s grant on one database.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td>role</td><td>optional, and only for reading comfort: the whole grant on <code>db</code> goes, whatever role you write</td></tr><tr><td><code>db</code></td><td>the database. It may already be gone.</td></tr><tr><td><code>name</code></td><td>an existing user</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>user &#39;name&#39; has no grant on database &#39;db&#39; now</code> (also when there was no grant).</li><li><strong>Notes:</strong>
-<ul><li>It does <strong>not</strong> change the user&#39;s own <code>ROLE</code>. A user with <code>ROLE read</code> can still read <code>db</code> after <code>REVOKE</code>. Use <code>ALTER USER name ROLE none</code> for that.</li><li><code>REVOKE read ...</code> on a user with a <code>write</code> grant removes the <code>write</code> grant too; there is no &quot;step down&quot;. To give less, <code>GRANT</code> the smaller role instead.</li><li>KDB also accepts <code>TO name</code> instead of <code>FROM name</code>.</li><li>Needs <code>ROLE admin</code>.</li></ul></li></ul>
+<ul><li>It does <strong>not</strong> change the user&#39;s own <code>ROLE</code>. A user with <code>ROLE read</code> can still read <code>db</code> after <code>REVOKE</code>. Use <code>ALTER USER name ROLE none</code> for that.</li><li><code>REVOKE read ...</code> on a user with a <code>write</code> grant removes the <code>write</code> grant too; there is no &quot;step down&quot;. To give less, <code>GRANT</code> the smaller role instead.</li><li>KarelaDB also accepts <code>TO name</code> instead of <code>FROM name</code>.</li><li>Needs <code>ROLE admin</code>.</li></ul></li></ul>
 <p><strong>Example</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
@@ -277,7 +277,7 @@ SHOW USERS;</code></pre>
 <p><code>REVOKE ALL ON DATABASE demo FROM shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; has no grant on database &#39;demo&#39; now</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:41.537Z</td><td>2026-10-22T05:44:41.537Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-22T05:44:41.605Z</td><td>2026-10-22T05:44:41.774Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:43.618Z</td><td>2026-10-22T09:56:43.618Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-22T09:56:43.672Z</td><td>2026-10-22T09:56:43.798Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: REVOKE does not touch the user&#39;s own ROLE</strong></p>
 <p>Setup:</p>
@@ -290,7 +290,7 @@ SHOW USERS;</code></pre>
 <p><code>REVOKE read ON DATABASE demo FROM report</code></p>
 <pre><code class="language-text">user &#39;report&#39; keeps role write on database &#39;demo&#39;: REVOKE read takes away only a read grant; use REVOKE write or REVOKE ALL. Nothing was revoked</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:41.895Z</td><td>2026-10-22T05:44:41.895Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>demo=write</td><td>2026-10-22T05:44:41.963Z</td><td>2026-10-22T05:44:41.965Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:43.815Z</td><td>2026-10-22T09:56:43.815Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>demo=write</td><td>2026-10-22T09:56:43.872Z</td><td>2026-10-22T09:56:43.874Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <h2 id="set-role">SET ROLE</h2>
 <p>Syntax:</p>
@@ -335,7 +335,7 @@ CREATE TABLE made_after_reset (id INT);</code></pre>
 <p>Two places give a role:</p>
 <div class="table-wrap"><table><thead><tr><th>Where</th><th>For</th><th>Written</th></tr></thead><tbody><tr><td>the user&#39;s own <code>ROLE</code></td><td><strong>every</strong> database</td><td><code>CREATE USER ... ROLE read</code>, <code>ALTER USER ... ROLE read</code></td></tr><tr><td>a grant</td><td><strong>one</strong> database</td><td><code>GRANT write ON DATABASE shop TO shop_app</code></td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> a statement without the needed role is refused before any of it runs, with HTTP status 403 and a message like <code>INSERT needs role write on database &#39;shop&#39;; user &#39;report&#39; has read</code>.</li><li><strong>Notes:</strong>
-<ul><li>Only a user whose own <code>ROLE</code> is <code>admin</code> may create and drop databases and manage users (<code>CREATE USER</code>, <code>ALTER USER ... ROLE</code>, <code>DROP USER</code>, <code>GRANT</code>, <code>REVOKE</code>). The message then says <code>needs role admin as its own ROLE (it acts on the whole server)</code>.</li><li><code>SHOW DATABASES</code> lists only the databases the user may read.</li><li>A <code>--token</code> of the server works like a full admin.</li><li>Give each program only what it needs: your app&#39;s backend <code>write</code> on its own database, a report script <code>read</code>, a migration tool <code>ddl</code>. Keep <code>admin</code> for yourself.</li><li><code>ddl</code> is for a developer or a migration tool (Flyway, Alembic, Prisma) that changes tables but must not manage users or settings. It is kept by its name, like the other roles. An older KDB reads a <code>ddl</code> user as <code>none</code>: that user loses rights there, it never gains them.</li><li><code>CALL</code> needs <code>write</code>: a procedure can only change rows (it can not hold <code>CREATE</code> or <code>DROP</code>).</li><li>A view, procedure or trigger saved by a <code>ddl</code> user may only read and change what that user may. <code>CREATE VIEW v AS SELECT * FROM _audit_log</code> needs <code>admin</code>, like reading <code>_audit_log</code> itself. See <a href="table-rights.html#revoke-on-table">table rights</a>.</li><li>Only <code>kdb serve</code> (HTTP, web console and PostgreSQL port) checks roles. <code>kdb sql</code> and <code>kdb shell</code> do not.</li></ul></li></ul>
+<ul><li>Only a user whose own <code>ROLE</code> is <code>admin</code> may create and drop databases and manage users (<code>CREATE USER</code>, <code>ALTER USER ... ROLE</code>, <code>DROP USER</code>, <code>GRANT</code>, <code>REVOKE</code>). The message then says <code>needs role admin as its own ROLE (it acts on the whole server)</code>.</li><li><code>SHOW DATABASES</code> lists only the databases the user may read.</li><li>A <code>--token</code> of the server works like a full admin.</li><li>Give each program only what it needs: your app&#39;s backend <code>write</code> on its own database, a report script <code>read</code>, a migration tool <code>ddl</code>. Keep <code>admin</code> for yourself.</li><li><code>ddl</code> is for a developer or a migration tool (Flyway, Alembic, Prisma) that changes tables but must not manage users or settings. It is kept by its name, like the other roles. An older KarelaDB reads a <code>ddl</code> user as <code>none</code>: that user loses rights there, it never gains them.</li><li><code>CALL</code> needs <code>write</code>: a procedure can only change rows (it can not hold <code>CREATE</code> or <code>DROP</code>).</li><li>A view, procedure or trigger saved by a <code>ddl</code> user may only read and change what that user may. <code>CREATE VIEW v AS SELECT * FROM _audit_log</code> needs <code>admin</code>, like reading <code>_audit_log</code> itself. See <a href="table-rights.html#revoke-on-table">table rights</a>.</li><li>Only <code>kareladb serve</code> (HTTP, web console and PostgreSQL port) checks roles. <code>kareladb sql</code> and <code>kareladb shell</code> do not.</li></ul></li></ul>
 <p><strong>Example: A report user that may read every database, and an app that may write one</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;</code></pre>
@@ -351,7 +351,7 @@ SHOW USERS;</code></pre>
 <p><code>GRANT write ON DATABASE demo TO shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; has role write on database &#39;demo&#39;</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:42.114Z</td><td>2026-10-22T05:44:42.114Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:42.334Z</td><td>2026-10-22T05:44:42.334Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-22T05:44:42.406Z</td><td>2026-10-22T05:44:42.408Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:44.043Z</td><td>2026-10-22T09:56:44.043Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T09:56:44.223Z</td><td>2026-10-22T09:56:44.223Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-22T09:56:44.281Z</td><td>2026-10-22T09:56:44.283Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <p><strong>Example: A migration user may change tables, not users</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -387,40 +387,40 @@ CREATE TABLE app_made (id INT);</code></pre>
 <h2 id="system-database">Where users are kept</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">&lt;data folder&gt;/_system/        the hidden database with the table users</code></pre>
-<p>Users belong to the <strong>data folder</strong>, not to one database. KDB keeps them in a hidden database named <code>_system</code> inside the data folder. All databases of that folder share the users.</p>
+<p>Users belong to the <strong>data folder</strong>, not to one database. KarelaDB keeps them in a hidden database named <code>_system</code> inside the data folder. All databases of that folder share the users.</p>
 <div class="table-wrap"><table><thead><tr><th>Column of <code>users</code></th><th>Holds</th></tr></thead><tbody><tr><td><code>name</code>, <code>role</code>, <code>grants</code></td><td>what <code>SHOW USERS</code> shows</td></tr><tr><td><code>password_hash</code></td><td><code>$pbkdf2-sha256$i=600000$...</code> (the same form as <code>password_hash()</code>)</td></tr><tr><td><code>scram</code></td><td><code>SCRAM-SHA-256$4096:...</code> for PostgreSQL clients</td></tr><tr><td><code>created_at</code>, <code>changed_at</code></td><td>times</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> not a statement: <code>USE _system</code> and <code>CREATE DATABASE _system</code> are refused.</li><li><strong>Notes:</strong>
-<ul><li>A server that opened <strong>one database folder by its path</strong> (<code>kdb serve D:\kdb\market</code>) has no users. Use <code>--data-dir &lt;folder&gt;</code>.</li><li>Anyone who can read the data folder or a backup can read the password hashes. Keep the folder and backups private (<code>chmod 700</code> on Linux).</li><li><code>kdb user add | passwd | role | list | remove</code> work on the same users while the server is stopped (see <a href="cli-users.html">kdb user</a>). While <code>kdb serve</code> runs, use SQL in its console.</li><li>Logins (sessions) and <a href="api-tokens.html">API tokens</a> are kept here too, as hashes only, so a restart logs nobody out.</li><li>An old <code>kdb</code> program made before users existed does not know <code>_system</code> and would serve the data <strong>without</strong> a login. Update every <code>kdb</code> program first.</li></ul></li></ul>
+<ul><li>A server that opened <strong>one database folder by its path</strong> (<code>kareladb serve D:\kdb\market</code>) has no users. Use <code>--data-dir &lt;folder&gt;</code>.</li><li>Anyone who can read the data folder or a backup can read the password hashes. Keep the folder and backups private (<code>chmod 700</code> on Linux).</li><li><code>kareladb user add | passwd | role | list | remove</code> work on the same users while the server is stopped (see <a href="cli-users.html">kareladb user</a>). While <code>kareladb serve</code> runs, use SQL in its console.</li><li>Logins (sessions) and <a href="api-tokens.html">API tokens</a> are kept here too, as hashes only, so a restart logs nobody out.</li><li>An old <code>kareladb</code> program made before users existed does not know <code>_system</code> and would serve the data <strong>without</strong> a login. Update every <code>kareladb</code> program first.</li></ul></li></ul>
 <p><strong>Example: _system is not a normal database</strong> (shows an error)</p>
 <pre><code class="language-sql">USE _system;</code></pre>
 <p>Result:</p>
-<p>Error: <code>line 1, column 5: bad database name &#39;_system&#39;: &#39;_system&#39; is where KDB keeps its users</code></p>
-<p><strong>Command line: kdb user and SQL see the same users</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<p>Error: <code>line 1, column 5: bad database name &#39;_system&#39;: &#39;_system&#39; is where KarelaDB keeps its users</code></p>
+<p><strong>Command line: kareladb user and SQL see the same users</strong></p>
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
 &gt; Long-Admin-Passw0rd
-kdb user list
-kdb sql kdb-data/shop &quot;CREATE TABLE orders (id INT PRIMARY KEY)&quot;
-kdb sql shop &quot;CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read; SHOW USERS&quot;</code></pre>
+kareladb user list
+kareladb sql kdb-data/shop &quot;CREATE TABLE orders (id INT PRIMARY KEY)&quot;
+kareladb sql shop &quot;CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read; SHOW USERS&quot;</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user list</code></p>
+<p><code>&gt; kareladb user list</code></p>
 <pre><code class="language-text">USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 11:29:42
+admin                    admin  -                              2026-10-22 15:41:44
 1 user in ./kdb-data</code></pre>
-<p><code>&gt; kdb sql kdb-data/shop &quot;CREATE TABLE orders (id INT PRIMARY KEY)&quot;</code></p>
+<p><code>&gt; kareladb sql kdb-data/shop &quot;CREATE TABLE orders (id INT PRIMARY KEY)&quot;</code></p>
 <pre><code class="language-text">table &#39;orders&#39; created</code></pre>
-<p><code>&gt; kdb sql shop &quot;CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read; SHOW USERS&quot;</code></p>
+<p><code>&gt; kareladb sql shop &quot;CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read; SHOW USERS&quot;</code></p>
 <pre><code class="language-text">user &#39;report&#39; created with role read
 
 name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority
 -------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+---------
-admin  | admin | NULL   | 2026-10-22T05:44:42.569Z | 2026-10-22T05:44:42.569Z | NULL         | false      | NULL              | NULL    
-report | read  | NULL   | 2026-10-22T05:44:43.043Z | 2026-10-22T05:44:43.043Z | NULL         | false      | NULL              | NULL    
+admin  | admin | NULL   | 2026-10-22T09:56:44.318Z | 2026-10-22T09:56:44.318Z | NULL         | false      | NULL              | NULL    
+report | read  | NULL   | 2026-10-22T09:56:44.908Z | 2026-10-22T09:56:44.908Z | NULL         | false      | NULL              | NULL    
 (2 rows, 0.0 ms)</code></pre>
-<p>Here the data folder is <code>kdb-data</code>. The first <code>kdb sql</code> makes the database <code>shop</code> in it by its path. After that, the plain name <code>shop</code> means the database in the data folder, so the user statements work. A plain name that is <strong>not</strong> in the data folder is taken as a new folder in the current folder, and then user statements say <code>users need a data folder</code>.</p>
+<p>Here the data folder is <code>kdb-data</code>. The first <code>kareladb sql</code> makes the database <code>shop</code> in it by its path. After that, the plain name <code>shop</code> means the database in the data folder, so the user statements work. A plain name that is <strong>not</strong> in the data folder is taken as a new folder in the current folder, and then user statements say <code>users need a data folder</code>.</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/users-and-roles.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/users-and-roles.md">This page as markdown</a>.</footer>
 </body>
 </html>

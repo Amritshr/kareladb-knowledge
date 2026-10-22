@@ -1,6 +1,6 @@
 # CSV import over HTTP (POST /imp)
 
-> Send a CSV file to kdb serve and it loads the rows, making the table from the file when it is new - QuestDB's /imp.
+> Send a CSV file to kareladb serve and it loads the rows, making the table from the file when it is new - QuestDB's /imp.
 
 - Category: HTTP API
 - Keywords: /imp, imp, CSV import, timings, Server-Timing, parse\_ms, lock\_wait\_ms, wal\_ms, apply\_ms, durable\_ms, durable, queued, gzip upload, import CSV, upload CSV, load a file, QuestDB import, multipart, form-data, overwrite, atomicity, skipCol, skipRow, abort, forceHeader, partitionBy, delimiter, fmt, rowsImported, rowsRejected, schema
@@ -37,8 +37,8 @@ Reads the CSV, makes the table when it is new, and writes the rows.
 | `dedup` | URL | `skip`: no duplicate lookups in days that already hold rows. **A key already stored may then be there twice**; the answer has `dedupSkipped` ([dedup=skip](partitions-and-dedup.md#dedup-skip)). | `on` |
 | `timestamp` | URL | Which column is the time column of a **new** table (`TIMESERIES(...)`). | none |
 | `partitionBy` | URL | `NONE`, `DAY`, `MONTH` or `YEAR` for a **new** table. Anything but `NONE` needs `timestamp=`. | `NONE` |
-| `delimiter` | URL | The character between the values; `\t` or `tab` for a tab. Without it KDB guesses from the first lines. | guessed |
-| `forceHeader` | URL | `true`: the first line is column names. Without it KDB decides: names that match the table, or a first line with nothing that looks like data. | guessed |
+| `delimiter` | URL | The character between the values; `\t` or `tab` for a tab. Without it KarelaDB guesses from the first lines. | guessed |
+| `forceHeader` | URL | `true`: the first line is column names. Without it KarelaDB decides: names that match the table, or a first line with nothing that looks like data. | guessed |
 | `fmt` | URL | `json`: answer as JSON. Anything else: a short text answer. | text |
 | `schema` | form part | JSON that sets column types: `[{"name": "close", "type": "DOUBLE"}]`. | types guessed |
 
@@ -102,7 +102,7 @@ A QuestDB client has no `db=` to send, so `/imp` works out the database from the
 | several, and more than one has the table (not the default) | nothing: 400, add `db=` |
 | several, and none has the table | nothing: 400, add `db=` or create the table first |
 
-KDB refuses rather than guessing, so a load meant for another database never makes a new table with guessed types in the default one. The answer's `database` says where the rows went.
+KarelaDB refuses rather than guessing, so a load meant for another database never makes a new table with guessed types in the default one. The answer's `database` says where the rows went.
 
 **HTTP: A new table straight from a CSV of daily closes**
 
@@ -141,13 +141,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 22.162,
-    "lock_wait_ms": 0.012,
-    "wal_ms": 5.798,
-    "apply_ms": 6.818,
+    "parse_ms": 86.319,
+    "lock_wait_ms": 0.029,
+    "wal_ms": 1.59,
+    "apply_ms": 3.168,
     "trigger_ms": 0,
-    "durable_ms": 34.79,
-    "total_ms": 34.79
+    "durable_ms": 91.106,
+    "total_ms": 91.106
   }
 }
 ```
@@ -177,10 +177,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 31, "execute_us": 87}
+      "timings": {"parse_us": 18, "execute_us": 62}
     }
   ],
-  "timings": {"parse_us": 31, "execute_us": 87}
+  "timings": {"parse_us": 18, "execute_us": 62}
 }
 ```
 
@@ -216,13 +216,13 @@ HTTP 200 (application/json)
     {"name": "sector", "type": "STRING", "size": 0, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 0.164,
-    "lock_wait_ms": 0.012,
-    "wal_ms": 3.957,
-    "apply_ms": 3.514,
+    "parse_ms": 0.152,
+    "lock_wait_ms": 0.016,
+    "wal_ms": 5.984,
+    "apply_ms": 5.898,
     "trigger_ms": 0,
-    "durable_ms": 7.647,
-    "total_ms": 7.647
+    "durable_ms": 12.05,
+    "total_ms": 12.05
   }
 }
 ```
@@ -253,10 +253,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 193}
+      "timings": {"parse_us": 14, "execute_us": 192}
     }
   ],
-  "timings": {"parse_us": 13, "execute_us": 193}
+  "timings": {"parse_us": 14, "execute_us": 192}
 }
 ```
 
@@ -321,13 +321,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 1}
   ],
   "timings": {
-    "parse_ms": 0.063,
-    "lock_wait_ms": 0.014,
-    "wal_ms": 1.918,
-    "apply_ms": 5.278,
+    "parse_ms": 0.047,
+    "lock_wait_ms": 0.008,
+    "wal_ms": 1.956,
+    "apply_ms": 3.747,
     "trigger_ms": 0,
-    "durable_ms": 7.273,
-    "total_ms": 7.273
+    "durable_ms": 5.758,
+    "total_ms": 5.758
   }
 }
 ```
@@ -354,10 +354,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 19, "execute_us": 105}
+      "timings": {"parse_us": 8, "execute_us": 55}
     }
   ],
-  "timings": {"parse_us": 19, "execute_us": 105}
+  "timings": {"parse_us": 8, "execute_us": 55}
 }
 ```
 
@@ -399,13 +399,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 1}
   ],
   "timings": {
-    "parse_ms": 0.07,
-    "lock_wait_ms": 0.012,
-    "wal_ms": 1.845,
-    "apply_ms": 3.957,
+    "parse_ms": 0.065,
+    "lock_wait_ms": 0.01,
+    "wal_ms": 1.168,
+    "apply_ms": 4.216,
     "trigger_ms": 0,
-    "durable_ms": 5.884,
-    "total_ms": 5.884
+    "durable_ms": 5.459,
+    "total_ms": 5.459
   }
 }
 ```
@@ -431,10 +431,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 17, "execute_us": 100}
+      "timings": {"parse_us": 11, "execute_us": 63}
     }
   ],
-  "timings": {"parse_us": 17, "execute_us": 100}
+  "timings": {"parse_us": 11, "execute_us": 63}
 }
 ```
 
@@ -492,13 +492,13 @@ HTTP 200 (application/json)
     {"name": "note", "type": "STRING", "size": 0, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 14.877,
-    "lock_wait_ms": 0.013,
-    "wal_ms": 3.195,
-    "apply_ms": 3.204,
+    "parse_ms": 12.392,
+    "lock_wait_ms": 0.008,
+    "wal_ms": 1.181,
+    "apply_ms": 3.065,
     "trigger_ms": 0,
-    "durable_ms": 21.289,
-    "total_ms": 21.289
+    "durable_ms": 16.646,
+    "total_ms": 16.646
   }
 }
 ```

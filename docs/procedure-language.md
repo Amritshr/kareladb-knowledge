@@ -1105,20 +1105,20 @@ END;
 ```
 
 ```bash
-kdb sql market "CALL withdraw(1, 400)"
-kdb sql market "CALL withdraw(1, 700)"
-kdb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"
+kareladb sql market "CALL withdraw(1, 400)"
+kareladb sql market "CALL withdraw(1, 700)"
+kareladb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"
 ```
 
 Output:
 
-`> kdb sql market "CALL withdraw(1, 400)"`
+`> kareladb sql market "CALL withdraw(1, 400)"`
 
 ```text
 procedure 'withdraw' done: 1 row(s) changed
 ```
 
-`> kdb sql market "CALL withdraw(1, 700)"`
+`> kareladb sql market "CALL withdraw(1, 700)"`
 
 ```text
 error: procedure 'withdraw', line 4: not enough money in account 1 for 700.00
@@ -1126,14 +1126,14 @@ error: procedure 'withdraw', line 4: not enough money in account 1 for 700.00
 
 exit code 1
 
-`> kdb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"`
+`> kareladb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"`
 
 ```text
 id | owner | balance
 ---+-------+--------
  1 | Ram   |  600.00
  2 | Sita  |    0.00
-(2 rows, 0.3 ms)
+(2 rows, 0.2 ms)
 ```
 
 <a id="print"></a>
@@ -1236,7 +1236,7 @@ Runs SQL that is made while the procedure runs. Use it when a table or column na
   - A `SELECT` without `INTO` returns its rows as an extra result of the `CALL`.
   - Speed: a date in `USING` skips partitions like a date written in the SQL. `CALL ... WITH DEBUG` shows the text that ran and `partitions read`.
   - The text is parsed each time it runs. In a loop over many rows, a normal statement with variables is faster.
-  - Locks: KDB locks the tables a `CALL` uses before it starts. Text written out in the body (`EXECUTE 'INSERT INTO t VALUES ($1)' USING x`) is known then, so only its tables are locked. Text made while the procedure runs (`format(...)`, `'...' || name`) could name any table, so such a `CALL` (or trigger) locks **every** table of the database while it runs, and writers of all other tables wait for it. See [one writer per table](transactions.md#one-writer).
+  - Locks: KarelaDB locks the tables a `CALL` uses before it starts. Text written out in the body (`EXECUTE 'INSERT INTO t VALUES ($1)' USING x`) is known then, so only its tables are locked. Text made while the procedure runs (`format(...)`, `'...' || name`) could name any table, so such a `CALL` (or trigger) locks **every** table of the database while it runs, and writers of all other tables wait for it. See [one writer per table](transactions.md#one-writer).
 
 **Example: One procedure for two tables: the table name is an argument**
 

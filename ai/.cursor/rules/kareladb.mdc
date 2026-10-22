@@ -1,11 +1,11 @@
 ---
-name: kdb
-description: "Use whenever a task involves KDB - the C++ time-series and relational database that serves an HTTP API on port 9900 and a PostgreSQL wire port on 8832. Covers connecting, running SQL over the HTTP API, loading data, and where the full help lives. Trigger on: kdb, KDB_TOKEN, KDB_URL, port 9900, /exec, kdb.exe, candles, time-series storage."
+description: KarelaDB (KARELA DataBase, formerly KDB) - connecting, SQL over HTTP and the PostgreSQL port, time-series tables, loading data
+alwaysApply: false
 ---
 
-# KDB
+# KarelaDB
 
-KDB (KARELA DataBase) is a database written in C++. One program serves an HTTP API, a PostgreSQL wire
+KarelaDB (KARELA DataBase) is a database written in C++. One program serves an HTTP API, a PostgreSQL wire
 port and a web console. It is **not** kdb+/q - the query language is ordinary
 SQL.
 
@@ -13,31 +13,34 @@ SQL.
 
 | What | Default | Override |
 |---|---|---|
-| HTTP API and web console | `http://localhost:9900` | `$KDB_URL` |
+| HTTP API and web console | `http://localhost:9900` | `$KARELADB_URL` (or the old `$KDB_URL`) |
 | PostgreSQL wire protocol | `localhost:8832` | - |
-| Token | - | `$KDB_TOKEN` |
+| Token | - | `$KARELADB_TOKEN` (or the old `$KDB_TOKEN`) |
 
-Auth goes on every request as `Authorization: Bearer $KDB_TOKEN`. That may be the
+Auth goes on every request as `Authorization: Bearer $KARELADB_TOKEN`. That may be the
 server's `--token` or a named API token (`kdbt_...`, made with `CREATE TOKEN name FOR USER u`)
 with that user's rights; `DROP TOKEN name` revokes one. HTTP 429 with `Retry-After`
 means a rate limit or too many statements at once: wait that many seconds.
 
-A server started with TLS (`--tls-cert`, or `KDB_TLS_CERT=auto` in Docker) wants
+A server started with TLS (`--tls-cert`, or `KARELADB_TLS_CERT=auto` in Docker) wants
 `https://` and PostgreSQL `sslmode=require` from other computers (`curl -k` or
 `--cacert <data>/_tls/kdb-cert.pem` for its self-signed certificate); plain
 `http://` from the same computer still works.
 
-Always check it is up first:
+Set the two names once per shell, so the commands below also work where only the
+old `KDB_URL` / `KDB_TOKEN` are set, then check it is up first:
 
 ```bash
-curl -s "${KDB_URL:-http://localhost:9900}/health"
+KARELADB_URL="${KARELADB_URL:-${KDB_URL:-http://localhost:9900}}"
+KARELADB_TOKEN="${KARELADB_TOKEN:-$KDB_TOKEN}"
+curl -s "$KARELADB_URL/health"
 ```
 
-If that fails, KDB is not running. Say so rather than guessing - do not start a
+If that fails, KarelaDB is not running. Say so rather than guessing - do not start a
 second server to work around it.
 
 A "This installation" section at the end of this file holds the real address,
-the paths and where the token file is when `kdb skill install` wrote them there
+the paths and where the token file is when `kareladb skill install` wrote them there
 (the token itself is in that file, never in this one: do not print or copy it).
 
 ## Running SQL
@@ -46,13 +49,13 @@ the paths and where the token file is when `kdb skill install` wrote them there
 
 ```bash
 # read
-curl -s -G "$KDB_URL/exec" \
+curl -s -G "$KARELADB_URL/exec" \
   --data-urlencode "query=SELECT * FROM companies LIMIT 5" \
-  -H "Authorization: Bearer $KDB_TOKEN"
+  -H "Authorization: Bearer $KARELADB_TOKEN"
 
 # write - the body is the SQL; many statements allowed, separated by ;
-curl -s -X POST "$KDB_URL/exec" \
-  -H "Authorization: Bearer $KDB_TOKEN" \
+curl -s -X POST "$KARELADB_URL/exec" \
+  -H "Authorization: Bearer $KARELADB_TOKEN" \
   -H "Content-Type: text/plain; charset=utf-8" \
   --data-binary "INSERT INTO companies VALUES ('CITY','City Bank','Banking',100);"
 ```
@@ -65,7 +68,7 @@ The answer is JSON:
 ```
 
 Rows are in `dataset` as arrays in `columns` order. On failure the JSON has
-`error`, plus `line` and `column` when KDB knows where in the SQL, and
+`error`, plus `line` and `column` when KarelaDB knows where in the SQL, and
 `sqlstate` (the PostgreSQL code: `23505` duplicate key, `23503` foreign key, or
 the code a trigger's `RAISE ... USING ERRCODE` chose). A `23505`/`23503` also
 has `table` and `constraint` (like `users_email_key`), as the PostgreSQL port
@@ -102,7 +105,7 @@ in one database and read it from the others instead of copying it.
 A table as it was: `SELECT ... FROM t AS OF TIMESTAMP '2026-09-25 14:30'`
 (or `AS OF LSN n`; the commit LSNs are in `changes('t')`). Undo a bad load with
 `INSERT OR REPLACE INTO t SELECT * FROM t AS OF TIMESTAMP '...'`. How far back
-depends on `KDB_KEEP_VERSIONS` (older file versions, 2) and the old log; a point
+depends on `KARELADB_KEEP_VERSIONS` (older file versions, 2) and the old log; a point
 that is gone, or before a TRUNCATE / emptied partition, is refused ("no longer
 kept"), never answered wrong. To try a risky change on real data first:
 `CREATE DATABASE test BRANCH OF live [AS OF ...]` (a full writable copy that
@@ -133,7 +136,7 @@ shares the data files, made in about a second; admin only), then `DROP DATABASE 
 | `GET /listen?channel=orders` | LISTEN as server-sent events (`EventSource`): one JSON event per `NOTIFY orders, '...'` or `pg_notify('orders', ...)`, sent when its transaction commits; `&pattern=price.*` = PSUBSCRIBE (events then carry `"pattern"`). On the pg port use `LISTEN orders` as in PostgreSQL; triggers can NOTIFY |
 | `POST /kv` | Redis-like key-value store: body `["INCR","hits"]` or a pipeline `[["SET","otp:1","123456","EX",120],["GET","otp:1"]]` -> `["OK","123456"]` (one reply per command; errors as `{"error":"..."}`). GET/SET (NX XX EX PX GET KEEPTTL), INCR/INCRBY/INCRBYFLOAT, MGET/MSET, EXPIRE/TTL/PERSIST, DEL, EXISTS, KEYS, SCAN, RENAME, FLUSHDB ... Keys live in memory and in table `_kv` (SELECT only). `?sync=off` answers before the disk sync (fastest). SQL: `kv_get(k)`, `kv_set(k, v[, ttl_s])`, `kv_incr(k[, n])`, `kv('MGET','a','b')`. Pub/sub: `PUBLISH ch msg` (sent at once, answers listener count; reaches /listen and pg LISTEN), `PUBSUB CHANNELS|NUMSUB|NUMPAT`; keyspace events with `CONFIG SET notify-keyspace-events Ex` (server admin) on `__keyevent@0__:expired` / `__keyspace@0__:<key>` (evictions send `__keyevent@0__:evicted`, class `e`). Memory cap: `["CONFIG","SET","maxmemory","64mb","maxmemory-policy","allkeys-lru"]`, `MEMORY USAGE k`, `kv_memory()`. Cache tables: `CREATE TABLE c (k TEXT PRIMARY KEY, v TEXT) WITH (max_bytes='64MB', evict='lru' \| 'volatile_ttl' \| ..., durability='none')` |
 | `CREATE TABLE ... WITH (ttl_column = expires_at)` | rows that expire one by one, like Redis keys: gone at once for every read and write, deleted within a second; `INSERT ... ON CONFLICT DO UPDATE` on an expired key starts over (an INCR with EXPIRE) |
-| `GET /api/disk` | what a database takes on disk: data, older file copies, trash, log. Space back: `PURGE VERSIONS KEEP 1` (older copies) and `PURGE TRASH` (this database; `PURGE TRASH ALL` = the whole server, dropped databases too); old trash also goes by itself every minute (`KDB_TRASH_KEEP_HOURS`, `KDB_TRASH_MAX_MB` caps its size, `KDB_KEEP_VERSIONS`). Console: Keep data page, **Save disk** |
+| `GET /api/disk` | what a database takes on disk: data, older file copies, trash, log. Space back: `PURGE VERSIONS KEEP 1` (older copies) and `PURGE TRASH` (this database; `PURGE TRASH ALL` = the whole server, dropped databases too); old trash also goes by itself every minute (`KARELADB_TRASH_KEEP_HOURS`, `KARELADB_TRASH_MAX_MB` caps its size, `KARELADB_KEEP_VERSIONS`). Console: Keep data page, **Save disk** |
 | `GET /` | the web console |
 | `GET /help` | the full help: one page per topic under `/help/`, with a search |
 | `GET /skill.md` | this file |
@@ -163,10 +166,10 @@ connection pools to fit.
   system's zone files (tzdata); `SAMPLE BY`, time
   text without an offset and materialized view buckets stay UTC. Over HTTP: the same SQL, or the header
   `X-KDB-Time-Zone`.
-- `/` gives a DOUBLE in KDB (`7 / 2` = `3.5`). For PostgreSQL's whole-number
+- `/` gives a DOUBLE in KarelaDB (`7 / 2` = `3.5`). For PostgreSQL's whole-number
   division (`7 / 2` = `3`) send `SET int_division = integer`, put
   `int_division=integer` in the connection string, or start the server with
-  `--pg-int-division on` (`KDB_PG_INT_DIVISION=on`). It works over HTTP too, for
+  `--pg-int-division on` (`KARELADB_PG_INT_DIVISION=on`). It works over HTTP too, for
   the rest of the request (`SET int_division = integer; SELECT ...`).
   CHECK, DEFAULT, computed columns, index expressions and materialized views
   always divide as DOUBLE, whatever the session's setting.
@@ -176,7 +179,7 @@ connection pools to fit.
   with ORDER BY and no frame is `RANGE UNBOUNDED PRECEDING`, window NULLs as in
   PostgreSQL, text ORDER BY / `<` by an en_US-like order, and on the PG port a
   plain TIMESTAMP is the session's wall clock. Off by default (held for the
-  owner); KDB's own answers never change while it is off.
+  owner); KarelaDB's own answers never change while it is off.
 - `JSON`/`JSONB` columns take `?`, `?|`, `?&`, `@>` / `<@` (nested objects too)
   and `jsonb_path_exists`; `CREATE INDEX ... USING GIN (doc)` indexes the keys and
   values for `@>`, `?` and `doc ->> 'k' = 'v'`. `doc - 'key'`, `doc #- '{a,0}'`,
@@ -234,7 +237,7 @@ CREATE TABLE trades (
 | Choice | Rule of thumb |
 |---|---|
 | `PARTITION BY DAY / MONTH / YEAR / NONE` | one file per bucket. Pick the bucket most queries ask for: `DAY` for a trade list read a day at a time, `MONTH` or `YEAR` for candles |
-| `SORT BY (symbol, time)` | rows of one symbol sit together inside the file, so `WHERE symbol = 'X'` reads one slice. KDB also skips whole partitions that do not hold the symbol |
+| `SORT BY (symbol, time)` | rows of one symbol sit together inside the file, so `WHERE symbol = 'X'` reads one slice. KarelaDB also skips whole partitions that do not hold the symbol |
 | `DEDUP KEY (...)` | a re-sent row replaces the old one with `INSERT OR REPLACE` (and in loads), so loads can be repeated safely. A plain `INSERT` of a key that is there fails unless the table has `WITH (dedup_insert = 'upsert')` (or `ALTER TABLE t SET (dedup_insert = 'upsert')`), which makes it replace, as QuestDB does. The key must hold the time column, or a stored minute of it: `minute TIMESTAMP GENERATED ALWAYS AS (date_trunc('minute', time)) STORED ... DEDUP KEY (symbol, minute)` makes 10:01:07 and 10:01:42 one row (the later wins) |
 | dedup skip | a trusted bulk load that knows its rows are new can skip the key lookups: `POST /write?dedup=skip`, `INSERT ... WITH (dedup = skip)`, or `SET dedup = skip` for a session (also its PostgreSQL `COPY`). A key that was stored already may then be there twice; `DEDUP TABLE t [FOR 'day']` repairs it |
 | `SYMBOL` vs `STRING` | `SYMBOL` for a repeated short text (ticker, broker, category): stored once, compared as a number |
@@ -351,7 +354,7 @@ CREATE TABLE news (...) TIMESERIES(time)
   `{"status":200,"headers":{...},"body":"..."}`; read it with `r ->> 'body'` and
   `json_value_long(r, '$.status')`. `headers` is a JSON object like
   `'{"Authorization":"Bearer ..."}'`. Off until the server lists the hosts in
-  `http_functions` (kdb.conf, `KDB_HTTP_FUNCTIONS` or the Settings page, e.g.
+  `http_functions` (kareladb.conf, `KARELADB_HTTP_FUNCTIONS` or the Settings page, e.g.
   `"10.0.0.5:8080, api.example.com"`); a refusal is 403 / `42501`. Needs role
   write; never cached; `http_timeout_ms` (10 s) per call, 16 MB answer, 3
   redirects to allowed hosts only; https certificates are checked. Help topic
@@ -367,7 +370,7 @@ CREATE TABLE news (...) TIMESERIES(time)
   off the hot path. A `CALL` whose procedure changes nothing (no
   INSERT/UPDATE/DELETE, FOR UPDATE, nextval, dynamic EXECUTE) locks nothing
   and runs like a SELECT; declare it `CREATE PROCEDURE p() READ ONLY AS
-  BEGIN ... END` to have KDB refuse a body that writes. CREATE/ALTER/DROP TABLE,
+  BEGIN ... END` to have KarelaDB refuse a body that writes. CREATE/ALTER/DROP TABLE,
   RENAME, CREATE/DROP INDEX, CREATE/ALTER/DROP TRIGGER, TRUNCATE, CREATE TABLE
   AS (the tables it reads) and materialized views (the view and its table)
   lock only their tables; views, procedures and functions lock no table. They
@@ -398,7 +401,7 @@ CREATE TABLE news (...) TIMESERIES(time)
   the transaction (`25P02` for other statements) and `ROLLBACK TO SAVEPOINT`
   makes it usable again; without a savepoint an error rolls it all back.
 - **SET ROLE name** / `RESET ROLE`: a session checks its SQL against another
-  KDB user's rights (an admin login dropping to the app user's rights).
+  KarelaDB user's rights (an admin login dropping to the app user's rights).
   Roles: `read < write < ddl < admin`; `ddl` changes the schema (a migration
   tool) but cannot manage users, settings, backups or the audit log; a view
   or routine it saves is checked against its own table rights.
@@ -408,7 +411,7 @@ CREATE TABLE news (...) TIMESERIES(time)
   long `CALL`, bulk load or checkpoint. Readers of the writer's own tables wait
   only for the statement running now, not the whole trigger or `CALL`
   (`--reader-yield`, on by default). With `--snapshot-reads on`
-  (`KDB_SNAPSHOT_READS=on`) they do not wait at all: they read a snapshot of
+  (`KARELADB_SNAPSHOT_READS=on`) they do not wait at all: they read a snapshot of
   the committed rows. An indexed table is read that way too while a writer is
   busy on it, at any size, and plain or expression indexes are still used
   (since 2026-10-02); only a table with a full-text or JSON index over
@@ -424,136 +427,136 @@ CREATE TABLE news (...) TIMESERIES(time)
 
 ## Server options
 
-`kdb serve` reads its settings when it starts, from three places. The first
+`kareladb serve` reads its settings when it starts, from three places. The first
 one that has a value wins:
 
 | Place | Example | To change it |
 |---|---|---|
 | a flag | `--http-threads 32` | restart the program; in Docker, recreate the container |
-| `kdb.conf` (JSON next to kdb; `/data/kdb.conf` in Docker) | `{"http_threads": 32}` | edit the file, then `POST /api/restart` (admin) |
-| a `KDB_*` environment variable | `KDB_HTTP_THREADS=32` | restart the program; in Docker, recreate the container |
+| `kareladb.conf` (JSON next to kareladb; `/data/kareladb.conf` in Docker) | `{"http_threads": 32}` | edit the file, then `POST /api/restart` (admin) |
+| a `KARELADB_*` environment variable (or its old name `KDB_*`) | `KARELADB_HTTP_THREADS=32` | restart the program; in Docker, recreate the container |
 
 Four settings apply at once, with no restart, when saved on the console's
 Settings page (`POST /api/settings`): `cache_mb`, `wal_archive_mb`,
 `http_functions` and `http_timeout_ms`. `GET /api/settings` (admin) shows the
 value in use and where it came from. Only the options below that have a
-`kdb.conf` key can be changed without touching the command line. Ask the
+`kareladb.conf` key can be changed without touching the command line. Ask the
 server's owner before changing any of them: they affect every user.
 
 The most useful ones:
 
-| Option (flag / env / kdb.conf) | Default | What it does |
+| Option (flag / env / kareladb.conf) | Default | What it does |
 |---|---|---|
-| `--memory` MB (Docker: `KDB_MEMORY`) | 512 (Docker image 256); without the flag at most 40% of the memory limit | table data kept loaded, for all databases together. Keep it near the data size and under half of `--memory-limit` |
-| `--memory-limit` / `KDB_MEMORY_LIMIT` | 85% of the container's memory limit, else of the machine's | one cap for everything. At 80% memory is given back; at 95% new statements wait 2 s, then get 503 / `53200` "memory full" (safe to retry). A reserve of 8 places lets quick reads like `SELECT 1` through even then |
-| `--cache-mb` / `KDB_CACHE_MB` / `cache_mb` | 256, at most a tenth of the memory limit | the result cache of all databases; one result may use a quarter of it |
+| `--memory` MB (Docker: `KARELADB_MEMORY`) | 512 (Docker image 256); without the flag at most 40% of the memory limit | table data kept loaded, for all databases together. Keep it near the data size and under half of `--memory-limit` |
+| `--memory-limit` / `KARELADB_MEMORY_LIMIT` | 85% of the container's memory limit, else of the machine's | one cap for everything. At 80% memory is given back; at 95% new statements wait 2 s, then get 503 / `53200` "memory full" (safe to retry). A reserve of 8 places lets quick reads like `SELECT 1` through even then |
+| `--cache-mb` / `KARELADB_CACHE_MB` / `cache_mb` | 256, at most a tenth of the memory limit | the result cache of all databases; one result may use a quarter of it |
 | `--threads` | half the CPUs the process may use (follows `docker update --cpus`) | threads inside one big query or load |
-| `--http-threads` / `KDB_HTTP_THREADS` / `http_threads` | the CPUs, at least 8, at most 64 | HTTP requests that run at once; a slow query holds one until it ends |
-| `--max-connections` / `KDB_MAX_CONNECTIONS` / `max_connections` | 100 | PostgreSQL logins at once, all databases (0 = no limit) |
+| `--http-threads` / `KARELADB_HTTP_THREADS` / `http_threads` | the CPUs, at least 8, at most 64 | HTTP requests that run at once; a slow query holds one until it ends |
+| `--max-connections` / `KARELADB_MAX_CONNECTIONS` / `max_connections` | 100 | PostgreSQL logins at once, all databases (0 = no limit) |
 | `--statement-timeout` | 60s | longest statement: 408 / `57014` after it. A session: `SET statement_timeout = '5s'` |
 | `--max-result-memory`, `--max-groups` | 1GB, 5000000 | what one query may hold: 413 / `54000` past it |
 | `--max-queries-per-user` | 32 | statements one user runs at once (the token is not counted) |
 | `--sync-commits always\|batch` | always | `batch`: a write is confirmed at once and on disk within 10 ms; a crash may lose the last few ms. A session: `SET synchronous_commit = off` |
-| `--timezone` / `KDB_TIMEZONE` / `timezone` | UTC | clock of `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, timers and backups. A session: `SET TIME ZONE` |
-| `--slow-query-ms` / `KDB_SLOW_QUERY_MS` / `slow_query_ms` | 1000 | statements this slow go to `GET /api/slow-queries` (0 = off) |
+| `--timezone` / `KARELADB_TIMEZONE` / `timezone` | UTC | clock of `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, timers and backups. A session: `SET TIME ZONE` |
+| `--slow-query-ms` / `KARELADB_SLOW_QUERY_MS` / `slow_query_ms` | 1000 | statements this slow go to `GET /api/slow-queries` (0 = off) |
 
 Readers and writers:
 
 | Option | Default | What it does |
 |---|---|---|
-| `--lock-timeout` / `KDB_LOCK_TIMEOUT` / `lock_timeout_ms` | 5s | a writer waits this long for a busy table, then 503 / `55P03` |
-| `--idle-in-transaction-timeout` / `KDB_IDLE_IN_TRANSACTION_TIMEOUT` / `idle_in_transaction_timeout_ms` | 30s | an open `BEGIN` that sends nothing this long is rolled back |
-| `--lanes` / `KDB_LANES` (+ `--heavy-ms`, `--heavy-slots`, `--heavy-queue`) | on, 100 ms of CPU, half the CPUs, half the HTTP threads (min 4) | priority lanes: a read whose shape used 100 ms+ of CPU three times in a row waits for a heavy slot, so charts stay fast. The wait is limited by the statement timeout, which then starts again for the run. Only an HTTP request sent with priority low is refused when the HTTP line is full: 503 + `Retry-After: 1` "server is busy" (safe to retry); PostgreSQL clients wait instead. Never inside BEGIN. Also `--read-slots` / `KDB_READ_SLOTS` (default auto = the CPUs, at least 2): short reads take turns, at most that many at once, each holding its slot at most 10 ms; keeps a `docker --cpus 2` container from losing throughput as clients grow (`off` = old behaviour). `X-KDB-Priority: low` (or `SET kdb.priority = low`, `ALTER USER x SET kdb.priority = low`) for reports; `high` (admin, or a user set high) never waits |
-| `--reader-yield` / `KDB_READER_YIELD` | on | a reader waits only for the writer's current statement, not the whole `CALL` or trigger |
-| `--snapshot-reads` / `KDB_SNAPSHOT_READS` | off | a reader of a table being written reads a snapshot and does not wait |
-| `--snapshot-index-rows` / `KDB_SNAPSHOT_INDEX_ROWS` | 1000000 | the biggest table with a full-text/JSON index (or an index not built yet) a snapshot read may scan; a bigger one waits (0 = indexed tables never get snapshots) |
-| `--per-table-reads` / `KDB_PER_TABLE_READS` | on | a reader waits only for writers of its own tables, not for checkpoints |
-| `--read-only-calls` / `KDB_READ_ONLY_CALLS` | on | a `CALL` that changes nothing runs like a `SELECT` (no locks) |
-| `--scoped-ddl` / `KDB_SCOPED_DDL` | on | `CREATE` / `ALTER` / `DROP` lock only their own tables |
-| `--ddl-beside-writers` / `KDB_DDL_BESIDE_WRITERS` | on | `CREATE TABLE`, `ALTER TABLE`, `RENAME`, `CREATE` / `DROP INDEX` run beside a long writer of other tables |
-| `--skip-locked-beside` / `KDB_SKIP_LOCKED_BESIDE` | off | `FOR UPDATE SKIP LOCKED` inside `BEGIN` also returns free rows of a table another open transaction holds |
-| `--log-lock-waits` / `KDB_LOG_LOCK_WAITS` | off | a statement waiting for a table lock longer than `--deadlock-timeout` writes one log line naming who holds it (`SET log_lock_waits = on` per session) |
-| `--deadlock-timeout` / `KDB_DEADLOCK_TIMEOUT` | 1s | when `--log-lock-waits` writes its line; deadlocks are found at once anyway |
-| `--warm-indexes` / `KDB_WARM_INDEXES` | on | indexes are built in the background right after a database opens |
-| `--trigger-retries` / `KDB_TRIGGER_RETRIES` | 3 | tries of a failed DEFERRED trigger job before its queue stops |
-| `--max-trigger-jobs` / `KDB_MAX_TRIGGER_JOBS` | 10000 | waiting deferred jobs per database; past it writes get 503 |
-| `--alert-webhook` / `KDB_ALERT_WEBHOOK` / `alert_webhook` | none | failed deferred jobs are POSTed as JSON to this `http://` address |
-| `--timer-workers` / `KDB_TIMER_WORKERS` / `timer_workers` | 3 | timers that may run at the same time (1 to 64) |
-| `--tcp-keepalives-idle`, `-interval`, `-count` / `KDB_TCP_KEEPALIVES_*` / `tcp_keepalives_*` | 0 (system) | TCP keepalive timings of every HTTP and pg connection (keepalive is always on) |
+| `--lock-timeout` / `KARELADB_LOCK_TIMEOUT` / `lock_timeout_ms` | 5s | a writer waits this long for a busy table, then 503 / `55P03` |
+| `--idle-in-transaction-timeout` / `KARELADB_IDLE_IN_TRANSACTION_TIMEOUT` / `idle_in_transaction_timeout_ms` | 30s | an open `BEGIN` that sends nothing this long is rolled back |
+| `--lanes` / `KARELADB_LANES` (+ `--heavy-ms`, `--heavy-slots`, `--heavy-queue`) | on, 100 ms of CPU, half the CPUs, half the HTTP threads (min 4) | priority lanes: a read whose shape used 100 ms+ of CPU three times in a row waits for a heavy slot, so charts stay fast. The wait is limited by the statement timeout, which then starts again for the run. Only an HTTP request sent with priority low is refused when the HTTP line is full: 503 + `Retry-After: 1` "server is busy" (safe to retry); PostgreSQL clients wait instead. Never inside BEGIN. Also `--read-slots` / `KARELADB_READ_SLOTS` (default auto = the CPUs, at least 2): short reads take turns, at most that many at once, each holding its slot at most 10 ms; keeps a `docker --cpus 2` container from losing throughput as clients grow (`off` = old behaviour). `X-KDB-Priority: low` (or `SET kdb.priority = low`, `ALTER USER x SET kdb.priority = low`) for reports; `high` (admin, or a user set high) never waits |
+| `--reader-yield` / `KARELADB_READER_YIELD` | on | a reader waits only for the writer's current statement, not the whole `CALL` or trigger |
+| `--snapshot-reads` / `KARELADB_SNAPSHOT_READS` | off | a reader of a table being written reads a snapshot and does not wait |
+| `--snapshot-index-rows` / `KARELADB_SNAPSHOT_INDEX_ROWS` | 1000000 | the biggest table with a full-text/JSON index (or an index not built yet) a snapshot read may scan; a bigger one waits (0 = indexed tables never get snapshots) |
+| `--per-table-reads` / `KARELADB_PER_TABLE_READS` | on | a reader waits only for writers of its own tables, not for checkpoints |
+| `--read-only-calls` / `KARELADB_READ_ONLY_CALLS` | on | a `CALL` that changes nothing runs like a `SELECT` (no locks) |
+| `--scoped-ddl` / `KARELADB_SCOPED_DDL` | on | `CREATE` / `ALTER` / `DROP` lock only their own tables |
+| `--ddl-beside-writers` / `KARELADB_DDL_BESIDE_WRITERS` | on | `CREATE TABLE`, `ALTER TABLE`, `RENAME`, `CREATE` / `DROP INDEX` run beside a long writer of other tables |
+| `--skip-locked-beside` / `KARELADB_SKIP_LOCKED_BESIDE` | off | `FOR UPDATE SKIP LOCKED` inside `BEGIN` also returns free rows of a table another open transaction holds |
+| `--log-lock-waits` / `KARELADB_LOG_LOCK_WAITS` | off | a statement waiting for a table lock longer than `--deadlock-timeout` writes one log line naming who holds it (`SET log_lock_waits = on` per session) |
+| `--deadlock-timeout` / `KARELADB_DEADLOCK_TIMEOUT` | 1s | when `--log-lock-waits` writes its line; deadlocks are found at once anyway |
+| `--warm-indexes` / `KARELADB_WARM_INDEXES` | on | indexes are built in the background right after a database opens |
+| `--trigger-retries` / `KARELADB_TRIGGER_RETRIES` | 3 | tries of a failed DEFERRED trigger job before its queue stops |
+| `--max-trigger-jobs` / `KARELADB_MAX_TRIGGER_JOBS` | 10000 | waiting deferred jobs per database; past it writes get 503 |
+| `--alert-webhook` / `KARELADB_ALERT_WEBHOOK` / `alert_webhook` | none | failed deferred jobs are POSTed as JSON to this `http://` address |
+| `--timer-workers` / `KARELADB_TIMER_WORKERS` / `timer_workers` | 3 | timers that may run at the same time (1 to 64) |
+| `--tcp-keepalives-idle`, `-interval`, `-count` / `KARELADB_TCP_KEEPALIVES_*` / `tcp_keepalives_*` | 0 (system) | TCP keepalive timings of every HTTP and pg connection (keepalive is always on) |
 
 Security and the PostgreSQL port:
 
 | Option | Default | What it does |
 |---|---|---|
 | `--bind`, `--port`, `--pg-port` | 127.0.0.1, 9900, 8832 | where it listens; `--pg-port 0` turns the PostgreSQL port off. Another address than 127.x needs a token or users |
-| `--token`, `--token-name` / `KDB_TOKEN_NAME` | none, `token` | the shared admin secret, and the name the audit log gives it. `kdb serve` reads no `KDB_TOKEN`: the Docker image passes it as `--token` |
-| `--tls-cert`, `--tls-key` / `KDB_TLS_CERT`, `KDB_TLS_KEY` / `tls_cert`, `tls_key` | off | TLS on both ports; `auto` makes a self-signed pair |
-| `--tls-required` / `KDB_TLS_REQUIRED` | on | with TLS, plain connections are refused except from 127.x |
-| `--rate-limit-ip`, `--rate-limit-user` / `KDB_RATE_LIMIT_IP`, `KDB_RATE_LIMIT_USER` / `rate_limit_ip`, `rate_limit_user` | 0 (off) | requests per second per address / per user: 429 with `Retry-After` |
+| `--token`, `--token-name` / `KARELADB_TOKEN_NAME` | none, `token` | the shared admin secret, and the name the audit log gives it. `kareladb serve` reads no `KARELADB_TOKEN`: the Docker image passes it as `--token` |
+| `--tls-cert`, `--tls-key` / `KARELADB_TLS_CERT`, `KARELADB_TLS_KEY` / `tls_cert`, `tls_key` | off | TLS on both ports; `auto` makes a self-signed pair |
+| `--tls-required` / `KARELADB_TLS_REQUIRED` | on | with TLS, plain connections are refused except from 127.x |
+| `--rate-limit-ip`, `--rate-limit-user` / `KARELADB_RATE_LIMIT_IP`, `KARELADB_RATE_LIMIT_USER` / `rate_limit_ip`, `rate_limit_user` | 0 (off) | requests per second per address / per user: 429 with `Retry-After` |
 | `--safe-updates`, `--read-only` | off | refuse `UPDATE` / `DELETE` without `WHERE`; a whole server that only reads |
 | `--audit on\|off`, `--audit-keep-days` | on, 0 (forever) | the security log in `_system` (`SHOW AUDIT`) |
-| `http_functions`, `http_timeout_ms` / `KDB_HTTP_FUNCTIONS`, `KDB_HTTP_TIMEOUT_MS` | off, 10000 | the hosts `http_get()` / `http_post()` may call (no flag) |
+| `http_functions`, `http_timeout_ms` / `KARELADB_HTTP_FUNCTIONS`, `KARELADB_HTTP_TIMEOUT_MS` | off, 10000 | the hosts `http_get()` / `http_post()` may call (no flag) |
 | `--pg-timestamptz` | off | send `TIMESTAMP` as `timestamptz` on the PostgreSQL port |
-| `--pg-int-division` / `KDB_PG_INT_DIVISION` | off | on the PostgreSQL port `7 / 2` is `3`, as in PostgreSQL. A session: `SET int_division = integer` |
-| `--pg-compat` / `KDB_PG_COMPAT` | off | PostgreSQL 14's answers (exact decimal literals and `::numeric`, `RANGE` window frames, PG's window NULL order, en_US text order, plain `TIMESTAMP` as the session's wall clock on the PG port). Per database: `ALTER DATABASE x SET pg_compat = on`; a session: `SET kdb.pg_compat = on`. Held for the owner: off |
+| `--pg-int-division` / `KARELADB_PG_INT_DIVISION` | off | on the PostgreSQL port `7 / 2` is `3`, as in PostgreSQL. A session: `SET int_division = integer` |
+| `--pg-compat` / `KARELADB_PG_COMPAT` | off | PostgreSQL 14's answers (exact decimal literals and `::numeric`, `RANGE` window frames, PG's window NULL order, en_US text order, plain `TIMESTAMP` as the session's wall clock on the PG port). Per database: `ALTER DATABASE x SET pg_compat = on`; a session: `SET kdb.pg_compat = on`. Held for the owner: off |
 
 Data, disk and backups:
 
 | Option | Default | What it does |
 |---|---|---|
-| `--data-dir` / `KDB_DATA_DIR` / `data_dir` | `data` next to kdb | the folder with one folder per database. Here the flag wins, then kdb.conf, then the variable |
-| `--config`, `--db` | `kdb.conf` next to kdb, `default` | the settings file; the database a request without `db=` uses |
-| `--backups` / `KDB_BACKUP_DIR` / `backup_dir` | `_backups` in the data folder | backup folder (`off` = none) |
-| `--backup-schedule` / `KDB_BACKUP_SCHEDULE` / `backup_schedule` | off | backups by themselves, like `daily 02:00` |
-| `--keep-daily`, `--keep-weekly` / `KDB_BACKUP_KEEP_DAILY`, `_WEEKLY` / `backup_keep_daily`, `_weekly` | 7, 4 | backups kept |
-| `--backup-command` / `KDB_BACKUP_COMMAND` / `backup_command`; `--backup-copy`; `--backup-warn-hours` | none; none; 26 | copy each backup off the server; a checked second copy; warn when the last good backup is older |
-| `KDB_WAL_ARCHIVE_MB` / `wal_archive_mb` | 1024 | old log kept per database for repairs and point-in-time restore |
-| `KDB_KEEP_VERSIONS` / `keep_versions`; `KDB_TRASH_KEEP_HOURS` / `trash_keep_hours`; `--trash-max-mb` / `KDB_TRASH_MAX_MB` / `trash_max_mb` | 2; 1; a quarter of the data (at least 256) | older file versions, and how long / how much the trash keeps |
+| `--data-dir` / `KARELADB_DATA_DIR` / `data_dir` | `data` next to kareladb | the folder with one folder per database. Here the flag wins, then kareladb.conf, then the variable |
+| `--config`, `--db` | `kareladb.conf` next to kareladb, `default` | the settings file; the database a request without `db=` uses |
+| `--backups` / `KARELADB_BACKUP_DIR` / `backup_dir` | `_backups` in the data folder | backup folder (`off` = none) |
+| `--backup-schedule` / `KARELADB_BACKUP_SCHEDULE` / `backup_schedule` | off | backups by themselves, like `daily 02:00` |
+| `--keep-daily`, `--keep-weekly` / `KARELADB_BACKUP_KEEP_DAILY`, `_WEEKLY` / `backup_keep_daily`, `_weekly` | 7, 4 | backups kept |
+| `--backup-command` / `KARELADB_BACKUP_COMMAND` / `backup_command`; `--backup-copy`; `--backup-warn-hours` | none; none; 26 | copy each backup off the server; a checked second copy; warn when the last good backup is older |
+| `KARELADB_WAL_ARCHIVE_MB` / `wal_archive_mb` | 1024 | old log kept per database for repairs and point-in-time restore |
+| `KARELADB_KEEP_VERSIONS` / `keep_versions`; `KARELADB_TRASH_KEEP_HOURS` / `trash_keep_hours`; `--trash-max-mb` / `KARELADB_TRASH_MAX_MB` / `trash_max_mb` | 2; 1; a quarter of the data (at least 256) | older file versions, and how long / how much the trash keeps |
 | `--trash-days` | 7 | days `UNDROP TABLE` can bring a dropped table back |
-| `--drain-timeout` / `KDB_DRAIN_TIMEOUT` | 30s (Docker image 5s) | on a stop, running requests may finish this long; new ones get 503 |
+| `--drain-timeout` / `KARELADB_DRAIN_TIMEOUT` | 30s (Docker image 5s) | on a stop, running requests may finish this long; new ones get 503 |
 | `--activity-log-size` | 5000 | events in the console's activity panel (0 = off) |
-| `web_dir`, `help_dir`, `skill_dir` / `KDB_WEB_DIR`, `KDB_HELP_DIR`, `KDB_SKILL_DIR` | next to kdb | the console, help and skill folders |
+| `web_dir`, `help_dir`, `skill_dir` / `KARELADB_WEB_DIR`, `KARELADB_HELP_DIR`, `KARELADB_SKILL_DIR` | next to kareladb | the console, help and skill folders |
 
-Docker image only (read by its start script): `KDB_TOKEN` (required, becomes
-`--token`), `KDB_MEMORY` (256, becomes `--memory`), `KDB_CONFIG`
-(`/data/kdb.conf`), `KDB_DATA_DIR` (`/data`), `KDB_CORE_DUMPS` (`on`: a crash
-leaves a core dump in `/data/_logs/cores`; `off` = none) and `KDB_CORE_KEEP`
+Docker image only (read by its start script): `KARELADB_TOKEN` (required, becomes
+`--token`), `KARELADB_MEMORY` (256, becomes `--memory`), `KARELADB_CONFIG`
+(`/data/kareladb.conf`), `KARELADB_DATA_DIR` (`/data`), `KARELADB_CORE_DUMPS` (`on`: a crash
+leaves a core dump in `/data/_logs/cores`; `off` = none) and `KARELADB_CORE_KEEP`
 (2 dumps kept). `GLIBC_TUNABLES=glibc.malloc.arena_max=2` keeps less memory
-per thread. Every `KDB_*` variable above works with `-e` too, and words after
-the image name are added to `kdb serve`.
+per thread. Every `KARELADB_*` variable above works with `-e` too, and words after
+the image name are added to `kareladb serve`.
 
-Rarely needed: `KDB_LAZY_OPEN=off` reads every table file at open;
-`KDB_SELF_TUNING_SECONDS` (10) is how often CPU and memory limits are read
-again (0 = only at start); `KDB_TTL_CHECK_MS` (60000) is how often `TTL` drops
-old partitions; `KDB_LEVEL_FROM_HEAP=1` judges memory by the heap alone. The
-`KDB_NO_*` / `KDB_WINDOW_NO_*` switches, `KDB_CACHE_VERIFY` and
-`KDB_INDEX_MAX_VISITS` turn engine features off to compare timings: never set
+Rarely needed: `KARELADB_LAZY_OPEN=off` reads every table file at open;
+`KARELADB_SELF_TUNING_SECONDS` (10) is how often CPU and memory limits are read
+again (0 = only at start); `KARELADB_TTL_CHECK_MS` (60000) is how often `TTL` drops
+old partitions; `KARELADB_LEVEL_FROM_HEAP=1` judges memory by the heap alone. The
+`KARELADB_NO_*` / `KARELADB_WINDOW_NO_*` switches, `KARELADB_CACHE_VERIFY` and
+`KARELADB_INDEX_MAX_VISITS` turn engine features off to compare timings: never set
 them on a server people use. Help topic `cli-serve` lists every option.
 
 ## Reading the full docs
 
 The help is a set of short topics. Two ways to read them:
 
-- **In a KDB checkout:** `docs/help/topics/*.md`, plain markdown. Start with
+- **In a KarelaDB checkout:** `docs/help/topics/*.md`, plain markdown. Start with
   `http-overview.md`, `sql-basics.md`, `select.md`, `create-table.md`,
   `column-types.md`, `sample-by.md`, `postgres-protocol.md`. The function
   reference is in the `functions-*.md` files. For a problem on a running
   server (slow, busy tables, memory, disk, timers, backups, restore) start
   with `troubleshooting.md` (`/help/troubleshooting.html`).
 - **From any machine that can reach the server:** `GET /help`.
-- **On the web, with no server:** https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/llms.txt
+- **On the web, with no server:** https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/llms.txt
   lists every topic with a link to its markdown (the same topics, with each
-  example's real result). Pages for people: https://amritshr.github.io/kdb-knowledge/
+  example's real result). Pages for people: https://amritshr.github.io/kareladb-knowledge/
 - **Survey, CAD and 3D data** (points, drawings, layers, blocks, meshes, a canvas that
   loads in parts): `geometry-and-cad.md` (`/help/geometry-and-cad.html`). The checkout also
-  has a skill for it, `.claude/skills/kdb-geometry/SKILL.md`.
+  has a skill for it, `.claude/skills/kareladb-geometry/SKILL.md`.
 
 Every example in those topics is executed for real when the help is built, so
 the examples are known to work.
 
 ## Cautions
 
-- Do not start a second KDB server on another port to test something. The
+- Do not start a second KarelaDB server on another port to test something. The
   server already running is the one that matters.
 - In Docker the data lives in whatever is mounted at `/data` - a named volume
   or a folder on the host (`docker inspect <container>` shows which). Never
@@ -564,3 +567,86 @@ the examples are known to work.
   store `round(x, 6)` and round both sides of filter comparisons, or rows
   differ in the last digit. Money that must add up exactly belongs in `DECIMAL(s)`
   (18 digits) or `NUMERIC(p, s)` (up to 38).
+
+---
+
+# KarelaDB for survey, CAD and 3D data
+
+KarelaDB has **no geometry type and no spatial index**. Do not look for `ST_*` functions or
+`GEOMETRY` columns: they do not exist. Everything below uses plain columns, rows,
+triggers and SQL maths, and it is fast enough up to a few hundred thousand entities per
+drawing. The full topic with runnable examples is `/help/geometry-and-cad.html` on the server
+(`GET $KARELADB_URL/help/geometry-and-cad.html`). Connecting and running SQL is in the `kareladb` skill.
+
+## The layout to use
+
+| Thing | Table | Key columns |
+|---|---|---|
+| project | `projects` | `id`, `crs` (the one coordinate system of every number in it), `units` |
+| survey point / shot | `points` | `(project, id)`, `x` easting, `y` northing, `z`, `code` (CP, TP, SP...), `observed` |
+| raw instrument reading | `observations` | `station`, `bearing`, `vertical`, `slope`, `hi`, `ht` - coordinates are computed from these |
+| drawing (also a block) | `drawings` | `id`, `project`, `name`, `props JSON` |
+| layer | `layers` | `(drawing, name)`, `color`, `visible`, `locked` |
+| entity | `entities` | `id UUID`, `drawing`, `layer`, `kind`, typed columns, `props JSON`, `min_x min_y max_x max_y`, `updated` |
+| vertex | `vertices` | `(entity, seq)`, `x`, `y`, `z`, `bulge`; `REFERENCES entities(id) ON DELETE CASCADE` |
+| mesh | `mesh_vertices`, `mesh_faces` | `(mesh, id)`; a face is three vertex ids |
+| camera | `saved_views` | `(drawing, owner, name)`, `cx`, `cy`, `scale`, `rotation` - written rarely |
+
+Rules that keep it right:
+
+1. **One `crs` per project.** Never mix a local grid and a national grid in one table.
+2. **`kind` says which columns mean something.** `line`/`polyline`: vertices. `circle`/`arc`:
+   `cx cy radius` (+ `start_angle end_angle` in degrees, counter-clockwise from +x).
+   `text`: `cx cy rotation` and `props.text`, `props.height`. `insert`: `block`, `cx cy rotation scale`.
+   Groups: children carry the group's id in `parent`. These are DXF's conventions; keep them.
+3. **The bounding box is always filled.** Vertex tables get `AFTER INSERT` and `AFTER UPDATE`
+   triggers that recompute `min_x..max_y` of the entity from `min()`/`max()` over its vertices.
+   Circles, text and inserts write their box in the same INSERT.
+4. **Index `(drawing, min_x, min_y)`** on `entities`. The viewport query is
+   `drawing = ? AND max_x >= x0 AND min_x <= x1 AND max_y >= y0 AND min_y <= y1`,
+   joined to `layers` for `visible`.
+5. **Vertices as rows, not JSON.** A `DOUBLE[]` is fine only for a list that is never edited
+   in place and always read whole (a simplified copy for far zooms, for example).
+6. **`props JSON` for the long tail** (colour, line weight, text). A field you filter on often
+   gets its own column: `json_value()` cannot use an index.
+
+## What stays in the client
+
+Pan, zoom, the view matrix, hover and window selection never touch the database. The client
+keeps a working set in memory, redraws from it every frame, and asks KarelaDB again only when the
+view leaves the loaded region (ask with a margin of about one screen). Save the camera as a
+row in `saved_views` when the user stops moving or closes the drawing, not per frame.
+
+## Maths that is already in SQL
+
+| Need | Expression |
+|---|---|
+| distance | `sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1))` |
+| surveyor's bearing (clockwise from north) | `degrees(atan2(x2-x1, y2-y1))`, add 360 if negative |
+| coordinate from a shot | `x = sx + slope*sin(radians(vertical))*sin(radians(bearing))`, `y = ... cos(radians(bearing))`, `z = sz + hi + slope*cos(radians(vertical)) - ht` |
+| arc start point / length | `cx + r*cos(radians(a0))`, `cy + r*sin(radians(a0))`; `r*radians(a1-a0)` |
+| polyline length | `lag(x)`, `lag(y)` over `(PARTITION BY entity ORDER BY seq)`, sum the segment lengths; add the closing segment with `first_value()` when `closed` |
+| polygon area | shoelace: `abs(sum(px*y - x*py) + closing term) / 2` with the same windows |
+| mesh volume | `abs(sum(signed tetrahedron))/6` over the faces of a closed mesh |
+| nearest point | narrow by a box on `x`, `y`, then `ORDER BY distance LIMIT 1` |
+
+Use `sum(CASE WHEN ... END)`, never `max()`, for the closing term: it can be negative.
+
+## History and several users
+
+`SELECT ... FROM entities AS OF TIMESTAMP <t>` reads the drawing as it was; `INSERT OR
+REPLACE ... SELECT * FROM entities AS OF ...` undoes an edit for everyone. `changes('entities')`
+and `GET /api/changes?table=entities` give every committed change in order, so a second
+viewer redraws what others change without polling. `CREATE DATABASE plan_b BRANCH OF <db>`
+is a writable copy for a design alternative.
+
+## Do not
+
+- Do not store the camera, selection or matrix per frame.
+- Do not put a whole drawing in one JSON document: it cannot be loaded in part or edited row by row.
+- Do not invent `GEOMETRY`, `POINT`, `ST_Intersects`, `<->` or GiST indexes; say they are not in KarelaDB and use the box columns.
+- Do not convert between datums in SQL; that is not built in.
+
+## Full documentation
+
+The full documentation (every topic, with examples and their real results) is indexed at https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/llms.txt - read that index, then fetch only the topics the task needs.

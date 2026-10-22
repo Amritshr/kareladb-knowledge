@@ -68,10 +68,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "endpoint 'last_close' created: GET /v/last_close",
-      "timings": {"parse_us": 30, "execute_us": 23089}
+      "timings": {"parse_us": 21, "execute_us": 19841}
     }
   ],
-  "timings": {"parse_us": 30, "execute_us": 23089}
+  "timings": {"parse_us": 21, "execute_us": 19841}
 }
 ```
 
@@ -98,7 +98,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 11, "execute_us": 285}
+      "timings": {"parse_us": 11, "execute_us": 212}
     }
   ],
   "columns": [
@@ -111,7 +111,7 @@ HTTP 200 (application/json)
     ["2026-09-08T00:00:00.000Z", 497.5]
   ],
   "count": 3,
-  "timings": {"parse_us": 11, "execute_us": 285}
+  "timings": {"parse_us": 11, "execute_us": 212}
 }
 ```
 
@@ -136,7 +136,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 9, "execute_us": 65}
+      "timings": {"parse_us": 23, "execute_us": 90}
     }
   ],
   "columns": [
@@ -147,7 +147,7 @@ HTTP 200 (application/json)
     ["2026-09-10T00:00:00.000Z", 504.9]
   ],
   "count": 1,
-  "timings": {"parse_us": 9, "execute_us": 65}
+  "timings": {"parse_us": 23, "execute_us": 90}
 }
 ```
 
@@ -201,10 +201,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "endpoint 'closes' created: GET /v/closes",
-      "timings": {"parse_us": 16, "execute_us": 23115}
+      "timings": {"parse_us": 27, "execute_us": 17075}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 23115}
+  "timings": {"parse_us": 27, "execute_us": 17075}
 }
 ```
 
@@ -232,4 +232,4 @@ The URL answers `404` from then on.
 
 ## How it is stored
 
-An endpoint is kept with the database's functions and procedures, so a backup, a restore and a restart keep it. A database with an endpoint cannot be opened by a KDB built before 2026-10-03; it says it needs a newer KDB and changes nothing.
+An endpoint is kept with the database's functions and procedures, so a backup, a restore and a restart keep it. A database with an endpoint cannot be opened by a build from before 2026-10-03; it says it "needs a newer KDB" (its name then) and changes nothing.

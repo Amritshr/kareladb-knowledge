@@ -1,12 +1,12 @@
 # Survey, CAD and 3D data: points, drawings, blocks, meshes
 
-> How to keep survey points, 2D drawings (lines, arcs, polylines, blocks, layers) and 3D meshes in KDB, load only the part a canvas can see, and do distance, area and volume maths in SQL - with the rule that the camera stays in the client.
+> How to keep survey points, 2D drawings (lines, arcs, polylines, blocks, layers) and 3D meshes in KarelaDB, load only the part a canvas can see, and do distance, area and volume maths in SQL - with the rule that the camera stays in the client.
 
 - Category: Geometry & CAD
 - Keywords: survey, land survey, survey data, control point, control line, traverse, total station, northing, easting, elevation, coordinates, coordinate system, projection, datum, CAD, drawing, DXF, DWG, entity, line, arc, circle, polyline, vertex, vertices, bulge, layer, block, block insert, group, 2D, 3D, mesh, triangle, TIN, terrain, point cloud, solid, bounding box, bbox, viewport, partial load, level of detail, LOD, pan, zoom, camera, canvas, WebGL, hit test, selection, area, shoelace, perimeter, bearing, distance, volume, cross section, geometry, spatial, GIS, PostGIS, R-tree
 - See also: [Database models: relational, hierarchical, network, NoSQL, object](data-models.md), [Column types](column-types.md), [Constraints](constraints.md), [Triggers](triggers.md), [Views](views.md), [Math functions](functions-math.md), [Window and series functions](functions-window.md), [Time travel and branches: SELECT ... AS OF, CREATE DATABASE ... BRANCH OF](as-of-and-branches.md), [Change stream and live subscriptions: changes('t'), GET /api/changes, GET /api/subscribe](change-stream.md), [JSON functions](functions-json.md), [Indexes](indexes.md)
 
-KDB has no geometry type and no spatial index, but it has what a drawing really is made of: numbers, ordered lists, keys, rules and history. This topic shows one layout that works for survey work, 2D CAD and 3D objects, and what to leave to the program that draws.
+KarelaDB has no geometry type and no spatial index, but it has what a drawing really is made of: numbers, ordered lists, keys, rules and history. This topic shows one layout that works for survey work, 2D CAD and 3D objects, and what to leave to the program that draws.
 
 | You want to keep | Use | Why |
 |---|---|---|
@@ -18,7 +18,7 @@ KDB has no geometry type and no spatial index, but it has what a drawing really 
 | a mesh | a vertex table and a face table | partial loads, volumes and sections stay SQL |
 | who changed what and when | `AS OF`, the change stream, a branch | history comes with the database |
 
-What is **not** in KDB today: `ST_Intersects`, buffers, projections between datums, and an R-tree. The bounding-box columns and a B-tree index on them do the job up to a few hundred thousand entities per drawing; beyond that a grid index would be new engine work.
+What is **not** in KarelaDB today: `ST_Intersects`, buffers, projections between datums, and an R-tree. The bounding-box columns and a B-tree index on them do the job up to a few hundred thousand entities per drawing; beyond that a grid index would be new engine work.
 
 Setup used by the examples below:
 
@@ -446,7 +446,7 @@ Result:
 
 Pan, zoom, the view matrix, hover and window selection change sixty times a second. None of that goes through the database: a commit costs a disk sync and a query a round trip, and the GPU or a loop over an in-memory array does the matrix multiply a thousand times faster than SQL could. The split is:
 
-| In memory (client) | In KDB |
+| In memory (client) | In KarelaDB |
 |---|---|
 | world-to-screen matrix, camera position | the entities, as the source of truth |
 | hit testing under the mouse, window selection | "what exists in this region" |
@@ -488,7 +488,7 @@ Result:
 
 ## Save, open, undo and history
 
-A save is a transaction: all the rows of the edit, or none ([transactions](transactions.md)). Opening is the viewport query above plus the layers and the saved view. For undo across sessions and "who moved this", KDB's own history does the work: `AS OF` reads a table as it was at a time, the change stream lists every committed change with its LSN, and a branch gives a writable copy of a whole database to try a redesign on.
+A save is a transaction: all the rows of the edit, or none ([transactions](transactions.md)). Opening is the viewport query above plus the layers and the saved view. For undo across sessions and "who moved this", KarelaDB's own history does the work: `AS OF` reads a table as it was at a time, the change stream lists every committed change with its LSN, and a branch gives a writable copy of a whole database to try a redesign on.
 
 ```sql
 -- The client noted the time before the edit (or the commit LSN from changes('entities')).

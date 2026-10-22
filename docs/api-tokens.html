@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>API tokens - KDB (KARELA DataBase) docs</title>
+<title>API tokens - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Named, revocable secrets for apps - each acts as one user, and DROP TOKEN stops it at once.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/api-tokens.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/api-tokens.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/api-tokens.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/api-tokens.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="api-tokens">API tokens</h1>
 <blockquote><p>Named, revocable secrets for apps - each acts as one user, and DROP TOKEN stops it at once.</p></blockquote>
-<ul><li>Category: Users &amp; security</li><li>Keywords: API token, api tokens, token, tokens, CREATE TOKEN, DROP TOKEN, SHOW TOKENS, revoke, revoke token, kdbt_, Bearer, Authorization, EXPIRES, personal access token, service token, app token, 401</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="server-security.html">Keeping kdb serve safe</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a></li></ul>
+<ul><li>Category: Users &amp; security</li><li>Keywords: API token, api tokens, token, tokens, CREATE TOKEN, DROP TOKEN, SHOW TOKENS, revoke, revoke token, kdbt_, Bearer, Authorization, EXPIRES, personal access token, service token, app token, 401</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="server-security.html">Keeping kareladb serve safe</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a></li></ul>
 <p>An <strong>API token</strong> is a long secret an app sends with every request, like the server&#39;s <code>--token</code>. The difference: you can have <strong>many</strong>, each has a <strong>name</strong>, each acts as <strong>one user</strong> (with that user&#39;s rights), and you can <strong>remove one</strong> without touching the others.</p>
-<div class="table-wrap"><table><thead><tr><th></th><th><code>--token</code> of <code>kdb serve</code></th><th>API token</th></tr></thead><tbody><tr><td>How many</td><td>one</td><td>as many as you like</td></tr><tr><td>Rights</td><td>everything</td><td>the rights of its user</td></tr><tr><td>Change or revoke</td><td>restart the server with another one</td><td><code>DROP TOKEN name</code>, at once</td></tr><tr><td>Kept</td><td>on the command line</td><td>in the data folder (only its hash)</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th></th><th><code>--token</code> of <code>kareladb serve</code></th><th>API token</th></tr></thead><tbody><tr><td>How many</td><td>one</td><td>as many as you like</td></tr><tr><td>Rights</td><td>everything</td><td>the rights of its user</td></tr><tr><td>Change or revoke</td><td>restart the server with another one</td><td><code>DROP TOKEN name</code>, at once</td></tr><tr><td>Kept</td><td>on the command line</td><td>in the data folder (only its hash)</td></tr></tbody></table></div>
 <p>Give each app its own token. When one app is retired or its secret leaks, drop that token; the other apps go on.</p>
 <p><strong>Example: A token for the chart app, a read-only user</strong></p>
 <p>Setup:</p>
@@ -26,19 +26,19 @@ CREATE USER charts WITH PASSWORD &#39;Chart-app-secret-11&#39; ROLE read;</code>
 SHOW TOKENS;</code></pre>
 <p>Result:</p>
 <p><code>CREATE TOKEN chart_app FOR USER charts EXPIRES IN 90 DAYS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>chart_app</td><td>charts</td><td>kdbt_kUp9nunNEhbrCOeojEFj6CzKw4NXzO9QwTbS_N6JogM</td><td>2027-01-20T05:43:29.306Z</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>chart_app</td><td>charts</td><td>kdbt_3lHGY4R9tai0DNaZhdUxY5o5rJy7iVJmnoNCs-q4yhw</td><td>2027-01-20T09:54:57.664Z</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <pre><code class="language-text">token &#39;chart_app&#39; for user &#39;charts&#39; created: copy it now, it is shown only this once. Send it as Authorization: Bearer &lt;token&gt;</code></pre>
 <p><code>SHOW TOKENS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>prefix (STRING)</th><th>created (TIMESTAMP)</th><th>expires (TIMESTAMP)</th><th>expired (BOOL)</th><th>created_by (STRING)</th><th>last_used (TIMESTAMP)</th></tr></thead><tbody><tr><td>chart_app</td><td>charts</td><td>kdbt_kUp9...</td><td>2026-10-22T05:43:29.311Z</td><td>2027-01-20T05:43:29.306Z</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>prefix (STRING)</th><th>created (TIMESTAMP)</th><th>expires (TIMESTAMP)</th><th>expired (BOOL)</th><th>created_by (STRING)</th><th>last_used (TIMESTAMP)</th></tr></thead><tbody><tr><td>chart_app</td><td>charts</td><td>kdbt_3lHG...</td><td>2026-10-22T09:54:57.683Z</td><td>2027-01-20T09:54:57.664Z</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="create-token">CREATE TOKEN</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">CREATE TOKEN name [FOR USER user] [EXPIRES IN n DAYS]</code></pre>
 <p>Makes a new token and shows its secret <strong>once</strong>.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>letters, digits, <code>_</code> and <code>-</code>, 1 to 63 characters; unique (case does not matter). Say which app uses it.</td></tr><tr><td><code>FOR USER user</code></td><td>the user it acts as. Without it: the user who runs the statement.</td></tr><tr><td><code>EXPIRES IN n DAYS</code></td><td>it stops working after that many days (1 to 99999). Without it: never.</td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> one row <code>name</code>, <code>user</code>, <code>token</code>, <code>expires</code>. The <code>token</code> looks like <code>kdbt_</code> and 43 more letters. Copy it now: KDB keeps only its SHA-256, so nobody can show it again.</li><li><strong>Notes:</strong>
-<ul><li>Any user may make a token for <strong>themselves</strong>. A token for another user needs <code>ROLE admin</code>.</li><li>The app sends it as <code>Authorization: Bearer kdbt_...</code> on the HTTP API (<code>/exec</code>, <code>/write</code>, <code>/imp</code>, <code>/api/...</code>). It is not a password for the PostgreSQL port; use the user&#39;s password there.</li><li>It can do exactly what its user can do, including <a href="table-rights.html">table rights</a>, the user&#39;s <a href="users-and-roles.html#statement-timeout">time limit</a> and <a href="protection.html#rate-limits">rate limit</a>. For a read-only app, make a user with <code>ROLE read</code> and a token for it.</li><li>A new password for the user does <strong>not</strong> end the user&#39;s tokens (apps keep working). <code>DROP USER</code> removes the user&#39;s tokens.</li><li>The session that runs it needs a user: with the server&#39;s <code>--token</code> or in <code>kdb sql</code>, write <code>FOR USER</code>.</li></ul></li></ul>
+<ul><li><strong>Returns:</strong> one row <code>name</code>, <code>user</code>, <code>token</code>, <code>expires</code>. The <code>token</code> looks like <code>kdbt_</code> and 43 more letters. Copy it now: KarelaDB keeps only its SHA-256, so nobody can show it again.</li><li><strong>Notes:</strong>
+<ul><li>Any user may make a token for <strong>themselves</strong>. A token for another user needs <code>ROLE admin</code>.</li><li>The app sends it as <code>Authorization: Bearer kdbt_...</code> on the HTTP API (<code>/exec</code>, <code>/write</code>, <code>/imp</code>, <code>/api/...</code>). It is not a password for the PostgreSQL port; use the user&#39;s password there.</li><li>It can do exactly what its user can do, including <a href="table-rights.html">table rights</a>, the user&#39;s <a href="users-and-roles.html#statement-timeout">time limit</a> and <a href="protection.html#rate-limits">rate limit</a>. For a read-only app, make a user with <code>ROLE read</code> and a token for it.</li><li>A new password for the user does <strong>not</strong> end the user&#39;s tokens (apps keep working). <code>DROP USER</code> removes the user&#39;s tokens.</li><li>The session that runs it needs a user: with the server&#39;s <code>--token</code> or in <code>kareladb sql</code>, write <code>FOR USER</code>.</li></ul></li></ul>
 <p><strong>Example: Two apps, two tokens for one user</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
@@ -47,11 +47,11 @@ CREATE USER loader WITH PASSWORD &#39;Loader-secret-long-5&#39; ROLE write;</cod
 CREATE TOKEN backfill FOR USER loader EXPIRES IN 7 DAYS;</code></pre>
 <p>Result:</p>
 <p><code>CREATE TOKEN price_feed FOR USER loader</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>price_feed</td><td>loader</td><td>kdbt_sBAa0yQr3ugYZgxKJaH3I_sUuw3XGGQT1njwV0bRBFA</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>price_feed</td><td>loader</td><td>kdbt_igH672TOWvnng_Lokt5_jojz4o4IHQ5k7oHFfbJBaA4</td><td>NULL</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <pre><code class="language-text">token &#39;price_feed&#39; for user &#39;loader&#39; created: copy it now, it is shown only this once. Send it as Authorization: Bearer &lt;token&gt;</code></pre>
 <p><code>CREATE TOKEN backfill FOR USER loader EXPIRES IN 7 DAYS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>backfill</td><td>loader</td><td>kdbt_v0iut_osA-e4LN4hmCIbK3KKnEtlFnuniuYEBTHxkWM</td><td>2026-10-29T05:43:29.419Z</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>backfill</td><td>loader</td><td>kdbt_24kpq3G8IYpICMAp5q9qI0rMDvye2zq_4ZLX4ftPaDs</td><td>2026-10-29T09:54:57.826Z</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <pre><code class="language-text">token &#39;backfill&#39; for user &#39;loader&#39; created: copy it now, it is shown only this once. Send it as Authorization: Bearer &lt;token&gt;</code></pre>
 <p><strong>Example: The name is taken</strong> (shows an error)</p>
@@ -95,13 +95,13 @@ DROP TOKEN IF EXISTS price_feed;</code></pre>
 CREATE TOKEN price_feed FOR USER admin EXPIRES IN 30 DAYS;</code></pre>
 <pre><code class="language-sql">SHOW TOKENS;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>prefix (STRING)</th><th>created (TIMESTAMP)</th><th>expires (TIMESTAMP)</th><th>expired (BOOL)</th><th>created_by (STRING)</th><th>last_used (TIMESTAMP)</th></tr></thead><tbody><tr><td>price_feed</td><td>admin</td><td>kdbt_J9vW...</td><td>2026-10-22T05:43:29.638Z</td><td>2026-11-21T05:43:29.632Z</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>prefix (STRING)</th><th>created (TIMESTAMP)</th><th>expires (TIMESTAMP)</th><th>expired (BOOL)</th><th>created_by (STRING)</th><th>last_used (TIMESTAMP)</th></tr></thead><tbody><tr><td>price_feed</td><td>admin</td><td>kdbt_LR6U...</td><td>2026-10-22T09:54:58.301Z</td><td>2026-11-21T09:54:58.266Z</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="kept">Where tokens and logins are kept</h2>
 <p>Both live in the hidden <code>_system</code> database of the data folder, as <strong>hashes only</strong>:</p>
 <div class="table-wrap"><table><thead><tr><th>Table</th><th>Holds</th></tr></thead><tbody><tr><td><code>api_tokens</code></td><td>name, user, the SHA-256 of the secret, its first letters, times</td></tr><tr><td><code>login_sessions</code></td><td>the SHA-256 of each login token of <code>POST /api/login</code> and the console, its user and when it ends</td></tr></tbody></table></div>
-<p>So a server restart logs nobody out, and apps with a token go on. A login still ends after 12 hours, at logout, or when the user gets a new password or is dropped. An older KDB program does not know these tables: there, tokens do not work and everyone logs in again.</p>
+<p>So a server restart logs nobody out, and apps with a token go on. A login still ends after 12 hours, at logout, or when the user gets a new password or is dropped. An older KarelaDB program does not know these tables: there, tokens do not work and everyone logs in again.</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/api-tokens.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/api-tokens.md">This page as markdown</a>.</footer>
 </body>
 </html>

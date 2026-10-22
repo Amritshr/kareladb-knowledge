@@ -340,7 +340,7 @@ SELECT 'a' COLLATE klingon = 'a';
 
 Result:
 
-Error: `line 1, column 20: collation "klingon" does not exist; KDB knows "C", "en_US" (and other language names), "nocase" and "natural"`
+Error: `line 1, column 20: collation "klingon" does not exist; KarelaDB knows "C", "en_US" (and other language names), "nocase" and "natural"`
 
 <a id="nulls-first-last"></a>
 
@@ -459,8 +459,8 @@ Gives back at most `n` rows. With `ORDER BY`, these are the first `n` rows in th
 - **Notes:** `LIMIT` comes after `ORDER BY`, at the very end of the query. With `UNION ALL`, it works on all the rows together.
 - `n` must be a plain number: not an expression, not negative.
 - `LIMIT ALL` means no limit. The QuestDB form `LIMIT lo, hi` gives rows `lo + 1` to `hi`, so `LIMIT 10, 20` is the same as `LIMIT 10 OFFSET 10`. The standard `FETCH FIRST n ROWS ONLY` works too.
-- `LIMIT -n` (QuestDB) gives the **last** `n` rows, still in their own order. On a time-series table these are the newest rows by time, and KDB reads only the newest partitions to find them. `LIMIT -n, -m` gives the last `n` rows without the final `m`: `LIMIT -5, -2` is the 3 rows before the last 2. It cannot be used with `OFFSET` or `FOR UPDATE`.
-- Server programs (`kdb sql`, HTTP `/exec`) also cut very big results; see [limits](limits.md).
+- `LIMIT -n` (QuestDB) gives the **last** `n` rows, still in their own order. On a time-series table these are the newest rows by time, and KarelaDB reads only the newest partitions to find them. `LIMIT -n, -m` gives the last `n` rows without the final `m`: `LIMIT -5, -2` is the 3 rows before the last 2. It cannot be used with `OFFSET` or `FOR UPDATE`.
+- Server programs (`kareladb sql`, HTTP `/exec`) also cut very big results; see [limits](limits.md).
 
 **Example: The 5 biggest trades of the trade log** (sample data: sample)
 
@@ -594,7 +594,7 @@ Skips the first `m` rows, then gives back at most `n` rows.
 
 - **Returns:** rows `m + 1` to `m + n`. When `m` is past the end, no rows.
 - **Notes:** `OFFSET` may be written after `LIMIT`, or by itself (then there is no limit), or before `LIMIT` as PostgreSQL allows. `OFFSET m ROWS` is accepted too.
-- KDB still makes and sorts the skipped rows, so a big `OFFSET` is slow. See [paging](order-by-limit.md#paging).
+- KarelaDB still makes and sorts the skipped rows, so a big `OFFSET` is slow. See [paging](order-by-limit.md#paging).
 
 **Example: Rows 4 to 6 by volume** (sample data: sample)
 
@@ -665,7 +665,7 @@ There are two ways:
 | keyset paging | "the 20 rows after the last row I showed" with a [row comparison](where.md#row-comparison) | fast on every page; no rows are skipped or shown twice | only "next page" and "previous page" |
 
 - **Notes:** the page order must be **unique**: add a unique column like `id` as the last sort key. Otherwise rows with equal keys can move from one page to another.
-- For the offset, KDB needs a whole number: compute `(p - 1) * k` in your program.
+- For the offset, KarelaDB needs a whole number: compute `(p - 1) * k` in your program.
 
 **Example: Forum posts, 3 per page: page 1** (sample data: content-forum)
 

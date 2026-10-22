@@ -6,7 +6,7 @@
 - Keywords: create table, new table, IF NOT EXISTS, TEMP TABLE, TEMPORARY, UNLOGGED, table options, relational table, time-series table, timeseries table, RECORDS, TIMESERIES, PARTITION BY, DAY, MONTH, YEAR, NONE, SYMBOL(col), SORT BY, DEDUP KEY, DEDUP UPSERT KEYS, TIMESTAMP(col), WAL, CREATE TABLE AS, CREATE TABLE ... AS SELECT, AS SELECT, WITH NO DATA, copy a table, deduplication, ROUND, round time, computed column, generated column, GENERATED ALWAYS, STORED, stored generated column, virtual column, AS, schema, design, ttl\_column, row TTL, expire, EXPIRE, expires\_at, per-row TTL, key expiry, redis, session table, rate limit, max\_bytes, evict, durability, cache table, LRU, eviction, maxmemory, kv\_memory, volatile\_ttl
 - See also: [Column types](column-types.md), [Constraints](constraints.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [SHOW TABLES, COLUMNS, CREATE TABLE](show-tables.md), [INSERT](insert.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md), [Indexes](indexes.md)
 
-`CREATE TABLE` makes a new table. KDB has **two kinds** of tables:
+`CREATE TABLE` makes a new table. KarelaDB has **two kinds** of tables:
 
 | | Relational table | Time-series table |
 |---|---|---|
@@ -76,8 +76,8 @@ Makes a table with at least one column. The table options after `)` can come in 
 
 - **Returns:** `table 'name' created`, or `table 'name' already exists` with `IF NOT EXISTS`.
 - **Notes:** a view and a table cannot have the same name. `CREATE TABLE` cannot be used inside `BEGIN ... COMMIT`. To make a table from a query, see [CREATE TABLE ... AS](#create-table-as).
-- **PostgreSQL:** `CREATE TEMP TABLE` makes a [temporary table](#temp-table). `CREATE UNLOGGED TABLE` is refused: every KDB table is written to the log.
-- **QuestDB:** `TIMESTAMP(col)` means `TIMESERIES(col)`, `DEDUP UPSERT KEYS (...)` means `DEDUP KEY (...)` with `dedup_insert = 'upsert'` (a plain `INSERT` replaces the row, as in QuestDB), and `WAL` / `BYPASS WAL` are read and ignored. `col SYMBOL INDEX [CAPACITY n]`, and `INDEX(col [CAPACITY n])` after the column list, make an [index](indexes.md) on the column. A SYMBOL's `CAPACITY n`, `CACHE` and `NOCACHE` are read and ignored: KDB sizes its dictionaries itself.
+- **PostgreSQL:** `CREATE TEMP TABLE` makes a [temporary table](#temp-table). `CREATE UNLOGGED TABLE` is refused: every KarelaDB table is written to the log.
+- **QuestDB:** `TIMESTAMP(col)` means `TIMESERIES(col)`, `DEDUP UPSERT KEYS (...)` means `DEDUP KEY (...)` with `dedup_insert = 'upsert'` (a plain `INSERT` replaces the row, as in QuestDB), and `WAL` / `BYPASS WAL` are read and ignored. `col SYMBOL INDEX [CAPACITY n]`, and `INDEX(col [CAPACITY n])` after the column list, make an [index](indexes.md) on the column. A SYMBOL's `CAPACITY n`, `CACHE` and `NOCACHE` are read and ignored: KarelaDB sizes its dictionaries itself.
 
 **Example: App users: a relational table with keys and defaults**
 
@@ -226,7 +226,7 @@ CREATE UNLOGGED TABLE fast_scratch (id INT);
 
 Result:
 
-Error: `line 1, column 8: CREATE UNLOGGED TABLE is not supported: every KDB table is written to the log and kept. Use CREATE TABLE`
+Error: `line 1, column 8: CREATE UNLOGGED TABLE is not supported: every KarelaDB table is written to the log and kept. Use CREATE TABLE`
 
 <a id="create-table-as"></a>
 
@@ -629,7 +629,7 @@ The order of the rows **inside** each partition file. Rows with the same first c
 
 - **Default:** the first `SYMBOL` column, then the time column: `SORT BY (symbol, time)`. Without a `SYMBOL` column: the time column only.
 - Only stored columns (not computed ones), each once.
-- **Notes:** you cannot change `SORT BY` later. Columns in `SORT BY` cannot be dropped. `SHOW CREATE TABLE` shows the sort order KDB uses.
+- **Notes:** you cannot change `SORT BY` later. Columns in `SORT BY` cannot be dropped. `SHOW CREATE TABLE` shows the sort order KarelaDB uses.
 
 **Example: The default sort order is shown by SHOW CREATE TABLE**
 
@@ -696,10 +696,10 @@ The columns that make two rows "the same row". It is the key of a time-series ta
 | `INSERT OR REPLACE` | row added | the old row is replaced |
 | `INSERT OR IGNORE` | row added | the new row is skipped |
 
-- Without a `DEDUP KEY`, KDB keeps every row, also exact copies.
+- Without a `DEDUP KEY`, KarelaDB keeps every row, also exact copies.
 - `NULL` counts as a value here: two rows with the same time and `symbol` `NULL` are the same row.
 - **Tip:** give every time-series table a `DEDUP KEY`. Then an import file can be loaded twice without double rows.
-- **Notes:** QuestDB's `DEDUP UPSERT KEYS(...)` is read as `DEDUP KEY (...)` and, as in QuestDB, a plain `INSERT` of a key that is there then **replaces** the row ([dedup_insert](partitions-and-dedup.md#dedup-insert)). With KDB's own `DEDUP KEY`, duplicates give an error unless you write `INSERT OR REPLACE`, the table has `dedup_insert = 'upsert'`, or the database uses the [QuestDB dialect](databases.md#dialect). See [INSERT](insert.md#duplicates).
+- **Notes:** QuestDB's `DEDUP UPSERT KEYS(...)` is read as `DEDUP KEY (...)` and, as in QuestDB, a plain `INSERT` of a key that is there then **replaces** the row ([dedup_insert](partitions-and-dedup.md#dedup-insert)). With KarelaDB's own `DEDUP KEY`, duplicates give an error unless you write `INSERT OR REPLACE`, the table has `dedup_insert = 'upsert'`, or the database uses the [QuestDB dialect](databases.md#dialect). See [INSERT](insert.md#duplicates).
 - **Notes:** a load over the line protocol does less work when every `SORT BY` column is in the `DEDUP KEY` ([how loads find duplicates](partitions-and-dedup.md#load-dedup)).
 
 **Example: One candle per symbol per day**
@@ -905,7 +905,7 @@ Syntax:
 column TYPE AS (expression)
 ```
 
-A **computed** column is not stored. KDB works it out from the other columns of the same row each time you read it.
+A **computed** column is not stored. KarelaDB works it out from the other columns of the same row each time you read it.
 
 - The expression uses **stored** columns of the same row, operators and built-in functions.
 - You cannot give it a value in `INSERT`, and `UPDATE` cannot set it. Change the columns it is made from.
@@ -985,7 +985,7 @@ column TYPE GENERATED ALWAYS AS (expression) STORED
 column TYPE GENERATED ALWAYS AS (expression) [VIRTUAL]
 ```
 
-The PostgreSQL form. With `STORED`, KDB works the value out **when the row is written** and keeps it like any other column. Without `STORED` (or with `VIRTUAL`) it is a [computed column](#computed), worked out when read.
+The PostgreSQL form. With `STORED`, KarelaDB works the value out **when the row is written** and keeps it like any other column. Without `STORED` (or with `VIRTUAL`) it is a [computed column](#computed), worked out when read.
 
 | | `AS (expr)`, `VIRTUAL` | `STORED` |
 |---|---|---|
@@ -1061,7 +1061,7 @@ UPDATE order_lines SET total = 10;
 
 Result:
 
-Error: `column 'total' is GENERATED ALWAYS AS (...) STORED and cannot be set; KDB works it out from the row`
+Error: `column 'total' is GENERATED ALWAYS AS (...) STORED and cannot be set; KarelaDB works it out from the row`
 
 <a id="row-ttl"></a>
 
@@ -1084,7 +1084,7 @@ Each row can have its own end of life, like a Redis key with `EXPIRE`. When the 
 - An `INSERT` of an expired row's key is a new row, not an "already exists" error. `INSERT ... ON CONFLICT DO UPDATE` starts a fresh row, so a counter that expires counts from 1 again.
 - To keep a row alive longer, `UPDATE` its `expires_at`.
 - The deletes are ordinary deletes: they are in the log, and `DELETE` [triggers](triggers.md) see the rows.
-- **Notes:** the column must be a stored `TIMESTAMP`. It cannot be dropped while the table has the option, and the option is set by `CREATE TABLE` only (`ALTER TABLE ... SET (ttl_column = ...)` is refused for now). A database with such a table needs KDB 2026-09-25 or later ([versions](versions.md)).
+- **Notes:** the column must be a stored `TIMESTAMP`. It cannot be dropped while the table has the option, and the option is set by `CREATE TABLE` only (`ALTER TABLE ... SET (ttl_column = ...)` is refused for now). A database with such a table needs KarelaDB 2026-09-25 or later ([versions](versions.md)).
 - **Speed:** a read of such a table checks the time on each row and never comes from the [result cache](performance-tips.md#result-cache). The table's `TTL n DAYS` (whole partitions) is a different, older option: [SET TTL](alter-table.md#set-ttl).
 
 **Example: Sessions that expire, and a counter that starts again**
@@ -1171,7 +1171,7 @@ A **cache table** has a memory cap, like Redis with `maxmemory`. When its rows t
 - A row is "used" when a statement reads it row by row (a look-up by key, `SELECT ... WHERE`) or writes it. Aggregates over many rows (`count(*)`, `sum`) do not count as a use.
 - **Needs:** a `PRIMARY KEY` for any `evict`; a [ttl_column](#row-ttl) for the `volatile_` ones. The evicting deletes are ordinary deletes: they are in the log and `DELETE` triggers see them.
 - The key-value store has the same cap: `CONFIG SET maxmemory 64mb` ([kv](kv.md#kv-memory)).
-- A database with a cache table needs KDB 2026-10-02 or later ([versions](versions.md)).
+- A database with a cache table needs KarelaDB 2026-10-02 or later ([versions](versions.md)).
 
 **Example: A cache of 1 MB that keeps the rows in use**
 

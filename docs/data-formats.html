@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How KDB stores data - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="A short tour of the files in a KDB database folder - data files, blocks and checksums, the log, the manifest and backups.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/data-formats.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/data-formats.md">
+<title>How KarelaDB stores data - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="A short tour of the files in a KarelaDB database folder - data files, blocks and checksums, the log, the manifest and backups.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/data-formats.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/data-formats.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
-<h1 id="how-kdb-stores-data">How KDB stores data</h1>
-<blockquote><p>A short tour of the files in a KDB database folder - data files, blocks and checksums, the log, the manifest and backups.</p></blockquote>
-<ul><li>Category: Data formats</li><li>Keywords: file format, on-disk format, files, folder, kdb.lock, _manifest.a, _manifest.b, manifest, wal, wal_archive, _trash, WAL, write-ahead log, log segment, LSN, checkpoint, block, CRC32C, checksum, digest, copy-on-write, version, partition file, column file, backup.kdb, .partial, timeline, FORMAT.md, little-endian, manifest keys, removed manifest keys, column stats</li><li>See also: <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-maintenance.html">kdb info, check, repair, dump-file</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a>, <a href="limits.html#disk-memory">Limits (disk-memory)</a></li></ul>
-<p>This page explains, in simple words, what KDB writes to the disk and why. You do not need it to use KDB. It helps to understand <code>kdb info</code>, <code>kdb check</code> and the messages about damage.
+<h1 id="how-kareladb-stores-data"><span class="old-id" id="how-kdb-stores-data"></span>How KarelaDB stores data</h1>
+<blockquote><p>A short tour of the files in a KarelaDB database folder - data files, blocks and checksums, the log, the manifest and backups.</p></blockquote>
+<ul><li>Category: Data formats</li><li>Keywords: file format, on-disk format, files, folder, kdb.lock, _manifest.a, _manifest.b, manifest, wal, wal_archive, _trash, WAL, write-ahead log, log segment, LSN, checkpoint, block, CRC32C, checksum, digest, copy-on-write, version, partition file, column file, backup.kdb, .partial, timeline, FORMAT.md, little-endian, manifest keys, removed manifest keys, column stats</li><li>See also: <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-maintenance.html">kareladb info, check, repair, dump-file</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a>, <a href="limits.html#disk-memory">Limits (disk-memory)</a></li></ul>
+<p>This page explains, in simple words, what KarelaDB writes to the disk and why. You do not need it to use KarelaDB. It helps to understand <code>kareladb info</code>, <code>kareladb check</code> and the messages about damage.
 The exact bytes, for developers, are in docs/FORMAT.md. When that file and the code disagree, the code is right.</p>
-<p><strong>Do not change or delete files in a database folder by hand.</strong> Use <code>kdb</code> commands. To copy a database, stop every program that uses it, or better use <a href="backup-and-safety.html#kdb-backup">kdb backup</a>.</p>
+<p><strong>Do not change or delete files in a database folder by hand.</strong> Use <code>kareladb</code> commands. To copy a database, stop every program that uses it, or better use <a href="backup-and-safety.html#kareladb-backup">kareladb backup</a>.</p>
 <p>The format is the same on Windows, Linux and macOS, so a database folder can move between them.</p>
 <h2 id="folder">The database folder</h2>
 <p>Syntax:</p>
@@ -30,14 +30,14 @@ The exact bytes, for developers, are in docs/FORMAT.md. When that file and the c
   _trash/                    files taken out of use, deleted after 24 hours</code></pre>
 <p>A database is one folder. In a data folder, each database is a sub-folder, plus <code>_trash</code> (dropped databases) and <code>_system</code> (the server&#39;s users).</p>
 <div class="table-wrap"><table><thead><tr><th>Name</th><th>What it is</th></tr></thead><tbody><tr><td><code>kdb.lock</code></td><td>An empty file. While a program has the database open, the operating system <strong>locks</strong> it, so a second program gets <code>the database is open in another program</code>. Do not delete it: when no program runs, the lock is free anyway.</td></tr><tr><td><code>_manifest.a</code>, <code>_manifest.b</code></td><td>The <strong>manifest</strong>: the list of the current data files, their versions, sizes and checksums, and the log positions. Two copies (see <a href="#manifest">manifest</a>).</td></tr><tr><td><code>files/</code></td><td>The <strong>data files</strong>: <code>files/catalog.v6.kdb</code> (the list of tables and columns) and <code>files/t/&lt;table number&gt;/&lt;partition&gt;.v&lt;version&gt;.kdb</code> (the rows of one partition). A table <a href="partitions-and-dedup.html#partition-by-symbol">split by symbol</a> adds the symbol to the partition name, as hex: <code>2026-09/s-43495459</code> is month <code>2026-09</code>, symbol <code>CITY</code>.</td></tr><tr><td><code>wal/</code></td><td>The <strong>write-ahead log</strong> (WAL): every change is written here first (see <a href="#wal">the log</a>).</td></tr><tr><td><code>wal_archive/</code></td><td>Old log files that the data files no longer need. Only backups and repairs use them. The oldest are deleted when this folder is over its limit: 1 GB by default, changed with <a href="databases.html#wal-archive">ALTER DATABASE ... SET WAL_ARCHIVE</a> or on the <a href="console-settings.html#wal-archive">Settings page</a>.</td></tr><tr><td><code>_trash/</code></td><td>Files taken out of use: old versions, damaged files moved away by a repair, unknown files. Folders older than 24 hours are deleted when the database opens.</td></tr></tbody></table></div>
-<p><strong>Command line: kdb info lists what the manifest says</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb info market</code></pre>
+<p><strong>Command line: kareladb info lists what the manifest says</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kareladb info market</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-22 11:28:27
+newest change   2026-10-22 15:39:54
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -53,16 +53,16 @@ t/5/2026-09-10                                 13     2.4 KB           30  ok
 t/6/2026-09-10                                 14     2.7 KB           30  ok
 
 9 files, 72.1 KB, 0 marked damaged
-(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)</code></pre>
+(STATUS is what the manifest records. To read every block and find new damage, run: kareladb check)</code></pre>
 <p><code>t/4/2026-09</code> is table number 4 (tables are numbered in the order they were made; here <code>ochl_minutes</code>), partition <code>2026-09</code>. <code>all</code> is a table without partitions. <code>VERSION 11</code> is the file <code>files/t/4/2026-09.v11.kdb</code>.</p>
 <h2 id="data-files">Data files are never changed</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">files/t/&lt;table number&gt;/&lt;partition&gt;.v&lt;version&gt;.kdb</code></pre>
 <p>A data file is written <strong>once</strong> and then never changed (this is called copy-on-write).</p>
-<ol><li>Changes first go into the log and into memory.</li><li>From time to time (a <strong>checkpoint</strong>), KDB writes a <strong>new version</strong> of each changed partition: a new file with the next version number.</li><li>KDB reads the new file back and checks it.</li><li>Only then it saves the manifest, which now names the new version.</li></ol>
-<ul><li>A crash at any moment leaves the old version complete. There is never a half-changed file.</li><li>KDB keeps the <strong>2 previous versions</strong> of every file, for the repair ladder. Older ones go to <code>_trash</code>.</li><li>A checkpoint happens after about 1 million changes, every 5 minutes, when the changes use a quarter of <code>--memory</code>, about 2 seconds after the last write when at least 10,000 changes wait, when a database closes, before a backup or a schema change, and when you ask for one with <a href="backup-and-safety.html#checkpoint">CHECKPOINT</a>. On a busy database a write may leave its checkpoint to a background thread, but only until the changes use half of <code>--memory</code>, or for at most 5 seconds; after that the next write waits for the checkpoint, so unsaved changes cannot grow without limit. Rows a load (<code>POST /write</code>, <code>POST /imp</code>, <code>COPY</code>) keeps in column form count as 1/8 of a change, so a bulk load checkpoints about every 8 million rows (or at a quarter of <code>--memory</code>, whichever comes first) instead of every million: each checkpoint writes every partition it touched whole, and on a big load into a few partitions most of those bytes were rows already on disk (since 2026-10-02).</li><li>One partition file holds all columns of that partition, column after column, with the number of rows, the smallest and biggest value and the sum of each column (the <strong>column stats</strong>).</li><li>KDB uses the column stats without reading the rows: a <code>WHERE</code> skips a partition in memory (or a block of 65,536 rows in it) whose values cannot match, and <code>count</code>, <code>min</code>, <code>max</code> and <code>sum</code> of a partition that is not in memory are answered from its file&#39;s stats, without loading the rows. <a href="explain.html">EXPLAIN</a> shows both. This needed no change of the files: partition files have had the stats since 2026-09-12.</li></ul>
+<ol><li>Changes first go into the log and into memory.</li><li>From time to time (a <strong>checkpoint</strong>), KarelaDB writes a <strong>new version</strong> of each changed partition: a new file with the next version number.</li><li>KarelaDB reads the new file back and checks it.</li><li>Only then it saves the manifest, which now names the new version.</li></ol>
+<ul><li>A crash at any moment leaves the old version complete. There is never a half-changed file.</li><li>KarelaDB keeps the <strong>2 previous versions</strong> of every file, for the repair ladder. Older ones go to <code>_trash</code>.</li><li>A checkpoint happens after about 1 million changes, every 5 minutes, when the changes use a quarter of <code>--memory</code>, about 2 seconds after the last write when at least 10,000 changes wait, when a database closes, before a backup or a schema change, and when you ask for one with <a href="backup-and-safety.html#checkpoint">CHECKPOINT</a>. On a busy database a write may leave its checkpoint to a background thread, but only until the changes use half of <code>--memory</code>, or for at most 5 seconds; after that the next write waits for the checkpoint, so unsaved changes cannot grow without limit. Rows a load (<code>POST /write</code>, <code>POST /imp</code>, <code>COPY</code>) keeps in column form count as 1/8 of a change, so a bulk load checkpoints about every 8 million rows (or at a quarter of <code>--memory</code>, whichever comes first) instead of every million: each checkpoint writes every partition it touched whole, and on a big load into a few partitions most of those bytes were rows already on disk (since 2026-10-02).</li><li>One partition file holds all columns of that partition, column after column, with the number of rows, the smallest and biggest value and the sum of each column (the <strong>column stats</strong>).</li><li>KarelaDB uses the column stats without reading the rows: a <code>WHERE</code> skips a partition in memory (or a block of 65,536 rows in it) whose values cannot match, and <code>count</code>, <code>min</code>, <code>max</code> and <code>sum</code> of a partition that is not in memory are answered from its file&#39;s stats, without loading the rows. <a href="explain.html">EXPLAIN</a> shows both. This needed no change of the files: partition files have had the stats since 2026-09-12.</li></ul>
 <p><strong>Command line: One data file: the table securities</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb dump-file market/files/t/1/all.v7.kdb</code></pre>
+<pre><code class="language-bash">kareladb dump-file market/files/t/1/all.v7.kdb</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">file         market/files/t/1/all.v7.kdb
 type         data file
@@ -71,17 +71,17 @@ data         693 B
 block size   65536
 LSN          30
 id           1
-created      2026-10-22 11:28:27
+created      2026-10-22 15:39:54
 blocks       1
 digest       1d198644
 OK: all blocks match their checksums</code></pre>
 <h2 id="checksums">Blocks and CRC32C checksums</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">[ header 64 bytes ][ block 1 ][ block 2 ] ... [ checksum table ][ trailer 16 bytes ]</code></pre>
-<p>Every KDB file (data files, manifests, <code>backup.kdb</code>) is cut into <strong>blocks</strong> of 64 KB. Each block has a <strong>CRC32C checksum</strong>: a 4-byte number made from the bytes of the block.</p>
-<ul><li>When KDB reads a block, it computes the number again. If one bit on the disk has changed, the numbers differ, and KDB says <code>block N (bytes ...) failed its checksum</code>. It <strong>never</strong> returns data from a bad block.</li><li>The <strong>header</strong> (the first 64 bytes) says what the file is: its type, the format version, the block size, the data length, the log position, and when it was made. It has its own checksum.</li><li>The <strong>trailer</strong> at the end holds the number of blocks and a checksum of the checksum table, so a file that was cut short is noticed.</li><li>The <strong>digest</strong> is one checksum over the header and all block checksums. The manifest keeps it for each file, so KDB also notices a whole file that was replaced by another one.</li><li>The header is written <strong>last</strong>. A file that a crash interrupted has no valid header and is never used.</li><li><code>crc32c hardware: yes</code> in <code>kdb version</code> means the CPU computes these checksums with fast special instructions.</li></ul>
+<p>Every KarelaDB file (data files, manifests, <code>backup.kdb</code>) is cut into <strong>blocks</strong> of 64 KB. Each block has a <strong>CRC32C checksum</strong>: a 4-byte number made from the bytes of the block.</p>
+<ul><li>When KarelaDB reads a block, it computes the number again. If one bit on the disk has changed, the numbers differ, and KarelaDB says <code>block N (bytes ...) failed its checksum</code>. It <strong>never</strong> returns data from a bad block.</li><li>The <strong>header</strong> (the first 64 bytes) says what the file is: its type, the format version, the block size, the data length, the log position, and when it was made. It has its own checksum.</li><li>The <strong>trailer</strong> at the end holds the number of blocks and a checksum of the checksum table, so a file that was cut short is noticed.</li><li>The <strong>digest</strong> is one checksum over the header and all block checksums. The manifest keeps it for each file, so KarelaDB also notices a whole file that was replaced by another one.</li><li>The header is written <strong>last</strong>. A file that a crash interrupted has no valid header and is never used.</li><li><code>crc32c hardware: yes</code> in <code>kareladb version</code> means the CPU computes these checksums with fast special instructions.</li></ul>
 <p><strong>Command line: Check every block of one file</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb dump-file market/_manifest.a</code></pre>
+<pre><code class="language-bash">kareladb dump-file market/_manifest.a</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">file         market/_manifest.a
 type         manifest
@@ -90,35 +90,35 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           9
-created      2026-10-22 11:28:27
+created      2026-10-22 15:39:54
 blocks       1
-digest       35a9d31d
+digest       2f0ad2ae
 OK: all blocks match their checksums</code></pre>
 <h2 id="wal">The write-ahead log (WAL)</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">wal/00000000000000000001.log      a log file (segment), named after its first LSN
 record: length | checksum | LSN | transaction id | type (data or commit) | data</code></pre>
-<p>Every change is first written to the <strong>log</strong>, and the log is on the disk before KDB says a statement is done.</p>
-<ul><li>Each record in the log gets the next number: the <strong>LSN</strong> (log sequence number). <code>kdb info</code> shows <code>log position</code> = the newest LSN.</li><li>A transaction is its data records plus one <strong>commit</strong> record. The whole transaction is written in one piece and saved with <strong>one</strong> disk sync. Without its commit record, a transaction does not count.</li><li>Every record has its own checksum.</li><li>A log file (a <strong>segment</strong>) grows to 64 MB; then a new one starts. Log files that the data files no longer need move to <code>wal_archive/</code>.</li><li><strong>After a crash</strong>, KDB reads the log from the position the data files have, and replays every committed transaction. <code>kdb info</code> then shows <code>last shutdown: not clean</code>, which is normal.</li><li><strong>A torn tail:</strong> a power cut can leave the last, unconfirmed transaction half written at the end of the log. KDB notices it and cuts it off (<code>dropped an unfinished write at the end of the log</code>). Nothing confirmed is lost.</li><li><strong>Damage in the middle</strong> of the log, in records that are still needed, is refused with a clear message. See <a href="backup-and-safety.html#after-damage">after damage</a>.</li><li>With <code>--sync-commits batch</code>, several transactions share one disk sync every 10 ms.</li></ul>
+<p>Every change is first written to the <strong>log</strong>, and the log is on the disk before KarelaDB says a statement is done.</p>
+<ul><li>Each record in the log gets the next number: the <strong>LSN</strong> (log sequence number). <code>kareladb info</code> shows <code>log position</code> = the newest LSN.</li><li>A transaction is its data records plus one <strong>commit</strong> record. The whole transaction is written in one piece and saved with <strong>one</strong> disk sync. Without its commit record, a transaction does not count.</li><li>Every record has its own checksum.</li><li>A log file (a <strong>segment</strong>) grows to 64 MB; then a new one starts. Log files that the data files no longer need move to <code>wal_archive/</code>.</li><li><strong>After a crash</strong>, KarelaDB reads the log from the position the data files have, and replays every committed transaction. <code>kareladb info</code> then shows <code>last shutdown: not clean</code>, which is normal.</li><li><strong>A torn tail:</strong> a power cut can leave the last, unconfirmed transaction half written at the end of the log. KarelaDB notices it and cuts it off (<code>dropped an unfinished write at the end of the log</code>). Nothing confirmed is lost.</li><li><strong>Damage in the middle</strong> of the log, in records that are still needed, is refused with a clear message. See <a href="backup-and-safety.html#after-damage">after damage</a>.</li><li>With <code>--sync-commits batch</code>, several transactions share one disk sync every 10 ms.</li></ul>
 <h2 id="manifest">The manifest: two copies</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">_manifest.a   _manifest.b    the newer valid copy (highest sequence number) wins</code></pre>
 <p>The manifest is the list of what is current: every data file with its version, size, digest and log position, the previous versions, which files are marked damaged, and whether the last shutdown was clean.</p>
-<ul><li>It is saved in two files. A save always writes over the <strong>older</strong> copy. So if a crash happens during a save, the other copy is still complete.</li><li>When opening, KDB reads both and uses the valid copy with the highest <strong>sequence</strong> number. <code>kdb info</code> shows <code>manifest copy b, sequence 12</code>.</li><li>If one copy is damaged, KDB notes it and writes over it at the next save.</li><li>It is saved at every checkpoint, after a recovery, and when the database closes (then with <code>clean shutdown</code>).</li></ul>
+<ul><li>It is saved in two files. A save always writes over the <strong>older</strong> copy. So if a crash happens during a save, the other copy is still complete.</li><li>When opening, KarelaDB reads both and uses the valid copy with the highest <strong>sequence</strong> number. <code>kareladb info</code> shows <code>manifest copy b, sequence 12</code>.</li><li>If one copy is damaged, KarelaDB notes it and writes over it at the next save.</li><li>It is saved at every checkpoint, after a recovery, and when the database closes (then with <code>clean shutdown</code>).</li></ul>
 <h3 id="manifest-keys">Manifest keys</h3>
 <p>Besides the file list, the manifest keeps small <strong>keys</strong> for the tables:</p>
 <div class="table-wrap"><table><thead><tr><th>Key</th><th>What it holds</th></tr></thead><tbody><tr><td><code>rows.&lt;file&gt;</code></td><td>the row count of a partition file</td></tr><tr><td><code>sym.&lt;file&gt;</code></td><td>which symbols a partition file holds, so a <code>WHERE symbol = ...</code> skips files without opening them</td></tr><tr><td><code>rowid.&lt;table number&gt;</code>, <code>auto.&lt;table number&gt;</code></td><td>the next row id and the next <code>AUTO</code> value of a table</td></tr></tbody></table></div>
-<ul><li>Every checkpoint rewrites the manifest with all its keys. Since 2026-09-23 the keys of a dropped table (and of partition files that are gone) are removed at the next checkpoint, and once when a database is opened for writing. Older builds left them behind for ever.</li><li>The open then says <code>removed N manifest keys left behind by dropped tables</code>. <code>kdb info</code> shows <code>manifest keys N</code>, and how many of them belong to files that are gone.</li><li>This is no change of the format: an older KDB opens such a manifest as before.</li></ul>
+<ul><li>Every checkpoint rewrites the manifest with all its keys. Since 2026-09-23 the keys of a dropped table (and of partition files that are gone) are removed at the next checkpoint, and once when a database is opened for writing. Older builds left them behind for ever.</li><li>The open then says <code>removed N manifest keys left behind by dropped tables</code>. <code>kareladb info</code> shows <code>manifest keys N</code>, and how many of them belong to files that are gone.</li><li>This is no change of the format: an older KarelaDB opens such a manifest as before.</li></ul>
 <p><strong>Command line: Which copy is newest</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb info market
-kdb dump-file market/_manifest.b</code></pre>
+<pre><code class="language-bash">kareladb info market
+kareladb dump-file market/_manifest.b</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb info market</code></p>
+<p><code>&gt; kareladb info market</code></p>
 <pre><code class="language-text">database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-22 11:28:27
+newest change   2026-10-22 15:39:54
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -134,8 +134,8 @@ t/5/2026-09-10                                 13     2.4 KB           30  ok
 t/6/2026-09-10                                 14     2.7 KB           30  ok
 
 9 files, 72.1 KB, 0 marked damaged
-(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)</code></pre>
-<p><code>&gt; kdb dump-file market/_manifest.b</code></p>
+(STATUS is what the manifest records. To read every block and find new damage, run: kareladb check)</code></pre>
+<p><code>&gt; kareladb dump-file market/_manifest.b</code></p>
 <pre><code class="language-text">file         market/_manifest.b
 type         manifest
 version      1
@@ -143,11 +143,11 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           8
-created      2026-10-22 11:28:27
+created      2026-10-22 15:39:54
 blocks       1
-digest       fe6eb549
+digest       e4cdb4fa
 OK: all blocks match their checksums</code></pre>
-<p>In the header of a manifest, <code>id</code> is its sequence number. The copy that <code>kdb info</code> names has the higher one; the other copy is one save older.</p>
+<p>In the header of a manifest, <code>id</code> is its sequence number. The copy that <code>kareladb info</code> names has the higher one; the other copy is one save older.</p>
 <h2 id="backups">Backup folders</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">&lt;backups-dir&gt;/
@@ -156,23 +156,23 @@ OK: all blocks match their checksums</code></pre>
     files/&lt;name&gt;.v&lt;N&gt;.kdb       the current version of every data file
     wal/&lt;first LSN&gt;.log         the log files needed to replay from those files
   20260912-...-.partial/        an unfinished backup: never used, removed later</code></pre>
-<ul><li>A backup holds only the <strong>current</strong> version of each file, plus the log files needed. With <code>--hard-links</code>, the data files are hard links; log files are always copied.</li><li><code>backup.kdb</code> is a KDB block file too (with checksums). It is written <strong>last</strong>, after every file was copied and synced. Then the whole backup is read again. Only then the folder gets its final name (without <code>.partial</code>).</li><li>A backup knows which database it came from (a random id made when the database was created) and its log history. Repairs and <code>--logs-from</code> never use a backup or log of another database.</li><li><strong>Restore</strong> copies the files into a new folder, checks every copy, adds newer log files from <code>--logs-from</code>, cuts the log at <code>--until</code>, and writes a new manifest. The log is replayed when the new database is first opened. The restored database starts a new log <strong>history</strong> (timeline), so old log files of the abandoned history are never mixed in.</li></ul>
+<ul><li>A backup holds only the <strong>current</strong> version of each file, plus the log files needed. With <code>--hard-links</code>, the data files are hard links; log files are always copied.</li><li><code>backup.kdb</code> is a KarelaDB block file too (with checksums). It is written <strong>last</strong>, after every file was copied and synced. Then the whole backup is read again. Only then the folder gets its final name (without <code>.partial</code>).</li><li>A backup knows which database it came from (a random id made when the database was created) and its log history. Repairs and <code>--logs-from</code> never use a backup or log of another database.</li><li><strong>Restore</strong> copies the files into a new folder, checks every copy, adds newer log files from <code>--logs-from</code>, cuts the log at <code>--until</code>, and writes a new manifest. The log is replayed when the new database is first opened. The restored database starts a new log <strong>history</strong> (timeline), so old log files of the abandoned history are never mixed in.</li></ul>
 <p><strong>Command line: A backup, and its list</strong> (sample data: sample)</p>
-<pre><code class="language-bash">kdb backup market backups
-kdb backups backups</code></pre>
+<pre><code class="language-bash">kareladb backup market backups
+kareladb backups backups</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb backup market backups</code></p>
-<pre><code class="language-text">backup created and verified: backups/20261022-054330-179
+<p><code>&gt; kareladb backup market backups</code></p>
+<pre><code class="language-text">backup created and verified: backups/20261022-095459-107
   9 files, 190.0 KB, log up to 30</code></pre>
-<p><code>&gt; kdb backups backups</code></p>
+<p><code>&gt; kareladb backups backups</code></p>
 <pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261022-054330-179    2026-10-22 11:28:30       9   190.0 KB           30
+20261022-095459-107    2026-10-22 15:39:59       9   190.0 KB           30
 1 backups</code></pre>
 <h2 id="indexes">Indexes are not stored</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">CREATE INDEX ...     only the definition is saved (in the catalog)</code></pre>
-<p>For <code>CREATE INDEX</code>, KDB saves only the <strong>definition</strong> in the catalog. The index itself lives in memory. It is built from the rows after the database opens: <code>kdb serve</code> builds every index on a background thread right after the open, and a query that needs one before that builds it itself.</p>
-<ul><li>So <code>kdb check</code>, <code>kdb repair</code>, backups and restores have nothing to check for indexes, and an index can never be old or damaged after a crash.</li><li>The cost: after a start, building a big index takes a while. A query that needs it early waits for it (see <a href="indexes.html#warm">indexes</a>).</li></ul>
+<p>For <code>CREATE INDEX</code>, KarelaDB saves only the <strong>definition</strong> in the catalog. The index itself lives in memory. It is built from the rows after the database opens: <code>kareladb serve</code> builds every index on a background thread right after the open, and a query that needs one before that builds it itself.</p>
+<ul><li>So <code>kareladb check</code>, <code>kareladb repair</code>, backups and restores have nothing to check for indexes, and an index can never be old or damaged after a crash.</li><li>The cost: after a start, building a big index takes a while. A query that needs it early waits for it (see <a href="indexes.html#warm">indexes</a>).</li></ul>
 <p><strong>Example: An index on a sample table: only its definition is saved</strong> (sample data: sample)</p>
 <pre><code class="language-sql">CREATE INDEX trade_log_buyer ON trade_log (buyer);
 SHOW INDEXES;</code></pre>
@@ -183,6 +183,6 @@ SHOW INDEXES;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>table (STRING)</th><th>kind (STRING)</th><th>columns (STRING)</th><th>built (BOOL)</th><th>rows (LONG)</th><th>memory_bytes (LONG)</th><th>create_sql (STRING)</th><th>building (BOOL)</th></tr></thead><tbody><tr><td>trade_log_buyer</td><td>trade_log</td><td>INDEX</td><td>buyer</td><td>true</td><td>32</td><td>1777</td><td>CREATE INDEX trade_log_buyer ON trade_log (buyer)</td><td>false</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/data-formats.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/data-formats.md">This page as markdown</a>.</footer>
 </body>
 </html>

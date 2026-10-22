@@ -3,7 +3,7 @@
 > Put rows of two or more tables side by side: JOIN, LEFT / RIGHT / FULL JOIN, USING, CROSS JOIN, and ASOF / LT / SPLICE JOIN for time series.
 
 - Category: Querying
-- Keywords: join, JOIN, hash join, join speed, key lookup, index lookup, index nested loop join, KDB\_NO\_COLUMN\_JOIN, engine: column (hash join), GROUP BY over a join, join another database, INNER JOIN, INNER, ON, LEFT JOIN, LEFT OUTER JOIN, LEFT, OUTER, CROSS JOIN, CROSS, ASOF JOIN, ASOF, as of, time join, table alias, self join, join subquery, RIGHT JOIN, RIGHT OUTER JOIN, FULL JOIN, FULL OUTER JOIN, USING, JOIN USING, LT JOIN, SPLICE JOIN, RIGHT, FULL, LT, SPLICE, comma join, ambiguous column, join, left join, asof, cross join
+- Keywords: join, JOIN, hash join, join speed, key lookup, index lookup, index nested loop join, KARELADB\_NO\_COLUMN\_JOIN, engine: column (hash join), GROUP BY over a join, join another database, INNER JOIN, INNER, ON, LEFT JOIN, LEFT OUTER JOIN, LEFT, OUTER, CROSS JOIN, CROSS, ASOF JOIN, ASOF, as of, time join, table alias, self join, join subquery, RIGHT JOIN, RIGHT OUTER JOIN, FULL JOIN, FULL OUTER JOIN, USING, JOIN USING, LT JOIN, SPLICE JOIN, RIGHT, FULL, LT, SPLICE, comma join, ambiguous column, join, left join, asof, cross join
 - See also: [SELECT (from)](select.md#from), [WHERE](where.md), [GROUP BY and HAVING](group-by.md), [UNION and subqueries (correlated)](union-subqueries.md#correlated), [LATEST ON](latest-on.md), [EXPLAIN](explain.md)
 
 A **join** puts rows of two tables side by side. For example, a trade in `trade_log` has only the broker number (`buyer = 58`); a join with `brokers` adds the broker's name.
@@ -57,7 +57,7 @@ FROM left_table [[AS] alias]
 [[INNER] JOIN ... ON ...] ...
 ```
 
-For each row of the left side, KDB finds the rows of the right table where the `ON` condition is true, and gives one output row for each match. A row with no match is left out.
+For each row of the left side, KarelaDB finds the rows of the right table where the `ON` condition is true, and gives one output row for each match. A row with no match is left out.
 
 | Part | Meaning |
 |---|---|
@@ -172,7 +172,7 @@ Error: `line 1, column 41: expected ON or USING (columns) and a join condition a
 
 ### Join speed: key lookup or hash
 
-KDB picks one of two ways to find the rows of a joined table (`JOIN` and `LEFT JOIN`):
+KarelaDB picks one of two ways to find the rows of a joined table (`JOIN` and `LEFT JOIN`):
 
 | Way | When | Cost |
 |---|---|---|
@@ -180,7 +180,7 @@ KDB picks one of two ways to find the rows of a joined table (`JOIN` and `LEFT J
 | **hash** | Any other `ON`, or a left side with many rows (more than about a quarter of the joined table) | The joined table is read once (only the columns the query uses), then every left row is matched in it. Its rows are not copied: the hash points at them where they already are in memory, and a row is built only when a left row matches it. |
 
 - `EXPLAIN` shows the choice: `join (key lookup on id) table users`, `join (index lookup on email) table users` or `join (hash on 1 key(s)) table users`.
-- When KDB cannot tell in advance how many left rows there are (a `WHERE` on a column without an index), it starts with lookups and switches to the hash once they cost more.
+- When KarelaDB cannot tell in advance how many left rows there are (a `WHERE` on a column without an index), it starts with lookups and switches to the hash once they cost more.
 - A key of type `DOUBLE` or `DECIMAL` is always joined with the hash.
 - A `GROUP BY` over joined rows keeps no copy of the joined tables' rows either, and `ORDER BY ... LIMIT n` keeps only the best n rows while it groups. A report that joins 20,000 users to their accounts and transfers and shows the top 20 runs about twice as fast as before (2026-10-02).
 
@@ -224,7 +224,7 @@ It is used when all of these hold:
 
 - `EXPLAIN` then ends with `engine: column (hash join)`; otherwise `engine: row (...)` says why not.
 - A first table with a filter, joined to a big table (over 65,536 rows) that it can look up by key or index, stays on the row engine: a few lookups are cheaper than reading the whole joined table.
-- The answers are the same on both engines, in the same order. `KDB_NO_COLUMN_JOIN=1` sends every join back to the row engine, for comparing.
+- The answers are the same on both engines, in the same order. `KARELADB_NO_COLUMN_JOIN=1` sends every join back to the row engine, for comparing.
 
 <a id="left-join"></a>
 
@@ -454,7 +454,7 @@ SELECT count(*) FROM brokers b, securities s FULL JOIN live_data l ON l.symbol =
 
 Result:
 
-Error: `line 1, column 46: FULL JOIN after a comma join is ambiguous: PostgreSQL joins it before the comma, KDB after. Write CROSS JOIN instead of the comma to join left to right, or put the joins after the comma in a subquery: FROM a, (SELECT ... FROM b RIGHT JOIN c ON ...) s`
+Error: `line 1, column 46: FULL JOIN after a comma join is ambiguous: PostgreSQL joins it before the comma, KarelaDB after. Write CROSS JOIN instead of the comma to join left to right, or put the joins after the comma in a subquery: FROM a, (SELECT ... FROM b RIGHT JOIN c ON ...) s`
 
 <a id="using"></a>
 
@@ -580,7 +580,7 @@ FROM left_table [[AS] alias]
 ASOF JOIN right_table [[AS] alias] [ON condition]
 ```
 
-A join by **time**. For each row of the left table, KDB takes the **last row of the right table whose time is at or before the left row's time**. With `ON`, the right row must also match the `ON` condition (usually the same symbol).
+A join by **time**. For each row of the left table, KarelaDB takes the **last row of the right table whose time is at or before the left row's time**. With `ON`, the right row must also match the `ON` condition (usually the same symbol).
 
 This answers questions like "what was the last candle when this live price came in?" or "what was the price when this trade happened?".
 
@@ -744,7 +744,7 @@ A **full** time join (QuestDB): the rows of both tables are merged in time order
 - **Returns:** at least as many rows as both tables together, minus the pairs of the same time. A row before any row of the other table has `NULL` on that side.
 - **Notes:** `ON` takes only equal columns. `SPLICE JOIN` must be the first join of the query (joins after it are fine); both tables need a time column.
 - The rows come out in time order. Rows of **one** table with the same time come in that table's order (for a table with `SORT BY (symbol, time)`, by symbol).
-- With keys, every row of both tables is kept. QuestDB 9.4.3 pairs rows the same way for one key, but with several keys it drops some right rows and pairs some rows with an older row of their key; KDB keeps them all.
+- With keys, every row of both tables is kept. QuestDB 9.4.3 pairs rows the same way for one key, but with several keys it drops some right rows and pairs some rows with an older row of their key; KarelaDB keeps them all.
 
 **Example: Live prices and a few minute candles on one time line (05:20 has both: one pair)** (sample data: sample)
 
@@ -785,7 +785,7 @@ alias.*
 
 An alias is a short name for a table in one query. After you give one, use it for the columns: `f.symbol`. `AS` is optional.
 
-- **Notes:** when a column name is in more than one table (like `symbol` or `name`), you **must** write `alias.column`. Otherwise KDB says `column 'symbol' is in more than one table`.
+- **Notes:** when a column name is in more than one table (like `symbol` or `name`), you **must** write `alias.column`. Otherwise KarelaDB says `column 'symbol' is in more than one table`.
 - The same table can be joined twice with two aliases (`brokers b` and `brokers s` in the first example).
 - The words `ASOF`, `CROSS`, `FULL`, `INNER`, `LATEST`, `LEFT`, `LT`, `RIGHT`, `SAMPLE`, `SPLICE`, `UNION`, `USING` and a few more cannot be an alias without `AS`, because they start the next part of the query.
 

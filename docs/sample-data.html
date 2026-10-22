@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sample data - KDB (KARELA DataBase) docs</title>
+<title>Sample data - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="The small made-up stock market dataset that most help examples use, with a few rows of each.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/sample-data.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sample-data.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/sample-data.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/sample-data.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="sample-data">Sample data</h1>
 <blockquote><p>The small made-up stock market dataset that most help examples use, with a few rows of each.</p></blockquote>
 <ul><li>Category: Getting started</li><li>Keywords: sample, fixture, demo data, example data, stock market, tutorial data, schema.sql, sample-data.sql, securities, brokers, ochl_day, ochl_minutes, trade_log, live_data, candles, trades</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="latest-on.html">LATEST ON</a>, <a href="joins.html">Joins</a></li></ul>
-<p>Most examples in this help use a small <strong>made-up</strong> stock market dataset: companies, brokers, price candles, trades and live prices. The names and prices only look real. It is just one example of what KDB stores; the same SQL works for sensor readings, logs and metrics, accounting, users and logins, or any app&#39;s data. The examples call it the fixture <code>sample</code>. Every example starts with a fresh copy, so an example that changes rows does not change the next one.</p>
+<p>Most examples in this help use a small <strong>made-up</strong> stock market dataset: companies, brokers, price candles, trades and live prices. The names and prices only look real. It is just one example of what KarelaDB stores; the same SQL works for sensor readings, logs and metrics, accounting, users and logins, or any app&#39;s data. The examples call it the fixture <code>sample</code>. Every example starts with a fresh copy, so an example that changes rows does not change the next one.</p>
 <div class="table-wrap"><table><thead><tr><th>Table</th><th>Kind</th><th>Rows</th><th>What it holds</th></tr></thead><tbody><tr><td><code>securities</code></td><td>relational</td><td>5</td><td>companies: CITY, COAST, VOLT, TELCO, ACME</td></tr><tr><td><code>brokers</code></td><td>relational</td><td>5</td><td>broker numbers and names</td></tr><tr><td><code>ochl_day</code></td><td>time-series, <code>PARTITION BY YEAR</code></td><td>57</td><td>daily candles of CITY, COAST, VOLT: 4 days of 2025-12 and 15 days of 2026-08 and 2026-09</td></tr><tr><td><code>ochl_minutes</code></td><td>time-series, <code>PARTITION BY MONTH</code></td><td>956</td><td>one-minute candles of CITY and COAST on 2026-09-09 and 2026-09-10</td></tr><tr><td><code>trade_log</code></td><td>time-series, <code>PARTITION BY DAY</code></td><td>32</td><td>trades on 2026-09-09 and 2026-09-10</td></tr><tr><td><code>live_data</code></td><td>time-series, <code>PARTITION BY DAY</code></td><td>12</td><td>live prices of CITY, COAST, VOLT, TELCO at three times on 2026-09-10</td></tr></tbody></table></div>
 <p>To load the same data into your own database, see <a href="quick-start.html#sample-data">quick start</a>. The files are <code>docs/tutorial/examples/setup/schema.sql</code> and <code>sample-data.sql</code>.</p>
 <p><strong>Example: All tables and their row counts</strong> (sample data: sample)</p>
@@ -123,7 +123,7 @@ SAMPLE BY 1h;</code></pre>
   rate           DOUBLE,
   amount         DOUBLE AS (quantity * rate)
 ) TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, transaction_id);</code></pre>
-<p>Every trade of the day: who bought, who sold, how many shares and at what rate. <code>amount</code> is a <strong>computed column</strong>: it is not stored, KDB works it out from <code>quantity * rate</code> when you read it.</p>
+<p>Every trade of the day: who bought, who sold, how many shares and at what rate. <code>amount</code> is a <strong>computed column</strong>: it is not stored, KarelaDB works it out from <code>quantity * rate</code> when you read it.</p>
 <ul><li><strong>Notes:</strong> a broker that trades point to cannot be deleted from <code>brokers</code>.</li></ul>
 <p><strong>Example: The first trades of 2026-09-10 with broker names</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT f.transaction_id, f.symbol, b.name AS buyer, s.name AS seller, f.quantity, f.rate, f.amount
@@ -176,6 +176,6 @@ ORDER BY symbol;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>ltp (DOUBLE)</th><th>point_change (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>860.5</td><td>-20.5</td><td>-2.33</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>869</td><td>-12</td><td>-1.36</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>897.7</td><td>16.7</td><td>1.9</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sample-data.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/sample-data.md">This page as markdown</a>.</footer>
 </body>
 </html>

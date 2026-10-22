@@ -4,7 +4,7 @@
 
 ## What you will learn
 
-The NChartPro app creates its PostgreSQL tables itself when it starts (`pgdb.CreateAllTables()`). This chapter shows what KDB does with those statements:
+The NChartPro app creates its PostgreSQL tables itself when it starts (`pgdb.CreateAllTables()`). This chapter shows what KarelaDB does with those statements:
 
 - **Part A.** PostgreSQL type names (`SERIAL`, `VARCHAR(n)`, `NUMERIC(p,s)`, `UUID`, `TEXT[]`, ...).
 - **Part B.** `CREATE TABLE` forms: constraints, composite keys, `CREATE TABLE ... AS`, `TEMP` tables.
@@ -14,19 +14,19 @@ The NChartPro app creates its PostgreSQL tables itself when it starts (`pgdb.Cre
 - **Part F.** Sequences: `nextval`, `currval`, `setval`.
 - **Part G.** `CREATE SCHEMA`, `CREATE EXTENSION`, `COMMENT ON`, `DO $$ ... $$` blocks.
 - **Part H.** `information_schema` and `pg_catalog` views.
-- **Part I.** plpgsql trigger functions and `FOR EACH ROW` triggers: what KDB runs.
+- **Part I.** plpgsql trigger functions and `FOR EACH ROW` triggers: what KarelaDB runs.
 - **Part J.** Times: local time and UTC when you move data.
-- What is **different** from PostgreSQL, what **older KDB** programs do, and **speed**.
+- What is **different** from PostgreSQL, what **older KarelaDB** programs do, and **speed**.
 
 Chapter 14 explains how to connect with the PostgreSQL protocol. This chapter is about the schema (tables, keys, indexes); chapter 23 is about queries and data changes (`ON CONFLICT`, `WITH`, subqueries, arrays). The output under each example is real.
 
 ## The short version
 
-| PostgreSQL | KDB |
+| PostgreSQL | KarelaDB |
 |---|---|
 | `SERIAL`, `BIGSERIAL`, `GENERATED ... AS IDENTITY` | Works for a single-column `PRIMARY KEY` (`AUTO` id). |
 | `VARCHAR(n)`, `CHAR(n)`, `NUMERIC(p,s)` | Works. Lengths, precision and scale are checked. |
-| `UUID`, `TIME`, `INTERVAL`, `TEXT[]`, `JSONB`, `INET` | Works, with a KDB type underneath (Part A). |
+| `UUID`, `TIME`, `INTERVAL`, `TEXT[]`, `JSONB`, `INET` | Works, with a KarelaDB type underneath (Part A). |
 | `PRIMARY KEY (a, b)`, `UNIQUE (a, b)`, `FOREIGN KEY (a, b)` | Works. |
 | `ON DELETE CASCADE / SET NULL / SET DEFAULT / RESTRICT`, `ON UPDATE CASCADE` | Works, also inside `BEGIN ... COMMIT`. |
 | `ALTER TABLE ... ALTER COLUMN ... TYPE / SET DEFAULT / SET NOT NULL`, `ADD CONSTRAINT` | Works. Rows are checked, or written again. |
@@ -37,15 +37,15 @@ Chapter 14 explains how to connect with the PostgreSQL protocol. This chapter is
 | `CREATE EXTENSION`, `CREATE SCHEMA`, `COMMENT ON` | Accepted. Nothing changes. |
 | `CREATE FUNCTION ... RETURNS trigger LANGUAGE plpgsql` with a `BEFORE UPDATE ... FOR EACH ROW` trigger | Works for `IF`, `RAISE EXCEPTION`, `NEW.col := ...` and `RETURN NEW` (Part I). Other plpgsql is refused with a clear message. |
 
-When the app's PostgreSQL startup DDL runs on KDB, **802 of 809** statements work (99%). Before this work it was 198 of 809. The 7 others are listed at the end of the chapter.
+When the app's PostgreSQL startup DDL runs on KarelaDB, **802 of 809** statements work (99%). Before this work it was 198 of 809. The 7 others are listed at the end of the chapter.
 
 ---
 
 ## Part A: Types
 
-Write the PostgreSQL name. KDB keeps the name (so `SHOW CREATE TABLE` and `information_schema.columns` show it) and stores the value in a KDB type.
+Write the PostgreSQL name. KarelaDB keeps the name (so `SHOW CREATE TABLE` and `information_schema.columns` show it) and stores the value in a KarelaDB type.
 
-| PostgreSQL | KDB stores as | Rule |
+| PostgreSQL | KarelaDB stores as | Rule |
 |---|---|---|
 | `SMALLINT`, `INT2` | `SHORT` | |
 | `INTEGER`, `INT`, `INT4` | `INT` | |
@@ -53,10 +53,10 @@ Write the PostgreSQL name. KDB keeps the name (so `SHOW CREATE TABLE` and `infor
 | `SMALLSERIAL`, `SERIAL`, `BIGSERIAL` | `SHORT` / `INT` / `LONG` `PRIMARY KEY AUTO` | Only as the single-column `PRIMARY KEY`. See below. |
 | `GENERATED {ALWAYS \| BY DEFAULT} AS IDENTITY` | same as `SERIAL` | |
 | `REAL`, `FLOAT4`, `FLOAT(1..24)` | `FLOAT` | |
-| `DOUBLE PRECISION`, `FLOAT8`, `FLOAT(25..53)` | `DOUBLE` | `FLOAT` alone is KDB's 4-byte `FLOAT` (in PostgreSQL it is 8 bytes). |
+| `DOUBLE PRECISION`, `FLOAT8`, `FLOAT(25..53)` | `DOUBLE` | `FLOAT` alone is KarelaDB's 4-byte `FLOAT` (in PostgreSQL it is 8 bytes). |
 | `NUMERIC(p,s)`, `DECIMAL(p,s)`, `NUMERIC(p)` | `DECIMAL(s)` | Rounded to `s` places (half away from zero). More than `p` digits → error `numeric field overflow`. `s` at most 18. |
 | `NUMERIC` (no precision) | `DOUBLE` | About 15 exact digits. |
-| `DECIMAL(s)` (one number) | `DECIMAL(s)` | KDB meaning: `s` is the **scale** (chapter 11). |
+| `DECIMAL(s)` (one number) | `DECIMAL(s)` | KarelaDB meaning: `s` is the **scale** (chapter 11). |
 | `MONEY` | `DECIMAL(2)` | Rounded to 2 places. |
 | `VARCHAR(n)`, `CHARACTER VARYING(n)` | `STRING` | At most `n` **characters** (letters of any language, such as Nepali, count as characters). |
 | `CHAR(n)`, `BPCHAR` | `STRING` | At most `n` characters. Not padded with spaces. |
@@ -98,10 +98,10 @@ Errors use the PostgreSQL words, so the app's error checks still work. Over the 
 
 ### SERIAL must be the primary key
 
-KDB gives `AUTO` ids only to the `PRIMARY KEY`. A `SERIAL` column that is not the primary key is refused, with the fix in the message:
+KarelaDB gives `AUTO` ids only to the `PRIMARY KEY`. A `SERIAL` column that is not the primary key is refused, with the fix in the message:
 
 ```text
-error: line 1, column 24: column 'code' is SERIAL (or IDENTITY) but not the PRIMARY KEY; in KDB such a column must be the table's single-column PRIMARY KEY (id SERIAL PRIMARY KEY). For other columns use a sequence: code INT NOT NULL DEFAULT nextval('t_serial_code_seq')
+error: line 1, column 24: column 'code' is SERIAL (or IDENTITY) but not the PRIMARY KEY; in KarelaDB such a column must be the table's single-column PRIMARY KEY (id SERIAL PRIMARY KEY). For other columns use a sequence: code INT NOT NULL DEFAULT nextval('t_serial_code_seq')
 ```
 
 `AUTO` ids work like a sequence: a failed or rolled back insert also uses up an id, so there can be gaps.
@@ -148,7 +148,7 @@ table 'forum_posts' created
 
 table 'post_likes' created
 
-comment accepted (KDB does not keep comments)
+comment accepted (KarelaDB does not keep comments)
 ```
 
 ```sql
@@ -192,7 +192,7 @@ error: CHECK constraint 'forum_users_balance_check' of table 'forum_users' faile
 
 ### What CREATE TABLE accepts
 
-| Form | What KDB does |
+| Form | What KarelaDB does |
 |---|---|
 | `IF NOT EXISTS`, `public.name` | As in PostgreSQL. `public.` and `pg_catalog.` are removed from names. |
 | `NOT NULL`, `NULL`, `DEFAULT expr`, `CHECK (...)`, `UNIQUE`, `PRIMARY KEY` | As in PostgreSQL. |
@@ -201,12 +201,12 @@ error: CHECK constraint 'forum_users_balance_check' of table 'forum_users' faile
 | `PRIMARY KEY (a, b)` | Rows are stored by the key. `INSERT OR REPLACE` uses it. |
 | `UNIQUE (a, b)` | A unique index named like PostgreSQL (`table_a_b_key`). |
 | `FOREIGN KEY (a, b) REFERENCES t (x, y)` | Checked when any part is not NULL (`MATCH SIMPLE`). |
-| `GENERATED ALWAYS AS (expr) STORED` | A KDB computed column (worked out when read, not stored). |
+| `GENERATED ALWAYS AS (expr) STORED` | A KarelaDB computed column (worked out when read, not stored). |
 | `CREATE TABLE t AS SELECT ...` `[WITH NO DATA]` | Types come from the query. Table and rows are written together. |
 | `CREATE TEMP` / `TEMPORARY` / `UNLOGGED TABLE` | A normal table (it stays after the session). |
 | `WITH (fillfactor = 70)`, `WITHOUT OIDS`, `TABLESPACE x` | Accepted and ignored. |
-| `INHERITS (...)`, `PARTITION BY RANGE (...)` | Refused. Use KDB `TIMESERIES` tables (chapter 3). |
-| `DEFERRABLE` | Refused. KDB checks keys at every statement. |
+| `INHERITS (...)`, `PARTITION BY RANGE (...)` | Refused. Use KarelaDB `TIMESERIES` tables (chapter 3). |
+| `DEFERRABLE` | Refused. KarelaDB checks keys at every statement. |
 
 Table constraints (`PRIMARY KEY (...)`, `CONSTRAINT ... CHECK`) must come **after** the columns.
 
@@ -271,7 +271,7 @@ The rules:
 - All changes of one statement, with every cascade, are **one transaction**. If one part fails (a `CHECK`, a `NOT NULL`, a `RESTRICT` deeper down), nothing changes.
 - Inside `BEGIN ... COMMIT` it works the same. `ROLLBACK` brings back the parent and all children.
 - After a crash, the log has the whole change or none of it.
-- KDB finds the child rows with the child's key or an index when there is one. Without one, it reads the child table. For big child tables, add an index on the foreign key column (`CREATE INDEX ... ON child (parent_id)`), as in PostgreSQL.
+- KarelaDB finds the child rows with the child's key or an index when there is one. Without one, it reads the child table. For big child tables, add an index on the foreign key column (`CREATE INDEX ... ON child (parent_id)`), as in PostgreSQL.
 - A table that another table refers to cannot be dropped (`DROP TABLE ... CASCADE` is not supported).
 - In one `INSERT` with many rows, a row can refer to a row **before** it in the same statement (a tree). PostgreSQL also allows a row that comes later.
 
@@ -291,7 +291,7 @@ table 'forum_users' altered
 error: column 'phone' of table 'forum_users' contains NULL values; set them first (UPDATE ... SET phone = ... WHERE phone IS NULL)
 ```
 
-| Form | What KDB does |
+| Form | What KarelaDB does |
 |---|---|
 | `ADD [COLUMN] [IF NOT EXISTS] col type [rules]` | Old rows get the `DEFAULT`. |
 | `DROP [COLUMN] [IF EXISTS] col [CASCADE]` | Refused while an index, `CHECK` or multi-column key uses the column; `CASCADE` drops them. |
@@ -304,7 +304,7 @@ error: column 'phone' of table 'forum_users' contains NULL values; set them firs
 | `DROP CONSTRAINT [IF EXISTS] name` | Any named constraint, except the `PRIMARY KEY` (rows are stored by it). |
 | Several actions with commas | All of them or none. |
 | `ALTER TABLE IF EXISTS`, `ONLY`, `OWNER TO`, `VALIDATE CONSTRAINT` | Accepted. |
-| `ENABLE` / `DISABLE TRIGGER name` | KDB triggers (chapter 13). |
+| `ENABLE` / `DISABLE TRIGGER name` | KarelaDB triggers (chapter 13). |
 
 `ALTER TABLE` and `CREATE INDEX` cannot be used between `BEGIN` and `COMMIT` (chapter 13). A `DO` block can use them, outside a transaction (Part G).
 
@@ -335,10 +335,10 @@ uq_one_admin
 (4 rows, 0.1 ms)
 ```
 
-| Form | What KDB does |
+| Form | What KarelaDB does |
 |---|---|
-| `CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] [name] ON [ONLY] t [USING btree \| hash \| gin \| gist] (...)` | Accepted. Without a name, KDB names it like PostgreSQL (`t_col_idx`). `USING` is only remembered. |
-| `(col DESC NULLS LAST, col text_pattern_ops)` | Accepted. The order words are remembered; KDB indexes work both ways. |
+| `CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] [name] ON [ONLY] t [USING btree \| hash \| gin \| gist] (...)` | Accepted. Without a name, KarelaDB names it like PostgreSQL (`t_col_idx`). `USING` is only remembered. |
+| `(col DESC NULLS LAST, col text_pattern_ops)` | Accepted. The order words are remembered; KarelaDB indexes work both ways. |
 | `(lower(email))`, `(COALESCE(a, ''))` | An expression index. |
 | `... WHERE condition` | A partial index: only rows where the condition is true. |
 | `INCLUDE (...)`, `WITH (...)`, `TABLESPACE` | Accepted and ignored. |
@@ -392,7 +392,7 @@ invoice_no
 | `setval('s', n [, is_called])` | The next `nextval` gives `n + 1` (or `n` with `false`). |
 | `lastval()` | The last `nextval` of this session, of any sequence. |
 
-**A number is never given twice.** Not after a rollback, not after a restart, not after a crash. KDB writes a mark to the log before it gives out the next 32 numbers. After a crash, the sequence starts after the mark, so a few numbers can be skipped (as in PostgreSQL).
+**A number is never given twice.** Not after a rollback, not after a restart, not after a crash. KarelaDB writes a mark to the log before it gives out the next 32 numbers. After a crash, the sequence starts after the mark, so a few numbers can be skipped (as in PostgreSQL).
 
 Over HTTP every request is a new session, so `currval` works only inside one request (`SELECT nextval('s'); SELECT currval('s')`). Over the PostgreSQL protocol, the session is the connection.
 
@@ -400,9 +400,9 @@ Over HTTP every request is a new session, so `currval` works only inside one req
 
 ## Part G: Other statements
 
-| Statement | What KDB does |
+| Statement | What KarelaDB does |
 |---|---|
-| `CREATE SCHEMA [IF NOT EXISTS] name` | Accepted: `schema 'reporting' accepted: KDB has no schemas; use a separate database for its tables`. |
+| `CREATE SCHEMA [IF NOT EXISTS] name` | Accepted: `schema 'reporting' accepted: KarelaDB has no schemas; use a separate database for its tables`. |
 | `CREATE EXTENSION [IF NOT EXISTS] pgcrypto` | Accepted for `pgcrypto`, `uuid-ossp`, `citext`, `plpgsql`, `pg_trgm`, `btree_gin`, `btree_gist`, `unaccent`. Other names are refused. |
 | `COMMENT ON TABLE / COLUMN / INDEX ... IS '...'` | Accepted. The comment is not kept. |
 | `CREATE TEMP TABLE t AS SELECT ...` | A normal table with the rows (`table 'tmp_ids' created with 1 row(s)`). |
@@ -432,7 +432,7 @@ A DO block may use:
 - `RAISE NOTICE / WARNING / INFO 'text %', value;` adds a line to the message. `RAISE EXCEPTION 'text %', value;` stops with an error.
 - `NULL;`
 
-`DECLARE`, `PERFORM`, `EXECUTE`, loops, `RETURN` and `EXCEPTION` handlers are refused with a message. Write a KDB procedure (chapter 13), or do the work in the Go code.
+`DECLARE`, `PERFORM`, `EXECUTE`, loops, `RETURN` and `EXCEPTION` handlers are refused with a message. Write a KarelaDB procedure (chapter 13), or do the work in the Go code.
 
 **A DO block is not one transaction.** Each statement is saved when it runs. If a later statement fails, the earlier ones stay. The app's blocks are written to run again safely (they check first), so this is fine for them.
 
@@ -489,7 +489,7 @@ The views have the columns apps and tools use most. They are not complete copies
 
 ## Part I: plpgsql functions and triggers
 
-KDB runs a small part of plpgsql: a **trigger function** (`RETURNS trigger ... LANGUAGE plpgsql`) with a `BEFORE UPDATE ... FOR EACH ROW` trigger. This is the form of the app's two trigger functions. KDB runs the body for every changed row.
+KarelaDB runs a small part of plpgsql: a **trigger function** (`RETURNS trigger ... LANGUAGE plpgsql`) with a `BEFORE UPDATE ... FOR EACH ROW` trigger. This is the form of the app's two trigger functions. KarelaDB runs the body for every changed row.
 
 The body may use:
 
@@ -522,7 +522,7 @@ UPDATE user_register SET email = 'new@example.com' WHERE user_id = 2;
 ```
 
 ```text
-trigger function 'user_register_block_identity_update' created (plpgsql, run by KDB for every row a BEFORE UPDATE trigger sees)
+trigger function 'user_register_block_identity_update' created (plpgsql, run by KarelaDB for every row a BEFORE UPDATE trigger sees)
 
 row trigger 'trg_user_register_immutable' created on table 'user_register': it runs 'user_register_block_identity_update' for every row of a BEFORE UPDATE
 
@@ -562,28 +562,28 @@ alias_id | swap_ratio | confirmed | notes
 (1 row, 0.2 ms)
 ```
 
-What KDB refuses, with a clear message when you create it (nothing is accepted and then quietly not run):
+What KarelaDB refuses, with a clear message when you create it (nothing is accepted and then quietly not run):
 
-| You write | KDB says |
+| You write | KarelaDB says |
 |---|---|
-| `AFTER UPDATE ... FOR EACH ROW` | `AFTER ... FOR EACH ROW triggers are not supported by KDB; a plpgsql row trigger must be BEFORE (...)` |
-| `BEFORE INSERT` or `BEFORE DELETE ... FOR EACH ROW` | `only BEFORE UPDATE ... FOR EACH ROW plpgsql triggers are supported by KDB; INSERT row triggers are not (...)` |
+| `AFTER UPDATE ... FOR EACH ROW` | `AFTER ... FOR EACH ROW triggers are not supported by KarelaDB; a plpgsql row trigger must be BEFORE (...)` |
+| `BEFORE INSERT` or `BEFORE DELETE ... FOR EACH ROW` | `only BEFORE UPDATE ... FOR EACH ROW plpgsql triggers are supported by KarelaDB; INSERT row triggers are not (...)` |
 | `DECLARE`, `PERFORM`, loops or SQL statements in the body | the name of the part that is not supported, and what the body may use |
-| A function that does not `RETURNS trigger` (`LANGUAGE sql`, for example) | a `WARNING`: the function is recorded but **not run**. Write a KDB function or procedure for it (chapter 13). |
+| A function that does not `RETURNS trigger` (`LANGUAGE sql`, for example) | a `WARNING`: the function is recorded but **not run**. Write a KarelaDB function or procedure for it (chapter 13). |
 
-For other work, write a **KDB trigger** (chapter 13). It runs once per statement and sees all changed rows in the tables `OLD` and `NEW`. A KDB trigger and a plpgsql row trigger can be on the same table.
+For other work, write a **KarelaDB trigger** (chapter 13). It runs once per statement and sees all changed rows in the tables `OLD` and `NEW`. A KarelaDB trigger and a plpgsql row trigger can be on the same table.
 
-The PostgreSQL function of the app lets a person skip the check with `SET LOCAL nchartpro.allow_identity_update = 'on'`. In KDB, an admin runs `ALTER TABLE user_register DISABLE TRIGGER trg_user_register_immutable`, makes the fix, and runs `ENABLE TRIGGER` again.
+The PostgreSQL function of the app lets a person skip the check with `SET LOCAL nchartpro.allow_identity_update = 'on'`. In KarelaDB, an admin runs `ALTER TABLE user_register DISABLE TRIGGER trg_user_register_immutable`, makes the fix, and runs `ENABLE TRIGGER` again.
 
 ---
 
 ## Part J: Times (local time and UTC)
 
-KDB stores every `TIMESTAMP` in **UTC** (chapter 4). The NChartPro PostgreSQL server runs with `TZ=Asia/Kathmandu` (Nepal time, +05:45). That matters when you move data:
+KarelaDB stores every `TIMESTAMP` in **UTC** (chapter 4). The NChartPro PostgreSQL server runs with `TZ=Asia/Kathmandu` (Nepal time, +05:45). That matters when you move data:
 
-| PostgreSQL column | What it holds | When you move it to KDB |
+| PostgreSQL column | What it holds | When you move it to KarelaDB |
 |---|---|---|
-| `TIMESTAMPTZ` | An exact moment. | Export it **with** its offset (`2026-08-25 10:08:38+05:45`). KDB converts it to UTC. Nothing else to do. |
+| `TIMESTAMPTZ` | An exact moment. | Export it **with** its offset (`2026-08-25 10:08:38+05:45`). KarelaDB converts it to UTC. Nothing else to do. |
 | `TIMESTAMP` (no time zone) | **Local wall-clock time** (for this app, Nepal time). `DEFAULT CURRENT_TIMESTAMP` and `now()` wrote local time. | **Subtract the zone offset** (5 hours 45 minutes here), or add `+05:45` to the text before you insert it. |
 | `DATE` | A calendar day. | Keep it as it is. |
 | `TIME` | A clock time ("show at 10:00"). | Keep it as it is. It stays local clock time. |
@@ -607,10 +607,10 @@ utc
 
 After the move:
 
-- `now()` and `CURRENT_TIMESTAMP` in KDB are **UTC**. `WHERE expires_at > now()` is right when both sides are UTC.
+- `now()` and `CURRENT_TIMESTAMP` in KarelaDB are **UTC**. `WHERE expires_at > now()` is right when both sides are UTC.
 - To show local time, add the zone offset (here 5 hours 45 minutes, `20700000` ms): `to_char(blocked_at + 20700000, 'YYYY-MM-DD HH24:MI:SS')`.
 - To compare a `TIME` column with the local clock, use the local time: `to_char(now() + 20700000, 'HH24:MI:SS')`.
-- Over the PostgreSQL protocol, start `kdb serve` with `--pg-timestamptz` so Go gets the exact moment (chapter 14).
+- Over the PostgreSQL protocol, start `kareladb serve` with `--pg-timestamptz` so Go gets the exact moment (chapter 14).
 
 **Never mix** local times and UTC times in one column. Move all rows of a table the same way.
 
@@ -622,7 +622,7 @@ After the move:
 - `NUMERIC` without precision is a `DOUBLE`. `NUMERIC(p,s)` allows at most 18 decimal places, and the value times 10^s must fit a 64-bit number (about 18 digits).
 - `FLOAT` alone is 4 bytes. `CHAR(n)` is not padded. `CITEXT` is not case-insensitive.
 - `INTERVAL` is a number of milliseconds; a month is 30 days.
-- `TIMESTAMPTZ` and `TIMESTAMP` are the same KDB type (UTC).
+- `TIMESTAMPTZ` and `TIMESTAMP` are the same KarelaDB type (UTC).
 - `GENERATED ... STORED` columns are worked out when read, not stored.
 - A `DO` block is not one transaction.
 - Expression index keys work for `expr = constant` only; ranges, `IN (...)` and `ORDER BY` on them scan.
@@ -631,37 +631,37 @@ After the move:
 - `CREATE`, `ALTER` and `DROP` are not allowed inside `BEGIN ... COMMIT`.
 - Schemas other than `public` do not exist.
 
-## The app's startup DDL on KDB
+## The app's startup DDL on KarelaDB
 
-`node tests/app_compat/run_compat.mjs` replays the app's startup statements: 809 for PostgreSQL and 39 for QuestDB. 802 PostgreSQL statements work (checked on 2026-09-23). The 7 that do not are faults of the test tool, not of KDB:
+`node tests/app_compat/run_compat.mjs` replays the app's startup statements: 809 for PostgreSQL and 39 for QuestDB. 802 PostgreSQL statements work (checked on 2026-09-23). The 7 that do not are faults of the test tool, not of KarelaDB:
 
 | Count | What | Why |
 |---|---|---|
 | 3 | 2 DO blocks and 1 plpgsql function with a `--` comment inside | The test tool joins the lines of the Go source, so the comment hides the rest (the function then has no `END`). With the app's real text, with its line breaks, they work. |
 | 1 | The trigger of that function | It fails because its function failed. |
-| 1 | The other plpgsql trigger | The test schema still has an old hand-written KDB trigger with the same name. |
+| 1 | The other plpgsql trigger | The test schema still has an old hand-written KarelaDB trigger with the same name. |
 | 2 | DO blocks built by Go code at run time (`{{...}}` parts) | The test tool cannot fill in the parts. |
 
 Over the whole app (2,143 statements: reads, writes and startup DDL, PostgreSQL and QuestDB), **1,971 work (92%)** on the same day.
 
-The QuestDB statements (`SYMBOL INDEX`, `TIMESTAMP(ts)`, `DEDUP UPSERT KEYS`, `DROP PARTITION LIST`) are not PostgreSQL. KDB has its own `TIMESERIES` form for them (chapter 10).
+The QuestDB statements (`SYMBOL INDEX`, `TIMESTAMP(ts)`, `DEDUP UPSERT KEYS`, `DROP PARTITION LIST`) are not PostgreSQL. KarelaDB has its own `TIMESERIES` form for them (chapter 10).
 
-## Older KDB programs
+## Older KarelaDB programs
 
-A database is written in a way older KDB programs understand, **until** you use a new feature:
+A database is written in a way older KarelaDB programs understand, **until** you use a new feature:
 
-| New feature | Stored as | An older KDB program |
+| New feature | Stored as | An older KarelaDB program |
 |---|---|---|
-| PostgreSQL types, named `UNIQUE`, `PRIMARY KEY (a, b)`, `FOREIGN KEY (a, b)`, partial or expression indexes | New parts of the table description (`T`, `K`, `F`, `X`) | Refuses to open the database: `needs a newer KDB`. Nothing is damaged. |
+| PostgreSQL types, named `UNIQUE`, `PRIMARY KEY (a, b)`, `FOREIGN KEY (a, b)`, partial or expression indexes | New parts of the table description (`T`, `K`, `F`, `X`) | Refuses to open the database: `needs a newer KDB` (its name then). Nothing is damaged. |
 | Sequences | A new file `sequences` and log records | Refuses to open the database: `needs a newer KDB`. |
 | plpgsql trigger functions and row triggers | New kinds in the file `routines` (feature `plpgsql_triggers`) | Refuses to open the database: `needs a newer KDB`. |
 | `ALTER COLUMN TYPE`, `ADD PRIMARY KEY` | Rows written again, in one transaction with the change | Normal rows. |
 
-Tables that use none of this stay in the old format. **Update every `kdb` program before you run the app's PostgreSQL schema on a database.**
+Tables that use none of this stay in the old format. **Update every `kareladb` program before you run the app's PostgreSQL schema on a database.**
 
 ## Speed
 
-- Plain KDB tables pay nothing: the new checks run only for columns with a PostgreSQL rule.
+- Plain KarelaDB tables pay nothing: the new checks run only for columns with a PostgreSQL rule.
 - A `UNIQUE` column uses an index in memory, so an insert does not read the table.
 - Foreign key actions look up the child rows with keys and indexes. A child table without an index on the foreign key column is read in full for each deleted parent.
 - The catalog views are made once per schema change.

@@ -6,7 +6,7 @@
 - Keywords: update, change rows, modify, SET, delete, remove rows, delete rows, WHERE, all rows, RETURNING, fix bad data, wrong data, correct data, undo, rollback, TRUNCATE, TRUNCATE TABLE, RESTART IDENTITY, CONTINUE IDENTITY, empty a table, delete all rows, the update would create a second row, row(s) updated, row(s) deleted, safe workflow, UPDATE FROM, FROM other table, update from another table, DELETE USING
 - See also: [INSERT](insert.md), [Transactions](transactions.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [Constraints](constraints.md), [Backup, check, repair and restore](backup-and-safety.md), [WHERE](where.md)
 
-`UPDATE` changes values in rows that are already there. `DELETE` removes rows. Both take a `WHERE` condition that says **which** rows. Like `INSERT`, one statement is all or nothing, and it is saved as soon as KDB says `updated` or `deleted`.
+`UPDATE` changes values in rows that are already there. `DELETE` removes rows. Both take a `WHERE` condition that says **which** rows. Like `INSERT`, one statement is all or nothing, and it is saved as soon as KarelaDB says `updated` or `deleted`.
 
 **Warning:** without `WHERE`, `UPDATE` changes **every row** and `DELETE` removes **every row**. Before a big change, run `SELECT count(*)` with the same `WHERE` and check the number.
 
@@ -53,7 +53,7 @@ Sets new values in every row where `condition` is true. The expression can use t
 
 - **Returns:** `N row(s) updated` (also `0 row(s) updated`: no row matched, not an error).
 - New values are converted to the column type and every [constraint](constraints.md) is checked.
-- An `UPDATE` may change a key or the time column; KDB moves the row (also to another partition). It refuses to make a duplicate: `the update would create a second row with ...`.
+- An `UPDATE` may change a key or the time column; KarelaDB moves the row (also to another partition). It refuses to make a duplicate: `the update would create a second row with ...`.
 - **Notes:** a computed column cannot be set. A **subquery works** in `SET` and in `WHERE`. A `DECIMAL` result with too many decimal places is refused; use `round(x, 2)`.
 
 <a id="update-from"></a>
@@ -307,8 +307,8 @@ DELETE FROM table [WHERE condition] [RETURNING ...]
 Removes every row where `condition` is true. Without `WHERE`, it removes **all** rows, but the table stays.
 
 - **Returns:** `N row(s) deleted`.
-- **Notes:** a row that another table still [REFERENCES](constraints.md#references) cannot be deleted, unless that `REFERENCES` says `ON DELETE CASCADE` (the pointing rows go too) or `ON DELETE SET NULL`. There is no `DELETE ... LIMIT`; a subquery in the `WHERE` works. To remove whole days, months or years of a time-series table, [DROP PARTITION](alter-table.md#drop-partition) is much faster. To empty a whole table, [TRUNCATE](#truncate) is much faster. Unlike QuestDB, KDB can delete single rows of a time-series table.
-- **Whole partitions:** when the `WHERE` matches **every** row of each partition the `DELETE` reads - all rows of a table that holds one symbol, or whole months of a `PARTITION BY MONTH` table - KDB drops those partitions instead of deleting row by row, as `DROP PARTITION` does: the same rows go, but one log entry is written instead of one per row (239,326 minute bars: 3 ms instead of 300 ms). Inside `BEGIN ... COMMIT` a `ROLLBACK` puts them back. KDB checks this by counting: if a single row of those partitions does not match, the `DELETE` goes row by row as before. In the [change stream](change-stream.md) such a `DELETE` is one `ddl` row (`ALTER TABLE ... DROP PARTITION ...`), not a `delete` row per row. `KDB_NO_DELETE_DROP=1` turns it off.
+- **Notes:** a row that another table still [REFERENCES](constraints.md#references) cannot be deleted, unless that `REFERENCES` says `ON DELETE CASCADE` (the pointing rows go too) or `ON DELETE SET NULL`. There is no `DELETE ... LIMIT`; a subquery in the `WHERE` works. To remove whole days, months or years of a time-series table, [DROP PARTITION](alter-table.md#drop-partition) is much faster. To empty a whole table, [TRUNCATE](#truncate) is much faster. Unlike QuestDB, KarelaDB can delete single rows of a time-series table.
+- **Whole partitions:** when the `WHERE` matches **every** row of each partition the `DELETE` reads - all rows of a table that holds one symbol, or whole months of a `PARTITION BY MONTH` table - KarelaDB drops those partitions instead of deleting row by row, as `DROP PARTITION` does: the same rows go, but one log entry is written instead of one per row (239,326 minute bars: 3 ms instead of 300 ms). Inside `BEGIN ... COMMIT` a `ROLLBACK` puts them back. KarelaDB checks this by counting: if a single row of those partitions does not match, the `DELETE` goes row by row as before. In the [change stream](change-stream.md) such a `DELETE` is one `ddl` row (`ALTER TABLE ... DROP PARTITION ...`), not a `delete` row per row. `KARELADB_NO_DELETE_DROP=1` turns it off.
 
 **Example: Delete the trades of broker 34 on 2026-09-09** (sample data: sample)
 
@@ -589,7 +589,7 @@ Result:
 transaction started
 ```
 
-Error: `TRUNCATE cannot be used inside a transaction or a procedure: KDB cannot undo it. COMMIT or ROLLBACK first, or use DELETE FROM table, which ROLLBACK undoes (the transaction was rolled back)`
+Error: `TRUNCATE cannot be used inside a transaction or a procedure: KarelaDB cannot undo it. COMMIT or ROLLBACK first, or use DELETE FROM table, which ROLLBACK undoes (the transaction was rolled back)`
 
 <a id="returning"></a>
 
@@ -667,7 +667,7 @@ Syntax:
 
 ```sql
 1. SELECT count(*) ... WHERE condition        -- look, count
-2. BACKUP DATABASE  (or kdb backup)           -- a way back
+2. BACKUP DATABASE  (or kareladb backup)           -- a way back
 3. DELETE FROM ... WHERE condition            -- the same WHERE
 4. INSERT OR REPLACE INTO ... VALUES (...)    -- the correct rows
 5. SELECT ... WHERE condition                 -- check
@@ -677,7 +677,7 @@ Bad data happens: a wrong file is imported, a price is ten times too big, a day 
 
 - Use the **same `WHERE`** in every step. The number of deleted rows must be the number you counted.
 - To try a change first, wrap it in `BEGIN` ... `ROLLBACK`: you see the result, and nothing is saved. When it looks right, run it again with `COMMIT` ([transactions](transactions.md)).
-- **Notes:** if something went badly wrong (an `UPDATE` without `WHERE`), do not fix it row by row: restore the backup to the time before the mistake with `kdb restore --until` ([backup and safety](backup-and-safety.md)). Times that are 5:45 hours wrong (a local time written without its offset, here `+05:45`) can be fixed with `UPDATE t SET time = time - 20700000 WHERE ...` (20700000 ms = 5 h 45 min); check the `DEDUP KEY` first.
+- **Notes:** if something went badly wrong (an `UPDATE` without `WHERE`), do not fix it row by row: restore the backup to the time before the mistake with `kareladb restore --until` ([backup and safety](backup-and-safety.md)). Times that are 5:45 hours wrong (a local time written without its offset, here `+05:45`) can be fixed with `UPDATE t SET time = time - 20700000 WHERE ...` (20700000 ms = 5 h 45 min); check the `DEDUP KEY` first.
 
 **Example: A bad import made COAST minute prices ten times too big: find, delete, load again, check** (sample data: sample)
 

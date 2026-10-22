@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rules - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="Name a check, the trading hours or the dedup choice of a table once, and KDB applies it to every row written - saying which rule refused a row and why.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/rules.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/rules.md">
+<title>Rules - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="Name a check, the trading hours or the dedup choice of a table once, and KarelaDB applies it to every row written - saying which rule refused a row and why.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/rules.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/rules.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="rules">Rules</h1>
-<blockquote><p>Name a check, the trading hours or the dedup choice of a table once, and KDB applies it to every row written - saying which rule refused a row and why.</p></blockquote>
+<blockquote><p>Name a check, the trading hours or the dedup choice of a table once, and KarelaDB applies it to every row written - saying which rule refused a row and why.</p></blockquote>
 <ul><li>Category: Tables</li><li>Keywords: rule, rules, CREATE RULE, ALTER RULE, DROP RULE, SHOW RULES, kdb_rules, price guard, value range, session hours, trading hours, ON FAIL SKIP, ON FAIL REJECT, dedup_keep, keep first, check rule</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="calendars.html">Trading calendars</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a>, <a href="time-and-time-zones.html">Time and time zones</a></li></ul>
 <p>A <strong>rule</strong> is a named check or setting of one table. It applies to every row written to the table - <code>INSERT</code>, <code>UPDATE</code>, <code>COPY</code>, <code>/imp</code>, <code>/write</code> and line protocol - and a row it refuses says <strong>which rule and why</strong>. Rules are listed by <code>SHOW RULES</code>, switched off and on by <code>ALTER RULE</code>, and saved with the table.</p>
 <div class="table-wrap"><table><thead><tr><th>Kind</th><th>Example</th><th>What it does</th></tr></thead><tbody><tr><td>check</td><td><code>CHECK (close &gt; 0)</code></td><td>every new or changed row must not make the condition false</td></tr><tr><td>session</td><td><code>SESSION &#39;11:00&#39; TO &#39;15:00&#39; TIME ZONE &#39;Asia/Kathmandu&#39; CALENDAR nepse</code></td><td>the row&#39;s time must be inside the hours, on a trading day of the calendar</td></tr><tr><td>setting</td><td><code>SET dedup_keep = &#39;first&#39;</code></td><td>which of two rows with the same DEDUP KEY stays</td></tr></tbody></table></div>
@@ -68,6 +68,6 @@ CREATE RULE spread_ok ON quotes CHECK (ask &gt;= bid) MESSAGE &#39;ask below bid
 <div class="table-wrap"><table><thead><tr><th>rule (STRING)</th><th>table_name (STRING)</th><th>kind (STRING)</th><th>definition (STRING)</th><th>on_fail (STRING)</th><th>message (STRING)</th><th>enabled (BOOL)</th></tr></thead><tbody><tr><td>spread_ok</td><td>quotes</td><td>check</td><td>CHECK (ask &gt;= bid)</td><td>reject</td><td>ask below bid</td><td>true</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/rules.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/rules.md">This page as markdown</a>.</footer>
 </body>
 </html>

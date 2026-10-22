@@ -4,28 +4,28 @@
 
 ## What you will learn
 
-KDB gets new features all the time. Some of them change what KDB writes on disk. This chapter explains what happens to your data when you update KDB, and when you go back to an older KDB:
+KarelaDB gets new features all the time. Some of them change what KarelaDB writes on disk. This chapter explains what happens to your data when you update KarelaDB, and when you go back to an older KarelaDB:
 
-- **Part A.** The rule: a new KDB opens old data; an old KDB refuses new data.
-- **Part B.** `kdb version` and `SHOW VERSION`: which features a database uses.
-- **Part C.** A database from an older KDB, and `kdb upgrade`.
-- **Part D.** What an older KDB says, and what to do.
-- **Part E.** How to update the KDB programs on a server.
+- **Part A.** The rule: a new KarelaDB opens old data; an old KarelaDB refuses new data.
+- **Part B.** `kareladb version` and `SHOW VERSION`: which features a database uses.
+- **Part C.** A database from an older KarelaDB, and `kareladb upgrade`.
+- **Part D.** What an older KarelaDB says, and what to do.
+- **Part E.** How to update the KarelaDB programs on a server.
 
 All examples are in examples/24-versions-and-upgrades/. The output under each example is real. The examples use the database `market` with the sample data.
 
 ## The short version
 
-- Update **every** `kdb` program (server, scripts, tools) at the same time, to the same build.
-- A newer KDB opens your old databases as they are. There is nothing to convert.
-- Before you update a server, make a backup (you do that every day anyway, chapter 9). `kdb upgrade <db>` does backup + feature list + check in one command, when you want it.
-- If a `kdb` command says `this database needs a newer KDB` (exit code `3`): the data is **not damaged**. Use the newer KDB. Do **not** run `kdb repair` or `kdb restore`.
+- Update **every** `kareladb` program (server, scripts, tools) at the same time, to the same build.
+- A newer KarelaDB opens your old databases as they are. There is nothing to convert.
+- Before you update a server, make a backup (you do that every day anyway, chapter 9). `kareladb upgrade <db>` does backup + feature list + check in one command, when you want it.
+- If a `kareladb` command says `this database needs a newer KarelaDB` (exit code `3`): the data is **not damaged**. Use the newer KarelaDB. Do **not** run `kareladb repair` or `kareladb restore`.
 
 ---
 
 ## Part A: the rule
 
-Each database keeps a **feature list** in its manifest (the file that lists the database's files, chapter 9). A feature is one change to what KDB writes on disk. For example:
+Each database keeps a **feature list** in its manifest (the file that lists the database's files, chapter 9). A feature is one change to what KarelaDB writes on disk. For example:
 
 | Feature | The database has |
 |---|---|
@@ -37,27 +37,27 @@ Each database keeps a **feature list** in its manifest (the file that lists the 
 | `deferred_triggers` | a trigger made with `DEFERRED` (chapter 13) |
 | `table_ttl` | a table with `TTL n DAYS` |
 
-KDB puts a feature into the list **before** it writes the first data that needs it. When a database opens, KDB reads the list **first**, before it reads or changes anything else:
+KarelaDB puts a feature into the list **before** it writes the first data that needs it. When a database opens, KarelaDB reads the list **first**, before it reads or changes anything else:
 
 - Every name is known: the database opens.
-- A name is not known: a newer KDB wrote this database. KDB stops with `this database needs a newer KDB: it uses <name>` and changes nothing.
+- A name is not known: a newer KarelaDB wrote this database. KarelaDB stops with `this database needs a newer KarelaDB: it uses <name>` and changes nothing.
 
-The same message comes for the other things only a newer KDB writes: a newer file format number, a log record or catalog part KDB does not know. KDB never calls such data "damaged", and it never starts a repair.
+The same message comes for the other things only a newer KarelaDB writes: a newer file format number, a log record or catalog part KarelaDB does not know. KarelaDB never calls such data "damaged", and it never starts a repair.
 
 Only schema statements (`CREATE`, `ALTER`, `DROP`), the first use of a feature and checkpoints look at the list. Writing rows costs nothing extra: the write benchmark gave the same numbers before and after (see the report `reports/versioning.md`).
 
 ## Part B: which features does a database use?
 
-### kdb version
+### kareladb version
 
-Without a database, `kdb version` shows this KDB and every feature it can read:
+Without a database, `kareladb version` shows this KarelaDB and every feature it can read:
 
 ```powershell
-kdb version
+kareladb version
 ```
 
 ```text
-kdb 0.2.0-dev (crc32c hardware: yes)
+kareladb 0.2.0-dev (crc32c hardware: yes)
 
 Stored-format features this build reads (26):
   views                0.2.0-dev (2026-09-10)   CREATE VIEW: the "views" file
@@ -87,17 +87,17 @@ Stored-format features this build reads (26):
   materialized_views   0.2.0-dev (2026-09-13)   CREATE MATERIALIZED VIEW: catalog part 'M', REFRESH MATERIALIZED VIEW log records, mv_dirty.<id> in the manifest
   table_ttl            0.2.0-dev (2026-09-13)   TTL n DAYS on a table: catalog part 'L'
 
-A database that uses a feature not in this list needs a newer KDB (kdb check exits with 3).
+A database that uses a feature not in this list needs a newer KarelaDB (kareladb check exits with 3).
 ```
 
 With a database, it shows the database's list. It reads only the manifest, so it also works while a server has the database open:
 
 ```powershell
-kdb version market
+kareladb version market
 ```
 
 ```text
-kdb 0.2.0-dev (crc32c hardware: yes)
+kareladb 0.2.0-dev (crc32c hardware: yes)
 database market
 feature list (3):
   batched_log_sync     --sync-commits batch: log segments with 16-byte commit records
@@ -105,11 +105,11 @@ feature list (3):
   partition_format_2   table partition files in format 2 (one raw block per column)
 ```
 
-The sample data has plain tables only, so its list is short. `batched_log_sync` is in every list today: writers that commit at the same moment share one wait for the disk (group commit, chapter 15), and the log keeps them in the same form as `--sync-commits batch`. Each commit is still on the disk before it is confirmed. So every database this build writes uses `batched_log_sync`, and a KDB built before 2026-09-11 cannot open it.
+The sample data has plain tables only, so its list is short. `batched_log_sync` is in every list today: writers that commit at the same moment share one wait for the disk (group commit, chapter 15), and the log keeps them in the same form as `--sync-commits batch`. Each commit is still on the disk before it is confirmed. So every database this build writes uses `batched_log_sync`, and a KarelaDB built before 2026-09-11 cannot open it.
 
 ### SHOW VERSION
 
-In SQL (`kdb sql`, `kdb shell`, the web console, the PostgreSQL port), `SHOW VERSION` shows the same for the current database:
+In SQL (`kareladb sql`, `kareladb shell`, the web console, the PostgreSQL port), `SHOW VERSION` shows the same for the current database:
 
 ```sql
 SHOW VERSION;
@@ -118,63 +118,63 @@ SHOW VERSION;
 ```text
 item                    | value                                           
 ------------------------+-------------------------------------------------
-kdb version             | 0.2.0-dev                                       
+kareladb version             | 0.2.0-dev                                       
 database                | market                                          
 features used           | batched_log_sync, block_stats, partition_form...
 feature list            | saved: batched_log_sync, block_stats, partiti...
-features this KDB reads | 26: views, partition_format_2, block_stats, r...
+features this KarelaDB reads | 26: views, partition_format_2, block_stats, r...
 (5 rows, 0.1 ms)
 ```
 
 - `features used`: what the database uses right now.
 - `feature list`: what is saved in the manifest. Normally the same.
 
-## Part C: a database from an older KDB
+## Part C: a database from an older KarelaDB
 
-Databases made by KDB programs **before 2026-09-12** have no feature list. KDB opens them exactly as before. It works out their list from the tables, files and log, and saves it at the next checkpoint (for example when the database is closed).
+Databases made by KarelaDB programs **before 2026-09-12** have no feature list. KarelaDB opens them exactly as before. It works out their list from the tables, files and log, and saves it at the next checkpoint (for example when the database is closed).
 
-The KDB source has small databases made by the older programs, for the tests (`tests/fixtures`). This one was made by the `kdb.exe` of 2026-09-11:
+The KarelaDB source has small databases made by the older programs, for the tests (`tests/fixtures`). This one was made by the `kareladb.exe` of 2026-09-11:
 
 ```powershell
-# A database written by an older KDB (2026-09-11, before feature lists)
+# A database written by an older KarelaDB (2026-09-11, before feature lists)
 Copy-Item "$env:KDB_EXAMPLES\..\..\..\tests\fixtures\sep11_clean" old-db -Recurse
-kdb version old-db
+kareladb version old-db
 ```
 
 ```text
-kdb 0.2.0-dev (crc32c hardware: yes)
+kareladb 0.2.0-dev (crc32c hardware: yes)
 database old-db
-feature list: not saved yet (the database was written by a KDB before feature lists).
-It is saved at the next checkpoint of this KDB, or now with: kdb upgrade old-db
-SHOW VERSION in kdb sql or kdb shell shows the features it uses.
+feature list: not saved yet (the database was written by a KarelaDB before feature lists).
+It is saved at the next checkpoint of this KarelaDB, or now with: kareladb upgrade old-db
+SHOW VERSION in kareladb sql or kareladb shell shows the features it uses.
 ```
 
-### kdb upgrade
+### kareladb upgrade
 
-`kdb upgrade` does three things: a verified backup, then it saves the feature list, then `kdb check`. The database must be closed (stop the server first).
+`kareladb upgrade` does three things: a verified backup, then it saves the feature list, then `kareladb check`. The database must be closed (stop the server first).
 
 ```powershell
-kdb upgrade old-db --backups upgrade-backups
+kareladb upgrade old-db --backups upgrade-backups
 "exit code: $LASTEXITCODE"
-kdb version old-db
-kdb sql old-db "SELECT count(*) AS candles FROM ochl; SHOW VERSION"
+kareladb version old-db
+kareladb sql old-db "SELECT count(*) AS candles FROM ochl; SHOW VERSION"
 ```
 
 ```text
-KDB 0.2.0-dev, database old-db
-saved feature list: none (written by a KDB before feature lists)
+KarelaDB 0.2.0-dev, database old-db
+saved feature list: none (written by a KarelaDB before feature lists)
 1/3 verified backup into upgrade-backups ...
     upgrade-backups/20260923-121111-373 (7 files, 10.5 KB)
 2/3 saving the feature list ...
     features used: batched_log_sync, block_stats, partition_format_2, views
-    (no files need to be written again for this KDB version)
+    (no files need to be written again for this KarelaDB version)
 3/3 check ...
 checked 9 files (12.3 KB) and 2 log segments
 OK: no damage found
 
-Upgrade done. An older KDB build that does not know one of these features now refuses this database with "needs a newer KDB".
+Upgrade done. An older KarelaDB build that does not know one of these features now refuses this database with "needs a newer KarelaDB".
 exit code: 0
-kdb 0.2.0-dev (crc32c hardware: yes)
+kareladb 0.2.0-dev (crc32c hardware: yes)
 database old-db
 feature list (4):
   batched_log_sync     --sync-commits batch: log segments with 16-byte commit records
@@ -188,40 +188,40 @@ candles
 
 item                    | value                                           
 ------------------------+-------------------------------------------------
-kdb version             | 0.2.0-dev                                       
+kareladb version             | 0.2.0-dev                                       
 database                | old-db                                          
 features used           | batched_log_sync, block_stats, partition_form...
 feature list            | saved: batched_log_sync, block_stats, partiti...
-features this KDB reads | 26: views, partition_format_2, block_stats, r...
+features this KarelaDB reads | 26: views, partition_format_2, block_stats, r...
 (5 rows, 0.1 ms)
 ```
 
 - Without `--backups`, the backup goes into a folder next to the database: `old-db-backups` (for a database name in the data folder: `<data folder>-backups/<name>`). Older backups there are kept.
-- You do not **have** to run `kdb upgrade`. It is the safe way when you want a backup from just before, or before you move the folder to another computer.
-- Exit codes: `0` done, `3` the database needs a newer KDB (nothing done, no backup), `2` the check found damage (the backup is named), `1` could not run.
+- You do not **have** to run `kareladb upgrade`. It is the safe way when you want a backup from just before, or before you move the folder to another computer.
+- Exit codes: `0` done, `3` the database needs a newer KarelaDB (nothing done, no backup), `2` the check found damage (the backup is named), `1` could not run.
 
-## Part D: when an older KDB opens newer data
+## Part D: when an older KarelaDB opens newer data
 
-To show it here, the environment variable `KDB_TEST_HIDE_FEATURES` makes `kdb` act like an older program that does not know `views`. It is **only for tests**; do not set it on a server.
+To show it here, the environment variable `KDB_TEST_HIDE_FEATURES` makes `kareladb` act like an older program that does not know `views`. It is **only for tests**; do not set it on a server.
 
 ```powershell
-# Play an older KDB that does not know "views" (KDB_TEST_HIDE_FEATURES is only for tests)
+# Play an older KarelaDB that does not know "views" (KDB_TEST_HIDE_FEATURES is only for tests)
 $env:KDB_TEST_HIDE_FEATURES = "views"
-kdb check old-db
+kareladb check old-db
 "exit code: $LASTEXITCODE"
-kdb sql old-db "SELECT count(*) FROM ochl"
+kareladb sql old-db "SELECT count(*) FROM ochl"
 "exit code: $LASTEXITCODE"
 $env:KDB_TEST_HIDE_FEATURES = ""
-kdb check old-db
+kareladb check old-db
 "exit code: $LASTEXITCODE"
 ```
 
 ```text
-error: this database needs a newer KDB: it uses views (a stored-format feature this KDB build does not know). Nothing was changed
-This database was written by a newer KDB. Open it with that KDB or a newer one (kdb version lists what this build can read). Do not run kdb repair.
+error: this database needs a newer KarelaDB: it uses views (a stored-format feature this KarelaDB build does not know). Nothing was changed
+This database was written by a newer KarelaDB. Open it with that KarelaDB or a newer one (kareladb version lists what this build can read). Do not run kareladb repair.
 exit code: 3
-error: this database needs a newer KDB: it uses views (a stored-format feature this KDB build does not know). Nothing was changed
-This database was written by a newer KDB. Open it with that KDB or a newer one (kdb version lists what this build can read). Do not run kdb repair.
+error: this database needs a newer KarelaDB: it uses views (a stored-format feature this KarelaDB build does not know). Nothing was changed
+This database was written by a newer KarelaDB. Open it with that KarelaDB or a newer one (kareladb version lists what this build can read). Do not run kareladb repair.
 exit code: 3
 checked 9 files (12.3 KB) and 2 log segments
 OK: no damage found
@@ -230,49 +230,49 @@ exit code: 0
 
 What to do when you see this message:
 
-1. Do **not** repair or restore: the data is fine. `kdb repair` would refuse too (exit code `3`).
-2. Find the newer `kdb` program that wrote the database, or build the newest one.
-3. `kdb version` on both programs shows which features each one reads.
+1. Do **not** repair or restore: the data is fine. `kareladb repair` would refuse too (exit code `3`).
+2. Find the newer `kareladb` program that wrote the database, or build the newest one.
+3. `kareladb version` on both programs shows which features each one reads.
 
 Where you see it:
 
 | Where | What you get |
 |---|---|
-| `kdb check`, `kdb repair`, `kdb sql`, `kdb shell`, `kdb version <db>`, `kdb upgrade` | the message and exit code `3` |
-| `kdb serve` | the database does not open; requests to it get HTTP status `500` with the message |
+| `kareladb check`, `kareladb repair`, `kareladb sql`, `kareladb shell`, `kareladb version <db>`, `kareladb upgrade` | the message and exit code `3` |
+| `kareladb serve` | the database does not open; requests to it get HTTP status `500` with the message |
 | PostgreSQL port | SQLSTATE `0A000` with the message |
-| `kdb restore` of a backup made by a newer KDB | the message; nothing is copied |
+| `kareladb restore` of a backup made by a newer KarelaDB | the message; nothing is copied |
 
 In a nightly script:
 
 ```powershell
 # In a script (not run here)
-kdb check D:\kdb\data\market | Out-Null
+kareladb check D:\kdb\data\market | Out-Null
 switch ($LASTEXITCODE) {
   0 { "check: OK" }
-  2 { "check: DAMAGE FOUND - run kdb repair" }
-  3 { "check: this database needs a newer KDB - update this kdb, do not repair" }
+  2 { "check: DAMAGE FOUND - run kareladb repair" }
+  3 { "check: this database needs a newer KarelaDB - update this kareladb, do not repair" }
   default { "check: could not run (exit code $LASTEXITCODE)" }
 }
 ```
 
-## Part E: updating KDB on a server
+## Part E: updating KarelaDB on a server
 
-1. Make a backup of every database (`BACKUP DATABASE`, or the scheduled backup of chapter 21), or run `kdb upgrade` on each database while the server is stopped.
-2. Stop the server. Replace **every** `kdb` program on the machine (server, scheduled scripts) with the new build.
+1. Make a backup of every database (`BACKUP DATABASE`, or the scheduled backup of chapter 21), or run `kareladb upgrade` on each database while the server is stopped.
+2. Stop the server. Replace **every** `kareladb` program on the machine (server, scheduled scripts) with the new build.
 3. Start the server. Old databases open as they are; each gets its feature list at its next checkpoint.
-4. `kdb version <db>` or `SHOW VERSION` shows the lists.
+4. `kareladb version <db>` or `SHOW VERSION` shows the lists.
 
-Going back to an older KDB:
+Going back to an older KarelaDB:
 
-- A database whose list has only features the older KDB knows opens there.
-- A database that uses a newer feature does not. Restore the backup from before the update with the **older** `kdb restore` (changes made after that backup are then not in it).
-- KDB programs built **before 2026-09-12** do not read the feature list at all. They refuse most new data anyway, but not all of it. Never start such an old program on data of a newer KDB.
+- A database whose list has only features the older KarelaDB knows opens there.
+- A database that uses a newer feature does not. Restore the backup from before the update with the **older** `kareladb restore` (changes made after that backup are then not in it).
+- KarelaDB programs built **before 2026-09-12** do not read the feature list at all. They refuse most new data anyway, but not all of it. Never start such an old program on data of a newer KarelaDB.
 
 ## What you learned
 
-- Every database has a feature list; KDB records a feature before it writes data that needs it.
-- A new KDB opens old data; an old KDB refuses new data with `needs a newer KDB` and exit code `3`, never "damaged".
-- `kdb version`, `kdb version <db>` and `SHOW VERSION` show the features; `kdb upgrade` makes a backup, saves the list and checks the database.
+- Every database has a feature list; KarelaDB records a feature before it writes data that needs it.
+- A new KarelaDB opens old data; an old KarelaDB refuses new data with `needs a newer KarelaDB` and exit code `3`, never "damaged".
+- `kareladb version`, `kareladb version <db>` and `SHOW VERSION` show the features; `kareladb upgrade` makes a backup, saves the list and checks the database.
 
 More: the help topic **Versions and upgrades**, [known limitations](known-limitations.md#versions-and-upgrades-chapter-24), and `reports/versioning.md`.

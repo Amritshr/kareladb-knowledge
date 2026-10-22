@@ -3,8 +3,8 @@
 > How PARTITION BY, SORT BY and DEDUP KEY of a time-series table change where rows go, their order, and what happens to duplicates; DROP PARTITION deletes old data fast.
 
 - Category: Time-series
-- Keywords: partition, partitions, PARTITION BY, DAY, MONTH, YEAR, NONE, SYMBOL(col), KEY(col), partition by symbol, symbol partitions, DROP PARTITION OLDER THAN, OLDER THAN, TRUNCATE, keyless table, batch dedup, KDB\_NO\_BATCH\_DEDUP, how loads find duplicates, SORT BY, SORT, sort order, row order, DEDUP KEY, DEDUP, KEY, dedup, deduplication, duplicates, duplicate rows, upsert, INSERT OR REPLACE, INSERT OR IGNORE, DROP PARTITION, delete old data, retention, purge, files, key range, TIMESERIES, time-series table, QuestDB, DROP PARTITION LIST, dedup, skip dedup, DEDUP TABLE, repair duplicates, dedup\_insert, WITH (dedup\_insert, plain INSERT upserts, DEDUP UPSERT, compression, WITH (compression, SET (compression, COMPRESS TABLE, packed, pack, compress, bytes a row, disk size, sealed partition, tail files, tail\_files, KDB\_TAIL\_FILES, --tail-files, append, appends, checkpoint, rewrite, delta files, KDB\_NO\_PARTITION\_DELTA, partition\_deltas, small update, small replace, trash growth
-- See also: [CREATE TABLE](create-table.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [INSERT](insert.md), [UPDATE and DELETE](update-delete.md), [Time and time zones (storage)](time-and-time-zones.md#storage), [EXPLAIN (explain)](explain.md#explain), [Performance tips](performance-tips.md)
+- Keywords: partition, partitions, PARTITION BY, DAY, MONTH, YEAR, NONE, SYMBOL(col), KEY(col), partition by symbol, symbol partitions, DROP PARTITION OLDER THAN, OLDER THAN, TRUNCATE, keyless table, batch dedup, KARELADB\_NO\_BATCH\_DEDUP, how loads find duplicates, SORT BY, SORT, sort order, row order, DEDUP KEY, DEDUP, KEY, dedup, deduplication, duplicates, duplicate rows, upsert, INSERT OR REPLACE, INSERT OR IGNORE, DROP PARTITION, delete old data, retention, purge, files, key range, TIMESERIES, time-series table, QuestDB, DROP PARTITION LIST, dedup, skip dedup, DEDUP TABLE, repair duplicates, dedup\_insert, WITH (dedup\_insert, plain INSERT upserts, DEDUP UPSERT, compression, WITH (compression, SET (compression, COMPRESS TABLE, packed, pack, compress, bytes a row, disk size, sealed partition, tail files, tail\_files, KARELADB\_TAIL\_FILES, --tail-files, append, appends, checkpoint, rewrite, delta files, KARELADB\_NO\_PARTITION\_DELTA, partition\_deltas, small update, small replace, trash growth
+- See also: [CREATE TABLE](create-table.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [INSERT](insert.md), [UPDATE and DELETE](update-delete.md), [Time and time zones (storage)](time-and-time-zones.md#storage), [EXPLAIN (explain)](explain.md#explain), [Performance tips](performance-tips.md), [Cold storage (S3, MinIO, R2, B2)](cold-storage.md)
 
 A time-series table (`CREATE TABLE ... TIMESERIES(time)`) has three extra options. This page shows what they **do**. The full `CREATE TABLE` and `ALTER TABLE` grammar is in [create-table](create-table.md) and [alter-table](alter-table.md).
 
@@ -46,7 +46,7 @@ CREATE TABLE name (...) TIMESERIES(time_column)
     PARTITION BY DAY | MONTH | YEAR | NONE
 ```
 
-A **partition** is one part of the table on disk. KDB puts each row into the partition of its time: with `PARTITION BY MONTH`, all rows of September 2026 go into the partition `2026-09`.
+A **partition** is one part of the table on disk. KarelaDB puts each row into the partition of its time: with `PARTITION BY MONTH`, all rows of September 2026 go into the partition `2026-09`.
 
 | PARTITION BY | Partition names | Good for |
 |---|---|---|
@@ -59,7 +59,7 @@ A **partition** is one part of the table on disk. KDB puts each row into the par
   - Partitions follow the **UTC** date. `'2026-09-10T02:00:00+05:45'` (2 AM in Nepal) is still 9 September in UTC, so it goes into partition `2026-09-09`.
   - A query with a time condition on the first table (`time IN '2026-09'`, `>=`, `<`, `BETWEEN`) reads **only** the partitions in that range. `EXPLAIN` shows it as `1 of 2 partitions`.
   - A condition without the time column (`close > 500`) reads every partition.
-  - A partition is made when its first row arrives. Old partitions can be deleted fast with [DROP PARTITION](partitions-and-dedup.md#drop-partition).
+  - A partition is made when its first row arrives. Old partitions can be deleted fast with [DROP PARTITION](partitions-and-dedup.md#drop-partition), or moved to S3-compatible object storage and still be read with [cold storage](cold-storage.md).
   - Too small partitions (`DAY` for 50 rows a day) make many small files; too big ones make time filters less useful. See the table above.
   - Only time-series tables have partitions. `PARTITION BY` on a relational table is an error.
   - A table that is nearly always read one symbol at a time can be split by symbol too: [PARTITION BY ..., SYMBOL(col)](partitions-and-dedup.md#partition-by-symbol).
@@ -191,7 +191,7 @@ A second level of partitions: each time bucket is split again into **one file pe
   - Not for a column with very many values (a user id). Keep such a column as the first `SORT BY` column instead: that already reads only its rows.
   - `DROP PARTITION '2025'` drops every symbol of that year. Single symbols cannot be dropped by name: use `DELETE ... WHERE symbol = ...`. With `NONE` there is no time part to drop: use `DELETE` or [TRUNCATE](update-delete.md#truncate).
   - Only for new tables: an existing table cannot be changed to it. Not with `CREATE TABLE ... AS`.
-  - An older KDB build cannot open a database with such a table (see [versions](versions.md)).
+  - An older KarelaDB build cannot open a database with such a table (see [versions](versions.md)).
 
 **Example: Daily candles in one file per year and symbol** (sample data: sample)
 
@@ -470,7 +470,7 @@ Says which columns make a row **unique**. Two rows with the same values in all `
 - **Returns:** messages like `1 row(s) inserted, 1 replaced` or `0 row(s) inserted, 1 skipped (already there)`.
 - **NULL:** `NULL` values in key columns are compared like values: two rows with the same time and a `NULL` symbol are duplicates.
 - **Notes:**
-  - The DEDUP KEY **must include the time column**. KDB finds duplicates inside one partition, and the time decides the partition. A stored column holding the time's **minute** may take its place: see [a key on the minute](partitions-and-dedup.md#minute-key).
+  - The DEDUP KEY **must include the time column**. KarelaDB finds duplicates inside one partition, and the time decides the partition. A stored column holding the time's **minute** may take its place: see [a key on the minute](partitions-and-dedup.md#minute-key).
   - Without a DEDUP KEY, every INSERT adds rows, also exact copies. Load the same file twice and you have every row twice. Such a table loads fast: nothing is looked up (see [how loads find duplicates](partitions-and-dedup.md#load-dedup)).
   - Duplicates **inside one statement** count too: with `INSERT OR REPLACE`, the last one wins.
   - `INSERT OR REPLACE` replaces the **whole** row: columns you do not give become their DEFAULT or `NULL`. To change some columns only, use `UPDATE`.
@@ -772,7 +772,7 @@ ALTER TABLE name SET (dedup_insert = 'error')     -- back to the default: it fai
 ALTER TABLE name RESET (dedup_insert)             -- the same as 'error'
 ```
 
-In QuestDB a plain `INSERT` into a `DEDUP UPSERT KEYS` table replaces the row with the same key. On a table made with KDB's own `DEDUP KEY (...)` it fails, so you do not overwrite a row by mistake. A table made with QuestDB's words, `DEDUP UPSERT KEYS (...)`, gets QuestDB's behaviour: `dedup_insert = 'upsert'` is set by itself (since 2026-09-25), so an app written for QuestDB keeps its plain `INSERT`s unchanged. Any table can switch with `ALTER TABLE ... SET (dedup_insert = ...)`.
+In QuestDB a plain `INSERT` into a `DEDUP UPSERT KEYS` table replaces the row with the same key. On a table made with KarelaDB's own `DEDUP KEY (...)` it fails, so you do not overwrite a row by mistake. A table made with QuestDB's words, `DEDUP UPSERT KEYS (...)`, gets QuestDB's behaviour: `dedup_insert = 'upsert'` is set by itself (since 2026-09-25), so an app written for QuestDB keeps its plain `INSERT`s unchanged. Any table can switch with `ALTER TABLE ... SET (dedup_insert = ...)`.
 
 | The table was made with | A plain `INSERT` of a key that is there |
 |---|---|
@@ -793,7 +793,7 @@ In QuestDB a plain `INSERT` into a `DEDUP UPSERT KEYS` table replaces the row wi
   - `SHOW CREATE TABLE` shows it as `WITH (dedup_insert = 'upsert')`. `DEDUP DISABLE` turns it off with the key.
   - A table made with `DEDUP UPSERT KEYS` before 2026-09-25 keeps the rule it had (fails); `ALTER TABLE t SET (dedup_insert = 'upsert')` changes it. `ALTER TABLE t DEDUP ENABLE UPSERT KEYS (...)` does not change it.
   - New rows cost nothing extra: the setting is looked at only when a key is already there.
-  - A database with such a table needs KDB 2026-09-24 or newer (feature `dedup_insert`, see [versions](versions.md)).
+  - A database with such a table needs KarelaDB 2026-09-24 or newer (feature `dedup_insert`, see [versions](versions.md)).
 
 **Example: A price feed written for QuestDB: plain INSERTs replace the tick** (sample data: sample)
 
@@ -925,9 +925,9 @@ A partition is **sealed** when a newer time bucket exists: yesterday's day, last
   - After `SET (compression = on)` the partitions already on disk are packed in the background, one partition at a time, with a pause after each one, while reads and writes go on. Run `COMPRESS TABLE name` again to see how far it is. `SET (compression = off)` unpacks them the same way.
   - When the first rows of a new day arrive, yesterday becomes sealed. The server packs it in the background after its next save, with no `COMPRESS TABLE` and no restart.
   - Rows added to a sealed day later (a late load, `UPDATE`, `DELETE`) are fine: the day is written packed again with them.
-  - A crash in the middle loses nothing: a packed file replaces the old one only once it is complete, like every file KDB writes.
+  - A crash in the middle loses nothing: a packed file replaces the old one only once it is complete, like every file KarelaDB writes.
   - A table without time partitions has no sealed partition, so nothing is packed.
-  - A database that has used it needs KDB 2026-09-25 or newer (feature `column_compression`, see [versions](versions.md)). An older KDB refuses it with "needs a newer KDB", never misreads it. [kdb downgrade](versions.md#downgrade) writes packed files plain again once the table is set to `off`.
+  - A database that has used it needs KarelaDB 2026-09-25 or newer (feature `column_compression`, see [versions](versions.md)). An older build refuses it with "needs a newer KDB" (its name then), never misreads it. [kareladb downgrade](versions.md#downgrade) writes packed files plain again once the table is set to `off`.
 
 **Example: Pack the old days of a trade table** (sample data: sample)
 
@@ -998,7 +998,7 @@ Error: `line 1, column 24: compression takes on (sealed partitions are stored pa
 Syntax:
 
 ```sql
-kdb serve --tail-files on       -- or KDB_TAIL_FILES=on; off by default
+kareladb serve --tail-files on       -- or KARELADB_TAIL_FILES=on; off by default
 ```
 
 Every save (checkpoint) used to write each changed partition whole. On `PARTITION BY YEAR, SYMBOL(symbol)` one more month of candles wrote each symbol's whole year again, and a live feed touching every symbol wrote every year file again at each save. Most of the bytes written, and kept in the trash, were rows already on disk.
@@ -1014,14 +1014,14 @@ With tail files on, a partition whose new rows all come **after** its last saved
 - **Notes:**
   - It is **off** by default while it is new. Nothing changes until you turn it on.
   - "After the last saved row" is in the table's key order (`SORT BY`, or time then row id): for `SORT BY (symbol, time)` in a `SYMBOL(symbol)` partition, a later time.
-  - A crash in the middle loses nothing: a tail is listed only once it is complete, like every file KDB writes. A tail cut short by a power cut was never listed, and the next start removes it.
+  - A crash in the middle loses nothing: a tail is listed only once it is complete, like every file KarelaDB writes. A tail cut short by a power cut was never listed, and the next start removes it.
   - Folding the tails back into the file is an ordinary save too: a crash during it leaves the file and its tails as they were.
-  - Backups, restores, branches, the trash and `kdb info` see tails as ordinary files. Encryption at rest and column compression cover them like any file (a packed, sealed partition is written whole, never given a tail).
-  - `kdb check` also checks that every tail sits behind its partition file, numbered 1, 2, 3 ... with none missing, and is no older than what it extends.
+  - Backups, restores, branches, the trash and `kareladb info` see tails as ordinary files. Encryption at rest and column compression cover them like any file (a packed, sealed partition is written whole, never given a tail).
+  - `kareladb check` also checks that every tail sits behind its partition file, numbered 1, 2, 3 ... with none missing, and is no older than what it extends.
   - [GET /api/disk](http-server-info.md#api-disk) and the console's [Keep data](console-keep-data.md#disk) page show how much of the data is in tails (`tail_bytes`, `tail_files`).
   - A read `AS OF` an earlier time reads the tails that existed then. When a partition is written whole and its tails go, reads `AS OF` a time before that are refused for the table, as after `TRUNCATE`.
   - Turned off again, existing tails are still read; the next change of such a partition writes it whole.
-  - A database with tail files needs KDB 2026-10-02 or newer (feature `partition_tails`, see [versions](versions.md)). An older KDB refuses it with "needs a newer KDB". [kdb downgrade](versions.md#downgrade) writes those partitions whole again first and says how many it folded.
+  - A database with tail files needs KarelaDB 2026-10-02 or newer (feature `partition_tails`, see [versions](versions.md)). An older build refuses it with "needs a newer KDB" (its name then). [kareladb downgrade](versions.md#downgrade) writes those partitions whole again first and says how many it folded.
 
 <a id="delta-files"></a>
 
@@ -1030,7 +1030,7 @@ With tail files on, a partition whose new rows all come **after** its last saved
 Syntax:
 
 ```sql
-KDB_NO_PARTITION_DELTA=1        -- turns them off: every change writes the whole partition again
+KARELADB_NO_PARTITION_DELTA=1        -- turns them off: every change writes the whole partition again
 ```
 
 An `UPDATE`, a `DELETE` or an `INSERT OR REPLACE` of a few rows used to make the next save write the whole partition again. One replaced row in a day of a million rows wrote the whole day, and the old day went to the trash. Do that a hundred times and the trash holds a hundred days.
@@ -1045,16 +1045,16 @@ Now, when the changes of a partition are a **small share** of its rows, the save
 | a sealed partition of a table with `compression = on` whose file is not packed yet | the whole partition, packed |
 
 - **Notes:**
-  - It is **on** by default. `KDB_NO_PARTITION_DELTA=1` in the server's environment turns it off.
+  - It is **on** by default. `KARELADB_NO_PARTITION_DELTA=1` in the server's environment turns it off.
   - Each save writes the partition's delta again with everything in it so far, so a partition has one delta, and the bytes written and trashed are those of the changed rows, not of the partition.
   - A partition that is not in memory is still read once for the save (its new row count and summary come from its rows); only the writing is saved.
   - Compaction keeps the cost bounded: the delta bytes a partition writes before it is written whole again are about the size of the partition, never many times it. The count survives a restart.
   - `/api/stats` counts `partition_whole_writes` / `partition_whole_bytes` and `partition_delta_writes` / `partition_delta_bytes` since the start. `GET /api/disk` and the `disk` part of `/api/stats` show `delta_files` / `delta_bytes`, the delta files on disk now (part of `data_bytes`).
   - A power cut during a save loses nothing confirmed: a new delta, or the whole file that replaces it, is used only once the manifest names it, and both change in one manifest save.
   - A partition with a delta is always read whole: a [per-column load](databases.md#per-column-loads) would miss the replaced rows. Its next whole write makes it per-column again.
-  - Backups, the trash and `kdb info` see a delta as an ordinary file. `kdb check` also reads every partition with a delta and reports one that does not fit its file (made for other rows, keys out of order, a row count other than the saved one) or that has no partition file.
+  - Backups, the trash and `kareladb info` see a delta as an ordinary file. `kareladb check` also reads every partition with a delta and reports one that does not fit its file (made for other rows, keys out of order, a row count other than the saved one) or that has no partition file.
   - A read `AS OF` an earlier time reads the delta that existed then. When the partition is written whole and its delta goes, reads `AS OF` a time before that are refused for the table, as for tails.
-  - A database with delta files needs KDB 2026-10-02 or newer (feature `partition_deltas`, see [versions](versions.md)). An older KDB refuses it with "needs a newer KDB". [kdb downgrade](versions.md#downgrade) writes those partitions whole again first.
+  - A database with delta files needs KarelaDB 2026-10-02 or newer (feature `partition_deltas`, see [versions](versions.md)). An older build refuses it with "needs a newer KDB" (its name then). [kareladb downgrade](versions.md#downgrade) writes those partitions whole again first.
 
 <a id="load-dedup"></a>
 
@@ -1071,7 +1071,7 @@ A load over [POST /write](line-protocol.md#post-write) or [POST /imp](http-impor
 - **Notes:**
   - Some tables still go row by row, which is several times slower: a table with an immediate `INSERT` [trigger](triggers.md), a `CHECK`, `REFERENCES`, a `UNIQUE` column or index, an `AUTO` column, or a `BEFORE UPDATE` row trigger. A trigger on **another** table does not slow the load. For a table you load in bulk, make its triggers [DEFERRED](triggers.md#deferred).
   - A table with no `DEDUP KEY` is as fast to load as one with a key.
-  - `KDB_NO_BATCH_DEDUP=1` (read at start) turns the at-once check off: such partitions then go row by row. It is only for comparing the two ways.
+  - `KARELADB_NO_BATCH_DEDUP=1` (read at start) turns the at-once check off: such partitions then go row by row. It is only for comparing the two ways.
   - SQL `INSERT` statements check key by key as described in [DEDUP KEY](partitions-and-dedup.md#dedup-key); the result is the same.
 
 <a id="dedup-skip"></a>

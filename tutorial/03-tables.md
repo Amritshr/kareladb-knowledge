@@ -56,7 +56,7 @@ table 'brokers' created
 3 row(s) inserted
 ```
 
-(To run a file like this: `Get-Content tables.sql -Raw | kdb sql market -`.)
+(To run a file like this: `Get-Content tables.sql -Raw | kareladb sql market -`.)
 
 ## Time-series tables
 
@@ -95,7 +95,7 @@ table 'ochl_minutes' created
 | `TIMESERIES(col)` | This is a time-series table. `col` is its time column (`TIMESTAMP` or `DATE`). | - (without it: relational table) |
 | `PARTITION BY DAY` / `MONTH` / `YEAR` / `NONE` | Rows are saved in one file per day, month or year. | `DAY` |
 | `PARTITION BY MONTH, SYMBOL(symbol)` | Also one file per symbol (the time part is `YEAR`, `MONTH` or `NONE`). A query for one symbol reads only its files. | - |
-| `TTL 90 DAYS` | KDB drops partitions older than this by itself (see [Keep only recent data](#keep-only-recent-data)). | no TTL |
+| `TTL 90 DAYS` | KarelaDB drops partitions older than this by itself (see [Keep only recent data](#keep-only-recent-data)). | no TTL |
 | `SORT BY (a, b)` | Order of rows inside each file. | the first `SYMBOL` column, then the time column |
 | `DEDUP KEY (a, b)` | Two rows with the same values here are "the same row". | none: duplicates are allowed |
 
@@ -145,7 +145,7 @@ CREATE TABLE bad (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) 
 error: DEDUP KEY must include the time column 'time', e.g. DEDUP KEY (symbol, time)
 ```
 
-Without a DEDUP KEY, KDB keeps every row, also exact copies:
+Without a DEDUP KEY, KarelaDB keeps every row, also exact copies:
 
 ```sql
 CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
@@ -255,7 +255,7 @@ amount         | DOUBLE    | false       | false    | true     | NULL
 `SHOW CREATE TABLE` gives the full statement. Use CSV format, so the long text is not cut:
 
 ```powershell
-kdb sql market "SHOW CREATE TABLE ochl_day" --format csv
+kareladb sql market "SHOW CREATE TABLE ochl_day" --format csv
 ```
 
 ```text
@@ -343,12 +343,12 @@ NULL | NULL |  NULL |       NULL |                NULL | NULL |   NULL |    NULL
 | Rule | Meaning |
 |---|---|
 | `PRIMARY KEY` | One row per value. At most one per table. Cannot be NULL. |
-| `PRIMARY KEY AUTO` | Like PRIMARY KEY. If you give no value, KDB uses the next number of the table's counter. The counter only goes up: ids of deleted rows are never used again. Integer columns only. |
+| `PRIMARY KEY AUTO` | Like PRIMARY KEY. If you give no value, KarelaDB uses the next number of the table's counter. The counter only goes up: ids of deleted rows are never used again. Integer columns only. |
 | `NOT NULL` | The column must have a value. |
 | `UNIQUE` | No two rows may have the same value (NULL is allowed many times). |
 | `DEFAULT value` | Used when the INSERT gives no value. A constant, or `now()`. |
 | `REFERENCES table(column)` | The value must exist in the other table. The other column must be PRIMARY KEY or UNIQUE. |
-| `AS (expression)` | A computed column. It is not stored; KDB computes it when you read. |
+| `AS (expression)` | A computed column. It is not stored; KarelaDB computes it when you read. |
 | `ROUND interval` | Cuts TIMESTAMP values down (see above). |
 
 Use PRIMARY KEY on **relational** tables. On time-series tables use DEDUP KEY (a PRIMARY KEY there is refused).
@@ -447,7 +447,7 @@ table 'trade_log' created
 table 'live_data' created
 ```
 
-Insert a trade. Do not give `amount`; KDB computes it:
+Insert a trade. Do not give `amount`; KarelaDB computes it:
 
 ```sql
 INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate)
@@ -591,7 +591,7 @@ ALTER TABLE live_data SET TTL 90 DAYS;
 table 'live_data' drops partitions older than 90 DAYS
 ```
 
-- KDB checks once a minute. A partition goes when its **last** moment is older than the TTL. It never deletes single rows.
+- KarelaDB checks once a minute. A partition goes when its **last** moment is older than the TTL. It never deletes single rows.
 - `SHOW CREATE TABLE` shows the TTL. `ALTER TABLE live_data SET TTL NONE` turns it off.
 - You can also give it when you create the table: `... TIMESERIES(timestamp) PARTITION BY DAY TTL 90 DAYS`.
 - To drop old data once, by hand or from a timer, use `ALTER TABLE live_data DROP PARTITION OLDER THAN 90 DAYS`.

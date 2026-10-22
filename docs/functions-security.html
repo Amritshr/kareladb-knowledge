@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Security functions - KDB (KARELA DataBase) docs</title>
+<title>Security functions - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Hash and check passwords, make SHA-256 hashes, random tokens and random ids (UUIDs), and encrypt data with PostgreSQL&#39;s pgcrypto functions.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-security.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-security.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/functions-security.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-security.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="security-functions">Security functions</h1>
 <blockquote><p>Hash and check passwords, make SHA-256 hashes, random tokens and random ids (UUIDs), and encrypt data with PostgreSQL&#39;s pgcrypto functions.</p></blockquote>
-<ul><li>Category: Functions — security</li><li>Keywords: security, password, hash, salt, pbkdf2, login, register, sign up, session, session token, api key, reset link, uuid, random, crypto, pgcrypto, SHA2, HMAC, webhook signature, digest, sha224, sha384, sha512, sha256 bytea, encode sha256 hex, encrypt, decrypt, encryption, pgp, openpgp, gpg, pgp_sym_encrypt, pgp_sym_decrypt, crypt, gen_salt, bcrypt, gen_random_bytes, armor, dearmor, aes, base64</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="server-security.html">Keeping kdb serve safe</a>, <a href="functions-bytes.html">Bytes, hex and base64</a>, <a href="constraints.html">Constraints</a>, <a href="update-delete.html">UPDATE and DELETE</a></li></ul>
+<ul><li>Category: Functions — security</li><li>Keywords: security, password, hash, salt, pbkdf2, login, register, sign up, session, session token, api key, reset link, uuid, random, crypto, pgcrypto, SHA2, HMAC, webhook signature, digest, sha224, sha384, sha512, sha256 bytea, encode sha256 hex, encrypt, decrypt, encryption, pgp, openpgp, gpg, pgp_sym_encrypt, pgp_sym_decrypt, crypt, gen_salt, bcrypt, gen_random_bytes, armor, dearmor, aes, base64</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="server-security.html">Keeping kareladb serve safe</a>, <a href="functions-bytes.html">Bytes, hex and base64</a>, <a href="constraints.html">Constraints</a>, <a href="update-delete.html">UPDATE and DELETE</a></li></ul>
 <p>These functions help your <strong>app</strong> keep its users safe: people who register and log in to your web site or mobile app.</p>
 <ul><li>A <strong>hash</strong> is a short code made from a text. You can not get the text back from the hash.</li><li><code>password_hash</code> and <code>password_verify</code> are for passwords. They are <strong>slow on purpose</strong> (about 0.05 to 0.4 seconds), so a thief who steals the hashes can only try a few guesses per second.</li><li><code>sha256</code> and <code>hmac_sha256</code> are <strong>fast</strong>. Use them for tokens and signatures, never for passwords.</li><li><code>random_bytes</code>, <code>random_token</code> and <code>gen_random_uuid</code> take random bytes from the operating system. They give a new value on every call and for every row.</li><li>A <code>NULL</code> argument gives <code>NULL</code>.</li></ul>
-<p>Database users (who may connect to the KDB server itself) are a different thing: see <a href="users-and-roles.html">Users and roles</a>.</p>
+<p>Database users (who may connect to the KarelaDB server itself) are a different thing: see <a href="users-and-roles.html">Users and roles</a>.</p>
 <p><strong>Example: Register a user, then check the password at login</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE, password_hash STRING NOT NULL);</code></pre>
@@ -26,10 +26,10 @@ SELECT id, email, password_hash FROM app_users;
 SELECT id FROM app_users
 WHERE email = &#39;sita@example.com&#39; AND password_verify(&#39;correct horse battery&#39;, password_hash);</code></pre>
 <p>Result:</p>
-<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$vl</code></p>
+<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$1I</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
 <p><code>SELECT id, email, password_hash FROM app_users</code></p>
-<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$vln72/8Tbvb7tIBblnmZng$ZkbNxX0kxWN7KFOq41E4zyhsng8NwgAv8jWGxJ6KFt8</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$1I6cQ2vg2J0Gi0+vYvXikw$CVignDobNJxvKCxd2l8LsMgfIeHmkccuLhEnh+0Rb8E</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>SELECT id FROM app_users WHERE email = &#39;sita@example.com&#39; AND password_verify(&#39;correct horse battery</code></p>
 <div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
@@ -41,11 +41,11 @@ password_hash(password, iterations)</code></pre>
 <p>Makes a hash of a password, to store in your users table. Each call uses a new random <strong>salt</strong> (random bytes mixed into the hash), so the same password gives a different hash every time.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>password</code></td><td>text</td><td>the password the user typed. A number is turned into text first.</td></tr><tr><td><code>iterations</code></td><td>whole number</td><td>how many rounds of work: 1000 to 10000000. Default <code>600000</code>. More is slower and safer.</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>STRING</code> like <code>$pbkdf2-sha256$i=600000$&lt;salt&gt;$&lt;hash&gt;</code>. It says how it was made (PBKDF2 with HMAC-SHA-256), so <code>password_verify</code> can check it later, even after the default changes.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
-<ul><li>With 600000 rounds one call takes about 0.05 to 0.1 seconds on a PC with SHA instructions in the CPU, about 0.4 seconds without them.</li><li>In <code>INSERT ... VALUES</code> and <code>UPDATE ... SET</code>, a <code>password_hash(&#39;...&#39;)</code> with plain text is made <strong>before</strong> the statement takes the database lock, so other statements do not wait. The statement KDB shows back has the finished hash, not the password.</li><li>Because of that, <code>UPDATE app_users SET password_hash = password_hash(&#39;x&#39;)</code> gives <strong>every</strong> changed row the same hash (one salt). Change passwords one row at a time (<code>WHERE id = ...</code>).</li><li>An empty password <code>&#39;&#39;</code> is accepted. Check the length in your app.</li><li>Do not compare two hashes with <code>=</code>: each hash has its own salt, so they never match. Use <code>password_verify</code>.</li><li>PostgreSQL&#39;s pgcrypto way, <code>crypt(pw, gen_salt(&#39;bf&#39;))</code>, works in KDB too: see <a href="#crypt">crypt</a>. Use it when the hashes must also work in PostgreSQL. MySQL has no safe built-in password hash. KDB&#39;s text follows the common <code>$name$settings$salt$hash</code> style, but other tools may write the salt and hash a little differently.</li></ul></li></ul>
+<ul><li>With 600000 rounds one call takes about 0.05 to 0.1 seconds on a PC with SHA instructions in the CPU, about 0.4 seconds without them.</li><li>In <code>INSERT ... VALUES</code> and <code>UPDATE ... SET</code>, a <code>password_hash(&#39;...&#39;)</code> with plain text is made <strong>before</strong> the statement takes the database lock, so other statements do not wait. The statement KarelaDB shows back has the finished hash, not the password.</li><li>Because of that, <code>UPDATE app_users SET password_hash = password_hash(&#39;x&#39;)</code> gives <strong>every</strong> changed row the same hash (one salt). Change passwords one row at a time (<code>WHERE id = ...</code>).</li><li>An empty password <code>&#39;&#39;</code> is accepted. Check the length in your app.</li><li>Do not compare two hashes with <code>=</code>: each hash has its own salt, so they never match. Use <code>password_verify</code>.</li><li>PostgreSQL&#39;s pgcrypto way, <code>crypt(pw, gen_salt(&#39;bf&#39;))</code>, works in KarelaDB too: see <a href="#crypt">crypt</a>. Use it when the hashes must also work in PostgreSQL. MySQL has no safe built-in password hash. KarelaDB&#39;s text follows the common <code>$name$settings$salt$hash</code> style, but other tools may write the salt and hash a little differently.</li></ul></li></ul>
 <p><strong>Example: The same password twice gives two different hashes</strong></p>
 <pre><code class="language-sql">SELECT password_hash(&#39;correct horse battery&#39;) AS first, password_hash(&#39;correct horse battery&#39;) AS second;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>first (STRING)</th><th>second (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=600000$0pnQZx6a4/IIeRfauSkdQA$zy5KnOiE7N5YQ5/iiFm+uUbAqZVxZnhVJb2WwVQVK4M</td><td>$pbkdf2-sha256$i=600000$ho2r8Zd82jw3ZhIXEo5RuA$SsKIue9WqfZg8d9Hu8VBoCGwARz+3Ch/09Sc7g/14/E</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>first (STRING)</th><th>second (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=600000$PVef9ulCrObYbGJazwegEg$A3KytHFmLCzlNIvvglN1BjpHKHxbApn+FF3i1PwiDcI</td><td>$pbkdf2-sha256$i=600000$o4lti0hRVBdCEaJqpkuS+g$I8p4QzfZTN6FWsTqRiTBbNWaMeN3WFgA89yRysmXIck</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: Register: store the hash, never the password</strong></p>
 <p>Setup:</p>
@@ -53,10 +53,10 @@ password_hash(password, iterations)</code></pre>
 <pre><code class="language-sql">INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, password_hash(&#39;correct horse battery&#39;));
 SELECT id, email, password_hash FROM app_users;</code></pre>
 <p>Result:</p>
-<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$nf</code></p>
+<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$SY</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
 <p><code>SELECT id, email, password_hash FROM app_users</code></p>
-<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$nfwwS0+qlWaMdCV0GXGSVw$YF/p0RJM0FKX0P8NX9tRAlcweWv4ifyAjTICoTAjotI</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$SYTcRn1uhGOdHtbEAjoT3Q$xZKCcdeYDFJ+1LWNJKCyYmsXtus9EKUrmWlLOqA/CsI</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: The email is already registered</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -72,16 +72,16 @@ INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;,
 <pre><code class="language-sql">UPDATE app_users SET password_hash = password_hash(&#39;Temporary-pass-1&#39;);
 SELECT id, password_hash FROM app_users;</code></pre>
 <p>Result:</p>
-<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$x0cnx3AxK+atLxX4HGHTwA$KHrHm3PXCPdEb8D</code></p>
+<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$ljFlnUO8MXVgj5Mf3fMHWA$Hgo50ZKQDPmGCpJ</code></p>
 <pre><code class="language-text">2 row(s) updated</code></pre>
 <p><code>SELECT id, password_hash FROM app_users</code></p>
-<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>$pbkdf2-sha256$i=600000$x0cnx3AxK+atLxX4HGHTwA$KHrHm3PXCPdEb8DZ/AyFPQpfuf2CvAzYrWG17qKh+ZM</td></tr><tr><td>2</td><td>$pbkdf2-sha256$i=600000$x0cnx3AxK+atLxX4HGHTwA$KHrHm3PXCPdEb8DZ/AyFPQpfuf2CvAzYrWG17qKh+ZM</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>$pbkdf2-sha256$i=600000$ljFlnUO8MXVgj5Mf3fMHWA$Hgo50ZKQDPmGCpJ+BhEv2bMhWHOcva2U+6HfOhw3eRE</td></tr><tr><td>2</td><td>$pbkdf2-sha256$i=600000$ljFlnUO8MXVgj5Mf3fMHWA$Hgo50ZKQDPmGCpJ+BhEv2bMhWHOcva2U+6HfOhw3eRE</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: Fewer rounds: faster, but easier to guess</strong> (shows an error)</p>
 <pre><code class="language-sql">SELECT password_hash(&#39;my password&#39;, 1000) AS ok_but_weak;
 SELECT password_hash(&#39;my password&#39;, 500) AS too_few;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>ok_but_weak (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=1000$+hrOkMalFQNlI43P1NpBMg$JcyX4QNfYeMFxgIynapibAJL01nVk4rKjBwpBQHyKwc</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>ok_but_weak (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=1000$tox5kPbVOn1sdqHJGgVWQQ$KU6+B1Kr9pAhzJCfEf04yQeIqOv/OAc5XQD1l3TrU/o</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p>Error: <code>line 2, column 8: password_hash: iterations must be a whole number from 1000 to 10000000 (default 600000)</code></p>
 <h2 id="password-verify">password_verify</h2>
@@ -89,7 +89,7 @@ SELECT password_hash(&#39;my password&#39;, 500) AS too_few;</code></pre>
 <pre><code class="language-sql">password_verify(password, hash)</code></pre>
 <p>Checks if a typed password matches a hash made by <code>password_hash</code>.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>password</code></td><td>text</td><td>the password the user typed at login</td></tr><tr><td><code>hash</code></td><td>text</td><td>the stored hash, <code>$pbkdf2-sha256$i=...$...$...</code></td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> <code>BOOL</code>: <code>true</code> when the password is right, <code>false</code> when it is wrong <strong>or</strong> when the hash is damaged or not a KDB hash. It never gives an error.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>: <code>true</code> when the password is right, <code>false</code> when it is wrong <strong>or</strong> when the hash is damaged or not a KarelaDB hash. It never gives an error.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
 <ul><li>It is as slow as <code>password_hash</code>. Call it <strong>once</strong> per login.</li><li>In <code>WHERE</code>, put the email test <strong>first</strong>: <code>WHERE email = ... AND password_verify(...)</code>. Then only the one matching row is checked. The other order checks the password of every user.</li><li>Show the same message for &quot;no such email&quot; and &quot;wrong password&quot; (for example &quot;wrong email or password&quot;), so nobody can find out which emails are registered.</li><li>It reads the rounds from the hash, so old hashes with other rounds still work.</li></ul></li></ul>
 <p><strong>Example: Log in: right password gives the id, wrong password gives no row</strong></p>
 <p>Setup:</p>
@@ -124,7 +124,7 @@ FROM app_users WHERE id = 1;</code></pre>
 <p><code>SELECT password_verify(&#39;old password 1&#39;, password_hash) AS old_is_right FROM app_users WHERE id = 1</code></p>
 <div class="table-wrap"><table><thead><tr><th>old_is_right (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
 <p>(1 row)</p>
-<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$feo0AWDSoGFGHM+3dv+ruw$8aZsUz7MpEqozA+</code></p>
+<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$tXkPonJdoJDZfL3mHYSb1w$3gdKD2+kYn8bsmG</code></p>
 <pre><code class="language-text">1 row(s) updated</code></pre>
 <p><code>SELECT password_verify(&#39;old password 1&#39;, password_hash) AS old_works, password_verify(&#39;new password </code></p>
 <div class="table-wrap"><table><thead><tr><th>old_works (BOOL)</th><th>new_works (BOOL)</th></tr></thead><tbody><tr><td>false</td><td>true</td></tr></tbody></table></div>
@@ -137,8 +137,8 @@ sha224(...), sha384(...), sha512(...)</code></pre>
 <p>The SHA-256 hash of a value. The same value always gives the same hash. It is fast. <code>sha224</code>, <code>sha384</code> and <code>sha512</code> are the other SHA-2 sizes and work the same way.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>text</td><td>the value to hash. Numbers, dates and other values are turned into text first.</td></tr><tr><td><code>bytes</code></td><td><code>BYTES</code></td><td>raw bytes to hash</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong>
-<ul><li>text in: <code>STRING</code> of lower-case hex characters (64 for <code>sha256</code>), KDB&#39;s own handy form.</li><li><code>BYTES</code> in: <code>BYTES</code>, the raw hash (32 bytes for <code>sha256</code>), as PostgreSQL&#39;s <code>sha256(bytea)</code> gives.</li></ul></li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
-<ul><li>The text is hashed as UTF-8 bytes, so text in any language (Nepali, Chinese, emoji) works.</li><li>Never use it for passwords: it is far too fast to guess. Use <code>password_hash</code>.</li><li>Good uses: store the hash of a session token or reset token (a stolen copy of the table can not be used to log in), find the same news article loaded twice, make a short key from a long text.</li><li>PostgreSQL code works as it is: <code>encode(sha256(convert_to(token, &#39;UTF8&#39;)), &#39;hex&#39;)</code> and <code>encode(sha256(&#39;abc&#39;), &#39;hex&#39;)</code> give the 64 hex characters of the hash (KDB encodes the hash&#39;s own bytes, not its hex text again).</li><li>For other hash kinds by name, use <a href="#digest">digest</a>. MySQL&#39;s <code>SHA2(text, 256)</code> returns hex like KDB&#39;s text form.</li></ul></li></ul>
+<ul><li>text in: <code>STRING</code> of lower-case hex characters (64 for <code>sha256</code>), KarelaDB&#39;s own handy form.</li><li><code>BYTES</code> in: <code>BYTES</code>, the raw hash (32 bytes for <code>sha256</code>), as PostgreSQL&#39;s <code>sha256(bytea)</code> gives.</li></ul></li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
+<ul><li>The text is hashed as UTF-8 bytes, so text in any language (Nepali, Chinese, emoji) works.</li><li>Never use it for passwords: it is far too fast to guess. Use <code>password_hash</code>.</li><li>Good uses: store the hash of a session token or reset token (a stolen copy of the table can not be used to log in), find the same news article loaded twice, make a short key from a long text.</li><li>PostgreSQL code works as it is: <code>encode(sha256(convert_to(token, &#39;UTF8&#39;)), &#39;hex&#39;)</code> and <code>encode(sha256(&#39;abc&#39;), &#39;hex&#39;)</code> give the 64 hex characters of the hash (KarelaDB encodes the hash&#39;s own bytes, not its hex text again).</li><li>For other hash kinds by name, use <a href="#digest">digest</a>. MySQL&#39;s <code>SHA2(text, 256)</code> returns hex like KarelaDB&#39;s text form.</li></ul></li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT sha256(&#39;abc&#39;) AS abc, sha256(&#39;&#39;) AS empty, sha256(NULL) AS null_value;</code></pre>
 <p>Result:</p>
@@ -213,7 +213,7 @@ HAVING count(*) &gt; 1;</code></pre>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT random_bytes(4) AS four_bytes, random_bytes(16) AS api_secret, length(random_bytes(16)) AS hex_chars;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>four_bytes (STRING)</th><th>api_secret (STRING)</th><th>hex_chars (LONG)</th></tr></thead><tbody><tr><td>e26b7c06</td><td>4e4bf8d2d9e3ebdea71bb5cb940038d0</td><td>32</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>four_bytes (STRING)</th><th>api_secret (STRING)</th><th>hex_chars (LONG)</th></tr></thead><tbody><tr><td>fd79299e</td><td>e173d18b474ace4ab05d03f35824fb7d</td><td>32</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: The number must be from 1 to 1024</strong> (shows an error)</p>
 <pre><code class="language-sql">SELECT random_bytes(0);</code></pre>
@@ -234,7 +234,7 @@ random_token(n)</code></pre>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT random_token() AS session_token, random_token(16) AS shorter, length(random_token()) AS chars;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>session_token (STRING)</th><th>shorter (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>n-J8MpRR8HSapktJaUpT7j31V6b9UvMWNYnFdx-RqPs</td><td>6tZDNkubg_00i8SN3tWRcQ</td><td>43</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>session_token (STRING)</th><th>shorter (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>xK4Dw9U8e5zCNeGmbbfcoymM_kVxgqYuMyQzoXs08b0</td><td>XACTbTqSXlH3au1Ev1B5Ow</td><td>43</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: Forgot password: store the hash of a reset token for 30 minutes</strong></p>
 <p>Setup:</p>
@@ -245,7 +245,7 @@ SELECT user_id FROM password_resets
 WHERE token_hash = sha256(&#39;Qm9vSw1mY3Jk0x7Lr2nT5uV8wZ1aB4cD6eF9gH2jK3m&#39;) AND expires_at &gt; now();</code></pre>
 <p>Result:</p>
 <p><code>SELECT random_token() AS token_for_the_email_link</code></p>
-<div class="table-wrap"><table><thead><tr><th>token_for_the_email_link (STRING)</th></tr></thead><tbody><tr><td>-cYr4YFsxZWB0_td7LGL2OGEv1J3p97tmbvlO2ccMrQ</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>token_for_the_email_link (STRING)</th></tr></thead><tbody><tr><td>51spJAezWx6NBL3KfGygZRWsvpGVbUf870iu0T1cClw</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>INSERT INTO password_resets VALUES (sha256(&#39;Qm9vSw1mY3Jk0x7Lr2nT5uV8wZ1aB4cD6eF9gH2jK3m&#39;), 1, datead</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
@@ -260,12 +260,12 @@ WHERE token_hash = sha256(&#39;Qm9vSw1mY3Jk0x7Lr2nT5uV8wZ1aB4cD6eF9gH2jK3m&#39;)
 <p>Syntax:</p>
 <pre><code class="language-sql">gen_random_uuid()</code></pre>
 <p>A random id in the standard UUID form (version 4), like <code>0465d47f-8194-4c94-a372-eda3b70504a0</code>. Two calls practically never give the same id.</p>
-<ul><li><strong>Returns:</strong> <code>STRING</code> of 36 characters. KDB has no separate UUID column type: use a <code>STRING</code> column.</li><li><strong>NULL:</strong> takes no arguments.</li><li><strong>Notes:</strong>
+<ul><li><strong>Returns:</strong> <code>STRING</code> of 36 characters. KarelaDB has no separate UUID column type: use a <code>STRING</code> column.</li><li><strong>NULL:</strong> takes no arguments.</li><li><strong>Notes:</strong>
 <ul><li>Good as a public id of a forum post or an order, when you do not want people to guess the next id (<code>/post/7</code>, <code>/post/8</code>, ...).</li><li><code>DEFAULT gen_random_uuid()</code> gives each new row its own id.</li><li><code>ALTER TABLE ... ADD COLUMN id STRING DEFAULT gen_random_uuid()</code> gives all <strong>old</strong> rows one and the same value; only new rows get their own.</li><li>The same name and form as PostgreSQL 13 and newer. MySQL&#39;s <code>UUID()</code> makes version 1 ids (based on time, not random).</li></ul></li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT gen_random_uuid() AS id, length(gen_random_uuid()) AS chars;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>id (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>851a606a-46e5-4dc4-bc25-5f6fc5d569c5</td><td>36</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>2bc73589-4ae5-4617-a527-fd450efb8fce</td><td>36</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: Forum posts with a random public id</strong></p>
 <p>Setup:</p>
@@ -276,14 +276,14 @@ SELECT public_id, author, title FROM forum_posts;</code></pre>
 <p><code>INSERT INTO forum_posts (author, title) VALUES (&#39;sita&#39;, &#39;CITY dividend news&#39;), (&#39;ram&#39;, &#39;बजार आज कस्त</code></p>
 <pre><code class="language-text">2 row(s) inserted</code></pre>
 <p><code>SELECT public_id, author, title FROM forum_posts</code></p>
-<div class="table-wrap"><table><thead><tr><th>public_id (STRING)</th><th>author (STRING)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>072bad61-f07a-422d-908b-99e76b29ddd8</td><td>sita</td><td>CITY dividend news</td></tr><tr><td>32448266-e23d-418c-b0b3-5a46969eb428</td><td>ram</td><td>बजार आज कस्तो होला?</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>public_id (STRING)</th><th>author (STRING)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>c643c8ad-d4d2-49ab-b83f-f6d038757dfd</td><td>sita</td><td>CITY dividend news</td></tr><tr><td>cf3ef857-9ad4-4b3c-80c6-63b837d2b13b</td><td>ram</td><td>बजार आज कस्तो होला?</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: No arguments</strong> (shows an error)</p>
 <pre><code class="language-sql">SELECT gen_random_uuid(4);</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: function &#39;gen_random_uuid&#39; takes 0 argument(s), got 1</code></p>
 <h2 id="pgcrypto">PostgreSQL pgcrypto functions</h2>
-<p>KDB has the functions of PostgreSQL&#39;s <strong>pgcrypto</strong> extension, and they give the <strong>same bytes</strong>. Data encrypted in PostgreSQL opens in KDB, and data encrypted in KDB opens in PostgreSQL (and in GnuPG). There is no <code>CREATE EXTENSION</code> to run: they are always there.</p>
+<p>KarelaDB has the functions of PostgreSQL&#39;s <strong>pgcrypto</strong> extension, and they give the <strong>same bytes</strong>. Data encrypted in PostgreSQL opens in KarelaDB, and data encrypted in KarelaDB opens in PostgreSQL (and in GnuPG). There is no <code>CREATE EXTENSION</code> to run: they are always there.</p>
 <div class="table-wrap"><table><thead><tr><th>Function</th><th>What it does</th></tr></thead><tbody><tr><td><a href="#pgp-sym-encrypt">pgp_sym_encrypt</a> / <a href="#pgp-sym-decrypt">pgp_sym_decrypt</a></td><td>encrypt with a password (OpenPGP). The best choice for secrets you must read back.</td></tr><tr><td><a href="#encrypt">encrypt / decrypt</a></td><td>raw AES, Blowfish or DES with a key you manage yourself</td></tr><tr><td><a href="#crypt">crypt / gen_salt</a></td><td>password hashes: bcrypt <code>$2a$</code>, MD5 <code>$1$</code>, DES</td></tr><tr><td><a href="#gen-random-bytes">gen_random_bytes</a></td><td>random <code>BYTES</code> from the operating system</td></tr><tr><td><a href="#armor">armor / dearmor</a></td><td>encrypted bytes as <code>-----BEGIN PGP MESSAGE-----</code> text, and back</td></tr><tr><td><a href="#base64">base64</a></td><td>QuestDB&#39;s <code>base64(data, maxLength)</code></td></tr></tbody></table></div>
 <p>Errors use PostgreSQL&#39;s words and codes. Most are SQLSTATE <code>39000</code>, for example <code>Wrong key or corrupt data</code>.</p>
 <h2 id="pgp-sym-encrypt">pgp_sym_encrypt</h2>
@@ -293,7 +293,7 @@ pgp_sym_encrypt(text, password, options)
 pgp_sym_encrypt_bytea(bytes, password [, options])</code></pre>
 <p>Encrypts with a password. The result is an <strong>OpenPGP</strong> message (RFC 4880), the format of GnuPG: a key made from the password with a random salt (65536 to 253952 bytes of SHA-1 hashing), AES-128, and a SHA-1 check that finds any change to the message.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code> / <code>bytes</code></td><td>text or <code>BYTES</code></td><td>what to encrypt</td></tr><tr><td><code>password</code></td><td>text</td><td>the password</td></tr><tr><td><code>options</code></td><td>text</td><td>optional, like <code>&#39;cipher-algo=aes256, s2k-count=65536&#39;</code> (see the table below)</td></tr></tbody></table></div>
-<div class="table-wrap"><table><thead><tr><th>Option</th><th>Values</th><th>Default</th></tr></thead><tbody><tr><td><code>cipher-algo</code></td><td><code>aes128</code> (<code>aes</code>), <code>aes192</code>, <code>aes256</code>, <code>bf</code>, <code>3des</code></td><td><code>aes128</code></td></tr><tr><td><code>s2k-mode</code></td><td><code>0</code> plain, <code>1</code> salted, <code>3</code> salted and repeated</td><td><code>3</code></td></tr><tr><td><code>s2k-count</code></td><td>1024 to 65011712 bytes of hashing (with <code>s2k-mode=3</code>)</td><td>random, 65536 to 253952</td></tr><tr><td><code>s2k-digest-algo</code></td><td><code>sha1</code>, <code>md5</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code></td><td><code>sha1</code></td></tr><tr><td><code>sess-key</code></td><td><code>1</code>: a random session key, encrypted with the password key</td><td><code>0</code></td></tr><tr><td><code>s2k-cipher-algo</code></td><td>cipher for the session key (with <code>sess-key=1</code>)</td><td>as <code>cipher-algo</code></td></tr><tr><td><code>disable-mdc</code></td><td><code>1</code>: no integrity check (old format; do not use)</td><td><code>0</code></td></tr><tr><td><code>convert-crlf</code></td><td><code>1</code>: line ends become <code>\r\n</code></td><td><code>0</code></td></tr><tr><td><code>unicode-mode</code></td><td><code>1</code>: mark the text as UTF-8</td><td><code>0</code></td></tr><tr><td><code>compress-algo</code></td><td><code>0</code> only (KDB does not compress)</td><td><code>0</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Values</th><th>Default</th></tr></thead><tbody><tr><td><code>cipher-algo</code></td><td><code>aes128</code> (<code>aes</code>), <code>aes192</code>, <code>aes256</code>, <code>bf</code>, <code>3des</code></td><td><code>aes128</code></td></tr><tr><td><code>s2k-mode</code></td><td><code>0</code> plain, <code>1</code> salted, <code>3</code> salted and repeated</td><td><code>3</code></td></tr><tr><td><code>s2k-count</code></td><td>1024 to 65011712 bytes of hashing (with <code>s2k-mode=3</code>)</td><td>random, 65536 to 253952</td></tr><tr><td><code>s2k-digest-algo</code></td><td><code>sha1</code>, <code>md5</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code></td><td><code>sha1</code></td></tr><tr><td><code>sess-key</code></td><td><code>1</code>: a random session key, encrypted with the password key</td><td><code>0</code></td></tr><tr><td><code>s2k-cipher-algo</code></td><td>cipher for the session key (with <code>sess-key=1</code>)</td><td>as <code>cipher-algo</code></td></tr><tr><td><code>disable-mdc</code></td><td><code>1</code>: no integrity check (old format; do not use)</td><td><code>0</code></td></tr><tr><td><code>convert-crlf</code></td><td><code>1</code>: line ends become <code>\r\n</code></td><td><code>0</code></td></tr><tr><td><code>unicode-mode</code></td><td><code>1</code>: mark the text as UTF-8</td><td><code>0</code></td></tr><tr><td><code>compress-algo</code></td><td><code>0</code> only (KarelaDB does not compress)</td><td><code>0</code></td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>BYTES</code>. The same text gives different bytes every time (a new salt and a random start).</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
 <ul><li>Keep the result in a <code>BYTES</code> column. <code>armor()</code> turns it into text that GnuPG reads: <code>gpg --decrypt</code>.</li><li>Each call hashes the password again (on purpose, it makes guessing slow): about 0.05 ms per row on a CPU with SHA instructions. For millions of rows, <code>s2k-count=1024</code> is about 10 times faster but easier to guess.</li><li><code>cast5</code>, <code>twofish</code> and <code>compress-algo</code> 1 or 2 are refused (SQLSTATE <code>0A000</code>); PostgreSQL has them. <code>pgp_pub_encrypt</code> (public keys) is refused too.</li></ul></li></ul>
 <p><strong>Example: Encrypt a secret, read it back</strong></p>
@@ -316,7 +316,7 @@ SELECT name, pgp_sym_decrypt(phone, &#39;shop-key-2026&#39;) AS phone FROM custo
 <p><strong>Example: As text GnuPG reads</strong></p>
 <pre><code class="language-sql">SELECT armor(pgp_sym_encrypt(&#39;hello gpg&#39;, &#39;pw&#39;)) AS message;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>message (STRING)</th></tr></thead><tbody><tr><td>-----BEGIN PGP MESSAGE-----  ww0EBwMCXnHyjTZj6Fdj0joBjUjjMtBH+x0hfH+mF8tBGbB9QT1bwlrCUWPRU0E4HbJSoHJY2M4l Yay+xdBjWzhq/BG6qSeB16fD =0YMk -----END PGP MESSAGE-----</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>message (STRING)</th></tr></thead><tbody><tr><td>-----BEGIN PGP MESSAGE-----  ww0EBwMCoJ2I1uRl1/1g0joBVuzilwkIThUC8ulOmW56kgUxH5v3jkOAFUegCSfkO2M9WkDt2IyC Unnvy7UqeTfFHf25FTISq5WL =2q9w -----END PGP MESSAGE-----</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="pgp-sym-decrypt">pgp_sym_decrypt</h2>
 <p>Syntax:</p>
@@ -376,7 +376,7 @@ gen_salt(type, rounds)</code></pre>
 <p>pgcrypto&#39;s password hashes. <code>gen_salt</code> makes a new random salt; <code>crypt</code> makes the hash. To check a password later, give <code>crypt</code> the stored hash as the salt: the right password gives the same hash back.</p>
 <div class="table-wrap"><table><thead><tr><th><code>type</code></th><th>Hash</th><th><code>rounds</code></th></tr></thead><tbody><tr><td><code>&#39;bf&#39;</code></td><td>bcrypt, <code>$2a$</code> + 60 characters. The one to use.</td><td>4 to 31, default 6. Each step up doubles the time.</td></tr><tr><td><code>&#39;md5&#39;</code></td><td>MD5-crypt, <code>$1$</code></td><td>fixed</td></tr><tr><td><code>&#39;xdes&#39;</code></td><td>extended DES, <code>_</code></td><td>odd, 1 to 16777215, default 725</td></tr><tr><td><code>&#39;des&#39;</code></td><td>old DES: only 8 characters of the password count</td><td>fixed</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
-<ul><li>The hashes are the same as PostgreSQL&#39;s (and Linux&#39;s <code>crypt()</code>), so users can move between the two.</li><li>bcrypt uses only the first 72 bytes of a password.</li><li>A salt it can not use gives <code>crypt(3) returned NULL</code> (SQLSTATE <code>39000</code>). An unknown type in <code>gen_salt</code> gives SQLSTATE <code>22023</code>.</li><li>A high <code>rounds</code> can take very long (31 is hours); the statement timeout stops it.</li><li>KDB&#39;s own <a href="#password-hash">password_hash</a> is the simpler choice when PostgreSQL does not need the hashes.</li></ul></li></ul>
+<ul><li>The hashes are the same as PostgreSQL&#39;s (and Linux&#39;s <code>crypt()</code>), so users can move between the two.</li><li>bcrypt uses only the first 72 bytes of a password.</li><li>A salt it can not use gives <code>crypt(3) returned NULL</code> (SQLSTATE <code>39000</code>). An unknown type in <code>gen_salt</code> gives SQLSTATE <code>22023</code>.</li><li>A high <code>rounds</code> can take very long (31 is hours); the statement timeout stops it.</li><li>KarelaDB&#39;s own <a href="#password-hash">password_hash</a> is the simpler choice when PostgreSQL does not need the hashes.</li></ul></li></ul>
 <p><strong>Example: Register and log in with bcrypt</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE app_users (email STRING PRIMARY KEY, pw_hash STRING NOT NULL);</code></pre>
@@ -409,7 +409,7 @@ FROM app_users;</code></pre>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT length(gen_random_bytes(16)) AS bytes, encode(gen_random_bytes(8), &#39;hex&#39;) AS hex;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>bytes (LONG)</th><th>hex (STRING)</th></tr></thead><tbody><tr><td>16</td><td>a46cbc749ee6115a</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>bytes (LONG)</th><th>hex (STRING)</th></tr></thead><tbody><tr><td>16</td><td>27a7b1b53295b65c</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="armor">armor</h2>
 <p>Syntax:</p>
@@ -424,9 +424,9 @@ dearmor(text)</code></pre>
 <div class="table-wrap"><table><thead><tr><th>text (STRING)</th><th>back (BYTES)</th></tr></thead><tbody><tr><td>-----BEGIN PGP MESSAGE-----  AQ== =5yUo -----END PGP MESSAGE-----</td><td>\x01</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: With a header line</strong></p>
-<pre><code class="language-sql">SELECT armor(&#39;\x01&#39;::bytea, ARRAY[&#39;Comment&#39;], ARRAY[&#39;made by KDB&#39;]) AS text;</code></pre>
+<pre><code class="language-sql">SELECT armor(&#39;\x01&#39;::bytea, ARRAY[&#39;Comment&#39;], ARRAY[&#39;made by KarelaDB&#39;]) AS text;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>text (STRING)</th></tr></thead><tbody><tr><td>-----BEGIN PGP MESSAGE----- Comment: made by KDB  AQ== =5yUo -----END PGP MESSAGE-----</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>text (STRING)</th></tr></thead><tbody><tr><td>-----BEGIN PGP MESSAGE----- Comment: made by KarelaDB  AQ== =5yUo -----END PGP MESSAGE-----</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="base64">base64</h2>
 <p>Syntax:</p>
@@ -448,7 +448,7 @@ log out:   DELETE ... WHERE token_hash = sha256(&#39;token&#39;)</code></pre>
 <p>The whole way an app lets people register, log in and stay logged in. Your backend (the server program of your app) runs these statements. The browser only ever gets the token.</p>
 <div class="table-wrap"><table><thead><tr><th>Step</th><th>What your backend does</th></tr></thead><tbody><tr><td>Register</td><td>stores <code>password_hash(password)</code>; <code>UNIQUE</code> on the email stops a second account</td></tr><tr><td>Log in</td><td>finds the user with <code>password_verify</code>; on &quot;no row&quot; says &quot;wrong email or password&quot;</td></tr><tr><td>Session</td><td>makes <code>random_token()</code>, sends it as a cookie (<code>HttpOnly; Secure; SameSite=Lax</code>), stores <code>sha256(token)</code> with an expiry</td></tr><tr><td>Every request</td><td>finds the user by <code>sha256(token)</code> and <code>expires_at &gt; now()</code>: fast, no slow hash</td></tr><tr><td>Log out</td><td>deletes the session row</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> see each function above.</li><li><strong>NULL:</strong> a <code>NULL</code> token or password finds no row.</li><li><strong>Notes:</strong>
-<ul><li>Always send user text as <strong>parameters</strong> of your driver (<code>$1</code>, <code>$2</code>), never glued into the SQL text (that allows SQL injection).</li><li>Count failed logins per email and per IP address in your app and wait longer after each failure. KDB does this for its own logins, not for your tables.</li><li>Delete old sessions now and then: <code>DELETE FROM app_sessions WHERE expires_at &lt; now();</code></li><li>After a password change, delete the user&#39;s other sessions.</li></ul></li></ul>
+<ul><li>Always send user text as <strong>parameters</strong> of your driver (<code>$1</code>, <code>$2</code>), never glued into the SQL text (that allows SQL injection).</li><li>Count failed logins per email and per IP address in your app and wait longer after each failure. KarelaDB does this for its own logins, not for your tables.</li><li>Delete old sessions now and then: <code>DELETE FROM app_sessions WHERE expires_at &lt; now();</code></li><li>After a password change, delete the user&#39;s other sessions.</li></ul></li></ul>
 <p><strong>Example: The complete flow: register, log in, session, request, log out</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE app_users (
@@ -477,13 +477,13 @@ WHERE s.token_hash = sha256(&#39;mR3v7yJ2nqKx0Qe8i4uX1t9LZbF5cH6aWgD2sP0oVkE&#39
 DELETE FROM app_sessions WHERE token_hash = sha256(&#39;mR3v7yJ2nqKx0Qe8i4uX1t9LZbF5cH6aWgD2sP0oVkE&#39;);
 SELECT count(*) AS sessions_left FROM app_sessions;</code></pre>
 <p>Result:</p>
-<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$cr</code></p>
+<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$aI</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
 <p><code>SELECT id FROM app_users WHERE email = &#39;sita@example.com&#39; AND password_verify(&#39;correct horse battery</code></p>
 <div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>SELECT random_token() AS token</code></p>
-<div class="table-wrap"><table><thead><tr><th>token (STRING)</th></tr></thead><tbody><tr><td>pTgWGxsCFm56yLo_2L0yprtaE-S9HFDsEENAhIJcynI</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>token (STRING)</th></tr></thead><tbody><tr><td>3nL6uIjbvrsAWhlqVLbyVmWLbrCPTvwIKrHy672_HSA</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>INSERT INTO app_sessions VALUES (sha256(&#39;mR3v7yJ2nqKx0Qe8i4uX1t9LZbF5cH6aWgD2sP0oVkE&#39;), 1, dateadd(&#39;</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
@@ -496,6 +496,6 @@ SELECT count(*) AS sessions_left FROM app_sessions;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>sessions_left (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-security.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-security.md">This page as markdown</a>.</footer>
 </body>
 </html>

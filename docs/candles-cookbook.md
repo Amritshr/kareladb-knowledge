@@ -357,7 +357,7 @@ LIMIT 10
 Gainers of a day: the change %, biggest first. Losers: the same with `ORDER BY change_pct` (smallest first).
 
 - **Notes:**
-  - The inner `WHERE time >= ...` should start a few days before the day you want (weekends and holidays have no rows). Then KDB does not read the whole table.
+  - The inner `WHERE time >= ...` should start a few days before the day you want (weekends and holidays have no rows). Then KarelaDB does not read the whole table.
   - For the market **right now**, use the live snapshots with `LATEST ON` (second example).
 
 **Example: Top gainers of 2026-09-10 from daily candles** (sample data: sample)
@@ -578,7 +578,7 @@ rsi(close, n) OVER (PARTITION BY symbol ORDER BY time)
 - **Notes:**
   - Use `PARTITION BY symbol` when the rows have many symbols.
   - Compute over **enough history** in a subquery, then filter the days you want to show outside.
-  - An indicator can be inside another one: `lag(sma(close, 3)) OVER (...)`, `cross_above(sma(close, 3), sma(close, 5)) OVER (...)`. The inner one, written without `OVER`, takes the outer one's `PARTITION BY` and `ORDER BY`; KDB computes it first, in a subquery of its own.
+  - An indicator can be inside another one: `lag(sma(close, 3)) OVER (...)`, `cross_above(sma(close, 3), sma(close, 5)) OVER (...)`. The inner one, written without `OVER`, takes the outer one's `PARTITION BY` and `ORDER BY`; KarelaDB computes it first, in a subquery of its own.
 
 **Example: 5-day SMA and EMA, newest rows of CITY** (sample data: sample)
 
@@ -756,11 +756,11 @@ END;
 {"name": "ta_h1", "schedule": "trading nepse 15:10", "sql": "REFRESH MATERIALIZED VIEW ta_v_h1 INCREMENTAL; CALL ta_build_h1()"}
 ```
 
-Screeners and charts often read the same candles again and again: 5-minute, 15-minute, hourly, weekly and monthly, each with a set of indicators. Build them once in KDB, and read the table.
+Screeners and charts often read the same candles again and again: 5-minute, 15-minute, hourly, weekly and monthly, each with a set of indicators. Build them once in KarelaDB, and read the table.
 
 | Part | Why |
 |---|---|
-| [Materialized view](views.md#materialized-view) | Holds the candles. KDB updates only the buckets an insert touches. |
+| [Materialized view](views.md#materialized-view) | Holds the candles. KarelaDB updates only the buckets an insert touches. |
 | Table with indicator columns | An indicator needs every candle before it, so it cannot be in the view. The procedure writes it. |
 | [Procedure](procedures.md) | `DELETE` and `INSERT` in one `CALL` are one transaction: a reader sees the old rows or the new ones, never an empty table. |
 | [Timer](timers.md) on a [calendar](calendars.md) | `trading nepse 15:10` runs after the close on trading days only. Start the server with `--timezone Asia/Kathmandu` so 15:10 is Nepal time. |
@@ -768,7 +768,7 @@ Screeners and charts often read the same candles again and again: 5-minute, 15-m
 - **Notes:**
   - Nepal is UTC+05:45. 5- and 15-minute buckets are the same in UTC and Nepal time. Hours need `WITH OFFSET '00:15'` (or `TIME ZONE 'Asia/Kathmandu'`), see [hourly candles](candles-cookbook.md#hourly-nepal).
   - Weekly and monthly candles come from the day table: `SAMPLE BY 1w WEEK START SUNDAY` and `SAMPLE BY 1M`, see [weekly candles](candles-cookbook.md#weekly-candles).
-  - Give each timeframe its own names. KDB names ignore case, so `ta_1m` and `ta_1M` would be the same table: use `m5`, `m15`, `h1`, `w1`, `mo1`.
+  - Give each timeframe its own names. KarelaDB names ignore case, so `ta_1m` and `ta_1M` would be the same table: use `m5`, `m15`, `h1`, `w1`, `mo1`.
   - `bench/006/ta-folders.mjs` in the source sets all of this up for the five timeframes, writes one file per symbol and timeframe, and with `--compare <folder>` checks the files against another set, column by column with a tolerance (`node bench/006/ta-folders.mjs` prints the help; `sql` prints the whole recipe).
 
 **Example: Hourly Nepal candles with indicators, rebuilt by one CALL** (sample data: sample)

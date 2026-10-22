@@ -12,7 +12,7 @@ Put such data in a `JSON` column, and read it with the functions on this page.
 
 - A **path** says which part you want: `'$.office.city'` or `'$.tags[0]'` (see [JSON paths](functions-json.md#json-paths)).
 - A path that is not in the document gives `NULL`. It is not an error.
-- Most functions also take **text** that holds JSON. KDB checks the text first; bad JSON is an error.
+- Most functions also take **text** that holds JSON. KarelaDB checks the text first; bad JSON is an error.
 - A `NULL` argument gives `NULL` (except `json_object` and `json_array`, which turn `NULL` into JSON `null`).
 - The result tables show a JSON value after reading it: a JSON string shows without its quotes, JSON `null` shows as `NULL`, and `2.50` can show as `2.5`. HTTP answers in JSON do the same. To see the exact saved text, add `::STRING` (some examples do).
 
@@ -85,7 +85,7 @@ column_name JSONB
 
 A `JSON` column keeps checked JSON. `JSONB` is another name for the same type. The [column types](column-types.md) topic lists all types.
 
-- **Check:** KDB refuses text that is not valid JSON. The error says the row, the column and the character.
+- **Check:** KarelaDB refuses text that is not valid JSON. The error says the row, the column and the character.
 - **Spaces:** spaces between the parts are removed. `{ "a" : 1 }` is saved as `{"a":1}`.
 - **Order:** the order of the keys stays. The digits of numbers stay (`2.60` stays `2.60`).
 - **Values:** a number, `TRUE` or `FALSE` put into a `JSON` column becomes JSON (`5`, `true`). Text must be JSON text.
@@ -1303,7 +1303,7 @@ Adds `value` at the end of the array at `path`.
 
 - **Returns:** `JSON`.
 - **NULL:** `NULL` when `doc` or `path` is `NULL`. A `NULL` value adds JSON `null`.
-- **Notes:** exactly one path and one value. When the path is missing or is not an array, nothing changes (MySQL would make an array; KDB does not).
+- **Notes:** exactly one path and one value. When the path is missing or is not an array, nothing changes (MySQL would make an array; KarelaDB does not).
 
 **Example: Add a tag to a company**
 
@@ -1368,7 +1368,7 @@ Short ways to take one step into JSON. `->` gives the part as `JSON`. `->>` give
 - **Notes:** each arrow takes **one** step. `doc -> 'office.city'` looks for a key named `office.city`, and `doc -> '$.office'` looks for a key named `$.office`: both give `NULL`. Chain arrows, or use a [path](functions-json.md#json-paths) function.
 - The left side can be a `JSON` value or text that holds JSON (bad JSON is an error).
 - The result of `->>` is text, so `doc ->> 'n' + 1` is an error. Use `CAST(doc ->> 'n' AS LONG)`, or `json_value(...)`.
-- **Differences:** the same as PostgreSQL for one step. MySQL's `->` takes a path (`doc -> '$.a'`); KDB's does not. The PostgreSQL operators `#>` and `#>>` take a whole path at once and work too: `profile #> '{office,city}'` is [json_extract_path](functions-json.md#json_extract_path) and `#>>` is [json_extract_path_text](functions-json.md#json_extract_path_text). The key tests `?`, `?|`, `?&` and the containment tests `@>`, `<@` are in [the next section](functions-json.md#contains).
+- **Differences:** the same as PostgreSQL for one step. MySQL's `->` takes a path (`doc -> '$.a'`); KarelaDB's does not. The PostgreSQL operators `#>` and `#>>` take a whole path at once and work too: `profile #> '{office,city}'` is [json_extract_path](functions-json.md#json_extract_path) and `#>>` is [json_extract_path_text](functions-json.md#json_extract_path_text). The key tests `?`, `?|`, `?&` and the containment tests `@>`, `<@` are in [the next section](functions-json.md#contains).
 - **Speed:** `doc ->> 'key' = 'text'` (also `<>`, `<`, `IN (...)`) in a `WHERE` is read straight from the stored JSON of each row, without building the row first. A [GIN index](functions-json.md#gin) makes it faster still when few rows match.
 
 **Example: Company website, city and first tag**
@@ -1703,7 +1703,7 @@ An index of the keys and values inside every document of the column. It finds th
 
 - The index finds the rows that **may** match; the condition is then checked on those rows. So the answer is always the same as without the index.
 - `EXPLAIN` shows `use index name (JSON keys and values ...)` when it is used. It is not used for `<>`, `<`, `>`, or for `@> '{}'` (nothing to look up).
-- Like every KDB index it lives in memory and is built from the rows when first needed (see [indexes](indexes.md)). It costs roughly the size of the keys and values it holds.
+- Like every KarelaDB index it lives in memory and is built from the rows when first needed (see [indexes](indexes.md)). It costs roughly the size of the keys and values it holds.
 - `USING GIN` on a column that is not `JSON` makes an ordinary index, as before.
 - An index made with `USING GIN` before 2026-09-24 is an ordinary index on the whole value: drop it and create it again to get this kind.
 
@@ -1888,7 +1888,7 @@ row_to_json(value)
 to_json_row(value)
 ```
 
-Turns a value into JSON, the way a PostgreSQL app calls it on a row. KDB has no whole-row value, so give it a list or an object you built yourself.
+Turns a value into JSON, the way a PostgreSQL app calls it on a row. KarelaDB has no whole-row value, so give it a list or an object you built yourself.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -2162,7 +2162,7 @@ array_to_json(array [, pretty])
 
 An array as a JSON list: `ARRAY[1, 2]` gives `[1,2]`, `ARRAY['a', 'b']` gives `["a","b"]`.
 
-- **Returns:** `JSON`. With `pretty` true: the text PostgreSQL gives, a line break after each comma of the outer list (as `STRING`, since KDB keeps JSON values compact).
+- **Returns:** `JSON`. With `pretty` true: the text PostgreSQL gives, a line break after each comma of the outer list (as `STRING`, since KarelaDB keeps JSON values compact).
 - **NULL:** `NULL` gives `NULL`.
 
 **Example**
@@ -2565,7 +2565,7 @@ SELECT * FROM jsonb_populate_recordset(NULL::table_name, list_of_objects)
 Like [json_to_record](#json_to_record), but the columns and their types are those of a **table** (PostgreSQL's row type). `json_populate_record(set)` is the same.
 
 - **Returns:** rows with the table's columns, each value converted as an `INSERT` into that column would do it. Missing keys give `NULL`.
-- **Notes:** the first argument must be written `NULL::table_name`; KDB does not take a row of values there. It is only for `FROM` (and `INSERT INTO t SELECT * FROM ...`).
+- **Notes:** the first argument must be written `NULL::table_name`; KarelaDB does not take a row of values there. It is only for `FROM` (and `INSERT INTO t SELECT * FROM ...`).
 
 **Example: Insert rows sent as JSON into a table**
 

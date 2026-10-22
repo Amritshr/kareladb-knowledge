@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Two-factor login (TOTP) - KDB (KARELA DataBase) docs</title>
+<title>Two-factor login (TOTP) - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="A database user can log in to the console and POST /api/login with a password and a 6-digit code from an authenticator app.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/two-factor-login.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/two-factor-login.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/two-factor-login.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/two-factor-login.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="two-factor-login-totp">Two-factor login (TOTP)</h1>
 <blockquote><p>A database user can log in to the console and POST /api/login with a password and a 6-digit code from an authenticator app.</p></blockquote>
-<ul><li>Category: Users &amp; security</li><li>Keywords: two-factor, 2FA, TOTP, step-up, step_up_actions, step_up_minutes, X-KDB-TOTP, /api/step-up, step_up_required, one-time code, authenticator app, Google Authenticator, Microsoft Authenticator, otpauth, ENABLE TOTP, DISABLE TOTP, code, lost phone, reset-2fa, password policy, password rules, 12 characters</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="server-security.html">Keeping kdb serve safe</a>, <a href="cli-users.html">kdb user</a>, <a href="audit-log.html">Audit log</a></li></ul>
+<ul><li>Category: Users &amp; security</li><li>Keywords: two-factor, 2FA, TOTP, step-up, step_up_actions, step_up_minutes, X-KDB-TOTP, /api/step-up, step_up_required, one-time code, authenticator app, Google Authenticator, Microsoft Authenticator, otpauth, ENABLE TOTP, DISABLE TOTP, code, lost phone, reset-2fa, password policy, password rules, 12 characters</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="server-security.html">Keeping kareladb serve safe</a>, <a href="cli-users.html">kareladb user</a>, <a href="audit-log.html">Audit log</a></li></ul>
 <p>With two-factor login, a stolen password is not enough: the login also needs the 6-digit code that an authenticator app on the phone shows (it changes every 30 seconds, RFC 6238).</p>
 <p>Use it for <strong>people</strong> (admins in the web console). Programs keep a user without two-factor login: HTTP Basic and the PostgreSQL port cannot ask for a code, so they refuse a two-factor user.</p>
 <h2 id="enable-totp">ALTER USER ... ENABLE TOTP</h2>
@@ -23,7 +23,7 @@
 ALTER USER &lt;name&gt; DISABLE TOTP</code></pre>
 <p>Makes a new secret for the user and turns two-factor login on. The answer has an <code>otpauth://</code> URI and the secret: put one of them into the authenticator app <strong>now</strong>. It is shown only this once.</p>
 <ul><li><strong>Returns:</strong> one row <code>user</code>, <code>otpauth_uri</code>, <code>secret</code>, and the message <code>two-factor login is on for user &#39;boss&#39;: ...</code>.</li><li><strong>Notes:</strong>
-<ul><li>Users may do it for themselves; admins for everyone. <code>DISABLE TOTP</code> turns it off.</li><li>The console and <code>POST /api/login</code> then ask for the code after a right password: <code>{&quot;error&quot;:&quot;enter the 6-digit code from your authenticator app&quot;,&quot;totp&quot;:true}</code>. Send it as <code>&quot;code&quot;</code> with the password.</li><li>A code works once, 30 seconds before or after its time too. Wrong codes count as failed logins (after 5 the address must wait) and are in the <a href="audit-log.html">audit log</a>.</li><li>Older KDB programs refuse a data folder with two-factor users.</li></ul></li></ul>
+<ul><li>Users may do it for themselves; admins for everyone. <code>DISABLE TOTP</code> turns it off.</li><li>The console and <code>POST /api/login</code> then ask for the code after a right password: <code>{&quot;error&quot;:&quot;enter the 6-digit code from your authenticator app&quot;,&quot;totp&quot;:true}</code>. Send it as <code>&quot;code&quot;</code> with the password.</li><li>A code works once, 30 seconds before or after its time too. Wrong codes count as failed logins (after 5 the address must wait) and are in the <a href="audit-log.html">audit log</a>.</li><li>Older KarelaDB programs refuse a data folder with two-factor users.</li></ul></li></ul>
 <p><strong>Example: Turn two-factor login on for an admin</strong></p>
 <pre><code class="language-sql">CREATE USER boss WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
 ALTER USER boss ENABLE TOTP;</code></pre>
@@ -31,28 +31,28 @@ ALTER USER boss ENABLE TOTP;</code></pre>
 <p><code>CREATE USER boss WITH PASSWORD &#39;***&#39; ROLE admin</code></p>
 <pre><code class="language-text">user &#39;boss&#39; created with role admin</code></pre>
 <p><code>ALTER USER boss ENABLE TOTP</code></p>
-<div class="table-wrap"><table><thead><tr><th>user (STRING)</th><th>otpauth_uri (STRING)</th><th>secret (STRING)</th></tr></thead><tbody><tr><td>boss</td><td>otpauth://totp/KDB:boss?secret=ESVOUBC7DG7M3IFZCM6LB6X4P3MTOLGA&amp;issuer=KDB&amp;algorithm=SHA1&amp;digits=6&amp;period=30</td><td>ESVOUBC7DG7M3IFZCM6LB6X4P3MTOLGA</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>user (STRING)</th><th>otpauth_uri (STRING)</th><th>secret (STRING)</th></tr></thead><tbody><tr><td>boss</td><td>otpauth://totp/KarelaDB:boss?secret=L3N2RDYJUM2KS53H2ONGAH5UOBR73EQV&amp;issuer=KarelaDB&amp;algorithm=SHA1&amp;digits=6&amp;period=30</td><td>L3N2RDYJUM2KS53H2ONGAH5UOBR73EQV</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <pre><code class="language-text">two-factor login is on for user &#39;boss&#39;: add the otpauth URI (or the secret) to an authenticator app now; it is shown only once</code></pre>
-<h2 id="kdb-user-reset-2fa">kdb user reset-2fa</h2>
+<h2 id="kareladb-user-reset-2fa"><span class="old-id" id="kdb-user-reset-2fa"></span>kareladb user reset-2fa</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb user reset-2fa &lt;name&gt; [--data-dir &lt;folder&gt;]</code></pre>
-<p>Turns two-factor login off for a user who lost the phone, while <code>kdb serve</code> is stopped. The user logs in with the password only until <code>ALTER USER &lt;name&gt; ENABLE TOTP</code> is run again.</p>
+<pre><code class="language-sql">kareladb user reset-2fa &lt;name&gt; [--data-dir &lt;folder&gt;]</code></pre>
+<p>Turns two-factor login off for a user who lost the phone, while <code>kareladb serve</code> is stopped. The user logs in with the password only until <code>ALTER USER &lt;name&gt; ENABLE TOTP</code> is run again.</p>
 <ul><li><strong>Returns:</strong> <code>two-factor login is off for user &#39;boss&#39;; ...</code>, or <code>user &#39;boss&#39; has no two-factor login; nothing to do</code>.</li><li><strong>Notes:</strong> the change is written to the audit log of the data folder.</li></ul>
 <p><strong>Command line: A user without two-factor login: nothing to do</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
 &gt; Long-Admin-Passw0rd
-kdb user reset-2fa admin</code></pre>
+kareladb user reset-2fa admin</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb user reset-2fa admin</code></p>
+<p><code>&gt; kareladb user reset-2fa admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; has no two-factor login; nothing to do</code></pre>
 <h2 id="password-policy">Password policy</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">at least 12 characters, at most 1024 bytes, not the user name</code></pre>
-<p>KDB refuses a new password of a database user that is too short or is the user name. Characters are counted, not bytes (12 letters of any language, such as Nepali, are fine). Passwords set before this rule keep working.</p>
+<p>KarelaDB refuses a new password of a database user that is too short or is the user name. Characters are counted, not bytes (12 letters of any language, such as Nepali, are fine). Passwords set before this rule keep working.</p>
 <p><strong>Example: A too short password is refused</strong> (shows an error)</p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;ktm-2026&#39; ROLE admin;</code></pre>
 <p>Result:</p>
@@ -61,16 +61,16 @@ kdb user reset-2fa admin</code></pre>
 <p>Every login gets a new random token. When the login request still carries an old login (the <code>kdb_login</code> cookie or a Bearer token), that old login ends: a token somebody planted before the login is worth nothing afterwards.</p>
 <h2 id="step-up">Step-up codes for dangerous actions</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb.conf:    &quot;step_up_actions&quot;: &quot;on&quot;, &quot;step_up_minutes&quot;: 5
-environment: KDB_STEP_UP_ACTIONS=on  KDB_STEP_UP_MINUTES=5</code></pre>
+<pre><code class="language-sql">kareladb.conf:    &quot;step_up_actions&quot;: &quot;on&quot;, &quot;step_up_minutes&quot;: 5
+environment: KARELADB_STEP_UP_ACTIONS=on  KARELADB_STEP_UP_MINUTES=5</code></pre>
 <p>A console left open is a risk: anyone at that desk could drop a table. With <code>step_up_actions</code> on, a few dangerous actions also need a two-factor code typed in the last <code>step_up_minutes</code> (5 by default). It is off by default.</p>
 <div class="table-wrap"><table><thead><tr><th>Needs a fresh code</th><th></th></tr></thead><tbody><tr><td>SQL</td><td><code>DROP TABLE</code>, <code>DROP DATABASE</code>, <code>CREATE USER</code>, <code>ALTER USER</code>, <code>DROP USER</code>, <code>GRANT</code>, <code>REVOKE</code>, <code>ALTER SYSTEM</code></td></tr><tr><td>HTTP</td><td><code>POST /api/settings</code>, <code>DELETE /api/databases/&lt;name&gt;</code></td></tr></tbody></table></div>
-<ul><li><strong>How to give the code:</strong> the console shows a code box by itself and then runs the action again. Programs send the header <code>X-KDB-TOTP: 123456</code> with the request, or call <code>POST /api/step-up</code> with <code>{&quot;code&quot;: &quot;123456&quot;}</code> once; the code then counts for that login for <code>step_up_minutes</code>.</li><li><strong>Without a code:</strong> the answer is 403 with <code>&quot;code&quot;: &quot;step_up_required&quot;</code>, the action, and <code>&quot;totp&quot;: true</code>.</li><li><strong>A login with a code counts too:</strong> right after logging in, the first dangerous action needs no second code.</li><li><strong>Users without two-factor login</strong> are refused with <code>&quot;totp&quot;: false</code> and a message to enrol: <code>ALTER USER &lt;name&gt; ENABLE TOTP</code>. Enrolling yourself never needs a code.</li><li><strong>Not asked:</strong> the server&#39;s access token (<code>--token</code>) and a local server without logins have no user to ask.</li><li><strong>Changing it:</strong> <code>POST /api/settings</code> with <code>{&quot;step_up_actions&quot;: &quot;on&quot;}</code> or <code>{&quot;step_up_minutes&quot;: 10}</code> saves to kdb.conf and works at once. <code>step_up_minutes</code> also takes a time like <code>&quot;30s&quot;</code>.</li><li><strong>Not covered yet:</strong> the PostgreSQL port. A user with two-factor login cannot log in there at all; keep other users off it, or give them no admin role, while step-up matters.</li></ul>
+<ul><li><strong>How to give the code:</strong> the console shows a code box by itself and then runs the action again. Programs send the header <code>X-KDB-TOTP: 123456</code> with the request, or call <code>POST /api/step-up</code> with <code>{&quot;code&quot;: &quot;123456&quot;}</code> once; the code then counts for that login for <code>step_up_minutes</code>.</li><li><strong>Without a code:</strong> the answer is 403 with <code>&quot;code&quot;: &quot;step_up_required&quot;</code>, the action, and <code>&quot;totp&quot;: true</code>.</li><li><strong>A login with a code counts too:</strong> right after logging in, the first dangerous action needs no second code.</li><li><strong>Users without two-factor login</strong> are refused with <code>&quot;totp&quot;: false</code> and a message to enrol: <code>ALTER USER &lt;name&gt; ENABLE TOTP</code>. Enrolling yourself never needs a code.</li><li><strong>Not asked:</strong> the server&#39;s access token (<code>--token</code>) and a local server without logins have no user to ask.</li><li><strong>Changing it:</strong> <code>POST /api/settings</code> with <code>{&quot;step_up_actions&quot;: &quot;on&quot;}</code> or <code>{&quot;step_up_minutes&quot;: 10}</code> saves to kareladb.conf and works at once. <code>step_up_minutes</code> also takes a time like <code>&quot;30s&quot;</code>.</li><li><strong>Not covered yet:</strong> the PostgreSQL port. A user with two-factor login cannot log in there at all; keep other users off it, or give them no admin role, while step-up matters.</li></ul>
 <pre><code class="language-text">POST /exec   DROP TABLE trades
 -&gt; 403 {&quot;error&quot;:&quot;DROP TABLE needs a fresh two-factor code: send it as the header X-KDB-TOTP, or once with
         POST /api/step-up {\&quot;code\&quot;: \&quot;123456\&quot;} (good for 5 minutes)&quot;,&quot;code&quot;:&quot;step_up_required&quot;,
         &quot;action&quot;:&quot;DROP TABLE&quot;,&quot;totp&quot;:true,&quot;step_up_minutes&quot;:5}</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/two-factor-login.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/two-factor-login.md">This page as markdown</a>.</footer>
 </body>
 </html>

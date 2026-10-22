@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Queries across databases - KDB (KARELA DataBase) docs</title>
+<title>Queries across databases - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Read a table of another database on the same server as database.table - in SELECT, JOIN, subqueries and INSERT ... SELECT.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/cross-database-queries.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cross-database-queries.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/cross-database-queries.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cross-database-queries.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="queries-across-databases">Queries across databases</h1>
 <blockquote><p>Read a table of another database on the same server as database.table - in SELECT, JOIN, subqueries and INSERT ... SELECT.</p></blockquote>
 <ul><li>Category: Databases &amp; folders</li><li>Keywords: cross-database, cross database, other database, another database, database.table, db.table, otherdb.table, reference data, shared tables, copy a table between databases, join two databases, INSERT INTO ... SELECT from another database, dblink, linked server, three-part name, changes only the database it runs in</li><li>See also: <a href="databases.html">Databases and the data folder</a>, <a href="joins.html">Joins</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="table-rights.html">Table rights - GRANT ON TABLE</a>, <a href="procedure-language.html#execute">The procedure language (execute)</a></li></ul>
-<p>One KDB server holds many <a href="databases.html">databases</a>. A query can read a table of <strong>another database</strong> on the same server. Write the database name, a dot and the table name: <code>refdata.companies</code>.</p>
+<p>One KarelaDB server holds many <a href="databases.html">databases</a>. A query can read a table of <strong>another database</strong> on the same server. Write the database name, a dot and the table name: <code>refdata.companies</code>.</p>
 <p>A real setup: one database <code>refdata</code> holds the company list. Every app database reads it from there instead of keeping its own copy.</p>
 <p><strong>Example: Company names from a shared reference database</strong></p>
 <p>Setup:</p>
@@ -43,7 +43,7 @@ database.public.table
 &quot;database&quot;.&quot;table&quot;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>Written</th><th>Means</th></tr></thead><tbody><tr><td><code>companies</code></td><td>the table in the database you are using</td></tr><tr><td><code>refdata.companies</code></td><td>the table <code>companies</code> of the database <code>refdata</code></td></tr><tr><td><code>refdata.public.companies</code></td><td>the same; PostgreSQL apps write the schema <code>public</code></td></tr><tr><td><code>demo.companies</code>, when you use <code>demo</code></td><td>your own database: the same as <code>companies</code></td></tr></tbody></table></div>
 <ul><li><strong>Notes:</strong>
-<ul><li>Database names ignore upper and lower case, like everywhere in KDB.</li><li>With no alias, the table name is the alias: <code>SELECT companies.name FROM refdata.companies</code>.</li><li>It works over HTTP, the PostgreSQL port, <code>kdb shell</code>, <code>kdb sql --data-dir</code> and the web console. A <code>Database</code> opened on its own, without the server&#39;s databases, gives an error.</li></ul></li></ul>
+<ul><li>Database names ignore upper and lower case, like everywhere in KarelaDB.</li><li>With no alias, the table name is the alias: <code>SELECT companies.name FROM refdata.companies</code>.</li><li>It works over HTTP, the PostgreSQL port, <code>kareladb shell</code>, <code>kareladb sql --data-dir</code> and the web console. A <code>Database</code> opened on its own, without the server&#39;s databases, gives an error.</li></ul></li></ul>
 <h2 id="what-works">What works</h2>
 <div class="table-wrap"><table><thead><tr><th>Statement</th><th>Example</th></tr></thead><tbody><tr><td><code>SELECT</code></td><td><code>SELECT * FROM refdata.companies</code></td></tr><tr><td><code>JOIN</code>, <code>LEFT JOIN</code>, <code>CROSS JOIN</code>, <code>ASOF JOIN</code></td><td><code>FROM trades t JOIN refdata.companies c ON t.symbol = c.symbol</code></td></tr><tr><td>subqueries: <code>IN</code>, <code>EXISTS</code>, a value, <code>FROM (SELECT ...)</code></td><td><code>WHERE symbol IN (SELECT symbol FROM refdata.companies)</code></td></tr><tr><td><code>WITH</code></td><td><code>WITH banks AS (SELECT * FROM refdata.companies WHERE sector = &#39;Bank&#39;) ...</code></td></tr><tr><td><code>INSERT INTO t SELECT ...</code></td><td>copies rows from the other database into this one</td></tr><tr><td><code>CREATE TABLE t AS SELECT ...</code></td><td>makes a copy in this database</td></tr><tr><td><code>UPDATE</code> / <code>DELETE</code> with a subquery</td><td><code>DELETE FROM trades WHERE symbol NOT IN (SELECT symbol FROM refdata.companies)</code></td></tr><tr><td>views, procedures, triggers, <a href="procedure-language.html#execute">EXECUTE</a></td><td>the other table is read each time they run</td></tr></tbody></table></div>
 <p><strong>Example: Copy the banks into this database, and count trades of banks</strong></p>
@@ -117,6 +117,6 @@ ORDER BY h.symbol;</code></pre>
 <h2 id="locks">Locks</h2>
 <ul><li>A statement reads the other database&#39;s tables <strong>before</strong> it takes the lock of its own database. So a statement never waits for two databases at once, and two databases that read each other at the same time do not wait for each other.</li><li>Reading is like any other reader of that database: it sees committed rows only, and an open <code>BEGIN ... COMMIT</code> there does not make it wait.</li><li>Inside a procedure, trigger or <code>EXECUTE</code>, your database is already locked. Then the read waits at most <code>lock_timeout_ms</code> (5 seconds by default) for a long writer of the other database, and fails with <code>database is busy ... Try again</code>.</li><li>The rows are read when the statement starts. Transactions do not span databases: a <code>ROLLBACK</code> here does not touch the other database.</li></ul>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cross-database-queries.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cross-database-queries.md">This page as markdown</a>.</footer>
 </body>
 </html>

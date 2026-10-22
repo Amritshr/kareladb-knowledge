@@ -29,7 +29,7 @@ The **Keep data** page of the [web console](web-console.md) (Home menu) lists ev
 | rows, on disk | the table's row count and the bytes its files take |
 | data from / to | the oldest and newest time in the table (read from the block statistics, so it costs nothing) |
 | keeps | `everything`, or `the last 6 months`: the table's [TTL](alter-table.md#set-ttl) |
-| **Keep** | sets the TTL: `ALTER TABLE t SET TTL 6 MONTHS`. From then on KDB drops, every minute and by itself, every partition whose last moment is older than that |
+| **Keep** | sets the TTL: `ALTER TABLE t SET TTL 6 MONTHS`. From then on KarelaDB drops, every minute and by itself, every partition whose last moment is older than that |
 | **Everything** | takes the TTL off: `ALTER TABLE t SET TTL NONE` |
 | **Drop older now** | one drop, now: `ALTER TABLE t DROP PARTITION OLDER THAN 6 MONTHS`. It shows the statement and asks first |
 | the top bar | the same three for every ticked table at once (**Keep everything** takes the TTL off them) |

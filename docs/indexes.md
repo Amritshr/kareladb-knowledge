@@ -3,13 +3,13 @@
 > Make WHERE and ORDER BY ... LIMIT fast with an index, and keep values unique with a UNIQUE index.
 
 - Category: Indexes & search
-- Keywords: index, secondary index, bitmap, USING BITMAP, bitmap index, roaring, low cardinality, IF NOT EXISTS, IF EXISTS, SHOW INDEX, SHOW INDEXES FROM, SHOW INDEXES ON, UNIQUE, duplicate value, keyset pagination, OFFSET pages, slow query, use index, built, memory\_bytes, index\_memory\_bytes, warm, built at open, warm-indexes, KDB\_WARM\_INDEXES, building
+- Keywords: index, secondary index, bitmap, USING BITMAP, bitmap index, roaring, low cardinality, IF NOT EXISTS, IF EXISTS, SHOW INDEX, SHOW INDEXES FROM, SHOW INDEXES ON, UNIQUE, duplicate value, keyset pagination, OFFSET pages, slow query, use index, built, memory\_bytes, index\_memory\_bytes, warm, built at open, warm-indexes, KARELADB\_WARM\_INDEXES, building
 - See also: [Full-text search](full-text-search.md), [EXPLAIN](explain.md), [Constraints](constraints.md), [Performance tips](performance-tips.md), [Limits](limits.md), [ALTER, RENAME and DROP TABLE](alter-table.md)
 
-An **index** is a second, sorted list of some columns of a table. Each entry points to its row. It works like the index at the back of a book: KDB finds the rows at once and does not read the whole table.
+An **index** is a second, sorted list of some columns of a table. Each entry points to its row. It works like the index at the back of a book: KarelaDB finds the rows at once and does not read the whole table.
 
 - Every table is already sorted by its **storage key** (the `PRIMARY KEY`, or `SORT BY` / `DEDUP KEY` of a time-series table). A condition on another column reads every row. An index fixes that.
-- An index lives **in memory**. Only its definition is saved with the table. After the database opens, `kdb serve` builds it from the rows on a background thread ([built at open](#warm)); a query that needs it before that builds it itself.
+- An index lives **in memory**. Only its definition is saved with the table. After the database opens, `kareladb serve` builds it from the rows on a background thread ([built at open](#warm)); a query that needs it before that builds it itself.
 - Every `INSERT`, `UPDATE` and `DELETE` also changes the index. So writes are a little slower, and each index costs memory. Create indexes only for the columns your app really uses in `WHERE` and `ORDER BY`.
 - The result of a query is the same with or without an index. Only the speed changes.
 
@@ -53,7 +53,7 @@ Syntax:
 CREATE INDEX [IF NOT EXISTS] name ON table (column [, column ...])
 ```
 
-Makes an index on one or more columns of a table. When the table already has rows, KDB builds the index at once and says how many rows it has.
+Makes an index on one or more columns of a table. When the table already has rows, KarelaDB builds the index at once and says how many rows it has.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -63,7 +63,7 @@ Makes an index on one or more columns of a table. When the table already has row
 
 - **Returns:** a message: `index 'name' created on table 'table' (N rows)`.
 - **NULL:** rows with `NULL` values are in the index too, so `WHERE parent_id IS NULL` can use it.
-- **IF NOT EXISTS:** when an index with this name already exists, nothing happens and there is no error. KDB does not compare the columns.
+- **IF NOT EXISTS:** when an index with this name already exists, nothing happens and there is no error. KarelaDB does not compare the columns.
 - **Notes:**
   - An index on `(a, b)` also helps queries on `a` alone. You do not need a second index on `(a)`.
   - Errors: the name is used already; the table or a column does not exist; a column is listed twice; another index of the table has the same columns; a computed column (`amount DOUBLE AS (...)`).
@@ -575,20 +575,20 @@ Result:
 
 (2 rows)
 
-Here the database was opened again after `CREATE INDEX` with `kdb sql`, so no index was in memory at first. The `SELECT` built `posts_thread_time`; `posts_author` is still not built.
+Here the database was opened again after `CREATE INDEX` with `kareladb sql`, so no index was in memory at first. The `SELECT` built `posts_thread_time`; `posts_author` is still not built.
 
 <a id="warm"></a>
 
 ## Built at open
 
-`kdb serve` builds every index of a database **right after it opens**, on a background thread, so the first query finds them ready instead of paying for the build (about 0.2 s per million rows for a plain index, a few seconds for a full-text index over 200,000 articles). Nothing else waits for it:
+`kareladb serve` builds every index of a database **right after it opens**, on a background thread, so the first query finds them ready instead of paying for the build (about 0.2 s per million rows for a plain index, a few seconds for a full-text index over 200,000 articles). Nothing else waits for it:
 
 - The open itself takes the same time, and `/health`, `/api/stats` and every query answer while it runs. A query that needs an index the thread has not reached yet builds it itself, as before.
 - The order is `UNIQUE` indexes first, then the smallest tables, `FULLTEXT` indexes last.
 - Writes are never blocked for long: between two waves of partitions the thread lets writers go first, and an index whose table changed meanwhile is dropped and built again (once more by the thread, then by the first query that needs it).
 - An index bigger than `index_memory_bytes` is not built, exactly as by a query. When the indexes built so far fill `index_memory_bytes`, the thread stops, and the rest are built on first use. `SHOW INDEXES` shows `building` = `true` for the index the thread is on.
 - After the indexes, the same thread computes the [pinned queries](pinned-queries.md), so a pinned search finds its text index ready.
-- `kdb serve --warm-indexes off` (or `KDB_WARM_INDEXES=off`) goes back to building on first use. `kdb sql` never warms: it runs its statements and closes.
+- `kareladb serve --warm-indexes off` (or `KARELADB_WARM_INDEXES=off`) goes back to building on first use. `kareladb sql` never warms: it runs its statements and closes.
 
 **Example: Every index of the database** (sample data: content-forum)
 
@@ -625,7 +625,7 @@ Syntax:
 EXPLAIN SELECT ...
 ```
 
-KDB picks an index by itself. There is no hint to force one. Put [EXPLAIN](explain.md) before a query: the line `use index <name>` says which index is used. No such line: every row is read.
+KarelaDB picks an index by itself. There is no hint to force one. Put [EXPLAIN](explain.md) before a query: the line `use index <name>` says which index is used. No such line: every row is read.
 
 For an index on the columns `(a, b, c)`:
 
@@ -646,11 +646,11 @@ For an index on the columns `(a, b, c)`:
 
 - **Notes:**
   - Put the column you compare with `=` first, and the column you sort by or compare with `<` / `>` next. For "the newest N rows of X" use `(x, time)`, for example `(thread_id, created_at, id)`.
-  - When the condition already uses the table's storage key (like `id = 3` on a `PRIMARY KEY` table), KDB does not need an index.
-  - KDB compares the cost first. An index reads its rows one by one; a scan reads rows in big pieces on all threads, about 1,000 times cheaper per row. So an index is used only when it finds **few** rows. When a scan is cheaper, `EXPLAIN` says `no index: <name> would read N row(s), a scan is cheaper` (see the [example in EXPLAIN](explain.md#plan-lines)).
+  - When the condition already uses the table's storage key (like `id = 3` on a `PRIMARY KEY` table), KarelaDB does not need an index.
+  - KarelaDB compares the cost first. An index reads its rows one by one; a scan reads rows in big pieces on all threads, about 1,000 times cheaper per row. So an index is used only when it finds **few** rows. When a scan is cheaper, `EXPLAIN` says `no index: <name> would read N row(s), a scan is cheaper` (see the [example in EXPLAIN](explain.md#plan-lines)).
   - On a big table an index that finds a quarter of the rows, or a symbol that is in every partition, is not used. Tables of up to 10,000 rows cost nothing either way: they keep the index, so the small examples here show it.
   - **`OR`:** when every side of an `OR` has an index, like `email = $1 OR phone = $1` with one index on `email` and one on `phone`, each index finds its rows and a row found by both is read once. `EXPLAIN` says `use index users_email (...) OR index users_phone (...)`. On 100,000 users the login by email or phone went from a read of every row (22 to 75 ms) to 0.1 ms.
-  - With `ORDER BY ... LIMIT`, KDB reads the index in order but gives up soon when most rows fail the other conditions, then finds the rows another way. A keyset page is never much slower than a scan.
+  - With `ORDER BY ... LIMIT`, KarelaDB reads the index in order but gives up soon when most rows fail the other conditions, then finds the rows another way. A keyset page is never much slower than a scan.
   - In a `JOIN`, only the first table (after `FROM`) uses an index.
   - `UPDATE ... WHERE` and `DELETE ... WHERE` use indexes too, whenever one fits: they do not compare the cost with a scan.
   - A text column compared with a number (`author = 5`) does not use the index.

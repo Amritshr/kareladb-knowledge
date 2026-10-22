@@ -4,7 +4,7 @@
 
 - Category: HTTP API
 - Keywords: exec, /exec, exp, /exp, query, limit, compat, compat, cache, result cache, benchmark, SET result\_cache, cache\_now\_ms, result\_cache\_now\_ms, truncated, dataset, columns, count, timings, rows\_affected, QuestDB, CSV export, download CSV, filename, Content-Disposition, form field, many statements, results array, error line column, --data-binary, --data-urlencode, NaN, nan, Infinity, timestamp as text, epoch milliseconds, statement failed, partial success, atomic, atomic, X-KDB-Atomic, all or nothing, rolled\_back, saved, sqlstate, constraint, error code
-- See also: [HTTP API overview](http-overview.md), [Sessions and cursors over HTTP](http-sessions-and-cursors.md), [Databases over HTTP (/api/databases)](http-databases.md), [SELECT](select.md), [Transactions](transactions.md), [How KDB stores data](data-formats.md)
+- See also: [HTTP API overview](http-overview.md), [Sessions and cursors over HTTP](http-sessions-and-cursors.md), [Databases over HTTP (/api/databases)](http-databases.md), [SELECT](select.md), [Transactions](transactions.md), [How KarelaDB stores data](data-formats.md)
 
 `/exec` runs SQL and answers with **JSON**. `/exp` runs a SELECT and answers with a **CSV file** (text with one row per line and commas between the values, which Excel opens).
 
@@ -41,10 +41,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 29, "execute_us": 199}
+      "timings": {"parse_us": 32, "execute_us": 279}
     }
   ],
-  "timings": {"parse_us": 29, "execute_us": 199}
+  "timings": {"parse_us": 32, "execute_us": 279}
 }
 ```
 
@@ -75,7 +75,7 @@ Runs SQL that only **reads** (`SELECT`, `SHOW ...`, `EXPLAIN`, `CHECK TABLE`, `U
 |---|---|
 | `query` | The SQL you sent (only the first 4,096 bytes of a very long text) |
 | `results[]` | One object for each statement, in order |
-| `results[].statement` | The statement, as KDB wrote it back |
+| `results[].statement` | The statement, as KarelaDB wrote it back |
 | `results[].columns[]` | `name` and `type` of each column (`LONG`, `DOUBLE`, `TIMESTAMP`, ...) |
 | `results[].dataset` | The rows. Each row is a list of values in column order. |
 | `results[].count` | Number of rows in `dataset` |
@@ -88,7 +88,7 @@ Runs SQL that only **reads** (`SELECT`, `SHOW ...`, `EXPLAIN`, `CHECK TABLE`, `U
 
 How values look in `dataset`:
 
-| KDB type | JSON value |
+| KarelaDB type | JSON value |
 |---|---|
 | `INT`, `LONG`, `DOUBLE`, ... | a number: `512.4` |
 | a whole number bigger than 9,007,199,254,740,992 (2^53) | text: `"9007199254740993"`, so JavaScript does not lose digits |
@@ -134,7 +134,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 158}
+      "timings": {"parse_us": 23, "execute_us": 157}
     }
   ],
   "columns": [
@@ -146,7 +146,7 @@ HTTP 200 (application/json)
     ["CITY", "Banking"]
   ],
   "count": 2,
-  "timings": {"parse_us": 18, "execute_us": 158}
+  "timings": {"parse_us": 23, "execute_us": 157}
 }
 ```
 
@@ -178,10 +178,10 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 24, "execute_us": 400}
+      "timings": {"parse_us": 26, "execute_us": 245}
     }
   ],
-  "timings": {"parse_us": 24, "execute_us": 400}
+  "timings": {"parse_us": 26, "execute_us": 245}
 }
 ```
 
@@ -214,10 +214,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 36, "execute_us": 511}
+      "timings": {"parse_us": 20, "execute_us": 423}
     }
   ],
-  "timings": {"parse_us": 36, "execute_us": 511}
+  "timings": {"parse_us": 20, "execute_us": 423}
 }
 ```
 
@@ -254,10 +254,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 38, "execute_us": 75}
+      "timings": {"parse_us": 49, "execute_us": 98}
     }
   ],
-  "timings": {"parse_us": 38, "execute_us": 75}
+  "timings": {"parse_us": 49, "execute_us": 98}
 }
 ```
 
@@ -289,10 +289,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 56, "execute_us": 410}
+      "timings": {"parse_us": 145, "execute_us": 797}
     }
   ],
-  "timings": {"parse_us": 56, "execute_us": 410}
+  "timings": {"parse_us": 145, "execute_us": 797}
 }
 ```
 
@@ -367,7 +367,7 @@ Runs **any** SQL: `INSERT`, `UPDATE`, `CREATE TABLE`, `CALL`, `BEGIN`, many stat
 | `error` | (only on an error) what went wrong |
 | `sqlstate` | (only on an error) the same five-character code the [PostgreSQL port](postgres-protocol.md#errors) sends: `23505` duplicate key, `23503` foreign key, `42P01` unknown table, the code of a trigger's `RAISE ... USING ERRCODE`, ... |
 | `table`, `constraint`, `column_name` | (only on a `23505` or `23503` error) the table and constraint it was about, like `users` and `users_email_key`, and the column when the constraint has one |
-| `line`, `column` | (only on an error, when KDB knows it) where in the text you sent. Counted in characters, from 1. |
+| `line`, `column` | (only on an error, when KarelaDB knows it) where in the text you sent. Counted in characters, from 1. |
 | `saved` | (only on an error) how many entries of `results`, from the first, are **saved**. The same with or without `compat=0`. |
 | `rolled_back` | (only on an error) `true` when a transaction was rolled back by the error: the entries after `saved` ran but are **not** saved |
 
@@ -378,7 +378,7 @@ Runs **any** SQL: `INSERT`, `UPDATE`, `CREATE TABLE`, `CALL`, `BEGIN`, many stat
 | What | Value |
 |---|---|
 | HTTP status | **not 200**: 400 for bad SQL, a table that already exists, a duplicate key, ...; the other codes above for other trouble |
-| `error` | at the top level of the answer: what went wrong (with `line` and `column` when KDB knows them) |
+| `error` | at the top level of the answer: what went wrong (with `line` and `column` when KarelaDB knows them) |
 | `results` | only the statements that ran **before** the failed one. The failed statement is **not** in `results`. |
 | `saved` | how many of `results` are saved. Without `BEGIN` in the body: all of them. |
 | `rolled_back` | `true` when the body had a `BEGIN` without `COMMIT` before the error (or `atomic=1`, or a session's open transaction): those statements were undone |
@@ -415,7 +415,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 18, "execute_us": 521}
+      "timings": {"parse_us": 16, "execute_us": 502}
     },
     {
       "statement": "SELECT id, name FROM brokers WHERE id >= 58 ORDER BY id",
@@ -431,10 +431,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 259}
+      "timings": {"parse_us": 16, "execute_us": 145}
     }
   ],
-  "timings": {"parse_us": 36, "execute_us": 780}
+  "timings": {"parse_us": 32, "execute_us": 647}
 }
 ```
 
@@ -468,7 +468,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 11, "execute_us": 501}
+      "timings": {"parse_us": 8, "execute_us": 480}
     }
   ],
   "saved": 1,
@@ -502,10 +502,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 62}
+      "timings": {"parse_us": 10, "execute_us": 57}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 62}
+  "timings": {"parse_us": 10, "execute_us": 57}
 }
 ```
 
@@ -536,7 +536,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'notes' created",
-      "timings": {"parse_us": 8, "execute_us": 23337}
+      "timings": {"parse_us": 5, "execute_us": 12697}
     },
     {
       "statement": "INSERT INTO notes VALUES (1, 'first')",
@@ -546,7 +546,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 8, "execute_us": 3187}
+      "timings": {"parse_us": 5, "execute_us": 2053}
     }
   ],
   "saved": 2,
@@ -606,10 +606,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 127}
+      "timings": {"parse_us": 16, "execute_us": 108}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 127}
+  "timings": {"parse_us": 16, "execute_us": 108}
 }
 ```
 
@@ -644,7 +644,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 10, "execute_us": 708}
+      "timings": {"parse_us": 6, "execute_us": 514}
     },
     {
       "statement": "BEGIN",
@@ -654,7 +654,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 10, "execute_us": 5}
+      "timings": {"parse_us": 6, "execute_us": 4}
     },
     {
       "statement": "INSERT INTO brokers VALUES (94, 'Valley Capital')",
@@ -664,7 +664,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 10, "execute_us": 35}
+      "timings": {"parse_us": 6, "execute_us": 27}
     }
   ],
   "saved": 1,
@@ -697,10 +697,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 10, "execute_us": 75}
+      "timings": {"parse_us": 25, "execute_us": 57}
     }
   ],
-  "timings": {"parse_us": 10, "execute_us": 75}
+  "timings": {"parse_us": 25, "execute_us": 57}
 }
 ```
 
@@ -738,10 +738,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 230}
+      "timings": {"parse_us": 20, "execute_us": 279}
     }
   ],
-  "timings": {"parse_us": 27, "execute_us": 230}
+  "timings": {"parse_us": 20, "execute_us": 279}
 }
 ```
 
@@ -789,10 +789,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 36, "execute_us": 40}
+      "timings": {"parse_us": 11, "execute_us": 18}
     }
   ],
-  "timings": {"parse_us": 36, "execute_us": 40}
+  "timings": {"parse_us": 11, "execute_us": 18}
 }
 ```
 
@@ -819,10 +819,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 4, "execute_us": 42}
+      "timings": {"parse_us": 3, "execute_us": 33}
     }
   ],
-  "timings": {"parse_us": 4, "execute_us": 42}
+  "timings": {"parse_us": 3, "execute_us": 33}
 }
 ```
 
@@ -863,7 +863,7 @@ With `atomic=1` (or the header `X-KDB-Atomic: 1`) the whole body runs as **one t
 | the body has a statement that cannot run in a transaction | 400 **before anything runs**, `"results": []` |
 
 - **Allowed:** `SELECT`, `SHOW`, `EXPLAIN`, `INSERT`, `UPDATE`, `DELETE`, `CALL`, cursors, `CHECK TABLE`.
-- **Refused:** `CREATE`, `DROP`, `ALTER`, `RENAME`, `REFRESH VIEW`, `BACKUP DATABASE`, `USE`, `SET`, users and grants (KDB cannot roll these back), and `BEGIN`, `COMMIT`, `ROLLBACK` (the body is already a transaction). The message is `atomic=1: CREATE TABLE cannot run inside a transaction ...`.
+- **Refused:** `CREATE`, `DROP`, `ALTER`, `RENAME`, `REFRESH VIEW`, `BACKUP DATABASE`, `USE`, `SET`, users and grants (KarelaDB cannot roll these back), and `BEGIN`, `COMMIT`, `ROLLBACK` (the body is already a transaction). The message is `atomic=1: CREATE TABLE cannot run inside a transaction ...`.
 - `atomic=1` cannot be used with a session (`X-KDB-Session`): there, send `BEGIN` ... `COMMIT` yourself.
 - `line` and `column` of an error still count in the text you sent.
 - Other writers wait until the body is done, as with `BEGIN` ... `COMMIT`. Keep atomic bodies short.
@@ -897,7 +897,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 2, "execute_us": 112}
+      "timings": {"parse_us": 2, "execute_us": 95}
     }
   ],
   "saved": 0,
@@ -930,10 +930,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 68}
+      "timings": {"parse_us": 11, "execute_us": 59}
     }
   ],
-  "timings": {"parse_us": 13, "execute_us": 68}
+  "timings": {"parse_us": 11, "execute_us": 59}
 }
 ```
 
@@ -963,7 +963,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 4, "execute_us": 126}
+      "timings": {"parse_us": 3, "execute_us": 82}
     },
     {
       "statement": "UPDATE brokers SET name = 'Delta Securities Ltd' WHERE id = 93",
@@ -973,7 +973,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 4, "execute_us": 51}
+      "timings": {"parse_us": 3, "execute_us": 23}
     },
     {
       "statement": "SELECT id, name FROM brokers WHERE id = 93",
@@ -988,10 +988,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 4, "execute_us": 38}
+      "timings": {"parse_us": 3, "execute_us": 25}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 215}
+  "timings": {"parse_us": 9, "execute_us": 130}
 }
 ```
 
@@ -1051,10 +1051,10 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 33, "execute_us": 259}
+      "timings": {"parse_us": 30, "execute_us": 212}
     }
   ],
-  "timings": {"parse_us": 33, "execute_us": 259}
+  "timings": {"parse_us": 30, "execute_us": 212}
 }
 ```
 
@@ -1084,7 +1084,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'ticks' created",
-      "timings": {"parse_us": 15, "execute_us": 16474}
+      "timings": {"parse_us": 11, "execute_us": 13509}
     },
     {
       "statement": "INSERT INTO ticks VALUES ('2026-09-10T05:15:00Z', 'CITY', 512.4), ('2026-09-10T05:15:01Z', 'COAST', 380.1)",
@@ -1094,7 +1094,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 2,
       "message": "2 row(s) inserted",
-      "timings": {"parse_us": 15, "execute_us": 1930}
+      "timings": {"parse_us": 11, "execute_us": 2044}
     },
     {
       "statement": "SELECT * FROM ticks",
@@ -1111,10 +1111,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 15, "execute_us": 78}
+      "timings": {"parse_us": 11, "execute_us": 41}
     }
   ],
-  "timings": {"parse_us": 45, "execute_us": 18482}
+  "timings": {"parse_us": 33, "execute_us": 15594}
 }
 ```
 
@@ -1134,7 +1134,7 @@ $r.results | ForEach-Object { $_.message }
 ```python
 import requests
 
-def kdb(sql, db=None, limit=10000):
+def kareladb(sql, db=None, limit=10000):
     params = {"compat": 0, "limit": limit}
     if db:
         params["db"] = db
@@ -1142,24 +1142,24 @@ def kdb(sql, db=None, limit=10000):
                       headers={"Content-Type": "text/plain; charset=utf-8"})
     body = r.json()
     if r.status_code != 200:
-        raise RuntimeError(f"KDB error (HTTP {r.status_code}): {body['error']}")
+        raise RuntimeError(f"KarelaDB error (HTTP {r.status_code}): {body['error']}")
     return body["results"]
 
-res = kdb("SELECT symbol, close FROM ochl_day WHERE symbol = 'CITY' LIMIT 3")[0]
+res = kareladb("SELECT symbol, close FROM ochl_day WHERE symbol = 'CITY' LIMIT 3")[0]
 names = [c["name"] for c in res["columns"]]
 for row in res["dataset"]:
     print(dict(zip(names, row)))
 ```
 
 ```js
-async function kdb(sql, db) {
+async function kareladb(sql, db) {
   const url = `http://127.0.0.1:9900/exec?compat=0${db ? `&db=${encodeURIComponent(db)}` : ""}`;
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain; charset=utf-8" }, body: sql });
   const body = await res.json();
-  if (!res.ok) throw new Error(`KDB error (HTTP ${res.status}): ${body.error}`);
+  if (!res.ok) throw new Error(`KarelaDB error (HTTP ${res.status}): ${body.error}`);
   return body.results;
 }
-const [res] = await kdb("SELECT symbol, close FROM ochl_day LIMIT 3");
+const [res] = await kareladb("SELECT symbol, close FROM ochl_day LIMIT 3");
 console.log(res.dataset);
 ```
 
@@ -1172,7 +1172,7 @@ static async Task<JsonElement> Kdb(string sql)
     using var res = await Http.PostAsync("/exec?compat=0", content);
     var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement.Clone();
     if (!res.IsSuccessStatusCode)
-        throw new Exception($"KDB error (HTTP {(int)res.StatusCode}): {json.GetProperty("error").GetString()}");
+        throw new Exception($"KarelaDB error (HTTP {(int)res.StatusCode}): {json.GetProperty("error").GetString()}");
     return json.GetProperty("results");
 }
 ```
@@ -1206,7 +1206,7 @@ Runs SQL that reads and answers with the rows of the **last** statement as a CSV
 - **Status codes:** 200 OK; 400 no `query`, bad SQL, or SQL that is not a `SELECT`, `SHOW` or `EXPLAIN`; 401/403 [login or role](http-login.md); 404 unknown database.
 - **Big exports are streamed.** One `SELECT` of the columns of one table (with a `WHERE`, no `ORDER BY`, `GROUP BY` or join) is sent while it is read, so the server never holds the whole file: millions of rows go out at a few million rows a second, beyond `max_result_memory`. Once the file passes about 16 MB the answer is sent with `Transfer-Encoding: chunked`, and `X-KDB-Rows` and `X-KDB-Truncated` come at its end as trailer fields (`Trailer: X-KDB-Rows, X-KDB-Truncated`; `curl -D -` shows them after the body). A smaller file has them as headers. Other queries (`ORDER BY`, `GROUP BY`, joins, several statements) are made whole first, within the memory limits.
 - **An error part way** through a streamed export (the client left, the server stops) ends the connection without the last chunk, so the client sees a cut-off download, never a short file that looks whole.
-- **Time:** a streamed export is one statement until its last row is sent, so the statement timeout (`kdb serve --statement-timeout`, 60 s by default) counts the sending too. For a very big table over a slow link, raise it or export by time ranges.
+- **Time:** a streamed export is one statement until its last row is sent, so the statement timeout (`kareladb serve --statement-timeout`, 60 s by default) counts the sending too. For a very big table over a slow link, raise it or export by time ranges.
 - **Notes:** NULL is an empty field. Text with a comma, a quote, a line break, or a space at the start or end is put in `"..."` (a `"` inside becomes `""`). Times are UTC like `2026-09-10T00:00:00.000Z`. Errors are JSON (`query`, `error`, `line`, `column`), not CSV. `/exp` accepts only reading SQL even with POST, and does not use sessions.
 
 **HTTP: Daily closes as CSV, with a file name** (sample data: sample)

@@ -3,13 +3,13 @@
 > Make loading and queries fast - memory, threads, batch commits, bulk INSERTs, good table design, time filters, what the column engine takes, zone maps, saved stats, and how to measure.
 
 - Category: Performance tips
-- Keywords: performance, speed, slow query, fast, tuning, column engine, row path, zone maps, skipped by column stats, KDB\_NO\_ZONE\_MAPS, slice reads, one symbol not in memory, KDB\_NO\_SLICE\_READS, slice\_reads, saved stats, answer from saved stats, column mask, KDB\_NO\_COLUMN\_MASK, keyless table, DEFERRED trigger, cache, EXPLAIN lines, memory, --memory, threads, --threads, --sync-commits, batch commits, synchronous\_commit, SET synchronous\_commit, X-KDB-Synchronous-Commit, group commit, bulk insert, batch size, rows per INSERT, result cache, --cache-mb, KDB\_CACHE\_VERIFY, cache per symbol, benchmark, kdb\_bench, timings, EXPLAIN, partition pruning, time filter, SYMBOL, LATEST ON, LIMIT, index, line protocol, checkpoint
-- See also: [EXPLAIN](explain.md), [Indexes](indexes.md), [Line protocol (POST /write)](line-protocol.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md), [LATEST ON](latest-on.md), [Column types](column-types.md), [kdb serve](cli-serve.md), [Limits](limits.md)
+- Keywords: performance, speed, slow query, fast, tuning, column engine, row path, zone maps, skipped by column stats, KARELADB\_NO\_ZONE\_MAPS, slice reads, one symbol not in memory, KARELADB\_NO\_SLICE\_READS, slice\_reads, saved stats, answer from saved stats, column mask, KARELADB\_NO\_COLUMN\_MASK, keyless table, DEFERRED trigger, cache, EXPLAIN lines, memory, --memory, threads, --threads, --sync-commits, batch commits, synchronous\_commit, SET synchronous\_commit, X-KDB-Synchronous-Commit, group commit, bulk insert, batch size, rows per INSERT, result cache, --cache-mb, KARELADB\_CACHE\_VERIFY, cache per symbol, benchmark, kdb\_bench, timings, EXPLAIN, partition pruning, time filter, SYMBOL, LATEST ON, LIMIT, index, line protocol, checkpoint
+- See also: [EXPLAIN](explain.md), [Indexes](indexes.md), [Line protocol (POST /write)](line-protocol.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md), [LATEST ON](latest-on.md), [Column types](column-types.md), [kareladb serve](cli-serve.md), [Limits](limits.md)
 
-KDB is fast for the work it was made for: chart queries on one symbol or one sensor, live commits, bulk loads.
+KarelaDB is fast for the work it was made for: chart queries on one symbol or one sensor, live commits, bulk loads.
 Some queries that read **every row** of a big table are still slow. This page tells you how to avoid them, and how to measure.
 
-The first rule: **measure first.** Look at the time KDB prints (`(3 rows, 0.4 ms)`) and at [EXPLAIN](explain.md), then change one thing at a time.
+The first rule: **measure first.** Look at the time KarelaDB prints (`(3 rows, 0.4 ms)`) and at [EXPLAIN](explain.md), then change one thing at a time.
 
 <a id="measure"></a>
 
@@ -18,22 +18,22 @@ The first rule: **measure first.** Look at the time KDB prints (`(3 rows, 0.4 ms
 Syntax:
 
 ```sql
-kdb sql <db> "SELECT ..."        -- table format ends with (N rows, X ms)
-EXPLAIN SELECT ...                -- how KDB will read the data
+kareladb sql <db> "SELECT ..."        -- table format ends with (N rows, X ms)
+EXPLAIN SELECT ...                -- how KarelaDB will read the data
 ```
 
-- `kdb sql` and `kdb shell` print `(N rows, X ms)` after each result: the time to parse and run the statement, without opening the database.
+- `kareladb sql` and `kareladb shell` print `(N rows, X ms)` after each result: the time to parse and run the statement, without opening the database.
 - The HTTP API gives `timings` (`parse_us`, `execute_us`, in microseconds) with each result (see [HTTP exec](http-exec.md)).
 - `EXPLAIN` shows how many **partitions** are read (`1 of 12 partitions`), whether only a **key range** is read, whether an **index** is used, and on its last line which **engine** reads the table (`engine: column` is the fast one; `engine: row (...)` says why not).
 - Run a query twice. The first run may read files from disk; the second is warm.
-- With `kdb serve`, a repeated query comes from the [result cache](#result-cache). To time the engine, add `cache=0`: `GET /exec?query=...&cache=0`. A benchmark without it times the cache, not the query.
+- With `kareladb serve`, a repeated query comes from the [result cache](#result-cache). To time the engine, add `cache=0`: `GET /exec?query=...&cache=0`. A benchmark without it times the cache, not the query.
 - `/exec` answers at most 10,000 rows unless you pass `limit`, and then says `"truncated": true`. Check that flag before you compare times: a cut answer is faster.
 - For bigger tests there is `kdb_bench` (see `bench/README.md`).
 
 **Command line: The time is on the last line** (sample data: sample)
 
 ```bash
-kdb sql market "SELECT symbol, round(avg(close), 2) AS avg_close FROM ochl_minutes WHERE time IN '2026-09-10' GROUP BY symbol"
+kareladb sql market "SELECT symbol, round(avg(close), 2) AS avg_close FROM ochl_minutes WHERE time IN '2026-09-10' GROUP BY symbol"
 ```
 
 Output:
@@ -43,7 +43,7 @@ symbol | avg_close
 -------+----------
 CITY   |    504.24
 COAST  |    378.36
-(2 rows, 0.6 ms)
+(2 rows, 0.4 ms)
 ```
 
 **Example: EXPLAIN: a time filter and a symbol read only one key range** (sample data: sample)
@@ -113,7 +113,7 @@ WHERE symbol IN ('CITY', 'COAST') AND time >= '2026-09-01' AND time < '2026-10-0
 On a time-series table, a condition on the **time column** skips whole partitions (files), and `symbol = ...` or `symbol IN (...)` on the first key column jumps straight to those rows.
 
 - Always add a time range to queries on big tables: `time IN '2026-09'`, `time >= '2026-09-01'`.
-- `symbol = 'X'`, `symbol IN ('X', 'Y')` and `symbol = 'X' OR symbol = 'Y'` on a `SYMBOL` column also skip the partitions that have **no row** of those symbols. KDB knows which symbols each partition holds without reading it. A symbol that traded for 3 months of 10 years reads 3 partitions.
+- `symbol = 'X'`, `symbol IN ('X', 'Y')` and `symbol = 'X' OR symbol = 'Y'` on a `SYMBOL` column also skip the partitions that have **no row** of those symbols. KarelaDB knows which symbols each partition holds without reading it. A symbol that traded for 3 months of 10 years reads 3 partitions.
 - A symbol that is in every partition still reads every partition. Add a time range for those.
 - A function around the column (`date_trunc('d', time) = ...`, `lower(symbol) = ...`) cannot skip anything. Compare the column itself.
 - Select only the columns you need. `SELECT *` on 20 million rows moves much more data.
@@ -152,7 +152,7 @@ WHERE time >= dateadd('d', -30, '2026-09-11')
 
 A procedure parameter, a variable, a `$1` value and an expression without columns skip partitions just like a written date.
 
-- KDB works out `dateadd(...)`, `CAST(...)`, `+ INTERVAL '1 day'`, sums of numbers and `now()` **once** per statement, before it picks the partitions.
+- KarelaDB works out `dateadd(...)`, `CAST(...)`, `+ INTERVAL '1 day'`, sums of numbers and `now()` **once** per statement, before it picks the partitions.
 - `=`, `<`, `<=`, `>`, `>=`, `BETWEEN` and `IN (...)` on the time column all skip partitions.
 - A variable is read again every time a statement runs. A loop that changes it reads the right days.
 - A `NULL` parameter matches no row and reads nothing.
@@ -232,8 +232,8 @@ procedure 'minutes_of' done: 0 row(s) changed
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 612 | partitions read: 1 |
-| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 570 | partitions read: 1 |
+| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 1253 | partitions read: 1 |
+| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 1224 | partitions read: 1 |
 
 (2 rows)
 
@@ -252,8 +252,8 @@ SELECT ... ORDER BY col DESC LIMIT n
 - `ORDER BY time DESC LIMIT n` on a time-series table reads **newest first**: it reads a short stretch of the newest rows, then older stretches only while it has fewer than `n` rows. The same goes for the newest `n` buckets of a chart, `SAMPLE BY 5m ORDER BY time DESC LIMIT n`, also with a key such as the symbol (`SELECT time, symbol, last(close) ... SAMPLE BY 1h ORDER BY time DESC LIMIT n`: the newest bars of every symbol). So the last 300 bars cost about the same with or without a time lower bound. [EXPLAIN](explain.md) shows `newest first: ...`. `ORDER BY time LIMIT n` (the oldest rows or buckets) reads the oldest stretch first the same way (`oldest first: ...`). It applies to one table (no join), with `ORDER BY` the time column alone, and for `SAMPLE BY` without `HAVING`. Since 2026-10-02 it also covers keys of any type (`SELECT time, symbol, volume > 0 AS traded, count(*) ...`) and `GROUP BY` next to `SAMPLE BY`, `ALIGN TO FIRST OBSERVATION` (the oldest row is found first, then the buckets are counted from it) and `FILL` without keys (`SAMPLE BY 5m FILL(PREV) ORDER BY time DESC LIMIT 5000`: when the first stretch ends in a gap and holds too few buckets, a longer stretch is read again, so the filled bars after the gap still take their `PREV` or `LINEAR` value from the real bar before it). `FILL` with a key (every symbol gets every bucket, also a symbol whose rows are all older), `FILL` with `FROM ... TO`, and a `LIMIT` per key (`ORDER BY symbol, time DESC`) still read every row: no short stretch can show which rows those need. A view or a subquery in `FROM` counts as its table when it only keeps some rows of it (`SELECT *` or plain columns `FROM t WHERE ...`): its `WHERE` is added to the query's. A `DATE` time column reads whole days. A table with `PARTITION BY NONE` is read this way when its rows are kept in time order (`SORT BY (time)`, or `PARTITION BY NONE, SYMBOL(sym) SORT BY (sym, time)`): each stretch is found by binary search on the time column. The rows it reads count against `max_result_memory` like any kept rows; a `LIMIT` too big for that limit is read the usual way (and refused when its rows do not fit).
 - Any other `ORDER BY ... LIMIT n` must look at every matching row, but keeps only the best `n` in memory.
 - `ORDER BY` one whole-number, `DATE` or `TIMESTAMP` column with no `LIMIT` (one symbol's trades of a day, newest first) reads the rows straight from the columns and sorts only them: about 3 ms became 1 ms for 5,000 of 64,000 rows (2026-09-25).
-- Top `n` per group, `SELECT ... FROM (SELECT ..., row_number() OVER (PARTITION BY symbol ORDER BY qty DESC) AS rn FROM t WHERE ...) WHERE rn <= 5`: when every window of the inner query is `row_number()` or `rank()` with such a limit, over one `SYMBOL` column and ordered by one number or time column, KDB first finds the `n`-th best value of each symbol and then collects only the rows at least that good. 30 days of 686,000 rows: 57 ms became 4 ms (2026-09-25). A `NULL` or `NaN` in either column makes it read every row, as before.
-- `--max-rows` of `kdb sql` and `limit=` of HTTP are a safety net that cuts the result. When you want fewer rows, write `LIMIT` in the SQL.
+- Top `n` per group, `SELECT ... FROM (SELECT ..., row_number() OVER (PARTITION BY symbol ORDER BY qty DESC) AS rn FROM t WHERE ...) WHERE rn <= 5`: when every window of the inner query is `row_number()` or `rank()` with such a limit, over one `SYMBOL` column and ordered by one number or time column, KarelaDB first finds the `n`-th best value of each symbol and then collects only the rows at least that good. 30 days of 686,000 rows: 57 ms became 4 ms (2026-09-25). A `NULL` or `NaN` in either column makes it read every row, as before.
+- `--max-rows` of `kareladb sql` and `limit=` of HTTP are a safety net that cuts the result. When you want fewer rows, write `LIMIT` in the SQL.
 - For pages of a big result, use keyset pages (`WHERE time < <last time> ORDER BY time DESC LIMIT 20`), not a big `OFFSET`: `OFFSET 20000` still reads the 20,000 rows before.
 
 **Example: The 3 biggest minute volumes of one day** (sample data: sample)
@@ -330,7 +330,7 @@ Every statement is one **commit**: one write to the log and one wait for the dis
 
 - Use **1,000 to 5,000 rows per `INSERT`** for loads. Much bigger statements only use more memory.
 - Load in **time order** when you can.
-- Send many statements in one `kdb sql <db> -` run or one HTTP request, not one process per statement.
+- Send many statements in one `kareladb sql <db> -` run or one HTTP request, not one process per statement.
 - `REFERENCES`, `UNIQUE` indexes and triggers check every row: a big first import is faster without them. Create indexes **after** a big first import.
 - A `BEGIN` ... `COMMIT` with millions of changed rows keeps the old rows in memory (at most 10 million). For loads, use plain statements.
 - (Numbers from `bench/README.md` and `bench/questdb/README.md`, measured on 2026-09-11 on an Intel i9-14900HX. Your PC will differ.)
@@ -357,14 +357,14 @@ Result:
 Syntax:
 
 ```sql
-kdb serve [<db>] --sync-commits always|batch
+kareladb serve [<db>] --sync-commits always|batch
 ```
 
-By default (`always`) KDB waits until each commit is **on the disk** before it answers. That is safe, but a disk can do only a few hundred to a few thousand such waits per second. Writers that commit at the same moment share one wait, so many clients together get many more commits per second than one client.
+By default (`always`) KarelaDB waits until each commit is **on the disk** before it answers. That is safe, but a disk can do only a few hundred to a few thousand such waits per second. Writers that commit at the same moment share one wait, so many clients together get many more commits per second than one client.
 
-One wait is the disk's own flush: about 2-5 ms on a laptop SSD, on Docker Desktop and on many cloud disks. PostgreSQL waits for the same flush. When a few clients commit in a loop, KDB waits a moment (at most half a flush) for the ones that are about to commit, so one flush carries all of them instead of two flushes carrying half each. Measured, `UPDATE ... SET n = n + 1` over HTTP: 2 to 8 clients get 1.2 to 1.7 times more commits a second than before; one client and 16 or more are unchanged.
+One wait is the disk's own flush: about 2-5 ms on a laptop SSD, on Docker Desktop and on many cloud disks. PostgreSQL waits for the same flush. When a few clients commit in a loop, KarelaDB waits a moment (at most half a flush) for the ones that are about to commit, so one flush carries all of them instead of two flushes carrying half each. Measured, `UPDATE ... SET n = n + 1` over HTTP: 2 to 8 clients get 1.2 to 1.7 times more commits a second than before; one client and 16 or more are unchanged.
 
-With `--sync-commits batch` KDB answers at once and writes all waiting commits to the disk together, every 10 ms.
+With `--sync-commits batch` KarelaDB answers at once and writes all waiting commits to the disk together, every 10 ms.
 
 - **Much faster** for many small writers (live ticks, one row per request, many clients).
 - A power cut or a crash of the computer can **lose the commits of the last few milliseconds** that were already confirmed. The data is **never damaged**: after the restart the database is consistent, only those last commits are missing.
@@ -373,13 +373,14 @@ With `--sync-commits batch` KDB answers at once and writes all waiting commits t
 **Command line: A server for a live feed** (sample data: sample)
 
 ```bash
-kdb serve ./market --sync-commits batch
+kareladb serve ./market --sync-commits batch
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev
+cold store 'archive': folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./market
   backups   ./_backups/market (from default)
@@ -396,7 +397,7 @@ KDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -416,7 +417,7 @@ X-KDB-Synchronous-Commit: off              one HTTP request
 The same trade as `batch`, but only for the writes that can take it - a rate-limit counter, a cache row - while every other session keeps `always`. No restart is needed. It works as in PostgreSQL:
 
 - The commit is confirmed without waiting for the disk. A background thread puts it on the disk within about 10 ms.
-- A power cut can lose the commits of about the last 10 ms that were already confirmed. A crash or kill of the KDB program (`docker rm -f`, an out-of-memory kill) can lose those of the last few ms: the log is handed to the operating system at most a millisecond later, except while a disk sync is running. The data is never damaged, and no other session's commit is ever lost. PostgreSQL makes the same trade.
+- A power cut can lose the commits of about the last 10 ms that were already confirmed. A crash or kill of the KarelaDB program (`docker rm -f`, an out-of-memory kill) can lose those of the last few ms: the log is handed to the operating system at most a millisecond later, except while a disk sync is running. The data is never damaged, and no other session's commit is ever lost. PostgreSQL makes the same trade.
 - Measured on a laptop SSD, one client doing `UPDATE ctr SET n = n + 1 WHERE k = $1`: **5.1 ms** per update with `on`, **0.36 ms** with `off` (16 clients: 1,740 and 5,490 updates a second).
 
 <a id="table-sync-commit"></a>
@@ -491,17 +492,17 @@ A `Sync` after every `Execute` still waits for each one, as PostgreSQL does. For
 Syntax:
 
 ```sql
-kdb serve [<db>] --memory <MB>
-kdb sql <db> "..." --memory <MB>
-kdb shell [<db>] --memory <MB>
+kareladb serve [<db>] --memory <MB>
+kareladb sql <db> "..." --memory <MB>
+kareladb shell [<db>] --memory <MB>
 ```
 
-`--memory` is the memory for table data that KDB keeps loaded, for **all open databases together**. The default is **512 MB**. Data over the budget is unloaded and read from disk again when needed.
+`--memory` is the memory for table data that KarelaDB keeps loaded, for **all open databases together**. The default is **512 MB**. Data over the budget is unloaded and read from disk again when needed.
 
 - When the tables are bigger than the budget, queries over much data read files again and again. On the test PC, a count over 20 million minute rows took 4.4 s with 512 MB and 1.4 s with `--memory 4096`.
-- A good start: about the size of the data folder on disk, plus some room, if the computer has the RAM. `kdb info` shows the file sizes.
+- A good start: about the size of the data folder on disk, plus some room, if the computer has the RAM. `kareladb info` shows the file sizes.
 - When a database opens with more than **8 times** `--memory` of table data, the server log says so, and `GET /api/info` has the same text in `warning`.
-- Do not give KDB more than the computer has: the operating system would swap, which is much slower.
+- Do not give KarelaDB more than the computer has: the operating system would swap, which is much slower.
 
 What the budget counts, and what it does not:
 
@@ -518,20 +519,21 @@ What the budget counts, and what it does not:
 So the memory of the process is about `--memory` + `--cache-mb` + a quarter of `--memory` for each database being written + indexes + the requests running now + about 30 MB for the program itself. `GET /api/stats` shows every part (`memory` of each database) next to `resident_bytes`.
 
 - Partitions a running write statement uses (the partition it inserts into, the rows it looks up) are not unloaded until the statement ends, and partitions with unsaved changes go after those without. So a small budget makes big queries slower, but a load does not read the same partition again for every statement.
-- A query that reads a few columns of a table bigger than the room left, when partitions of that table are held whole (just written, or read for every column), first cuts those partitions down in memory to the columns it reads, and only then unloads anything. It does so only when the cut lets all the columns it reads fit the budget next to what other tables hold; a query bigger than the budget even at its own columns, or one over a small table, unloads as before (its own reads first), so the partitions other queries keep whole stay whole. The next run of the same query finds all its columns in memory instead of reading the same files again. `GET /api/stats` counts these as `partitions_slimmed`; `KDB_NO_SLIM_SCAN=1` turns it off.
+- A query that reads a few columns of a table bigger than the room left, when partitions of that table are held whole (just written, or read for every column), first cuts those partitions down in memory to the columns it reads, and only then unloads anything. It does so only when the cut lets all the columns it reads fit the budget next to what other tables hold; a query bigger than the budget even at its own columns, or one over a small table, unloads as before (its own reads first), so the partitions other queries keep whole stay whole. The next run of the same query finds all its columns in memory instead of reading the same files again. `GET /api/stats` counts these as `partitions_slimmed`; `KARELADB_NO_SLIM_SCAN=1` turns it off.
 - When the databases together are over `--memory`, memory is taken back in this order: databases with no statement in the last 2 seconds, then databases that only read, then the database that needs the room, then other databases that are writing.
 - A database that is writing keeps at least `max(64 MB, --memory / (2 x open databases))` (never more than an equal share), whatever the others need. So one database kept in memory by earlier reads cannot slow down a load into another one. `GET /api/stats` shows each database's `share_bytes`, `floor_bytes` and `evicted_by_other_databases`.
 
 **Command line: More memory for a big history** (sample data: sample)
 
 ```bash
-kdb serve ./market --memory 4096
+kareladb serve ./market --memory 4096
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev
+cold store 'archive': folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./market
   backups   ./_backups/market (from default)
@@ -548,7 +550,7 @@ KDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -567,7 +569,7 @@ When several apps share one server, a big scan in one database can unload the ta
 
 - All reservations together may be at most three quarters of `--memory`, and a database's reservation at most its limit.
 - `GET /api/stats` shows each database's `used_bytes`, `limit_bytes`, `reserved_bytes` and `resident_bytes` under `memory`.
-- kdb.conf can give the start values: `"database_memory": {"sales": {"limit_mb": 512, "reserved_mb": 128}}`. `ALTER DATABASE` wins over it; `DEFAULT` goes back to it.
+- kareladb.conf can give the start values: `"database_memory": {"sales": {"limit_mb": 512, "reserved_mb": 128}}`. `ALTER DATABASE` wins over it; `DEFAULT` goes back to it.
 
 <a id="big-group-by"></a>
 
@@ -586,26 +588,27 @@ When several apps share one server, a big scan in one database can unload the ta
 Syntax:
 
 ```sql
-kdb serve [<db>] --threads N
+kareladb serve [<db>] --threads N
 ```
 
-Big queries and big writes use several threads. The default, and the most, is **half** of the CPU threads, so KDB never takes the whole computer.
+Big queries and big writes use several threads. The default, and the most, is **half** of the CPU threads, so KarelaDB never takes the whole computer.
 
 - Use fewer threads when the same computer runs your app and other programs that need the CPU: `--threads 2`.
 - More threads help queries that read many rows (counts, sums, GROUP BY over months). A query on one symbol and one day does not need them.
 - All databases of one server share these threads.
-- `kdb sql` and `kdb shell` always use the default.
+- `kareladb sql` and `kareladb shell` always use the default.
 
 **Command line: Leave CPU for other programs** (sample data: sample)
 
 ```bash
-kdb serve ./market --threads 1
+kareladb serve ./market --threads 1
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev
+cold store 'archive': folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./market
   backups   ./_backups/market (from default)
@@ -622,7 +625,7 @@ KDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -634,10 +637,10 @@ Press Ctrl+C to stop.
 Syntax:
 
 ```sql
-kdb serve [<db>] --cache-mb <MB>
+kareladb serve [<db>] --cache-mb <MB>
 ```
 
-`kdb serve` keeps the results of queries in memory (default **256 MB** for all open databases together). The same query again gets the kept result at once, as long as **no table it reads has changed**.
+`kareladb serve` keeps the results of queries in memory (default **256 MB** for all open databases together). The same query again gets the kept result at once, as long as **no table it reads has changed**.
 
 - Good for dashboards and live pages that ask the same question many times.
 - A write makes old only the kept results that **read what it changed**. A result of `WHERE symbol = 'NABIL'` (or `symbol IN (...)`) stays valid while other symbols are written, on a table with a [rev column](revisions.md#rev-column): `PARTITION BY ..., SYMBOL(symbol)`, or `symbol` first in `SORT BY` / `DEDUP KEY`. A new NEPSE candle every minute no longer makes every NABIL chart run again.
@@ -646,11 +649,11 @@ kdb serve [<db>] --cache-mb <MB>
 - A result that took **1 ms or more** is kept the first time. A quicker one is kept the **second** time the same query comes. So one-off lookups (a session token, a user id) do not fill the cache and push out the pages that are asked for all day.
 - Random functions and similar are never kept. Queries with `now()` (or `current_date`, `age(t)`) are not kept either, unless the caller says how old an answer it takes: `/exec?cache_now_ms=500`, or `SET result_cache_now_ms = 500` for a session. The answer is then the one computed up to that long ago, as if the query had run then.
 - `--cache-mb 0` turns it off. A bigger value helps when many different queries repeat.
-- The size can also come from `cache_mb` in [kdb.conf](cli-serve.md#kdb-conf) (the console's [Settings page](console-settings.md#result-cache) changes it while the server runs) or `KDB_CACHE_MB`. A database can get a space of its own that other databases' results cannot push out: [ALTER DATABASE ... SET RESULT_CACHE](databases.md#result-cache).
+- The size can also come from `cache_mb` in [kareladb.conf](cli-serve.md#kareladb-conf) (the console's [Settings page](console-settings.md#result-cache) changes it while the server runs) or `KARELADB_CACHE_MB`. A database can get a space of its own that other databases' results cannot push out: [ALTER DATABASE ... SET RESULT_CACHE](databases.md#result-cache).
 - One result is kept up to a quarter of the cache (64 MB with the default: a whole day of a floor sheet fits), and the oldest results go first when it is full. A result that took 1 ms or more to compute is passed over once before it goes. A query that must always be ready - the slow one a dashboard asks on every load - can be **pinned** ([pinned queries](pinned-queries.md)): computed when the database opens, never pushed out, allowed three quarters of the cache, and computed again by the server after a write.
 - A plain `SELECT` sent again with the same text is not parsed again, and neither is an `INSERT ... VALUES`, `UPDATE` or `DELETE` sent a third time: the server keeps the parsed statement for each database ([the plan cache](server-settings.md#plan-cache), at most 2,048 texts of up to 2 KB). An `INSERT ... VALUES`, `UPDATE`, `DELETE` or `CALL` whose values are written into the text is also kept by its shape, per connection: the next one with other values (`CALL transfer(1018, 3, 9, 25)` after `CALL transfer(1017, 5, 2, 10)`) puts its values into the kept parse instead of being parsed. After `ALTER TABLE` or `DROP TABLE` the next run parses it again. A prepared statement with `$1` values (the PostgreSQL protocol's Parse, then Bind and Execute) is parsed once, when it is prepared: each Execute only puts its values in place. That holds for a `SELECT` (also with `FOR UPDATE`, or a `$1` in `LIMIT`, `OFFSET` or `FETCH FIRST`), `INSERT ... VALUES`, `UPDATE` and `DELETE`, with or without `RETURNING`. So prepare a query or a write your app sends often once per connection (most drivers, such as pgx and psycopg, do this for you) instead of sending new text each time. These still parse their text each time: `INSERT ... SELECT`, a statement that starts with `WITH`, one that names another database (`db.t`), `FOR UPDATE SKIP LOCKED`, `LIMIT $1, $2` and `LIMIT -$1`, and an `INSERT` or `UPDATE` that calls `password_hash()`.
 - For a fair benchmark, skip the cache for one query or one session instead: `/exec?cache=0` (see [GET /exec](http-exec.md#get-exec)), or `SET result_cache = off` (back with `SET result_cache = on`). The answer is the same; only the time changes.
-- To check the cache itself, start the server with `KDB_CACHE_VERIFY=1` in the environment: every cache hit is computed again and compared. A difference is logged, counted in `GET /api/stats` (`cache_verify_mismatches`, next to `cache_verify_checks`) and answered with the fresh result. It costs every hit a full query, so it is for tests and for chasing a suspected stale answer.
+- To check the cache itself, start the server with `KARELADB_CACHE_VERIFY=1` in the environment: every cache hit is computed again and compared. A difference is logged, counted in `GET /api/stats` (`cache_verify_mismatches`, next to `cache_verify_checks`) and answered with the fresh result. It costs every hit a full query, so it is for tests and for chasing a suspected stale answer.
 
 ```sql
 SET result_cache = off;
@@ -665,13 +668,14 @@ SELECT count(*) AS n, max(now()) AS asked_at FROM ochl_day;  -- an answer up to 
 **Command line: A bigger result cache for a dashboard** (sample data: sample)
 
 ```bash
-kdb serve ./market --cache-mb 256
+kareladb serve ./market --cache-mb 256
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev
+cold store 'archive': folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./market
   backups   ./_backups/market (from default)
@@ -688,7 +692,7 @@ KDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -703,7 +707,7 @@ Syntax:
 WHERE part AND part AND ...     -- every part must be one of the shapes below
 ```
 
-KDB has two ways to run a query on one table: the **column engine** (whole columns at a time, on all threads) and the **row path** (row by row, one thread). The column engine takes a `WHERE` only when **every** part joined by `AND` is one of these:
+KarelaDB has two ways to run a query on one table: the **column engine** (whole columns at a time, on all threads) and the **row path** (row by row, one thread). The column engine takes a `WHERE` only when **every** part joined by `AND` is one of these:
 
 | `WHERE` part | Example |
 |---|---|
@@ -771,11 +775,11 @@ SELECT time, close FROM ...      -- builds 2 columns per row
 SELECT * FROM ...                -- builds every column
 ```
 
-When a query runs on the row path, KDB builds only the columns the query reads. `EXPLAIN` shows them: `build 2 of 7 stored column(s) per row: time, close`.
+When a query runs on the row path, KarelaDB builds only the columns the query reads. `EXPLAIN` shows them: `build 2 of 7 stored column(s) per row: time, close`.
 
 - On a table with 21 columns, `count(*) WHERE a * 1 > X` went from 460 ms to 210 ms, `GROUP BY` from 549 to 242 ms. `SELECT *` still builds every column (465 to 436 ms).
 - So name the columns, even when the `WHERE` must stay on the row path.
-- `KDB_NO_COLUMN_MASK=1` in the environment of `kdb serve` turns this off, to compare.
+- `KARELADB_NO_COLUMN_MASK=1` in the environment of `kareladb serve` turns this off, to compare.
 
 **Example: The row path builds only the columns the query reads** (sample data: sample)
 
@@ -804,13 +808,13 @@ Syntax:
 SELECT count(*), sum(x), min(x), max(x), avg(x) FROM t [WHERE <time range>]
 ```
 
-Every partition file keeps its row count and, per column, its count, sum, min and max. When a query asks only for these, with no `WHERE` or only a time range, KDB answers from those stats. It reads no rows, and loads no partition that is not loaded yet.
+Every partition file keeps its row count and, per column, its count, sum, min and max. When a query asks only for these, with no `WHERE` or only a time range, KarelaDB answers from those stats. It reads no rows, and loads no partition that is not loaded yet.
 
 - 4,000,000 rows in 200 day files, right after a restart: 99.7 ms and 200 partition loads before, 0.28 ms and 0 loads after.
 - A partition with unsaved changes is scanned as usual; the others still come from the stats.
 - A condition on another column, a `GROUP BY` or `count(DISTINCT ...)` reads the rows.
 - `EXPLAIN` says `answer from saved stats of table t: ...`.
-- `KDB_NO_ZONE_MAPS=1` turns this off too, to compare.
+- `KARELADB_NO_ZONE_MAPS=1` turns this off too, to compare.
 
 **Example: A whole-table aggregate answered from the files' stats** (sample data: sample)
 
@@ -840,13 +844,13 @@ Syntax:
 WHERE col > value | col BETWEEN a AND b | col IN (...) | time IN '...'
 ```
 
-For a number, `DATE`, `TIMESTAMP` or `DECIMAL` column, KDB knows the smallest and the biggest value in each partition file. A partition whose range cannot hold a match is skipped before any row is read.
+For a number, `DATE`, `TIMESTAMP` or `DECIMAL` column, KarelaDB knows the smallest and the biggest value in each partition file. A partition whose range cannot hold a match is skipped before any row is read.
 
 - It pays for columns that **grow with time**: ids, sequence numbers, times. On 814,535 floor-sheet trades in 15 day files, `contract > <99th percentile>` skipped 14 of 15 files: 0.93 ms went to 0.56 ms. A value above every file skipped all 15: 1.66 ms to 0.59 ms.
 - A price or an amount that has high and low values on every day skips **nothing**: `rate > <99th percentile>` read all 15 files.
 - `!=`, `NOT ...`, arithmetic on the column (`rate + 0 > x`), text and `BOOL` columns never skip.
-- A partition that is not in memory (never read since the start, or pushed out by `--memory`) is skipped too: KDB reads only the small stats part of its file once, never its rows.
-- `EXPLAIN` says `m skipped by column stats`. `GET /api/stats` counts `zone_partition_skips` and `zone_block_skips`. `KDB_NO_ZONE_MAPS=1` turns zone maps off.
+- A partition that is not in memory (never read since the start, or pushed out by `--memory`) is skipped too: KarelaDB reads only the small stats part of its file once, never its rows.
+- `EXPLAIN` says `m skipped by column stats`. `GET /api/stats` counts `zone_partition_skips` and `zone_block_skips`. `KARELADB_NO_ZONE_MAPS=1` turns zone maps off.
 
 **Example: Trade ids grow with time: the first day cannot hold ids above 100008** (sample data: sample)
 
@@ -894,8 +898,8 @@ A month of minute candles for 500 symbols is one partition file of about 20 MB, 
 - A partition with rows not saved yet, a packed file (`compression = on`), or a file with a `NULL` symbol is read whole, as before. So is a file where the symbols asked for cover more than half of it (`IN ('A...', 'Z...')`, the first and the last symbol); such files still count against `--memory` and are read a few at a time.
 - On 14.6 million minute bars (500 symbols, 40 months) with 2 cores and `--memory 300`, 006's chart mix of random symbols went from 9 to 237 requests a second with one client, 12 to 378 with 10 clients and 18 to 363 with 50 (the slowest 5% at 10 clients: 2.6 s to 68 ms). With the whole table in memory (`--memory 1536`) nothing changes: about 1,100 a second either way.
 - Chart reads (`ORDER BY time DESC LIMIT n`, the newest `n` buckets of a `SAMPLE BY`) also size their first time window by that symbol's own rows once they are known, not by every symbol's rows: fewer windows, fewer files.
-- Slices read lately are kept in a slice cache, so the next chart of the same symbol does not read the file again. It holds at most `KDB_SLICE_CACHE_MB` (128 by default; 0 turns it off), counted as table data.
-- `GET /api/stats` counts `slice_reads`, and of those `slice_cache_hits` (with `slice_cache_bytes` held now); `/metrics` has `kdb_slice_reads_total`. `KDB_NO_SLICE_READS=1` in the environment of `kdb serve` turns slice reads off, to compare.
+- Slices read lately are kept in a slice cache, so the next chart of the same symbol does not read the file again. It holds at most `KARELADB_SLICE_CACHE_MB` (128 by default; 0 turns it off), counted as table data.
+- `GET /api/stats` counts `slice_reads`, and of those `slice_cache_hits` (with `slice_cache_bytes` held now); `/metrics` has `kdb_slice_reads_total`. `KARELADB_NO_SLICE_READS=1` in the environment of `kareladb serve` turns slice reads off, to compare.
 
 A scan now reads a single partition file outside the lock all readers share, as it already did for several at once, so readers of other partitions and tables do not wait for one reader's disk. Two readers that need the same file read it once.
 
@@ -939,7 +943,7 @@ Syntax:
 SELECT key, key2, sum(a), sum(a) - sum(b) FROM t WHERE time_range GROUP BY key, key2
 ```
 
-KDB has two ways to run a query: the **column engine** (whole columns at a time, on all threads) and the **row engine** (row by row). The column engine is 5 to 50 times faster. A `GROUP BY` stays in it, even with hundreds of thousands of groups, when it is written like this:
+KarelaDB has two ways to run a query: the **column engine** (whole columns at a time, on all threads) and the **row engine** (row by row). The column engine is 5 to 50 times faster. A `GROUP BY` stays in it, even with hundreds of thousands of groups, when it is written like this:
 
 | Part of the query | The column engine takes |
 |---|---|
@@ -1028,7 +1032,7 @@ symbol SYMBOL
 
 Use `SYMBOL` for short text that repeats a lot: stock symbols, sectors, broker codes, statuses.
 
-- KDB keeps each different value once per partition and stores a small number per row. Files are smaller, and comparisons and `GROUP BY` are faster.
+- KarelaDB keeps each different value once per partition and stores a small number per row. Files are smaller, and comparisons and `GROUP BY` are faster.
 - Use `STRING` for text that is mostly different: names, news titles, comments.
 - A `STRING`, `JSON` or `BYTES` column keeps all its text in one block of memory per partition, plus 8 bytes per row
   for where each value ends. Writing, saving and reading such rows makes no small allocation per value.
@@ -1046,7 +1050,7 @@ CREATE INDEX name ON table (column, ...)
 
 A condition on a column that is **not** the first key column (`WHERE thread_id = 7`, `WHERE email = '...'`) reads every row. An **index** makes it fast.
 
-- Indexes live in memory. `kdb serve` builds them on a background thread right after the database opens (about 0.2 seconds per million rows); a query that comes before that builds the index itself (see [indexes](indexes.md#warm)).
+- Indexes live in memory. `kareladb serve` builds them on a background thread right after the database opens (about 0.2 seconds per million rows); a query that comes before that builds the index itself (see [indexes](indexes.md#warm)).
 - This matters after a restart. With 200,000 posts and 4 indexes, the first word count after a restart took 774 ms when it had to build the text index, and 3.1 ms when the index was built at open. All 4 indexes were ready 0.7 s after the open.
 - Every index makes writes a little slower and uses memory.
 - `EXPLAIN` shows `use index ...` when an index is used.
@@ -1063,7 +1067,7 @@ POST /write?db=<name>&precision=s
 <table>,<tag>=<value> <field>=<value>,... <time>
 ```
 
-For live feeds and big loads, send rows in the InfluxDB **line protocol** to `kdb serve` instead of SQL. There is no SQL to parse, and big bodies are read on several threads.
+For live feeds and big loads, send rows in the InfluxDB **line protocol** to `kareladb serve` instead of SQL. There is no SQL to parse, and big bodies are read on several threads.
 
 - Send many lines per request (1,000 to 100,000), not one request per row.
 - **One new day per request is the fastest load.** A day that is not in the table yet needs no duplicate lookups: its rows are sorted and written in one piece. 250,000 rows take about 0.2 s (1.3 million rows per second).
@@ -1085,7 +1089,7 @@ CREATE TABLE trades (...) TIMESERIES(time) PARTITION BY DAY SORT BY (symbol, tim
 CREATE TRIGGER t AFTER INSERT ON trades DEFERRED EXECUTE BEGIN ... END
 ```
 
-A big `POST /write` or a many-row `INSERT` is fastest when KDB can write the rows as sorted column **runs**, built before the table is locked. Some table features need every row on its own.
+A big `POST /write` or a many-row `INSERT` is fastest when KarelaDB can write the rows as sorted column **runs**, built before the table is locked. Some table features need every row on its own.
 
 | The table has | Load path |
 |---|---|
@@ -1108,7 +1112,7 @@ Measured on 2026-09-23:
 
 <a id="slow-parts"></a>
 
-## Slow parts KDB still has
+## Slow parts KarelaDB still has
 
 Syntax:
 

@@ -4,7 +4,7 @@
 
 - Category: Users & security
 - Keywords: table rights, table privileges, per-table grant, column rights, column privileges, GRANT SELECT (, column\_privileges, has\_column\_privilege, hide a column, permissions, GRANT SELECT, GRANT INSERT, REVOKE DELETE, REVOKE UPDATE, PRIVILEGES, DEFAULT, append-only table, ledger rights, read one table, row rights, row-level security, RLS, CREATE POLICY, DROP POLICY, ENABLE ROW LEVEL SECURITY, pg\_policies, row\_security, multi-tenant, own rows only
-- See also: [Users and roles](users-and-roles.md), [Audit log](audit-log.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Keeping kdb serve safe](server-security.md)
+- See also: [Users and roles](users-and-roles.md), [Audit log](audit-log.md), [Protection - timeouts, limits, safe updates, read-only](protection.md), [Keeping kareladb serve safe](server-security.md)
 
 A user's [role](users-and-roles.md#roles) gives rights on a whole database. Table rights change that for one table of the current database:
 
@@ -70,8 +70,8 @@ granted SELECT on table 'securities' of database 'demo' to user 'viewer'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:29.129Z | 2026-10-22T05:44:29.129Z | NULL | false | NULL | NULL |
-| viewer | none | NULL | 2026-10-22T05:44:29.198Z | 2026-10-22T05:44:29.241Z | demo.securities: +SELECT | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:31.567Z | 2026-10-22T09:56:31.567Z | NULL | false | NULL | NULL |
+| viewer | none | NULL | 2026-10-22T09:56:31.621Z | 2026-10-22T09:56:31.651Z | demo.securities: +SELECT | false | NULL | NULL |
 
 (2 rows)
 
@@ -90,9 +90,9 @@ Takes rights away on one table, even when the role allows them. For an accountin
 - **Returns:** `revoked UPDATE, DELETE on table 'ledger' of database 'shop' from user 'app'`. A refused statement gets `DELETE on table 'ledger' was revoked for user 'app'` (HTTP 403, SQLSTATE `42501`).
 - **Notes:**
   - `DROP TABLE` removes the table rights of that table; `RENAME TABLE` keeps them under the new name. A new table with an old name does not get old rights.
-  - Views, procedures (`CALL`) and triggers run without the rights of whoever uses them, like PostgreSQL's `SECURITY DEFINER`. So when a `ddl` user saves one, KDB checks what it reads and changes against that user's rights: a view of a revoked table, or a procedure that deletes from it, is refused. The same holds for `CREATE TABLE ... AS SELECT`.
+  - Views, procedures (`CALL`) and triggers run without the rights of whoever uses them, like PostgreSQL's `SECURITY DEFINER`. So when a `ddl` user saves one, KarelaDB checks what it reads and changes against that user's rights: a view of a revoked table, or a procedure that deletes from it, is refused. The same holds for `CREATE TABLE ... AS SELECT`.
   - A statement that reads a second table needs `SELECT` on it too: `INSERT ... SELECT`, `UPDATE ... FROM`, `DELETE ... USING` and `WITH`.
-  - Older KDB programs refuse a data folder with table rights (they would ignore them).
+  - Older KarelaDB programs refuse a data folder with table rights (they would ignore them).
 
 **Example: The ledger only grows** (sample data: query-app)
 
@@ -134,8 +134,8 @@ revoked UPDATE, DELETE on table 'ledger' of database 'demo' from user 'app'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T05:44:29.156Z | 2026-10-22T05:44:29.156Z | NULL | false | NULL | NULL |
-| app | none | demo=write | 2026-10-22T05:44:29.225Z | 2026-10-22T05:44:29.273Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T09:56:31.633Z | 2026-10-22T09:56:31.633Z | NULL | false | NULL | NULL |
+| app | none | demo=write | 2026-10-22T09:56:31.689Z | 2026-10-22T09:56:31.725Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL |
 
 (2 rows)
 
@@ -198,7 +198,7 @@ Every column a statement names is checked: the `SELECT` list, `WHERE`, `JOIN ...
   - `RENAME COLUMN` keeps the rights under the new name; `DROP COLUMN` removes them.
   - A table of another database (`otherdb.t`) with a column you may not read is refused as a whole; `USE` that database to read the other columns.
   - `has_column_privilege()` and `information_schema.column_privileges` show the same rights.
-  - The rights are kept in `_system`. Older KDB programs refuse a data folder once a column right was granted there (they would ignore it).
+  - The rights are kept in `_system`. Older KarelaDB programs refuse a data folder once a column right was granted there (they would ignore it).
 
 **Example: An auditor who reads some columns of the ledger** (sample data: query-app)
 
@@ -327,7 +327,7 @@ The policies of a table are joined with `OR`: one that lets a row in is enough. 
   - Results of these users never come from the result cache, so a cached answer is never shared between users.
   - `RENAME TABLE` keeps the policies; `DROP TABLE` removes them. `pg_policies`, `pg_policy` and `pg_tables.rowsecurity` show them.
   - Only `PERMISSIVE` policies (`AS RESTRICTIVE` is refused). Statements inside procedures and triggers are not filtered; their `WITH CHECK` still applies.
-  - The policies are kept in `_system`. Older KDB programs refuse a data folder once a policy was made there (they would ignore it).
+  - The policies are kept in `_system`. Older KarelaDB programs refuse a data folder once a policy was made there (they would ignore it).
 
 **Example: Each user sees only their own rows** (sample data: query-app)
 

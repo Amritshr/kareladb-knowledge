@@ -3,22 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keeping kdb serve safe - KDB (KARELA DataBase) docs</title>
+<title>Keeping kareladb serve safe - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Keep the server on 127.0.0.1, use users or a token, put HTTPS in front, and pick strong passwords.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/server-security.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/server-security.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/server-security.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/server-security.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
-<h1 id="keeping-kdb-serve-safe">Keeping kdb serve safe</h1>
+<h1 id="keeping-kareladb-serve-safe"><span class="old-id" id="keeping-kdb-serve-safe"></span>Keeping kareladb serve safe</h1>
 <blockquote><p>Keep the server on 127.0.0.1, use users or a token, put HTTPS in front, and pick strong passwords.</p></blockquote>
-<ul><li>Category: Users &amp; security</li><li>Keywords: security, safe, secure, KDB_TOKEN, Docker, internet, vps, firewall, --bind, --token, bind address, 0.0.0.0, 127.0.0.1, localhost, access token, login, log in, logout, HTTP Basic, Bearer, cookie, kdb_login, kdb_auth, X-KDB-CSRF, HTTPS, TLS, SSL, certificate, reverse proxy, Caddy, nginx, SSH tunnel, X-Forwarded-Proto, failed logins, too many failed logins, 429, 401, 403, cross-site, CSRF, DNS rebinding, password rules, SCRAM, checklist</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="functions-security.html">Security functions</a>, <a href="cli-serve.html">kdb serve</a>, <a href="cli-users.html">kdb user</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a></li></ul>
-<p><code>kdb serve</code> gives full access to your data over the network: the HTTP API, the web console and the PostgreSQL port. This page says how to keep strangers out.</p>
+<ul><li>Category: Users &amp; security</li><li>Keywords: security, safe, secure, KARELADB_TOKEN, Docker, internet, vps, firewall, --bind, --token, bind address, 0.0.0.0, 127.0.0.1, localhost, access token, login, log in, logout, HTTP Basic, Bearer, cookie, kdb_login, kdb_auth, X-KDB-CSRF, HTTPS, TLS, SSL, certificate, reverse proxy, Caddy, nginx, SSH tunnel, X-Forwarded-Proto, failed logins, too many failed logins, 429, 401, 403, cross-site, CSRF, DNS rebinding, password rules, SCRAM, checklist</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="functions-security.html">Security functions</a>, <a href="cli-serve.html">kareladb serve</a>, <a href="cli-users.html">kareladb user</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a></li></ul>
+<p><code>kareladb serve</code> gives full access to your data over the network: the HTTP API, the web console and the PostgreSQL port. This page says how to keep strangers out.</p>
 <p>The short rules:</p>
 <ol><li>Keep the default <code>--bind 127.0.0.1</code>. Then only programs on the same computer can connect.</li><li>Create <strong>users</strong> with long passwords (see <a href="users-and-roles.html">Users and roles</a>). Then every request needs a login.</li><li>For access from other computers, turn on <a href="tls.html">TLS</a> (<code>--tls-cert</code>: https and <code>sslmode=require</code>), or put a web server with HTTPS in front, or use an SSH tunnel.</li><li>Keep the data folder and the backups private: whoever can read them can read everything, without a login.</li></ol>
-<div class="table-wrap"><table><thead><tr><th>Server</th><th>Login needed?</th></tr></thead><tbody><tr><td><code>--bind 127.0.0.1</code> (default), no <code>--token</code>, no users</td><td><strong>No.</strong> Only programs on this computer can connect.</td></tr><tr><td>the data folder has users</td><td><strong>Yes</strong>, for every request except <code>/health</code>, <code>POST /api/login</code> and the console page itself</td></tr><tr><td>started with <code>--token &lt;secret&gt;</code></td><td><strong>Yes.</strong> The token works like an admin. With users too, both work.</td></tr><tr><td><code>--bind 0.0.0.0</code> (or any address that is not <code>127.x</code>) with no token and no users</td><td><strong>Refused:</strong> <code>kdb serve</code> does not start</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Server</th><th>Login needed?</th></tr></thead><tbody><tr><td><code>--bind 127.0.0.1</code> (default), no <code>--token</code>, no users</td><td><strong>No.</strong> Only programs on this computer can connect.</td></tr><tr><td>the data folder has users</td><td><strong>Yes</strong>, for every request except <code>/health</code>, <code>POST /api/login</code> and the console page itself</td></tr><tr><td>started with <code>--token &lt;secret&gt;</code></td><td><strong>Yes.</strong> The token works like an admin. With users too, both work.</td></tr><tr><td><code>--bind 0.0.0.0</code> (or any address that is not <code>127.x</code>) with no token and no users</td><td><strong>Refused:</strong> <code>kareladb serve</code> does not start</td></tr></tbody></table></div>
 <p><strong>HTTP: Is a login needed on this server?</strong></p>
 <pre><code class="language-http">GET /health</code></pre>
 <p>Response:</p>
@@ -26,7 +26,8 @@
 <pre><code class="language-text">{
   &quot;status&quot;: &quot;ok&quot;,
   &quot;version&quot;: &quot;0.2.0-dev&quot;,
-  &quot;server_time_ms&quot;: 1792647852082,
+  &quot;product&quot;: &quot;KarelaDB&quot;,
+  &quot;server_time_ms&quot;: 1792662966061,
   &quot;auth_required&quot;: false,
   &quot;login&quot;: false,
   &quot;tls&quot;: false,
@@ -35,19 +36,20 @@
 }</code></pre>
 <h2 id="bind">--bind</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb serve [--bind 127.0.0.1 | --bind &lt;address&gt;] ...</code></pre>
+<pre><code class="language-sql">kareladb serve [--bind 127.0.0.1 | --bind &lt;address&gt;] ...</code></pre>
 <p>The network address the server listens on. It is used for the HTTP port and the PostgreSQL port.</p>
 <div class="table-wrap"><table><thead><tr><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td><code>127.0.0.1</code></td><td>the default. Only programs on the same computer can connect.</td></tr><tr><td><code>0.0.0.0</code></td><td>every network card: other computers can connect too</td></tr><tr><td>one address, like <code>192.168.1.20</code></td><td>only that network card</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> nothing; the start-up lines show the console address.</li><li><strong>Notes:</strong>
-<ul><li>Any address that does not start with <code>127.</code> needs users or <code>--token</code>, or <code>kdb serve</code> refuses to start. (<code>localhost</code> counts as local.)</li><li>Your app&#39;s backend on the same VPS reaches KDB on <code>127.0.0.1</code>. You almost never need <code>0.0.0.0</code>.</li><li>The <a href="install-packages.html#docker">Docker image</a> must listen on <code>0.0.0.0</code>, because a published port cannot reach the container&#39;s own <code>127.0.0.1</code>. So it refuses to start without <code>KDB_TOKEN</code> (<code>-e KDB_TOKEN=&lt;token&gt;</code>). Publish the port only to where it is needed, for example <code>-p 127.0.0.1:9900:9900</code>.</li><li>Also close ports 9900 (HTTP) and 8832 (PostgreSQL) in the firewall. Open only SSH, 80 and 443.</li><li>Without a login, KDB still refuses requests that a browser marks as coming from another web site, and requests whose <code>Host</code> is not <code>localhost</code> or <code>127.x</code> (a trick called DNS rebinding). So a bad web page open in your browser can not reach your local server.</li></ul></li></ul>
+<ul><li>Any address that does not start with <code>127.</code> needs users or <code>--token</code>, or <code>kareladb serve</code> refuses to start. (<code>localhost</code> counts as local.)</li><li>Your app&#39;s backend on the same VPS reaches KarelaDB on <code>127.0.0.1</code>. You almost never need <code>0.0.0.0</code>.</li><li>The <a href="install-packages.html#docker">Docker image</a> must listen on <code>0.0.0.0</code>, because a published port cannot reach the container&#39;s own <code>127.0.0.1</code>. So it refuses to start without <code>KARELADB_TOKEN</code> (<code>-e KARELADB_TOKEN=&lt;token&gt;</code>). Publish the port only to where it is needed, for example <code>-p 127.0.0.1:9900:9900</code>.</li><li>Also close ports 9900 (HTTP) and 8832 (PostgreSQL) in the firewall. Open only SSH, 80 and 443.</li><li>Without a login, KarelaDB still refuses requests that a browser marks as coming from another web site, and requests whose <code>Host</code> is not <code>localhost</code> or <code>127.x</code> (a trick called DNS rebinding). So a bad web page open in your browser can not reach your local server.</li></ul></li></ul>
 <p><strong>Command line: 0.0.0.0 without users and without a token is refused</strong> (shows an error)</p>
-<pre><code class="language-bash">kdb serve --bind 0.0.0.0</code></pre>
+<pre><code class="language-bash">kareladb serve --bind 0.0.0.0</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">error: --bind 0.0.0.0 without --token and without users would let anyone who can reach this computer
+<pre><code class="language-text">cold store &#39;archive&#39;: folder ./cold-archive
+error: --bind 0.0.0.0 without --token and without users would let anyone who can reach this computer
 read, change and delete every database. Do one of these first:
-  1. create an admin user:   kdb user add &lt;name&gt; --role admin
+  1. create an admin user:   kareladb user add &lt;name&gt; --role admin
   2. or start with a secret:  --token &lt;long random text&gt;
-  3. or keep --bind 127.0.0.1 and put a web server with HTTPS in front of KDB
+  3. or keep --bind 127.0.0.1 and put a web server with HTTPS in front of KarelaDB
 See docs/tutorial/16-users-passwords-security.md</code></pre>
 <p>exit code 1</p>
 <p><strong>HTTP: A request from another web site is refused</strong></p>
@@ -64,7 +66,7 @@ Origin: http://evil.example.com</code></pre>
 <pre><code class="language-text">{&quot;error&quot;: &quot;cross-origin requests are not allowed&quot;}</code></pre>
 <h2 id="token">--token</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">kdb serve --token &lt;long random text&gt;</code></pre>
+<pre><code class="language-sql">kareladb serve --token &lt;long random text&gt;</code></pre>
 <p>A secret that every request must send, as <code>Authorization: Bearer &lt;token&gt;</code>. It gives <strong>full</strong> rights (like an admin on every database).</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&lt;token&gt;</code></td><td>text</td><td>the secret. Use 32 or more random characters, for example from <code>SELECT random_token()</code>.</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> nothing; the start-up line <code>access</code> says <code>token required</code>.</li><li><strong>Notes:</strong>
@@ -72,12 +74,13 @@ Origin: http://evil.example.com</code></pre>
 <p><strong>Example: Make a strong token or password</strong></p>
 <pre><code class="language-sql">SELECT random_token() AS token_for_kdb_serve, random_token(24) AS password_for_a_program;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>token_for_kdb_serve (STRING)</th><th>password_for_a_program (STRING)</th></tr></thead><tbody><tr><td>F85M2XAbSxmwGbrF0DZvRFrpep6LTAHSEvtQ8qv98Aw</td><td>i-EQRZ2g5L08iU7_tw48SAwLjA4FAy55</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>token_for_kdb_serve (STRING)</th><th>password_for_a_program (STRING)</th></tr></thead><tbody><tr><td>hssgLBiSJUf31Pppu9xlt-nPTjLhCudBVFXfnx32Isc</td><td>ARxw58Ao9ySPD_4mOJvl_7UuFNFE-1Vc</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Command line: A server with a token</strong></p>
-<pre><code class="language-bash">kdb serve --token 3kD9vQx7LmN2pR8sT4wY6zA1bC5eF0gH</code></pre>
+<pre><code class="language-bash">kareladb serve --token 3kD9vQx7LmN2pR8sT4wY6zA1bC5eF0gH</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">KDB 0.2.0-dev
+<pre><code class="language-text">cold store &#39;archive&#39;: folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./kdb-data (from KDB_DATA_DIR; one folder per database)
   default   default (used when a request names no database)
@@ -103,20 +106,21 @@ Press Ctrl+C to stop.</code></pre>
 Log in once:  POST /api/login  {&quot;user&quot;: &quot;...&quot;, &quot;password&quot;: &quot;...&quot;}   -&gt;  token
 Then:         Authorization: Bearer &lt;token&gt;     (or the kdb_login cookie in a browser)
 Log out:      POST /api/logout</code></pre>
-<p>When the data folder has users, every request needs a login. Create users with <a href="users-and-roles.html#create-user">CREATE USER</a> or <a href="cli-users.html">kdb user add</a>. The details of each route are in <a href="http-login.html">HTTP login</a>.</p>
-<div class="table-wrap"><table><thead><tr><th>Way</th><th>Used by</th><th>Notes</th></tr></thead><tbody><tr><td><strong>HTTP Basic</strong> (user and password on each request)</td><td>scripts, <code>curl -u</code></td><td>KDB remembers a good password for 10 minutes, so it is not slow</td></tr><tr><td><strong><code>POST /api/login</code></strong>, then <code>Authorization: Bearer &lt;token&gt;</code></td><td>apps</td><td>the token is random (256 bits); KDB keeps only its SHA-256, in memory</td></tr><tr><td><strong>Cookie</strong> <code>kdb_login</code></td><td>the web console</td><td><code>HttpOnly</code> (page scripts can not read it) and <code>SameSite=Strict</code> (other sites can not use it). A change also needs the <code>X-KDB-CSRF</code> header (<a href="http-login.html#csrf">CSRF</a>).</td></tr><tr><td><strong>SCRAM-SHA-256</strong></td><td>PostgreSQL drivers on port 8832</td><td>the password never crosses the network</td></tr></tbody></table></div>
+<p>When the data folder has users, every request needs a login. Create users with <a href="users-and-roles.html#create-user">CREATE USER</a> or <a href="cli-users.html">kareladb user add</a>. The details of each route are in <a href="http-login.html">HTTP login</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>Used by</th><th>Notes</th></tr></thead><tbody><tr><td><strong>HTTP Basic</strong> (user and password on each request)</td><td>scripts, <code>curl -u</code></td><td>KarelaDB remembers a good password for 10 minutes, so it is not slow</td></tr><tr><td><strong><code>POST /api/login</code></strong>, then <code>Authorization: Bearer &lt;token&gt;</code></td><td>apps</td><td>the token is random (256 bits); KarelaDB keeps only its SHA-256, in memory</td></tr><tr><td><strong>Cookie</strong> <code>kdb_login</code></td><td>the web console</td><td><code>HttpOnly</code> (page scripts can not read it) and <code>SameSite=Strict</code> (other sites can not use it). A change also needs the <code>X-KDB-CSRF</code> header (<a href="http-login.html#csrf">CSRF</a>).</td></tr><tr><td><strong>SCRAM-SHA-256</strong></td><td>PostgreSQL drivers on port 8832</td><td>the password never crosses the network</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> a wrong login gets HTTP 401 <code>{&quot;error&quot;:&quot;wrong user name or password&quot;,&quot;login&quot;:true}</code>. A statement the user may not run gets HTTP 403 (see <a href="users-and-roles.html#roles">roles</a>).</li><li><strong>Notes:</strong>
-<ul><li>A login ends after <strong>12 hours</strong>, at log out, when the server restarts, and when the user&#39;s password changes or the user is dropped.</li><li><strong>Failed logins:</strong> after 5 failures for one user from one address (or 20 from one address for any users), that address must wait: 1 second, then 2, 4, 8, ... up to 15 minutes. Meanwhile the answer is HTTP 429 <code>too many failed logins; try again in 1 s</code>. A good login ends the wait for that user.</li><li>Every failed login is written to the server&#39;s output with the user name and the address, never the password: <code>login failed: user &#39;admin&#39; from 127.0.0.1 (wrong password; 5 failures in a row); next try allowed in 1 s</code>.</li><li>The answer for an unknown user takes as long as for a wrong password, so nobody can find out which names exist.</li><li>Behind a reverse proxy every request comes from <code>127.0.0.1</code>, so the waiting is shared by everyone who tries the same user name.</li><li><code>kdb sql</code> and <code>kdb shell</code> never ask for a login. They open the files directly.</li><li>Users belong to a data folder. A server started with one database folder by its path (<code>kdb serve D:\kdb\market</code>) has no users; use <code>--data-dir</code>.</li></ul></li></ul>
+<ul><li>A login ends after <strong>12 hours</strong>, at log out, when the server restarts, and when the user&#39;s password changes or the user is dropped.</li><li><strong>Failed logins:</strong> after 5 failures for one user from one address (or 20 from one address for any users), that address must wait: 1 second, then 2, 4, 8, ... up to 15 minutes. Meanwhile the answer is HTTP 429 <code>too many failed logins; try again in 1 s</code>. A good login ends the wait for that user.</li><li>Every failed login is written to the server&#39;s output with the user name and the address, never the password: <code>login failed: user &#39;admin&#39; from 127.0.0.1 (wrong password; 5 failures in a row); next try allowed in 1 s</code>.</li><li>The answer for an unknown user takes as long as for a wrong password, so nobody can find out which names exist.</li><li>Behind a reverse proxy every request comes from <code>127.0.0.1</code>, so the waiting is shared by everyone who tries the same user name.</li><li><code>kareladb sql</code> and <code>kareladb shell</code> never ask for a login. They open the files directly.</li><li>Users belong to a data folder. A server started with one database folder by its path (<code>kareladb serve D:\kdb\market</code>) has no users; use <code>--data-dir</code>.</li></ul></li></ul>
 <p><strong>Command line: With a user, the server asks for a login</strong></p>
-<pre><code class="language-bash">kdb user add admin --role admin
+<pre><code class="language-bash">kareladb user add admin --role admin
 &gt; Long-Admin-Passw0rd
 &gt; Long-Admin-Passw0rd
-kdb serve</code></pre>
+kareladb serve</code></pre>
 <p>Output:</p>
-<p><code>&gt; kdb user add admin --role admin</code></p>
+<p><code>&gt; kareladb user add admin --role admin</code></p>
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
-<p><code>&gt; kdb serve</code></p>
-<pre><code class="language-text">KDB 0.2.0-dev
+<p><code>&gt; kareladb serve</code></p>
+<pre><code class="language-text">cold store &#39;archive&#39;: folder ./cold-archive
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   data      ./kdb-data (from KDB_DATA_DIR; one folder per database)
   default   default (used when a request names no database)
@@ -148,10 +152,10 @@ Content-Type: application/json
 }</code></pre>
 <h2 id="https">HTTPS in front</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">browser  --HTTPS--&gt;  Caddy or nginx (port 443)  --HTTP--&gt;  kdb serve on 127.0.0.1:9900</code></pre>
-<p>Over plain HTTP, anyone on the network path can read passwords and tokens. When people or programs on <strong>other</strong> computers must reach KDB, either turn on KDB&#39;s own <a href="tls.html">TLS</a>, or put a web server with HTTPS (a <strong>reverse proxy</strong>) in front and keep KDB on <code>127.0.0.1</code>. A proxy also gets free certificates by itself and renews them.</p>
-<ul><li><strong>Returns:</strong> not a KDB setting.</li><li><strong>Notes:</strong>
-<ul><li>Caddy gets a free certificate by itself (see the first block below). With nginx, also send <code>X-Forwarded-Proto</code> (second block).</li><li>When the proxy sends <code>X-Forwarded-Proto: https</code>, KDB marks its login cookie <code>Secure</code> (only sent over HTTPS).</li><li>KDB still asks for the login behind the proxy. Create users first.</li><li>Even simpler for yourself: do not open the console to the internet at all. Use an <strong>SSH tunnel</strong> from your PC: <code>ssh -L 9900:127.0.0.1:9900 you@your-vps</code>, then open <code>http://127.0.0.1:9900</code> on your PC.</li><li>A proxy does not cover the PostgreSQL port. Turn on KDB&#39;s <a href="tls.html">TLS</a> for it (<code>sslmode=require</code>), or reach it through an SSH tunnel.</li></ul></li></ul>
+<pre><code class="language-sql">browser  --HTTPS--&gt;  Caddy or nginx (port 443)  --HTTP--&gt;  kareladb serve on 127.0.0.1:9900</code></pre>
+<p>Over plain HTTP, anyone on the network path can read passwords and tokens. When people or programs on <strong>other</strong> computers must reach KarelaDB, either turn on KarelaDB&#39;s own <a href="tls.html">TLS</a>, or put a web server with HTTPS (a <strong>reverse proxy</strong>) in front and keep KarelaDB on <code>127.0.0.1</code>. A proxy also gets free certificates by itself and renews them.</p>
+<ul><li><strong>Returns:</strong> not a KarelaDB setting.</li><li><strong>Notes:</strong>
+<ul><li>Caddy gets a free certificate by itself (see the first block below). With nginx, also send <code>X-Forwarded-Proto</code> (second block).</li><li>When the proxy sends <code>X-Forwarded-Proto: https</code>, KarelaDB marks its login cookie <code>Secure</code> (only sent over HTTPS).</li><li>KarelaDB still asks for the login behind the proxy. Create users first.</li><li>Even simpler for yourself: do not open the console to the internet at all. Use an <strong>SSH tunnel</strong> from your PC: <code>ssh -L 9900:127.0.0.1:9900 you@your-vps</code>, then open <code>http://127.0.0.1:9900</code> on your PC.</li><li>A proxy does not cover the PostgreSQL port. Turn on KarelaDB&#39;s <a href="tls.html">TLS</a> for it (<code>sslmode=require</code>), or reach it through an SSH tunnel.</li></ul></li></ul>
 <p>Caddy, file <code>/etc/caddy/Caddyfile</code>:</p>
 <pre><code class="language-text">kdb.example.com {
     reverse_proxy 127.0.0.1:9900
@@ -165,10 +169,10 @@ Content-Type: application/json
 <h2 id="password-rules">Password rules</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">at least 12 characters, not the user name, at most 1024 bytes;  long and random is best</code></pre>
-<p>What KDB needs from the password of a database user, and what is wise.</p>
-<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>KDB refuses</td><td>fewer than 12 characters, the user name itself, or more than 1024 bytes</td></tr><tr><td>Wise for people</td><td>16 or more characters; a few random words are easy to remember. Admins: also <a href="two-factor-login.html">two-factor login</a></td></tr><tr><td>Wise for programs</td><td>20 or more random characters from a password manager or <code>random_token(24)</code>; programs keep them in their settings</td></tr><tr><td>Never</td><td>the same password as your email or bank; a password on the command line; a password in a web page&#39;s JavaScript</td></tr></tbody></table></div>
+<p>What KarelaDB needs from the password of a database user, and what is wise.</p>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>KarelaDB refuses</td><td>fewer than 12 characters, the user name itself, or more than 1024 bytes</td></tr><tr><td>Wise for people</td><td>16 or more characters; a few random words are easy to remember. Admins: also <a href="two-factor-login.html">two-factor login</a></td></tr><tr><td>Wise for programs</td><td>20 or more random characters from a password manager or <code>random_token(24)</code>; programs keep them in their settings</td></tr><tr><td>Never</td><td>the same password as your email or bank; a password on the command line; a password in a web page&#39;s JavaScript</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> a too short password gets <code>the password is too short: use at least 12 characters (a password manager can make a long random one)</code>. Passwords set before this rule keep working.</li><li><strong>Notes:</strong>
-<ul><li>KDB keeps two things per user: a PBKDF2-SHA-256 hash with 600,000 rounds (slow to guess), and a SCRAM-SHA-256 secret with only 4,096 rounds (the PostgreSQL default, faster to guess). This is why database users should have <strong>long random</strong> passwords.</li><li><code>kdb user add</code> reads the password from a prompt or a pipe (<code>echo &quot;the password&quot; | kdb user add report --role read</code>), never from the command line.</li><li>SQL text with <code>PASSWORD &#39;...&#39;</code> may end up in your own scripts and logs. The web console&#39;s history and KDB&#39;s statement echo show <code>PASSWORD &#39;***&#39;</code>.</li><li>The passwords of <strong>your app&#39;s</strong> users are a different matter: store them with <a href="functions-security.html#password-hash">password_hash</a>.</li></ul></li></ul>
+<ul><li>KarelaDB keeps two things per user: a PBKDF2-SHA-256 hash with 600,000 rounds (slow to guess), and a SCRAM-SHA-256 secret with only 4,096 rounds (the PostgreSQL default, faster to guess). This is why database users should have <strong>long random</strong> passwords.</li><li><code>kareladb user add</code> reads the password from a prompt or a pipe (<code>echo &quot;the password&quot; | kareladb user add report --role read</code>), never from the command line.</li><li>SQL text with <code>PASSWORD &#39;...&#39;</code> may end up in your own scripts and logs. The web console&#39;s history and KarelaDB&#39;s statement echo show <code>PASSWORD &#39;***&#39;</code>.</li><li>The passwords of <strong>your app&#39;s</strong> users are a different matter: store them with <a href="functions-security.html#password-hash">password_hash</a>.</li></ul></li></ul>
 <p><strong>Example: A too short password is refused</strong> (shows an error)</p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;ktm2026&#39; ROLE admin;</code></pre>
 <p>Result:</p>
@@ -176,10 +180,10 @@ Content-Type: application/json
 <h2 id="checklist">Checklist</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">bind 127.0.0.1  +  users  +  HTTPS or SSH tunnel  +  firewall  +  private data and backups</code></pre>
-<p>A small Linux VPS with your app and KDB on the same machine. <a href="../tutorial/16-users-passwords-security.html">Chapter 16</a> shows each step with commands.</p>
-<div class="table-wrap"><table><thead><tr><th>Check</th><th>Why</th></tr></thead><tbody><tr><td>KDB runs as its own system user; data and backups are <code>chmod 700</code></td><td>a file copy needs no login</td></tr><tr><td><code>--bind 127.0.0.1</code> (the default); ports 9900 and 8832 closed in the firewall</td><td>strangers can not even connect</td></tr><tr><td>an <code>admin</code> user with a long random password; each app has its own user with the smallest role</td><td>one leaked password does not open everything</td></tr><tr><td><a href="tls.html">TLS</a>, HTTPS (Caddy or nginx) or an SSH tunnel for the console and the PostgreSQL port</td><td>passwords are not sent in plain text</td></tr><tr><td>every <code>kdb</code> program updated before the first user was created</td><td>old versions do not know users and would serve without a login</td></tr><tr><td>app passwords stored with <code>password_hash</code>; session tokens random and stored as <code>sha256</code></td><td>a stolen table does not give the passwords</td></tr><tr><td>nightly backup copied to another place, restore tested</td><td>backups hold the password hashes: keep them private too</td></tr><tr><td>server output checked for <code>login failed</code> now and then</td><td>see who tries to guess</td></tr></tbody></table></div>
+<p>A small Linux VPS with your app and KarelaDB on the same machine. <a href="../tutorial/16-users-passwords-security.html">Chapter 16</a> shows each step with commands.</p>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>Why</th></tr></thead><tbody><tr><td>KarelaDB runs as its own system user; data and backups are <code>chmod 700</code></td><td>a file copy needs no login</td></tr><tr><td><code>--bind 127.0.0.1</code> (the default); ports 9900 and 8832 closed in the firewall</td><td>strangers can not even connect</td></tr><tr><td>an <code>admin</code> user with a long random password; each app has its own user with the smallest role</td><td>one leaked password does not open everything</td></tr><tr><td><a href="tls.html">TLS</a>, HTTPS (Caddy or nginx) or an SSH tunnel for the console and the PostgreSQL port</td><td>passwords are not sent in plain text</td></tr><tr><td>every <code>kareladb</code> program updated before the first user was created</td><td>old versions do not know users and would serve without a login</td></tr><tr><td>app passwords stored with <code>password_hash</code>; session tokens random and stored as <code>sha256</code></td><td>a stolen table does not give the passwords</td></tr><tr><td>nightly backup copied to another place, restore tested</td><td>backups hold the password hashes: keep them private too</td></tr><tr><td>server output checked for <code>login failed</code> now and then</td><td>see who tries to guess</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> not a statement.</li><li><strong>Notes:</strong> rights are per database; <a href="table-rights.html">table rights</a> change them for single tables (no column or row rights). Logins are kept in the data folder (hashes only), so a restart logs nobody out. Give each app its own <a href="api-tokens.html">API token</a>. More protection (timeouts, audit log, scheduled backups): <a href="protection.html">protection</a>.</li></ul>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/server-security.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/server-security.md">This page as markdown</a>.</footer>
 </body>
 </html>

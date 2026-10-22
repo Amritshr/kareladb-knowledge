@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Monitor panel (memory, processor, caches) - KDB (KARELA DataBase) docs</title>
+<title>Monitor panel (memory, processor, caches) - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="What the server is doing right now - memory it holds, processor it uses, what each database keeps in memory, deferred trigger queues, and the statements running this second.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/console-monitor.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-monitor.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/console-monitor.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/console-monitor.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="monitor-panel-memory-processor-caches">Monitor panel (memory, processor, caches)</h1>
 <blockquote><p>What the server is doing right now - memory it holds, processor it uses, what each database keeps in memory, deferred trigger queues, and the statements running this second.</p></blockquote>
-<ul><li>Category: Web console</li><li>Keywords: monitor, timers, timer failures, late timer, Monitor panel, monitoring, memory, RAM, resident, working set, processor, CPU, threads, uptime, running statements, cancel statement, kill query, result cache, cache hits, cached results, memory budget, loaded partitions, pending rows, checkpoint, open cursors, log position, LSN, deferred trigger queue, trigger lag, failed job, /api/stats, activity, activity log, server log, terminal, what the server is doing, GET /api/activity, --activity-log-size, X-KDB-Quiet, slow statements, slow queries, --slow-query-ms, disk use, on disk, trash, metrics</li><li>See also: <a href="web-console.html">Web console</a>, <a href="console-settings.html">Settings page (data folder, old log, capacity, program files and users)</a>, <a href="console-data-page.html">View data page (browse and edit rows)</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a>, <a href="performance-tips.html">Performance tips</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a>, <a href="cli-serve.html">kdb serve</a>, <a href="triggers.html">Triggers</a></li></ul>
-<p>The <strong>Monitor</strong> panel of the <a href="web-console.html">web console</a> shows the inside of a running <code>kdb serve</code>: how much memory the process holds, how busy the processor is, what each open database keeps in memory, and which statements are running right now. Open it with the <strong>Monitor</strong> button on the <a href="web-console.html#right-side">right side</a> of the console. It is a panel, not a page: pin it to keep it open beside the page you work on.</p>
+<ul><li>Category: Web console</li><li>Keywords: monitor, timers, timer failures, late timer, Monitor panel, monitoring, memory, RAM, resident, working set, processor, CPU, threads, uptime, running statements, cancel statement, kill query, result cache, cache hits, cached results, memory budget, loaded partitions, pending rows, checkpoint, open cursors, log position, LSN, deferred trigger queue, trigger lag, failed job, /api/stats, activity, activity log, server log, terminal, what the server is doing, GET /api/activity, --activity-log-size, X-KDB-Quiet, slow statements, slow queries, --slow-query-ms, disk use, on disk, trash, metrics</li><li>See also: <a href="web-console.html">Web console</a>, <a href="console-settings.html">Settings page (data folder, old log, capacity, program files and users)</a>, <a href="console-data-page.html">View data page (browse and edit rows)</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a>, <a href="performance-tips.html">Performance tips</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a>, <a href="cli-serve.html">kareladb serve</a>, <a href="triggers.html">Triggers</a></li></ul>
+<p>The <strong>Monitor</strong> panel of the <a href="web-console.html">web console</a> shows the inside of a running <code>kareladb serve</code>: how much memory the process holds, how busy the processor is, what each open database keeps in memory, and which statements are running right now. Open it with the <strong>Monitor</strong> button on the <a href="web-console.html#right-side">right side</a> of the console. It is a panel, not a page: pin it to keep it open beside the page you work on.</p>
 <p>It reads <a href="http-server-info.html#api-stats"><code>GET /api/stats</code></a> every couple of seconds. Everything there is a counter already in memory, so asking often costs almost nothing: no file is read and no database is opened to answer it.</p>
 <ul><li>Any login that may <strong>read</strong> can see the panel. A <code>read</code> user sees only their own running statements, because statement text can hold values; an <code>admin</code> sees everyone&#39;s.</li><li><strong>Refresh</strong> at the top picks 2, 5, 10 or 30 seconds, or <strong>Off</strong>; <strong>Now</strong> reads the numbers at once. The panel stops asking while it is closed or the browser tab is hidden.</li><li><code>/api/stats</code> holds more than the panel shows, for example the zone map counters (<code>zone_partition_skips</code>, <code>zone_block_skips</code>), <code>cache_pinned</code> and the memory of each database by kind. Read it from a script for those (<a href="http-server-info.html#api-stats">GET /api/stats</a>).</li></ul>
 <h2 id="opening">Warnings and databases opening</h2>
@@ -33,7 +33,7 @@
 <h2 id="lanes">Lanes</h2>
 <p>Shown while <a href="cli-serve.html#lanes">priority lanes</a> are on: the heavy slots in use, how many reports wait for one, how many statement shapes are known to be heavy, and whether heavy statements run at a lower CPU priority here. The table has one line per lane: how many run and wait now, how many started since the server did, how many had to wait and for how long (average and longest), how many were refused because the HTTP line was full (only requests sent with priority <code>low</code>), how many ran at once because it was full (heavy only by history), and how many gave up waiting (a timeout or a cancel).</p>
 <h2 id="slow">Slow statements</h2>
-<p>The newest 20 statements that took at least the slow-query threshold (<code>kdb serve --slow-query-ms</code>, 1 second by default), from <a href="http-server-info.html#slow-queries"><code>GET /api/slow-queries</code></a>. They are kept in a file on disk, so last night&#39;s slow statement is still here in the morning, after a restart too.</p>
+<p>The newest 20 statements that took at least the slow-query threshold (<code>kareladb serve --slow-query-ms</code>, 1 second by default), from <a href="http-server-info.html#slow-queries"><code>GET /api/slow-queries</code></a>. They are kept in a file on disk, so last night&#39;s slow statement is still here in the morning, after a restart too.</p>
 <div class="table-wrap"><table><thead><tr><th>Column</th><th>What it is</th></tr></thead><tbody><tr><td><strong>When</strong></td><td>when it ended</td></tr><tr><td><strong>Took</strong></td><td>how long it ran</td></tr><tr><td><strong>User</strong>, <strong>Database</strong></td><td>who sent it (the token&#39;s name for the <a href="audit-log.html">access token</a>), and where</td></tr><tr><td><strong>Statement</strong></td><td>the statement; <code>failed:</code> in front when it did not succeed. Point at it for the whole text and the error.</td></tr></tbody></table></div>
 <p>The list is read every 10 seconds at most, and at once with <strong>Now</strong>.</p>
 <h2 id="timers">Timers</h2>
@@ -42,7 +42,7 @@
 <p>The numbers come with the rest of <code>/api/stats</code> (<code>timers</code>), from memory: nothing is read from disk for them.</p>
 <h2 id="databases">Each database</h2>
 <p>Only databases that are <strong>open</strong> are listed. A database opens the first time it is used, so a server that has just started may show none - that is not a fault.</p>
-<div class="table-wrap"><table><thead><tr><th>Number</th><th>What it means</th></tr></thead><tbody><tr><td><strong>Rows held in memory</strong></td><td>saved partition data kept in memory, against the budget (<code>--memory</code>, 512 MB by default). When it is full, the partitions used longest ago are dropped and read again when next needed.</td></tr><tr><td><strong>Waiting to be written</strong></td><td>changes that are in the log but not yet in the partition files. A checkpoint writes them; it starts by itself at a quarter of the memory budget.</td></tr><tr><td><strong>Result cache</strong></td><td>memory holding results of repeated queries (<code>--cache-mb</code> or <code>cache_mb</code> in kdb.conf, 256 MB by default; 0 turns it off)</td></tr><tr><td><strong>Cache hits</strong></td><td>share of queries answered from that cache since the database was opened</td></tr><tr><td><strong>Cached results</strong></td><td>how many results are in that cache now</td></tr><tr><td><strong>Open cursors</strong></td><td><a href="cursors.html">cursors</a> a client has open (<code>POST /cursor</code>)</td></tr><tr><td><strong>Log position</strong></td><td>the last change written to the log (the LSN)</td></tr><tr><td><strong>On disk</strong></td><td>what the database takes on disk. The bar is the share that is data; point at it for the parts: data, older versions, trash, log, old log. Measured once a minute. Older versions and trash go by themselves (<code>keep_versions</code>, <code>trash_keep_hours</code>, <code>trash_max_mb</code> in <a href="cli-serve.html#kdb-conf">kdb.conf</a>); the <a href="console-keep-data.html">Keep data page</a> frees them at once.</td></tr><tr><td><strong>Open for</strong></td><td>how long ago the server opened this database</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Number</th><th>What it means</th></tr></thead><tbody><tr><td><strong>Rows held in memory</strong></td><td>saved partition data kept in memory, against the budget (<code>--memory</code>, 512 MB by default). When it is full, the partitions used longest ago are dropped and read again when next needed.</td></tr><tr><td><strong>Waiting to be written</strong></td><td>changes that are in the log but not yet in the partition files. A checkpoint writes them; it starts by itself at a quarter of the memory budget.</td></tr><tr><td><strong>Result cache</strong></td><td>memory holding results of repeated queries (<code>--cache-mb</code> or <code>cache_mb</code> in kareladb.conf, 256 MB by default; 0 turns it off)</td></tr><tr><td><strong>Cache hits</strong></td><td>share of queries answered from that cache since the database was opened</td></tr><tr><td><strong>Cached results</strong></td><td>how many results are in that cache now</td></tr><tr><td><strong>Open cursors</strong></td><td><a href="cursors.html">cursors</a> a client has open (<code>POST /cursor</code>)</td></tr><tr><td><strong>Log position</strong></td><td>the last change written to the log (the LSN)</td></tr><tr><td><strong>On disk</strong></td><td>what the database takes on disk. The bar is the share that is data; point at it for the parts: data, older versions, trash, log, old log. Measured once a minute. Older versions and trash go by themselves (<code>keep_versions</code>, <code>trash_keep_hours</code>, <code>trash_max_mb</code> in <a href="cli-serve.html#kareladb-conf">kareladb.conf</a>); the <a href="console-keep-data.html">Keep data page</a> frees them at once.</td></tr><tr><td><strong>Open for</strong></td><td>how long ago the server opened this database</td></tr></tbody></table></div>
 <p>A database with <a href="triggers.html#deferred">deferred triggers</a> also shows <strong>Deferred trigger queues</strong>, one line per trigger:</p>
 <div class="table-wrap"><table><thead><tr><th>Column</th><th>What it means</th></tr></thead><tbody><tr><td><strong>Trigger</strong>, <strong>Table</strong></td><td>the trigger and the table it watches</td></tr><tr><td><strong>Waiting</strong></td><td>jobs not finished yet</td></tr><tr><td><strong>Lag</strong></td><td>how long the oldest waiting job has waited (<code>-</code> when none waits)</td></tr><tr><td><strong>Running</strong></td><td>the job running now and its rows, or <code>-</code></td></tr><tr><td><strong>Failed job</strong></td><td>a job that failed and stopped the queue, with its error. Fix the cause, then run <code>RETRY TRIGGER QUEUE &lt;trigger&gt;</code>.</td></tr></tbody></table></div>
 <p>The same numbers come from <a href="http-server-info.html#api-trigger-queue">GET /api/trigger-queue</a>, which can also wait until the jobs are done.</p>
@@ -52,7 +52,7 @@
 <h2 id="activity">Server activity</h2>
 <p>The <a href="web-console.html#terminal">terminal</a> at the bottom of the Home page shows what the server has done lately, newest at the bottom: every statement that ended, every bulk load and where it came from, timer runs, deferred trigger jobs, logins and backups. It reads <code>GET /api/activity</code>, described here.</p>
 <div class="table-wrap"><table><thead><tr><th>Kind</th><th>One event for</th></tr></thead><tbody><tr><td><code>query</code></td><td>a statement over HTTP (<code>/exec</code>, <code>/exp</code>, <code>/cursor</code>) or the <a href="postgres-protocol.html">PostgreSQL port</a>, when it ends</td></tr><tr><td><code>write</code></td><td>a <code>POST /write</code> (<a href="line-protocol.html">line protocol</a>) or <code>POST /imp</code> (<a href="http-import.html">CSV import</a>) request: its rows and tables</td></tr><tr><td><code>timer</code></td><td>a run of a <a href="timers.html">timer</a></td></tr><tr><td><code>trigger</code></td><td>a job of a <a href="triggers.html#deferred">deferred trigger</a> that finished or failed (client <code>(deferred trigger)</code>)</td></tr><tr><td><code>login</code></td><td>a login that worked, a failed login, a lockout</td></tr><tr><td><code>backup</code></td><td>a backup made from the console or the <a href="backup-schedule.html">backup schedule</a></td></tr><tr><td><code>server</code></td><td>the server started or stops</td></tr></tbody></table></div>
-<ul><li>It is kept <strong>in memory only</strong>: the last 5,000 events (<code>kdb serve --activity-log-size N</code>, <code>0</code> turns it off). A restart starts it empty. For a record that is kept, use the <a href="audit-log.html">audit log</a>.</li><li>Passwords, secrets and tokens in SQL show as <code>&#39;***&#39;</code>, and long statements are cut to 300 characters.</li><li>A bulk load is <strong>one</strong> event per request, never one per row, so logging does not slow loading down.</li><li>Requests with the header <code>X-KDB-Quiet: 1</code> are not logged. The console sends it with its own background refreshes.</li></ul>
+<ul><li>It is kept <strong>in memory only</strong>: the last 5,000 events (<code>kareladb serve --activity-log-size N</code>, <code>0</code> turns it off). A restart starts it empty. For a record that is kept, use the <a href="audit-log.html">audit log</a>.</li><li>Passwords, secrets and tokens in SQL show as <code>&#39;***&#39;</code>, and long statements are cut to 300 characters.</li><li>A bulk load is <strong>one</strong> event per request, never one per row, so logging does not slow loading down.</li><li>Requests with the header <code>X-KDB-Quiet: 1</code> are not logged. The console sends it with its own background refreshes.</li></ul>
 <p>Syntax:</p>
 <pre><code class="language-sql">GET /api/activity[?after=&lt;seq&gt;][&amp;limit=&lt;n&gt;][&amp;db=&lt;name&gt;]</code></pre>
 <div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>after</code></td><td>only events with a larger <code>seq</code>. Leave it out for the newest events.</td></tr><tr><td><code>limit</code></td><td>at most this many events (default 500, at most 2000)</td></tr><tr><td><code>db</code></td><td>only events of this database</td></tr></tbody></table></div>
@@ -83,10 +83,10 @@ GET /api/activity?limit=2</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 35, &quot;execute_us&quot;: 68}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 59}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 35, &quot;execute_us&quot;: 68}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 59}
 }</code></pre>
 <p><code>GET /api/activity?limit=2</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -96,7 +96,7 @@ GET /api/activity?limit=2</code></pre>
   &quot;events&quot;: [
     {
       &quot;seq&quot;: 2,
-      &quot;ms&quot;: 1792647811577,
+      &quot;ms&quot;: 1792662901027,
       &quot;kind&quot;: &quot;query&quot;,
       &quot;level&quot;: &quot;ok&quot;,
       &quot;user&quot;: &quot;&quot;,
@@ -104,12 +104,12 @@ GET /api/activity?limit=2</code></pre>
       &quot;database&quot;: &quot;h119&quot;,
       &quot;text&quot;: &quot;CREATE TABLE acct (id INT PRIMARY KEY, name STRING, bal DOUBLE); INSERT INTO acct VALUES (1, &#39;Asha&#39;, 10);&quot;,
       &quot;rows&quot;: 1,
-      &quot;took_ms&quot;: 5,
+      &quot;took_ms&quot;: 33,
       &quot;error&quot;: &quot;&quot;
     },
     {
       &quot;seq&quot;: 3,
-      &quot;ms&quot;: 1792647815921,
+      &quot;ms&quot;: 1792662907906,
       &quot;kind&quot;: &quot;query&quot;,
       &quot;level&quot;: &quot;ok&quot;,
       &quot;user&quot;: &quot;&quot;,
@@ -124,8 +124,8 @@ GET /api/activity?limit=2</code></pre>
 }</code></pre>
 <h2 id="not">What it does not show</h2>
 <ul><li>Numbers of the past: the panel keeps nothing, so a reload starts fresh. For a history, let Prometheus read <a href="http-server-info.html#metrics"><code>GET /metrics</code></a>, or read <code>/api/stats</code> from a script every minute and keep the rows in a table.</li><li>Statements that finished long ago. The <a href="#activity">activity</a> keeps only the recent ones in memory; the <a href="audit-log.html">audit log</a> (<code>SHOW AUDIT</code>) keeps who changed what.</li><li>Damage and backups; those are in the <a href="web-console.html#health-box">Health panel</a> on the right side of the console and in <a href="http-server-info.html#get-api-info"><code>/api/info</code></a>.</li></ul>
-<pre><code class="language-bash">curl -s -H &quot;Authorization: Bearer $KDB_TOKEN&quot; http://127.0.0.1:9900/api/stats</code></pre>
+<pre><code class="language-bash">curl -s -H &quot;Authorization: Bearer $KARELADB_TOKEN&quot; http://127.0.0.1:9900/api/stats</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-monitor.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/console-monitor.md">This page as markdown</a>.</footer>
 </body>
 </html>

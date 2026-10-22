@@ -437,7 +437,7 @@ kurtosis(x)
 kurt(x)
 ```
 
-The **kurtosis** tells how often **very big values** come, compared with a normal bell curve. KDB gives the **excess** kurtosis: a normal curve has `0`.
+The **kurtosis** tells how often **very big values** come, compared with a normal bell curve. KarelaDB gives the **excess** kurtosis: a normal curve has `0`.
 
 - **Positive kurtosis ("fat tails"):** very big moves, up or down, happen more often than a bell curve says. Most share returns are like this: a model that expects a normal curve under-guesses the risk of a crash day.
 - **Negative kurtosis:** the values stay inside a band; very big moves are rare.
@@ -863,7 +863,7 @@ percentile_disc(fraction) WITHIN GROUP (ORDER BY x)
 mode() WITHIN GROUP (ORDER BY x)
 ```
 
-The SQL standard (PostgreSQL) way to write `percentile_cont`, `percentile_disc` and `mode`. KDB reads `percentile_cont(0.9) WITHIN GROUP (ORDER BY x)` as `percentile_cont(x, 0.9)`, so both spellings give the same result. It helps when you copy SQL from PostgreSQL.
+The SQL standard (PostgreSQL) way to write `percentile_cont`, `percentile_disc` and `mode`. KarelaDB reads `percentile_cont(0.9) WITHIN GROUP (ORDER BY x)` as `percentile_cont(x, 0.9)`, so both spellings give the same result. It helps when you copy SQL from PostgreSQL.
 
 | Part | Meaning |
 |---|---|
@@ -1228,7 +1228,7 @@ Syntax:
 approx_count_distinct(x)
 ```
 
-The number of **different** values of `x`. Other databases (DuckDB, ClickHouse, BigQuery) guess this number to save memory. In KDB today the count is **exact**: it gives the same result as `count(DISTINCT x)`. The name exists so SQL from those databases works.
+The number of **different** values of `x`. Other databases (DuckDB, ClickHouse, BigQuery) guess this number to save memory. In KarelaDB today the count is **exact**: it gives the same result as `count(DISTINCT x)`. The name exists so SQL from those databases works.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -1236,7 +1236,7 @@ The number of **different** values of `x`. Other databases (DuckDB, ClickHouse, 
 
 - **Returns:** `LONG`.
 - **NULL:** NULL values are not counted. No values give `0`.
-- **Notes:** equal numbers of different types count as one value (`1` and `1.0`). KDB keeps every different value in memory while it counts.
+- **Notes:** equal numbers of different types count as one value (`1` and `1.0`). KarelaDB keeps every different value in memory while it counts.
 
 **Example: Different buyers and sellers of each share** (sample data: sample)
 

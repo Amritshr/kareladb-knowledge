@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SELECT - KDB (KARELA DataBase) docs</title>
+<title>SELECT - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Choose the columns and values that a query gives back, and the table they come from.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/select.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/select.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/select.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/select.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="select">SELECT</h1>
 <blockquote><p>Choose the columns and values that a query gives back, and the table they come from.</p></blockquote>
@@ -40,7 +40,7 @@ ORDER BY change_pct DESC;</code></pre>
 [UNION ALL SELECT ...]
 [ORDER BY expression [ASC | DESC], ...]
 [LIMIT n [OFFSET m]]</code></pre>
-<p>The parts must be written in this order. KDB does the work in another order:</p>
+<p>The parts must be written in this order. KarelaDB does the work in another order:</p>
 <div class="table-wrap"><table><thead><tr><th>Step</th><th>Part</th><th>What happens</th></tr></thead><tbody><tr><td>1</td><td><code>FROM</code>, <code>JOIN</code></td><td>read the tables</td></tr><tr><td>2</td><td><code>WHERE</code></td><td>keep only the rows that match</td></tr><tr><td>3</td><td><code>LATEST ON</code></td><td>keep the newest row of each group</td></tr><tr><td>4</td><td><code>SAMPLE BY</code>, <code>GROUP BY</code></td><td>make groups and compute <code>sum</code>, <code>max</code>, ...</td></tr><tr><td>5</td><td><code>HAVING</code></td><td>keep only the groups that match</td></tr><tr><td>6</td><td>window functions</td><td><code>lag</code>, <code>sma</code>, <code>row_number</code>, ...</td></tr><tr><td>7</td><td>select list, <code>DISTINCT</code></td><td>compute the output columns</td></tr><tr><td>8</td><td><code>UNION ALL</code></td><td>add the rows of the next query</td></tr><tr><td>9</td><td><code>ORDER BY</code>, <code>LIMIT</code>, <code>OFFSET</code></td><td>sort and cut</td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Item</th><th>Example</th></tr></thead><tbody><tr><td>a column</td><td><code>close</code></td></tr><tr><td>a column of one table (with joins)</td><td><code>f.symbol</code></td></tr><tr><td>a calculation</td><td><code>high - low</code></td></tr><tr><td>a function</td><td><code>round(close, 1)</code>, <code>upper(name)</code></td></tr><tr><td>an aggregate</td><td><code>count(*)</code>, <code>max(high)</code> (see <a href="group-by.html">GROUP BY</a>)</td></tr><tr><td>a constant</td><td><code>&#39;hello&#39;</code>, <code>100</code>, <code>TRUE</code>, <code>NULL</code></td></tr><tr><td>all columns</td><td><code>*</code>, <code>f.*</code></td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> a table of rows. The column names come from the aliases, else from the items.</li><li><strong>Notes:</strong> names of tables, columns and functions do not care about case (<code>CLOSE</code> is <code>close</code>). Text values do: <code>&#39;CITY&#39;</code> is not <code>&#39;city&#39;</code>.</li></ul>
@@ -72,7 +72,7 @@ WHERE entry_id IN (2, 8);</code></pre>
 <pre><code class="language-sql">SELECT * FROM table
 SELECT alias.*, other_item, ... FROM table alias JOIN ...</code></pre>
 <p><code>*</code> means every column of every table in <code>FROM</code>, in table order. <code>alias.*</code> means every column of one table.</p>
-<ul><li><strong>Returns:</strong> the stored columns and the computed columns (<code>AS (...)</code>) of the table.</li><li><strong>Notes:</strong> <code>*</code> cannot be used together with aggregates or <code>SAMPLE BY</code>. In programs, list the columns you need: KDB then takes only those columns out of each stored row, which is faster on wide tables (<code>EXPLAIN</code> shows <code>build 3 of 7 stored column(s) per row</code>), and a new column in the table does not change your result.</li></ul>
+<ul><li><strong>Returns:</strong> the stored columns and the computed columns (<code>AS (...)</code>) of the table.</li><li><strong>Notes:</strong> <code>*</code> cannot be used together with aggregates or <code>SAMPLE BY</code>. In programs, list the columns you need: KarelaDB then takes only those columns out of each stored row, which is faster on wide tables (<code>EXPLAIN</code> shows <code>build 3 of 7 stored column(s) per row</code>), and a new column in the table does not change your result.</li></ul>
 <p><strong>Example</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT * FROM brokers;</code></pre>
 <p>Result:</p>
@@ -129,7 +129,7 @@ GROUP BY symbol;</code></pre>
 <h2 id="select-without-from">SELECT without FROM</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">SELECT expression [[AS] alias], ...</code></pre>
-<p>Without <code>FROM</code>, KDB computes the values once and gives one row. Use it like a calculator, or to test a function.</p>
+<p>Without <code>FROM</code>, KarelaDB computes the values once and gives one row. Use it like a calculator, or to test a function.</p>
 <ul><li><strong>Returns:</strong> one row.</li><li><strong>Notes:</strong> <code>WHERE</code> still works (a false condition gives 0 rows). <code>*</code> needs a <code>FROM</code> table.</li></ul>
 <p><strong>Example</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT 1 + 1 AS two, round(100000 * 1.08, 2) AS with_interest, upper(&#39;city&#39;) AS symbol;</code></pre>
@@ -199,6 +199,6 @@ ORDER BY buyer, symbol;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>symbols_traded (LONG)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>4</td><td>32</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/select.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/select.md">This page as markdown</a>.</footer>
 </body>
 </html>

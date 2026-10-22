@@ -6,12 +6,12 @@
 - Keywords: constraint, rule, column rule, primary key, key, auto increment, autoincrement, serial, identity, sequence, AUTO, not null, required, unique, duplicate, default value, DEFAULT, foreign key, references, REFERENCES, parent row, ON DELETE CASCADE, check, CHECK, CONSTRAINT, validation, data integrity, cannot be NULL, must be unique, has no matching row, still refers to it, CHECK constraint failed, NaN, bad price, price check
 - See also: [CREATE TABLE](create-table.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [INSERT](insert.md), [UPDATE and DELETE](update-delete.md), [Indexes](indexes.md), [Transactions](transactions.md)
 
-A **constraint** is a rule for the rows of a table. KDB checks the rules every time a row is written (`INSERT`, `INSERT OR REPLACE`, `UPDATE`, the C++ `InsertRows`, the line protocol). A row that breaks a rule is **not** written, and the whole statement fails. So your app can never store a user without an email, a negative balance, or a trade for a broker that does not exist.
+A **constraint** is a rule for the rows of a table. KarelaDB checks the rules every time a row is written (`INSERT`, `INSERT OR REPLACE`, `UPDATE`, the C++ `InsertRows`, the line protocol). A row that breaks a rule is **not** written, and the whole statement fails. So your app can never store a user without an email, a negative balance, or a trade for a broker that does not exist.
 
 | Rule | Meaning | Error when broken |
 |---|---|---|
 | [`PRIMARY KEY`](#primary-key) | one row per value; never NULL | `a row with id='1' already exists` |
-| [`AUTO`](#auto) | KDB gives the next id | |
+| [`AUTO`](#auto) | KarelaDB gives the next id | |
 | [`NOT NULL`](#not-null) | the column must have a value | `cannot be NULL` |
 | [`UNIQUE`](#unique) | no two rows with the same value | `must be unique: ... is already used` |
 | [`DEFAULT`](#default) | the value when an INSERT gives none | |
@@ -166,7 +166,7 @@ Syntax:
 column BYTE | SHORT | INT | LONG PRIMARY KEY AUTO
 ```
 
-When an `INSERT` gives no value (or `NULL`) for the key, KDB uses the **next number** of the table's counter: 1, 2, 3, ... This is like `SERIAL` or `IDENTITY` in PostgreSQL.
+When an `INSERT` gives no value (or `NULL`) for the key, KarelaDB uses the **next number** of the table's counter: 1, 2, 3, ... This is like `SERIAL` or `IDENTITY` in PostgreSQL.
 
 - You may still give an id yourself. A bigger id moves the counter up: after id 10, the next automatic id is 11.
 - The counter **only goes up**. The id of a deleted row, of a failed insert, or of a rolled-back transaction is never used again, so there can be gaps (1, 2, 4, ...).
@@ -547,7 +547,7 @@ The value must exist in the other table (the **parent**). This is a **foreign ke
 | `table` | the parent table; it must exist already (or be the same table) |
 | `column` | the parent column; it must be the `PRIMARY KEY` or `UNIQUE`, with the same kind of type (any integer type fits any integer type; a `SYMBOL` may point to a `STRING`) |
 
-What KDB checks:
+What KarelaDB checks:
 
 | Action | Result |
 |---|---|
@@ -700,7 +700,7 @@ A condition that every row must meet. A row where the condition is **false** is 
 |---|---|
 | `condition` | uses the stored columns of the **same row**, operators, `CASE`, `IN`, `BETWEEN`, `LIKE` and built-in functions (`length(email) > 3`) |
 | not allowed | other rows, subqueries, aggregates (`sum`), window functions, saved functions, computed columns |
-| `CONSTRAINT name` | the name of the rule; without it KDB makes `table_column_check` (after a column) or `table_check` (for the table) |
+| `CONSTRAINT name` | the name of the rule; without it KarelaDB makes `table_column_check` (after a column) or `table_check` (for the table) |
 | `NULL` | a condition that is `NULL` **passes**: add `NOT NULL` when the value must be there |
 | NaN | every comparison with a NaN (`=`, `<`, `>=`, `BETWEEN`, `IN`) is **false** here, and `<>` is true: `CHECK (price > 0)` refuses a NaN price, `CHECK (price <> 0)` does not. Write what a good value is, not what a bad one is. (A query compares a NaN as PostgreSQL does, bigger than every number: see [DOUBLE](column-types.md#double).) |
 

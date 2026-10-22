@@ -1,21 +1,21 @@
 # EXPLAIN
 
-> See how KDB will read the tables for a query, without running it; with ANALYZE, run it and see what really happened.
+> See how KarelaDB will read the tables for a query, without running it; with ANALYZE, run it and see what really happened.
 
 - Category: Querying
-- Keywords: EXPLAIN, plan, query plan, EXPLAIN ANALYZE, ANALYZE, actual rows, Execution Time, Planning Time, EXPLAIN (FORMAT JSON), FORMAT JSON, BUFFERS, VERBOSE, EXPLAIN WITH, EXPLAIN DELETE, EXPLAIN UPDATE, EXPLAIN INSERT, EXPLAIN CALL, depends on runtime value, explain plan, slow query, partitions skipped, key range, full scan, hash join, nested loop, filter while scanning, filter after joins, read only key range(s), use index, no index, a scan is cheaper, skipped by column stats, zone maps, KDB\_NO\_ZONE\_MAPS, answer from saved stats, answer from the partition list, KDB\_NO\_PARTITION\_ANSWERS, stored column(s) per row, KDB\_NO\_COLUMN\_MASK, engine: column, engine: row, column engine, row engine, speed
+- Keywords: EXPLAIN, plan, query plan, EXPLAIN ANALYZE, ANALYZE, actual rows, Execution Time, Planning Time, EXPLAIN (FORMAT JSON), FORMAT JSON, BUFFERS, VERBOSE, EXPLAIN WITH, EXPLAIN DELETE, EXPLAIN UPDATE, EXPLAIN INSERT, EXPLAIN CALL, depends on runtime value, explain plan, slow query, partitions skipped, key range, full scan, hash join, nested loop, filter while scanning, filter after joins, read only key range(s), use index, no index, a scan is cheaper, skipped by column stats, zone maps, KARELADB\_NO\_ZONE\_MAPS, answer from saved stats, answer from the partition list, KARELADB\_NO\_PARTITION\_ANSWERS, stored column(s) per row, KARELADB\_NO\_COLUMN\_MASK, engine: column, engine: row, column engine, row engine, speed
 - See also: [SELECT (from)](select.md#from), [Joins (join)](joins.md#join), [SAMPLE BY (sample-by)](sample-by.md#sample-by), [LATEST ON (latest-on)](latest-on.md#latest-on), [Partitions, SORT BY and DEDUP KEY (partition-by)](partitions-and-dedup.md#partition-by), [Indexes](indexes.md), [UNION and subqueries (from-subquery)](union-subqueries.md#from-subquery), [Transactions](transactions.md), [pg_stat_activity and pg_stat_statements (pg-stat-statements)](server-activity.md#pg-stat-statements)
 
-`EXPLAIN` shows the **plan** of a query: which tables KDB reads, how many partitions it skips, how it joins, groups and sorts. It does not run the query and does not show rows. [`EXPLAIN ANALYZE`](explain.md#explain-analyze) runs it and adds the real rows and times.
+`EXPLAIN` shows the **plan** of a query: which tables KarelaDB reads, how many partitions it skips, how it joins, groups and sorts. It does not run the query and does not show rows. [`EXPLAIN ANALYZE`](explain.md#explain-analyze) runs it and adds the real rows and times.
 
 Use it when a query is slow. The most important lines are:
 
-- `scan table ... (1 of 2 partitions ...)`: the time filter lets KDB skip whole partition files. "2 of 2" on a big table means **every** file is read. The `about N rows` in that line is an estimate of the whole table's size, not what the query reads.
+- `scan table ... (1 of 2 partitions ...)`: the time filter lets KarelaDB skip whole partition files. "2 of 2" on a big table means **every** file is read. The `about N rows` in that line is an estimate of the whole table's size, not what the query reads.
 - `..., 3 skipped by column stats)` inside that bracket: a condition like `rate > 900` ruled those partitions out from the smallest and biggest value each one holds (see [zone maps](explain.md#zone-maps)).
-- `read only N key range(s) of each partition`: KDB jumps straight to the rows of the symbols you asked for.
-- `answer from saved stats ...` or `answer from the partition list ...`: KDB answers without reading the rows at all (see [answers without reading rows](explain.md#saved-stats)).
+- `read only N key range(s) of each partition`: KarelaDB jumps straight to the rows of the symbols you asked for.
+- `answer from saved stats ...` or `answer from the partition list ...`: KarelaDB answers without reading the rows at all (see [answers without reading rows](explain.md#saved-stats)).
 
-**Example: One symbol, one month: KDB reads 1 of 2 partitions, and only CITY's rows** (sample data: sample)
+**Example: One symbol, one month: KarelaDB reads 1 of 2 partitions, and only CITY's rows** (sample data: sample)
 
 ```sql
 EXPLAIN SELECT time, close FROM ochl_day WHERE symbol = 'CITY' AND time IN '2026-09';
@@ -48,12 +48,12 @@ Shows the plan of a `SELECT`, one line per step, in a result with one column cal
 
 - **Returns:** rows of text, one step per row (see [the plan lines](explain.md#plan-lines)).
 - **Notes:**
-  - The main query does **not** run. But KDB checks it first: an unknown table or column gives the same error as the query itself.
+  - The main query does **not** run. But KarelaDB checks it first: an unknown table or column gives the same error as the query itself.
   - A subquery in `FROM`, a view, and `IN (SELECT ...)` / `(SELECT ...)` values **are** run, because the plan needs their results. EXPLAIN of a query on a slow view is slow too.
   - `INSERT`, `UPDATE`, `DELETE` and `CALL` can be explained too: see [EXPLAIN INSERT, UPDATE, DELETE](explain.md#explain-change) and [EXPLAIN CALL](explain.md#explain-call). `EXPLAIN SELECT ... FOR UPDATE` is an error.
   - `EXPLAIN SELECT` without `FROM` gives an empty plan.
   - With `UNION ALL`, only the first part is described, plus a line `union all with N more part(s)`.
-  - In the command line table format long lines are cut. Use `kdb sql ... --format csv` to see the whole plan.
+  - In the command line table format long lines are cut. Use `kareladb sql ... --format csv` to see the whole plan.
   - A user with the `read` role can run EXPLAIN.
 
 **Example: Candles: filter, sample, group, sort and limit** (sample data: sample)
@@ -192,7 +192,7 @@ Runs the query, then shows its plan and what really happened: the rows and the t
 - **Notes:**
   - The query really runs, with its [time limit](protection.md#statement-timeout) and memory limits, and can be cancelled. Its rows are not sent.
   - Only a `SELECT` that changes nothing is run. `EXPLAIN ANALYZE` of `INSERT`, `UPDATE`, `DELETE` or `CALL`, of `SELECT ... FOR UPDATE`, and of `WITH x AS (DELETE ...) SELECT ...` is refused, and nothing is changed: use `EXPLAIN` without `ANALYZE` for their plan. (PostgreSQL would run them and change the data.)
-  - `VERBOSE`, `BUFFERS`, `COSTS`, `SUMMARY` and `SETTINGS` are accepted; KDB has no costs or buffer counts to add. `TIMING` and `WAL` need `ANALYZE`, as in PostgreSQL. `FORMAT XML` and `YAML` are not supported.
+  - `VERBOSE`, `BUFFERS`, `COSTS`, `SUMMARY` and `SETTINGS` are accepted; KarelaDB has no costs or buffer counts to add. `TIMING` and `WAL` need `ANALYZE`, as in PostgreSQL. `FORMAT XML` and `YAML` are not supported.
   - Times are wall-clock milliseconds of this run; run it twice to see the effect of files already in memory.
 
 **Example: Where the time of a candle report goes: the column engine, 1 of 2 partitions** (sample data: sample)
@@ -211,13 +211,13 @@ Result:
 | group by 1 key(s), 2 aggregate(s) |
 | sort by 1 key(s) |
 | engine: column |
-| actual: 3 row(s) in 0.360 ms |
-|   -> ochl_day: 3 row(s) in 0.341 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
-|      steps: prepare 0.014 ms, scan and aggregate 0.326 ms |
+| actual: 3 row(s) in 0.298 ms |
+|   -> ochl_day: 3 row(s) in 0.283 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
+|      steps: prepare 0.021 ms, scan and aggregate 0.262 ms |
 | partitions read: 1 |
 | memory: 2016 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.188 ms |
-| Execution Time: 0.360 ms |
+| Planning Time: 0.703 ms |
+| Execution Time: 0.298 ms |
 
 (13 rows)
 
@@ -239,15 +239,15 @@ Result:
 | sort by 1 key(s) |
 | limit 3 |
 | engine: row (a join) |
-| actual: 3 row(s) in 0.270 ms |
-|   -> t, brokers: 3 row(s) in 0.259 ms, engine: row (a join) |
-|      steps: prepare 0.054 ms, scan, join and filter 0.194 ms, sort 0.008 ms, limit and result 0.002 ms |
-|     -> trade_log: 5 row(s) in 0.035 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.014 ms, scan and aggregate 0.020 ms, result 0.001 ms |
+| actual: 3 row(s) in 0.106 ms |
+|   -> t, brokers: 3 row(s) in 0.102 ms, engine: row (a join) |
+|      steps: prepare 0.041 ms, scan, join and filter 0.055 ms, sort 0.005 ms, limit and result 0.001 ms |
+|     -> trade_log: 5 row(s) in 0.029 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.013 ms, scan and aggregate 0.016 ms, result 0.001 ms |
 | partitions read: 3 |
 | memory: 1059 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.493 ms |
-| Execution Time: 0.270 ms |
+| Planning Time: 0.298 ms |
+| Execution Time: 0.106 ms |
 
 (14 rows)
 
@@ -259,7 +259,7 @@ EXPLAIN ANALYZE DELETE FROM trade_log;
 
 Result:
 
-Error: `EXPLAIN ANALYZE runs the statement to measure it, and KDB does that for SELECT only: an INSERT, UPDATE, DELETE or CALL would really change data. Use EXPLAIN without ANALYZE for its plan`
+Error: `EXPLAIN ANALYZE runs the statement to measure it, and KarelaDB does that for SELECT only: an INSERT, UPDATE, DELETE or CALL would really change data. Use EXPLAIN without ANALYZE for its plan`
 
 <a id="explain-json"></a>
 
@@ -275,7 +275,7 @@ EXPLAIN (ANALYZE, FORMAT JSON) SELECT ...
 The plan as one JSON value, for tools: one row in the column `plan`.
 
 - **Returns:** `[{"Plan": {"Node Type": "Query", "Plan Lines": [...]}}]`. With `ANALYZE` the plan also has `"Actual Rows"`, `"Actual Total Time"` and `"Plans"`: one object per part of the query that ran, with `"Relation Name"`, `"Depth"`, `"Engine"`, `"Actual Rows"`, `"Actual Total Time"`, `"Steps"` (`[{"Step": ..., "Time": ...}]`) and, for a table, `"Partitions Total"`, `"Partitions Read"`, `"Partitions Skipped"`, `"Partitions Skipped By Column Stats"`. Next to `"Plan"` come `"Partitions Read"`, `"Peak Memory Bytes"`, `"Planning Time"` and `"Execution Time"`.
-- **Notes:** the shape is PostgreSQL's (an array with one object holding `"Plan"`), but KDB's plan is a list of steps, not a tree of costed nodes: its lines are in `"Plan Lines"`. Times are milliseconds.
+- **Notes:** the shape is PostgreSQL's (an array with one object holding `"Plan"`), but KarelaDB's plan is a list of steps, not a tree of costed nodes: its lines are in `"Plan Lines"`. Times are milliseconds.
 
 **Example: The plan of a report, for a tool** (sample data: sample)
 
@@ -325,7 +325,7 @@ Shows how the statement finds its rows: partitions, key ranges, index. **No row 
   - `DELETE` and `UPDATE` start with `delete from table t (k of n partitions, about r rows)` or `update table t (...)`. Then come the same lines as for a `SELECT` scan: `use index ...` or `read only k key range(s) ...`, and `filter while scanning: k condition(s)`. `UPDATE` ends with `set k column(s)`.
   - `INSERT ... SELECT` shows `insert into table t the rows of this query:` and the plan of the `SELECT` under it, moved in by two spaces.
   - `INSERT ... VALUES` shows only how many rows it has.
-  - Other lines: `run the WITH queries first`, `find the rows with the column engine and take them from its scan` (a big keyed table, a condition without an index that the column engine checks; `KDB_NO_VECTOR_MATCHES=1` gives the older `find the rows with the column engine, then read only them by their keys`), `look up the key of every row for a clash` (`ON CONFLICT`, `INSERT OR REPLACE`), `find the target rows by t.id IN (1, 2), then match them with the rows of USING` (or `FROM`; `match every row with the rows of USING` when no part of the WHERE finds them first), `return k item(s) per row` (`RETURNING`).
+  - Other lines: `run the WITH queries first`, `find the rows with the column engine and take them from its scan` (a big keyed table, a condition without an index that the column engine checks; `KARELADB_NO_VECTOR_MATCHES=1` gives the older `find the rows with the column engine, then read only them by their keys`), `look up the key of every row for a clash` (`ON CONFLICT`, `INSERT OR REPLACE`), `find the target rows by t.id IN (1, 2), then match them with the rows of USING` (or `FROM`; `match every row with the rows of USING` when no part of the WHERE finds them first), `return k item(s) per row` (`RETURNING`).
   - An `UPDATE` or `DELETE` uses an index whenever one fits: it has no `no index: ...` choice. Partitions ruled out by column stats are left out of `k of n`, but the plan does not say how many.
   - The same rights are needed as for the statement itself: `EXPLAIN DELETE` needs `DELETE` on the table.
   - With `UPDATE ... FROM` or `DELETE ... USING`, conditions that use the other table are counted as `filter after matching`.
@@ -519,25 +519,25 @@ The lines come in this order. A line is missing when the query does not have tha
 | `aggregates pushed into the k UNION ALL parts ...` | A `GROUP BY` over a `UNION ALL` in `FROM`: each part groups its own table first (see [UNION ALL](union-subqueries.md)). |
 | `window functions over grouped rows ...` | A window function over a `GROUP BY` result: the grouping runs first. |
 | `answer from the partition list ...` | See [answers without reading rows](explain.md#saved-stats). It is then the whole plan, with `sort by` and `limit` after it. |
-| `scan table t (k of n partitions, about r rows)` | The first table of `FROM`. KDB reads `k` of its `n` partition files; the others are skipped because of the time filter, the symbols, or [column stats](explain.md#zone-maps). `about r rows` is only an **estimate** of the size of the **whole** table. It is not the number of rows this query reads or matches: for that, run `SELECT count(*)` with the same `WHERE`. |
+| `scan table t (k of n partitions, about r rows)` | The first table of `FROM`. KarelaDB reads `k` of its `n` partition files; the others are skipped because of the time filter, the symbols, or [column stats](explain.md#zone-maps). `about r rows` is only an **estimate** of the size of the **whole** table. It is not the number of rows this query reads or matches: for that, run `SELECT count(*)` with the same `WHERE`. |
 | `scan result of name (r rows)` | The first source is a subquery or a view. It has already run and gave `r` rows. A subquery without a name (`FROM (SELECT ...)` with no alias) shows as `a subquery`; in part n of a `UNION ALL` it shows as `subquery n`, so the parts can be told apart (also in `EXPLAIN ANALYZE`). |
 | `push k condition(s) into ...` | Conditions of your `WHERE` also run inside the view or subquery, so it makes fewer rows (see [views](views.md)). With `after its windows`: they run inside a window query right after its window values are worked out, so it makes only the rows you keep (see [views](views.md#where-pushdown)). |
 | `push k rank limit(s) into ...` | `rn <= N` on a `row_number`, `rank` or `dense_rank` column of a window query: the rows above N are dropped inside it, and `row_number()` orders only the first N rows of each partition (see [views](views.md#where-pushdown)). |
-| `time range from the calendar condition(s): ...` | `EXTRACT(YEAR FROM ts) = 2026 AND EXTRACT(MONTH FROM ts) = 8`, `year(ts) = 2026`, `date_trunc('month', ts) = '2026-08-01'` and the like on a `TIMESTAMP` column: KDB puts the time range they mean (in UTC) in their place: it keeps exactly the same rows, and partitions, indexes, key ranges and the column engine can use it. |
+| `time range from the calendar condition(s): ...` | `EXTRACT(YEAR FROM ts) = 2026 AND EXTRACT(MONTH FROM ts) = 8`, `year(ts) = 2026`, `date_trunc('month', ts) = '2026-08-01'` and the like on a `TIMESTAMP` column: KarelaDB puts the time range they mean (in UTC) in their place: it keeps exactly the same rows, and partitions, indexes, key ranges and the column engine can use it. |
 | `use index name (...)` | A secondary index finds the rows (see [indexes](indexes.md)). |
 | `count from the index (no rows read)` | `SELECT count(*)` whose whole `WHERE` the index answers exactly (a [full-text](full-text-search.md) `MATCH`, or the `WHERE` of a partial index): the answer is the index's own count, and no row is read. |
 | `index gives the first n row(s) in order` | A `LIMIT` (plus `OFFSET`) the index answers alone, with no `ORDER BY` or one by the table's key: only the first `n` rows the index finds are read. |
 | `no index: the column stats rule out every partition` | The [column stats](explain.md#zone-maps) show that no partition can hold a match, so the answer is empty and no index is read. |
 | `no index: name would read r row(s), a scan is cheaper` | An index fits, but it finds so many rows that reading the partitions is faster (see [when an index is used](indexes.md#when-used)). |
-| `...; it reads only the storage keys those rows lie between` | A relational table with an index on a time column: rows written together have nearby times, so the rows the index finds lie in one stretch of the table. The scan reads only that stretch (the `read only 1 key range(s)` line), on all threads. When the index finds more than a quarter of the table, KDB scans the whole table instead: that is faster than walking the index. |
+| `...; it reads only the storage keys those rows lie between` | A relational table with an index on a time column: rows written together have nearby times, so the rows the index finds lie in one stretch of the table. The scan reads only that stretch (the `read only 1 key range(s)` line), on all threads. When the index finds more than a quarter of the table, KarelaDB scans the whole table instead: that is faster than walking the index. |
 | `answer from saved stats of table t: ...` | `count`, `sum`, `min`, `max` of whole partitions come from numbers the files keep (see [answers without reading rows](explain.md#saved-stats)). |
-| `join (hash on k key(s)) table t` | An inner join. KDB builds a lookup on the `a = b` conditions of `ON`: fast. |
+| `join (hash on k key(s)) table t` | An inner join. KarelaDB builds a lookup on the `a = b` conditions of `ON`: fast. |
 | `join (key lookup on columns) table t` | The `ON` conditions give the first columns of `t`'s key (its `PRIMARY KEY`, or `SORT BY` / `DEDUP KEY` with the time column): each left row reads only its own rows of `t`, and nothing is built first. Chosen when the left side is small next to `t` (see [joins](joins.md#join-speed)). |
 | `join (index lookup on column) table t` | The same through an index on that column of `t`. |
 | `left join ...`, `asof join ...`, `cross join ...` | The other kinds of [joins](joins.md#join). |
 | `(nested loop)` | The join has no `a = b` condition, so every left row is checked with every right row: slow for big tables. |
-| `read only k key range(s) of each partition` | Rows are stored sorted (by symbol, then time). `symbol = '...'` or `symbol IN (...)` lets KDB read only those parts of each file. It also follows a `...reads only the storage keys ...` line. |
-| `build k of n stored column(s) per row: ...` | The columns KDB takes out of each stored row: only the ones the query uses. A `SELECT *` reads them all and has no such line. |
+| `read only k key range(s) of each partition` | Rows are stored sorted (by symbol, then time). `symbol = '...'` or `symbol IN (...)` lets KarelaDB read only those parts of each file. It also follows a `...reads only the storage keys ...` line. |
+| `build k of n stored column(s) per row: ...` | The columns KarelaDB takes out of each stored row: only the ones the query uses. A `SELECT *` reads them all and has no such line. |
 | `filter while scanning: k condition(s)` | Parts of `WHERE` (joined by `AND`) that use only the first table. They are checked while the rows are read. |
 | `filter after joins: k condition(s)` | Parts of `WHERE` that use a joined table. They are checked after the join. |
 | `latest row per partition on col` | [LATEST ON](latest-on.md#latest-on). |
@@ -554,10 +554,10 @@ The lines come in this order. A line is missing when the query does not have tha
 - **Notes:**
   - Only the **first** table in `FROM` skips partitions. A time filter on a joined table does not make it read less: its line always shows all partitions. Put the big time-series table first.
   - A function around the column (`upper(symbol) = 'CITY'`) stops the key ranges: the `read only ...` line disappears.
-  - For a `DATE` time column, KDB also reads the partition of the next day, to be safe.
+  - For a `DATE` time column, KarelaDB also reads the partition of the next day, to be safe.
   - The `engine:` line uses the same tests the query uses when it runs. Only the data can still change it: a partition whose `min` / `max` column holds a NaN is read by the row engine. Which conditions keep a query in the fast column engine: see [WHERE: fast conditions](where.md#fast-conditions).
 
-**Example: Good: the symbol is written plainly, so KDB reads 2 key ranges** (sample data: sample)
+**Example: Good: the symbol is written plainly, so KarelaDB reads 2 key ranges** (sample data: sample)
 
 ```sql
 EXPLAIN SELECT time, symbol, close FROM ochl_day WHERE symbol IN ('CITY', 'COAST') AND time >= '2026-09-01';
@@ -900,19 +900,19 @@ Result:
 | scan result of subquery 1 (6 rows) |
 | engine: row (reads a subquery or view result) |
 | union all with 1 more part(s) |
-| actual: 10 row(s) in 0.065 ms |
-|   -> subquery 1: 6 row(s) in 0.039 ms, engine: row (reads a subquery or view result) |
-|      steps: prepare 0.037 ms, scan and filter 0.002 ms, result 0.000 ms |
-|     -> trade_log: 6 row(s) in 0.024 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.013 ms, scan and filter 0.010 ms, result 0.001 ms |
+| actual: 10 row(s) in 0.051 ms |
+|   -> subquery 1: 6 row(s) in 0.029 ms, engine: row (reads a subquery or view result) |
+|      steps: prepare 0.027 ms, scan and filter 0.001 ms, result 0.000 ms |
+|     -> trade_log: 6 row(s) in 0.020 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.010 ms, scan and filter 0.009 ms, result 0.001 ms |
 |   -> subquery 2: 4 row(s) in 0.018 ms, engine: row (reads a subquery or view result) |
 |      steps: prepare 0.017 ms, scan and filter 0.001 ms, result 0.000 ms |
-|     -> trade_log: 4 row(s) in 0.011 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
-|        steps: prepare 0.004 ms, scan and filter 0.007 ms, result 0.000 ms |
+|     -> trade_log: 4 row(s) in 0.012 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
+|        steps: prepare 0.007 ms, scan and filter 0.004 ms, result 0.000 ms |
 | partitions read: 3 |
 | memory: 0 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.428 ms |
-| Execution Time: 0.065 ms |
+| Planning Time: 0.268 ms |
+| Execution Time: 0.051 ms |
 
 (16 rows)
 
@@ -926,7 +926,7 @@ Syntax:
 scan table t (k of n partitions, about r rows, s skipped by column stats)
 ```
 
-Every partition file keeps the smallest and the biggest value of each column. When a condition cannot be true for any value in that range, KDB skips the whole partition. `rate > 900` skips a partition whose biggest `rate` is 883.
+Every partition file keeps the smallest and the biggest value of each column. When a condition cannot be true for any value in that range, KarelaDB skips the whole partition. `rate > 900` skips a partition whose biggest `rate` is 883.
 
 | Condition | Skips partitions |
 |---|---|
@@ -937,10 +937,10 @@ Every partition file keeps the smallest and the biggest value of each column. Wh
 
 - **Columns:** whole numbers, `FLOAT`, `DOUBLE`, `DECIMAL`, `DATE` and `TIMESTAMP`. `SYMBOL` columns are skipped in their own way, by the names each partition holds.
 - **Notes:**
-  - It works whether the partition is **in memory or not**. For a partition not in memory, KDB reads only the stats part of its file (a few hundred bytes) once and keeps it, also after the rows are pushed out of memory. A file written again (after `UPDATE`, `DELETE` or new rows) has its stats read again.
+  - It works whether the partition is **in memory or not**. For a partition not in memory, KarelaDB reads only the stats part of its file (a few hundred bytes) once and keeps it, also after the rows are pushed out of memory. A file written again (after `UPDATE`, `DELETE` or new rows) has its stats read again.
   - Rows written since the last checkpoint are checked one by one (up to 4,096 per partition). More than that and the partition is read.
   - It works for `SELECT`, `UPDATE` and `DELETE`, in both engines. The result never changes: only what is read.
-  - Set `KDB_NO_ZONE_MAPS=1` in the environment to turn it off (and the [saved stats answers](explain.md#saved-stats) with it), for a before-and-after timing.
+  - Set `KARELADB_NO_ZONE_MAPS=1` in the environment to turn it off (and the [saved stats answers](explain.md#saved-stats) with it), for a before-and-after timing.
 
 **Example: The biggest rate is 883, so rate > 900 skips both partitions** (sample data: sample)
 
@@ -982,7 +982,7 @@ answer from saved stats of table t: a of p partitions from the partition list an
 answer from the partition list of table t (k of n partitions; no other rows read)
 ```
 
-Some questions are answered from what KDB already knows about each partition, without loading its rows.
+Some questions are answered from what KarelaDB already knows about each partition, without loading its rows.
 
 | Query | Answered from |
 |---|---|
@@ -993,7 +993,7 @@ Some questions are answered from what KDB already knows about each partition, wi
 - **Partition list:** the time value must be the same for every row of a partition, like a `DATE` column of a table with daily partitions.
 - **Notes:**
   - Not on a table with [computed columns](create-table.md), not with a `symbol = ...` condition, and not with `first` or `last`.
-  - Set `KDB_NO_PARTITION_ANSWERS=1` to turn off the partition list answers.
+  - Set `KARELADB_NO_PARTITION_ANSWERS=1` to turn off the partition list answers.
 
 **Example: Count, lowest, highest and total volume of every daily candle: no row is read** (sample data: sample)
 

@@ -3,8 +3,8 @@
 > Where the server keeps its data, how to point it at another folder, and who may log in - all from the console.
 
 - Category: Web console
-- Keywords: settings, settings page, data folder, move data, change data folder, kdb.conf, config file, --config, restart, restart server, add user, change password, remove user, grants, roles, free space, disk space, wal\_archive, wal\_archive\_mb, KDB\_WAL\_ARCHIVE\_MB, old log, cache\_mb, KDB\_CACHE\_MB, result cache size, program files, web\_dir, help\_dir, skill\_dir, KDB\_WEB\_DIR, KDB\_HELP\_DIR, KDB\_SKILL\_DIR, command line, Docker, KDB\_DATA\_DIR, capacity, http\_threads, max\_connections, lock\_timeout\_ms, idle\_in\_transaction\_timeout\_ms, rate\_limit\_ip, rate\_limit\_user, timer\_workers, http\_functions, KDB\_HTTP\_FUNCTIONS
-- See also: [Web console](web-console.md), [Monitor panel (memory, processor, caches)](console-monitor.md), [View data page (browse and edit rows)](console-data-page.md), [Users and roles](users-and-roles.md), [kdb user](cli-users.md), [kdb serve](cli-serve.md), [Databases and the data folder](databases.md), [Keeping kdb serve safe](server-security.md), [Install packages and the Claude skill](install-packages.md), [Health, info, check and backup over HTTP](http-server-info.md)
+- Keywords: settings, settings page, data folder, move data, change data folder, kareladb.conf, config file, --config, restart, restart server, add user, change password, remove user, grants, roles, free space, disk space, wal\_archive, wal\_archive\_mb, KARELADB\_WAL\_ARCHIVE\_MB, old log, cache\_mb, KARELADB\_CACHE\_MB, result cache size, program files, web\_dir, help\_dir, skill\_dir, KARELADB\_WEB\_DIR, KARELADB\_HELP\_DIR, KARELADB\_SKILL\_DIR, command line, Docker, KARELADB\_DATA\_DIR, capacity, http\_threads, max\_connections, lock\_timeout\_ms, idle\_in\_transaction\_timeout\_ms, rate\_limit\_ip, rate\_limit\_user, timer\_workers, http\_functions, KARELADB\_HTTP\_FUNCTIONS
+- See also: [Web console](web-console.md), [Monitor panel (memory, processor, caches)](console-monitor.md), [View data page (browse and edit rows)](console-data-page.md), [Users and roles](users-and-roles.md), [kareladb user](cli-users.md), [kareladb serve](cli-serve.md), [Databases and the data folder](databases.md), [Keeping kareladb serve safe](server-security.md), [Install packages and the Claude skill](install-packages.md), [Health, info, check and backup over HTTP](http-server-info.md)
 
 The **Settings** page of the [web console](web-console.md) has these parts: **Storage** (where the databases live), **Old log kept per database** (the `wal_archive` size), **Result cache** (`cache_mb`), **Backups**, **Calls from SQL** (`http_functions`), **Capacity and waits** (HTTP threads, PostgreSQL connections, the lock timeout, the drain time), **Program files** (the folders of the console, the help and the Claude skill) and **Users** (who may log in). Only a user whose own `ROLE` is `admin` may open it; everybody else sees a line saying so.
 
@@ -19,15 +19,15 @@ Where the data folder comes from, strongest first:
 | Source | Badge | Set by |
 |---|---|---|
 | `--data-dir <folder>` | `--data-dir on the command line` | the command that started the server |
-| `kdb.conf` | `this Settings page (kdb.conf)` | **Save** on this page |
-| `KDB_DATA_DIR` | `the KDB_DATA_DIR environment variable` | the environment |
-| the default | `program folder` | `data` next to `kdb` |
+| `kareladb.conf` | `this Settings page (kareladb.conf)` | **Save** on this page |
+| `KARELADB_DATA_DIR` | `the KARELADB_DATA_DIR environment variable` | the environment |
+| the default | `program folder` | `data` next to `kareladb` |
 
 **A flag always wins.** When the server was started with `--data-dir`, the page says so in a yellow banner: a folder saved here will only be used once the server is started without that flag. This is worth reading before pressing anything - it is the difference between a setting that works and one that quietly does nothing.
 
 **How this server was started** folds open to show the settings file (`config_path`) and the whole command line (`command_line`), as [GET /api/settings](http-server-info.md#api-settings) gives them.
 
-**In Docker** the image passes the data folder as the environment variable `KDB_DATA_DIR=/data`, not as `--data-dir`, on purpose: a flag would always win, and this page could then never change the folder. The image also keeps `kdb.conf` in the volume (`--config /data/kdb.conf`), so a setting saved here survives a new image and a new container. A folder you choose here must be under a mounted volume too; anywhere else is inside the container and is lost with it ([Docker](install-packages.md#docker)).
+**In Docker** the image passes the data folder as the environment variable `KARELADB_DATA_DIR=/data`, not as `--data-dir`, on purpose: a flag would always win, and this page could then never change the folder. The image also keeps `kareladb.conf` in the volume (`--config /data/kareladb.conf`), so a setting saved here survives a new image and a new container. A folder you choose here must be under a mounted volume too; anywhere else is inside the container and is lost with it ([Docker](install-packages.md#docker)).
 
 <a id="change"></a>
 
@@ -39,7 +39,7 @@ Type a folder and press **Save**. Before anything is written, the server:
 2. writes a small file in it and removes it again, to be sure it can write there,
 3. refuses a folder that is itself **one database** (it holds a `_manifest.a`) - the data folder is the one **above** those, the one with a folder per database.
 
-Only then is the folder written to `kdb.conf`. A folder that fails any of those checks is refused with the reason, and the file is not touched.
+Only then is the folder written to `kareladb.conf`. A folder that fails any of those checks is refused with the reason, and the file is not touched.
 
 ```json
 {"data_dir":"E:/kdb-data"}
@@ -65,7 +65,7 @@ Only then is the folder written to `kdb.conf`. A folder that fails any of those 
 If the saved folder cannot be used when the server starts again - an unplugged disk, a renamed share - the server does **not** refuse to boot. It prints a warning and starts on the usual folder instead, so there is always a console to fix the setting in:
 
 ```text
-warning: the data folder saved in 'C:/kdb/kdb.conf' cannot be used: cannot make the folder 'Z:/gone'
+warning: the data folder saved in 'C:/kdb/kareladb.conf' cannot be used: cannot make the folder 'Z:/gone'
          starting with the usual folder instead. Fix it on the Settings page.
 ```
 
@@ -73,13 +73,13 @@ warning: the data folder saved in 'C:/kdb/kdb.conf' cannot be used: cannot make 
 
 ### When it cannot be changed here
 
-The page shows the folder without a **Save** button when the settings file cannot be written - a read-only program folder, for instance, as in some container images. It then says why, and the folder is set with `--data-dir` or `KDB_DATA_DIR` as before. `--config <file>` puts the settings file somewhere writable:
+The page shows the folder without a **Save** button when the settings file cannot be written - a read-only program folder, for instance, as in some container images. It then says why, and the folder is set with `--data-dir` or `KARELADB_DATA_DIR` as before. `--config <file>` puts the settings file somewhere writable:
 
 ```bash
-kdb serve --config /var/lib/kdb/kdb.conf
+kareladb serve --config /var/lib/kdb/kareladb.conf
 ```
 
-A server started on **one database folder** (`kdb serve D:\kdb\market`) has no data folder to change, so Storage is read-only there too.
+A server started on **one database folder** (`kareladb serve D:\kdb\market`) has no data folder to change, so Storage is read-only there too.
 
 <a id="wal-archive"></a>
 
@@ -89,8 +89,8 @@ Each database keeps old log files in its `wal_archive` folder. They are only use
 
 | Where the value comes from, strongest first | Shown as |
 |---|---|
-| `wal_archive_mb` in `kdb.conf` (**Save** here) | `this page (kdb.conf)` |
-| the environment variable `KDB_WAL_ARCHIVE_MB` | `KDB_WAL_ARCHIVE_MB` |
+| `wal_archive_mb` in `kareladb.conf` (**Save** here) | `this page (kareladb.conf)` |
+| the environment variable `KARELADB_WAL_ARCHIVE_MB` | `KARELADB_WAL_ARCHIVE_MB` |
 | the default | `the default (1 GB)` |
 
 - **Save** works at once, with no restart. A smaller size removes the oldest files of every open database now.
@@ -110,8 +110,8 @@ The [result cache](performance-tips.md#result-cache) keeps the results of repeat
 | Where the value comes from, strongest first | Shown as |
 |---|---|
 | `--cache-mb` on the command line (the page cannot change it then) | `--cache-mb` |
-| `cache_mb` in `kdb.conf` (**Save** here) | `this page (kdb.conf)` |
-| the environment variable `KDB_CACHE_MB` | `KDB_CACHE_MB` |
+| `cache_mb` in `kareladb.conf` (**Save** here) | `this page (kareladb.conf)` |
+| the environment variable `KARELADB_CACHE_MB` | `KARELADB_CACHE_MB` |
 | the default | `the default (256 MB)` |
 
 - **Save** works at once, with no restart. A smaller size drops the oldest results now.
@@ -122,7 +122,7 @@ The [result cache](performance-tips.md#result-cache) keeps the results of repeat
 
 ## Backups
 
-The backup folder, the schedule, how many backups are kept, and the command that copies each backup off the server. Each line says where its value came from: a flag, this page (`kdb.conf`), the environment or the default ([where the settings come from](backup-schedule.md#backup-settings)).
+The backup folder, the schedule, how many backups are kept, and the command that copies each backup off the server. Each line says where its value came from: a flag, this page (`kareladb.conf`), the environment or the default ([where the settings come from](backup-schedule.md#backup-settings)).
 
 | Line | What it is |
 |---|---|
@@ -131,8 +131,8 @@ The backup folder, the schedule, how many backups are kept, and the command that
 | **Kept** | the newest backup of each of the last N days and weeks |
 | **Copy off the server** | the [backup command](backup-schedule.md#backup-command), or `none` with a warning: backups on the same disk are lost with it |
 
-- **Save** writes the schedule and the two counts to `kdb.conf`. They are used from the next start: use **Restart** under Storage.
-- The folder and the copy command are shown, not edited. A command runs programs on the server, so it is set in `kdb.conf` by hand, with `--backup-command` or `KDB_BACKUP_COMMAND`.
+- **Save** writes the schedule and the two counts to `kareladb.conf`. They are used from the next start: use **Restart** under Storage.
+- The folder and the copy command are shown, not edited. A command runs programs on the server, so it is set in `kareladb.conf` by hand, with `--backup-command` or `KARELADB_BACKUP_COMMAND`.
 - Keep enough old log (above) to cover the time between two backups, or a restore to a moment in between is not possible ([the window](backup-and-safety.md#pitr-window)).
 
 ```json
@@ -146,8 +146,8 @@ The backup folder, the schedule, how many backups are kept, and the command that
 Which hosts [`http_get` and `http_post`](http-functions.md) may call, and how long one call may take.
 
 - Type the hosts separated by commas (`api.example.com, 10.0.0.5:8080`), or `off`.
-- **Save** writes `http_functions` and `http_timeout_ms` to `kdb.conf`. They apply at once, no restart.
-- **Set by** says where the list came from: this page (`kdb.conf`), `KDB_HTTP_FUNCTIONS`, or the default (off).
+- **Save** writes `http_functions` and `http_timeout_ms` to `kareladb.conf`. They apply at once, no restart.
+- **Set by** says where the list came from: this page (`kareladb.conf`), `KARELADB_HTTP_FUNCTIONS`, or the default (off).
 
 <a id="capacity"></a>
 
@@ -157,17 +157,17 @@ What the server was started with, and where each value came from. It is read-onl
 
 | Line | Setting | Set with, strongest first |
 |---|---|---|
-| **HTTP requests at once** | `http_threads` | `--http-threads`, then `kdb.conf`, then `KDB_HTTP_THREADS`, then the CPU threads (at least 8) |
-| **PostgreSQL connections** | `max_connections` | `--max-connections`, then `kdb.conf`, then `KDB_MAX_CONNECTIONS`, then 500 |
-| **Wait for a busy table** | `lock_timeout_ms` | `--lock-timeout`, then `kdb.conf`, then `KDB_LOCK_TIMEOUT`, then 5 s. A session changes its own with [`SET lock_timeout`](transactions.md#lock-timeout). |
-| **Idle open transaction rolled back after** | `idle_in_transaction_timeout_ms` | `--idle-in-transaction-timeout`, then `kdb.conf`, then `KDB_IDLE_IN_TRANSACTION_TIMEOUT`, then 30 s. A session: [`SET idle_in_transaction_session_timeout`](transactions.md#idle-timeout). |
-| **Time to finish on stop** | `--drain-timeout` | `--drain-timeout`, then `KDB_DRAIN_TIMEOUT`, then 30 s ([stopping](cli-serve.md#stop)) |
-| **Requests per second per address** | `rate_limit_ip` | `--rate-limit-ip`, then `kdb.conf`, then `KDB_RATE_LIMIT_IP`, then no limit ([rate limits](protection.md#rate-limits)) |
-| **Requests per second per user** | `rate_limit_user` | `--rate-limit-user`, then `kdb.conf`, then `KDB_RATE_LIMIT_USER`, then no limit |
-| **Timers running at once** | `timer_workers` | `--timer-workers`, then `kdb.conf`, then `KDB_TIMER_WORKERS`, then 3 ([timers](timers.md)) |
-| **TCP keepalive: idle before the first probe**, **between probes**, **probes before giving up** | `tcp_keepalives_idle`, `tcp_keepalives_interval`, `tcp_keepalives_count` | `--tcp-keepalives-*`, then `kdb.conf`, then `KDB_TCP_KEEPALIVES_*`, then the system's. A Postgres session: [`SET tcp_keepalives_idle`](server-activity.md#idle-clients). |
+| **HTTP requests at once** | `http_threads` | `--http-threads`, then `kareladb.conf`, then `KARELADB_HTTP_THREADS`, then the CPU threads (at least 8) |
+| **PostgreSQL connections** | `max_connections` | `--max-connections`, then `kareladb.conf`, then `KARELADB_MAX_CONNECTIONS`, then 500 |
+| **Wait for a busy table** | `lock_timeout_ms` | `--lock-timeout`, then `kareladb.conf`, then `KARELADB_LOCK_TIMEOUT`, then 5 s. A session changes its own with [`SET lock_timeout`](transactions.md#lock-timeout). |
+| **Idle open transaction rolled back after** | `idle_in_transaction_timeout_ms` | `--idle-in-transaction-timeout`, then `kareladb.conf`, then `KARELADB_IDLE_IN_TRANSACTION_TIMEOUT`, then 30 s. A session: [`SET idle_in_transaction_session_timeout`](transactions.md#idle-timeout). |
+| **Time to finish on stop** | `--drain-timeout` | `--drain-timeout`, then `KARELADB_DRAIN_TIMEOUT`, then 30 s ([stopping](cli-serve.md#stop)) |
+| **Requests per second per address** | `rate_limit_ip` | `--rate-limit-ip`, then `kareladb.conf`, then `KARELADB_RATE_LIMIT_IP`, then no limit ([rate limits](protection.md#rate-limits)) |
+| **Requests per second per user** | `rate_limit_user` | `--rate-limit-user`, then `kareladb.conf`, then `KARELADB_RATE_LIMIT_USER`, then no limit |
+| **Timers running at once** | `timer_workers` | `--timer-workers`, then `kareladb.conf`, then `KARELADB_TIMER_WORKERS`, then 3 ([timers](timers.md)) |
+| **TCP keepalive: idle before the first probe**, **between probes**, **probes before giving up** | `tcp_keepalives_idle`, `tcp_keepalives_interval`, `tcp_keepalives_count` | `--tcp-keepalives-*`, then `kareladb.conf`, then `KARELADB_TCP_KEEPALIVES_*`, then the system's. A Postgres session: [`SET tcp_keepalives_idle`](server-activity.md#idle-clients). |
 
-To change one, write its key into `kdb.conf` by hand and press **Restart** under Storage; a flag or an environment variable changes only when the server is started again. Every option of the server, with its flag, variable and key, is in [every option](cli-serve.md#all-options).
+To change one, write its key into `kareladb.conf` by hand and press **Restart** under Storage; a flag or an environment variable changes only when the server is started again. Every option of the server, with its flag, variable and key, is in [every option](cli-serve.md#all-options).
 
 ```json
 {"data_dir":"E:/kdb-data","http_threads":32,"max_connections":300,"lock_timeout_ms":20000}
@@ -177,16 +177,16 @@ To change one, write its key into `kdb.conf` by hand and press **Restart** under
 
 ## Program files
 
-The web console, the help pages and the Claude skill are folders of plain files next to the kdb program, not part of it. This part shows which folder the server uses for each, and what chose it. It is read-only.
+The web console, the help pages and the Claude skill are folders of plain files next to the kareladb program, not part of it. This part shows which folder the server uses for each, and what chose it. It is read-only.
 
 | Line | Folder | Chosen by, strongest first |
 |---|---|---|
-| **Web console** | `web_dir` | `kdb.conf` `"web_dir"`, then `KDB_WEB_DIR`, then `web/` next to the program, then `share/kdb/web` beside the program folder, then a source checkout |
-| **Help pages** | `help_dir` | the same, with `"help_dir"`, `KDB_HELP_DIR` and `help/` |
-| **Claude skill** | `skill_dir` | the same, with `"skill_dir"`, `KDB_SKILL_DIR` and `skill/` |
+| **Web console** | `web_dir` | `kareladb.conf` `"web_dir"`, then `KARELADB_WEB_DIR`, then `web/` next to the program, then `share/kareladb/web` beside the program folder, then a source checkout |
+| **Help pages** | `help_dir` | the same, with `"help_dir"`, `KARELADB_HELP_DIR` and `help/` |
+| **Claude skill** | `skill_dir` | the same, with `"skill_dir"`, `KARELADB_SKILL_DIR` and `skill/` |
 
-- After each folder the page says where it came from: `from kdb.conf`, `from KDB_WEB_DIR`, `next to the program`, `in share/kdb beside the program folder` or `from the source checkout`. `not found` means none of the places had the files.
-- To use other folders, write them into `kdb.conf` by hand, or set the environment variables, and restart the server. More: [where kdb finds the console, the help and the skill](install-packages.md#folders).
+- After each folder the page says where it came from: `from kareladb.conf`, `from KARELADB_WEB_DIR`, `next to the program`, `in share/kareladb beside the program folder` or `from the source checkout`. `not found` means none of the places had the files.
+- To use other folders, write them into `kareladb.conf` by hand, or set the environment variables, and restart the server. More: [where kareladb finds the console, the help and the skill](install-packages.md#folders).
 
 ```json
 {"data_dir":"E:/kdb-data","web_dir":"E:/kdb/web","help_dir":"E:/kdb/help","skill_dir":"E:/kdb/skill"}
@@ -196,7 +196,7 @@ The web console, the help pages and the Claude skill are folders of plain files 
 
 ## Users
 
-The same users as [`CREATE USER`](users-and-roles.md) and [`kdb user`](cli-users.md) - this page just sends that SQL for you.
+The same users as [`CREATE USER`](users-and-roles.md) and [`kareladb user`](cli-users.md) - this page just sends that SQL for you.
 
 | Button | What it sends |
 |---|---|

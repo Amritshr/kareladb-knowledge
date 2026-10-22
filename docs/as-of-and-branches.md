@@ -3,10 +3,10 @@
 > Read a table as it was at an earlier time or commit, undo a bad change with one query, and make a full writable copy of a database in a moment, without copying its files.
 
 - Category: Databases & folders
-- Keywords: AS OF, AS OF TIMESTAMP, AS OF LSN, AS OF SYSTEM TIME, FOR SYSTEM\_TIME AS OF, time travel, flashback, read the past, table as it was, undo, undo a bad import, point in time, BRANCH OF, branch, clone, copy database, zero-copy, test copy, hard link, keep\_versions, KDB\_KEEP\_VERSIONS, no longer kept
-- See also: [Databases and the data folder](databases.md), [Change stream and live subscriptions: changes('t'), GET /api/changes, GET /api/subscribe](change-stream.md), [Backup, check, repair and restore](backup-and-safety.md), [kdb serve](cli-serve.md), [The trash - UNDROP TABLE](trash.md)
+- Keywords: AS OF, AS OF TIMESTAMP, AS OF LSN, AS OF SYSTEM TIME, FOR SYSTEM\_TIME AS OF, time travel, flashback, read the past, table as it was, undo, undo a bad import, point in time, BRANCH OF, branch, clone, copy database, zero-copy, test copy, hard link, keep\_versions, KARELADB\_KEEP\_VERSIONS, no longer kept
+- See also: [Databases and the data folder](databases.md), [Change stream and live subscriptions: changes('t'), GET /api/changes, GET /api/subscribe](change-stream.md), [Backup, check, repair and restore](backup-and-safety.md), [kareladb serve](cli-serve.md), [The trash - UNDROP TABLE](trash.md)
 
-KDB never changes a data file once it is written. Each checkpoint writes the changed files anew and keeps the older versions for a while. With those and the log, KDB can show a table **as it was**, and make a new database from another one **without copying** its files.
+KarelaDB never changes a data file once it is written. Each checkpoint writes the changed files anew and keeps the older versions for a while. With those and the log, KarelaDB can show a table **as it was**, and make a new database from another one **without copying** its files.
 
 | You want | Write |
 |---|---|
@@ -68,9 +68,9 @@ A read AS OF needs, for each file of the table, a version older than the point, 
 
 | What limits it | Kept | Set with |
 |---|---|---|
-| older versions of each table file | 2 per file | `keep_versions` in `kdb.conf`, `KDB_KEEP_VERSIONS` (0 to 10) |
+| older versions of each table file | 2 per file | `keep_versions` in `kareladb.conf`, `KARELADB_KEEP_VERSIONS` (0 to 10) |
 | older versions of the catalog (the tables' definitions), views, routines, sequences | at least 16 | always (they are a few KB) |
-| the old log | 1 GB | `ALTER DATABASE ... SET WAL_ARCHIVE`, `KDB_WAL_ARCHIVE_MB` |
+| the old log | 1 GB | `ALTER DATABASE ... SET WAL_ARCHIVE`, `KARELADB_WAL_ARCHIVE_MB` |
 
 So a table that changes often can be read back over its last few checkpoints, a table that rarely changes much further. A point that can no longer be rebuilt is **refused**, never answered with rows that were not there together. The error says why and the oldest point that still works:
 
@@ -83,7 +83,7 @@ These also end a table's history, because their rows are in no file any more:
 
 - a partition that became empty (all its rows deleted), `DROP PARTITION`, a TTL drop
 - `TRUNCATE`, and `PURGE VERSIONS`
-- a database last written by a KDB from before AS OF, or restored from a backup: its history starts at its next open for writing
+- a database last written by a KarelaDB from before AS OF, or restored from a backup: its history starts at its next open for writing
 
 <a id="branch"></a>
 

@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Line protocol (POST /write) - KDB (KARELA DataBase) docs</title>
+<title>Line protocol (POST /write) - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Load many rows fast with the InfluxDB line format over HTTP - one line per row, answered with 204.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/line-protocol.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/line-protocol.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/line-protocol.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/line-protocol.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="line-protocol-post-write">Line protocol (POST /write)</h1>
 <blockquote><p>Load many rows fast with the InfluxDB line format over HTTP - one line per row, answered with 204.</p></blockquote>
-<ul><li>Category: Writing data</li><li>Keywords: line protocol, ILP, InfluxDB, auto-create, create table from lines, ilp_auto_create, KDB_ILP_AUTO_CREATE, influx, /write, /api/v2/write, precision, nanoseconds, seconds, milliseconds, 1970, timestamps look like seconds, tag, field, measurement, ticks, live feed, bulk load, 204, 503, 507, disk full, table is busy, errorId, QuestDB ILP, upsert, upsert, merge, partial update, 3i, integer suffix, t suffix, Telegraf</li><li>See also: <a href="insert.html">INSERT</a>, <a href="loading-data.html">Loading many rows</a>, <a href="triggers.html">Triggers</a>, <a href="http-overview.html">HTTP API overview</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="performance-tips.html">Performance tips</a></li></ul>
+<ul><li>Category: Writing data</li><li>Keywords: line protocol, ILP, InfluxDB, auto-create, create table from lines, ilp_auto_create, KARELADB_ILP_AUTO_CREATE, influx, /write, /api/v2/write, precision, nanoseconds, seconds, milliseconds, 1970, timestamps look like seconds, tag, field, measurement, ticks, live feed, bulk load, 204, 503, 507, disk full, table is busy, errorId, QuestDB ILP, upsert, upsert, merge, partial update, 3i, integer suffix, t suffix, Telegraf</li><li>See also: <a href="insert.html">INSERT</a>, <a href="loading-data.html">Loading many rows</a>, <a href="triggers.html">Triggers</a>, <a href="http-overview.html">HTTP API overview</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="performance-tips.html">Performance tips</a>, <a href="grafana.html">Grafana and Prometheus</a></li></ul>
 <p>The <strong>line protocol</strong> is a very short text format for rows, made by InfluxDB and used by QuestDB. Each line is one row. It is faster to make and to read than <code>INSERT</code> statements, so it is good for live feeds (market ticks or sensor readings every second) and big loads.</p>
 <pre><code class="language-text">live_data,symbol=CITY ltp=528.5,ltv=120i,volume=45120i 1789103700000000000</code></pre>
 <ul><li>Send the lines as the body of <code>POST /write</code>. A good request answers <strong>204</strong> (OK, no body).</li><li>A table that is not there is <strong>made from the lines</strong>, as QuestDB does (<a href="#new-tables">new tables</a>). Columns of a table that is there must already exist: add them with <a href="alter-table.html">ALTER TABLE</a>.</li><li>All lines of one request are written together, as one transaction: all or nothing.</li></ul>
@@ -26,11 +26,11 @@
 <p>Field values:</p>
 <div class="table-wrap"><table><thead><tr><th>Written</th><th>Kind</th><th>Goes into columns of type</th></tr></thead><tbody><tr><td><code>512.4</code>, <code>-3</code>, <code>1e6</code></td><td>a decimal number</td><td><code>DOUBLE</code>, <code>FLOAT</code>, <code>DECIMAL</code></td></tr><tr><td><code>120i</code></td><td>a whole number (<code>i</code> at the end)</td><td><code>INT</code>, <code>LONG</code>, <code>SHORT</code>, <code>BYTE</code>, and also <code>DOUBLE</code>, <code>DECIMAL</code></td></tr><tr><td><code>120u</code></td><td>a whole number without sign (<code>u</code>), up to 2^63-1</td><td>the same as <code>i</code></td></tr><tr><td><code>&quot;text&quot;</code></td><td>text in double quotes</td><td><code>STRING</code>, <code>SYMBOL</code>, <code>JSON</code>, <code>BYTES</code>, and any other type that can read that text (like <code>INSERT</code> does: <code>&quot;2026-09-11&quot;</code> for a <code>DATE</code>)</td></tr><tr><td><code>t</code>, <code>true</code>, <code>f</code>, <code>false</code> (also <code>T</code>, <code>True</code>, <code>TRUE</code>, ...)</td><td>a boolean</td><td><code>BOOL</code></td></tr><tr><td><code>1789103700000000t</code></td><td>a time in <strong>microseconds</strong> (<code>t</code> at the end, as QuestDB writes it). <strong>Only</strong> microseconds: see <a href="#wrong-unit">the wrong unit</a></td><td><code>TIMESTAMP</code>, <code>DATE</code></td></tr></tbody></table></div>
 <p>Rules for writing lines:</p>
-<ul><li>A space, a comma or <code>=</code> inside a table name, tag name or tag value is written with a backslash: <code>\ </code>, <code>\,</code>, <code>\=</code>.</li><li>In a <code>&quot;text&quot;</code> value, write <code>\&quot;</code> for a quote and <code>\\</code> for a backslash. Text may hold commas, spaces and even line breaks.</li><li>Empty lines and lines starting with <code>#</code> are skipped. Lines may end with <code>\n</code> or <code>\r\n</code>.</li><li>Columns not in a line get their <code>DEFAULT</code>, or NULL.</li><li>A decimal number like <code>5.0</code> cannot go into an <code>INT</code> or <code>LONG</code> column: write <code>5i</code>.</li><li>The time column itself cannot be a field: send its value as the line&#39;s timestamp.</li><li>KDB keeps times in milliseconds. Finer parts (microseconds, nanoseconds) are cut off.</li><li><code>precision=</code> is only for the timestamp at the <strong>end</strong> of the line. A <code>TIMESTAMP</code> field always needs microseconds and <code>t</code>.</li></ul>
+<ul><li>A space, a comma or <code>=</code> inside a table name, tag name or tag value is written with a backslash: <code>\ </code>, <code>\,</code>, <code>\=</code>.</li><li>In a <code>&quot;text&quot;</code> value, write <code>\&quot;</code> for a quote and <code>\\</code> for a backslash. Text may hold commas, spaces and even line breaks.</li><li>Empty lines and lines starting with <code>#</code> are skipped. Lines may end with <code>\n</code> or <code>\r\n</code>.</li><li>Columns not in a line get their <code>DEFAULT</code>, or NULL.</li><li>A decimal number like <code>5.0</code> cannot go into an <code>INT</code> or <code>LONG</code> column: write <code>5i</code>.</li><li>The time column itself cannot be a field: send its value as the line&#39;s timestamp.</li><li>KarelaDB keeps times in milliseconds. Finer parts (microseconds, nanoseconds) are cut off.</li><li><code>precision=</code> is only for the timestamp at the <strong>end</strong> of the line. A <code>TIMESTAMP</code> field always needs microseconds and <code>t</code>.</li></ul>
 <h2 id="wrong-unit">Times in the wrong unit</h2>
-<p>A time in the wrong unit is the easiest way to load wrong data: <code>1757750400</code> read as nanoseconds is 1.7 seconds after midnight on 1 January 1970. KDB <strong>refuses</strong> such a request with 400 and says how to fix it. Nothing of the request is written.</p>
-<div class="table-wrap"><table><thead><tr><th>You send</th><th>KDB answers</th></tr></thead><tbody><tr><td>No <code>precision=</code>, and <strong>every</strong> line timestamp is before 1990 as nanoseconds, while one of them is a 1990-2200 time in seconds, milliseconds or microseconds</td><td>400 <code>timestamps look like seconds (1757750400) but precision= is not set: add ?precision=s</code></td></tr><tr><td>A <code>t</code> field whose number is a 1990-2200 time in seconds or milliseconds (<code>1757750400000t</code>)</td><td>400 <code>column &#39;at&#39; cannot take 1757750400000t: a t value is microseconds, and this number looks like milliseconds ...; write 1757750400000000t</code></td></tr><tr><td>A plain whole number for a <code>TIMESTAMP</code> or <code>DATE</code> field (<code>at=1757750400000</code> or <code>at=1757750400000i</code>)</td><td>400 <code>... cannot take the plain number 1757750400000i: a time field needs microseconds with a t suffix (this number looks like milliseconds: write 1757750400000000t)</code></td></tr></tbody></table></div>
-<ul><li><strong>Always send <code>precision=</code></strong> when your timestamps are not nanoseconds. With <code>precision=</code> the numbers are taken as sent, with no check.</li><li>The ranges of seconds, milliseconds and microseconds do not overlap, so the message names the one unit that fits. KDB never guesses and writes.</li><li>Real nanosecond data still goes in, also a small test time like <code>5</code>: no unit makes that a 1990-2200 time.</li><li><strong>QuestDB:</strong> QuestDB takes the same bodies without an error and writes 1970 times. A plain integer for a <code>TIMESTAMP</code> field is read as microseconds there; KDB refuses it, because apps often mean milliseconds.</li></ul>
+<p>A time in the wrong unit is the easiest way to load wrong data: <code>1757750400</code> read as nanoseconds is 1.7 seconds after midnight on 1 January 1970. KarelaDB <strong>refuses</strong> such a request with 400 and says how to fix it. Nothing of the request is written.</p>
+<div class="table-wrap"><table><thead><tr><th>You send</th><th>KarelaDB answers</th></tr></thead><tbody><tr><td>No <code>precision=</code>, and <strong>every</strong> line timestamp is before 1990 as nanoseconds, while one of them is a 1990-2200 time in seconds, milliseconds or microseconds</td><td>400 <code>timestamps look like seconds (1757750400) but precision= is not set: add ?precision=s</code></td></tr><tr><td>A <code>t</code> field whose number is a 1990-2200 time in seconds or milliseconds (<code>1757750400000t</code>)</td><td>400 <code>column &#39;at&#39; cannot take 1757750400000t: a t value is microseconds, and this number looks like milliseconds ...; write 1757750400000000t</code></td></tr><tr><td>A plain whole number for a <code>TIMESTAMP</code> or <code>DATE</code> field (<code>at=1757750400000</code> or <code>at=1757750400000i</code>)</td><td>400 <code>... cannot take the plain number 1757750400000i: a time field needs microseconds with a t suffix (this number looks like milliseconds: write 1757750400000000t)</code></td></tr></tbody></table></div>
+<ul><li><strong>Always send <code>precision=</code></strong> when your timestamps are not nanoseconds. With <code>precision=</code> the numbers are taken as sent, with no check.</li><li>The ranges of seconds, milliseconds and microseconds do not overlap, so the message names the one unit that fits. KarelaDB never guesses and writes.</li><li>Real nanosecond data still goes in, also a small test time like <code>5</code>: no unit makes that a 1990-2200 time.</li><li><strong>QuestDB:</strong> QuestDB takes the same bodies without an error and writes 1970 times. A plain integer for a <code>TIMESTAMP</code> field is read as microseconds there; KarelaDB refuses it, because apps often mean milliseconds.</li></ul>
 <p><strong>HTTP: Seconds without precision=: refused, nothing written</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write
 
@@ -41,7 +41,7 @@ live_data,symbol=CITY ltp=530.0 1789103700</code></pre>
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 1: timestamps look like seconds (1789103700) but precision= is not set: add ?precision=s (without it they are read as nanoseconds and would land on 1970-01-01T00:00:01.789Z)&quot;,
   &quot;line&quot;: 1,
-  &quot;errorId&quot;: &quot;d0e4b1bc074d-1&quot;
+  &quot;errorId&quot;: &quot;58c760f66a84-1&quot;
 }</code></pre>
 <p><strong>HTTP: The same line with precision=s</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write?precision=s
@@ -71,10 +71,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE 
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 89}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 88}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 89}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 88}
 }</code></pre>
 <p><strong>HTTP: A TIMESTAMP field in milliseconds: refused</strong></p>
 <p>Setup:</p>
@@ -88,7 +88,7 @@ orders_log,symbol=CITY placed=1789103700000t 1789103700000</code></pre>
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 1: table &#39;orders_log&#39;, column &#39;placed&#39; cannot take 1789103700000t: a t value is microseconds, and this number looks like milliseconds (it would be 1970-01-21T16:58:23.700Z); write 1789103700000000t&quot;,
   &quot;line&quot;: 1,
-  &quot;errorId&quot;: &quot;d0e4b1bc074d-2&quot;
+  &quot;errorId&quot;: &quot;58c760f66a84-2&quot;
 }</code></pre>
 <h2 id="merge">Update some columns: upsert=merge</h2>
 <p>By default a line <strong>replaces the whole row</strong> with the same key: a column not in the line becomes its <code>DEFAULT</code> or NULL. With <code>upsert=merge</code>, a column not in the line <strong>keeps the value it has</strong>.</p>
@@ -131,10 +131,10 @@ GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 166}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 45}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 166}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 45}
 }</code></pre>
 <p><strong>HTTP: Without merge the missing columns are reset</strong></p>
 <p>Setup:</p>
@@ -173,15 +173,15 @@ GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 130}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 163}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 130}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 163}
 }</code></pre>
 <h2 id="new-tables">A table that is not there</h2>
 <p>When the lines name a table the database does not have, <code>POST /write</code> makes it, as QuestDB does, and then writes the rows. The columns come from every line of the request for that table, in the order they first appear:</p>
 <div class="table-wrap"><table><thead><tr><th>In the line</th><th>Column type</th></tr></thead><tbody><tr><td>a tag (<code>symbol=CITY</code>)</td><td><code>SYMBOL</code></td></tr><tr><td><code>512.4</code></td><td><code>DOUBLE</code></td></tr><tr><td><code>120i</code></td><td><code>LONG</code></td></tr><tr><td><code>&quot;text&quot;</code></td><td><code>STRING</code></td></tr><tr><td><code>t</code>, <code>f</code>, <code>true</code>, <code>false</code></td><td><code>BOOLEAN</code></td></tr><tr><td><code>1789103700000000t</code></td><td><code>TIMESTAMP</code></td></tr><tr><td>the timestamp at the end</td><td>the time column <code>timestamp</code> (<code>TIMESTAMP</code>)</td></tr></tbody></table></div>
-<ul><li>The table is a time-series table: <code>TIMESERIES(timestamp) PARTITION BY DAY</code>, without a <code>DEDUP KEY</code>, as QuestDB makes it. Add a key later with <a href="alter-table.html#dedup-enable">DEDUP ENABLE</a>, or make the table yourself first when you want other types or a key.</li><li>Making a table needs the role <strong>ddl</strong> (like <a href="loading-data.html">/imp</a>). A user with role <code>write</code> gets 403 for a table that is not there.</li><li>A column sent as two kinds (<code>3i</code> in one line, <code>1.5</code> in another) is refused with 400, and no table is made: a guess could lose digits. So is a field named <code>timestamp</code>.</li><li>A request with a bad line makes no table.</li><li>The admin turns this off with <code>--ilp-auto-create off</code>, <code>&quot;ilp_auto_create&quot;: &quot;off&quot;</code> in kdb.conf, or <code>KDB_ILP_AUTO_CREATE=off</code>. Then a table that is not there is an error, 400 <code>table &#39;x&#39; does not exist; create it first</code>.</li><li>Columns are not added to a table that is already there: a line with a new field is an error. Add the column with <code>ALTER TABLE ... ADD COLUMN</code>.</li></ul>
+<ul><li>The table is a time-series table: <code>TIMESERIES(timestamp) PARTITION BY DAY</code>, without a <code>DEDUP KEY</code>, as QuestDB makes it. Add a key later with <a href="alter-table.html#dedup-enable">DEDUP ENABLE</a>, or make the table yourself first when you want other types or a key.</li><li>Making a table needs the role <strong>ddl</strong> (like <a href="loading-data.html">/imp</a>). A user with role <code>write</code> gets 403 for a table that is not there.</li><li>A column sent as two kinds (<code>3i</code> in one line, <code>1.5</code> in another) is refused with 400, and no table is made: a guess could lose digits. So is a field named <code>timestamp</code>.</li><li>A request with a bad line makes no table.</li><li>The admin turns this off with <code>--ilp-auto-create off</code>, <code>&quot;ilp_auto_create&quot;: &quot;off&quot;</code> in kareladb.conf, or <code>KARELADB_ILP_AUTO_CREATE=off</code>. Then a table that is not there is an error, 400 <code>table &#39;x&#39; does not exist; create it first</code>.</li><li>Columns are not added to a table that is already there: a line with a new field is an error. Add the column with <code>ALTER TABLE ... ADD COLUMN</code>.</li></ul>
 <p><strong>HTTP: A table that is not there is made from the lines</strong></p>
 <pre><code class="language-http">POST /write
 
@@ -216,10 +216,10 @@ GET /exec?compat=0&amp;query=SHOW COLUMNS FROM market_index</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 9}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 6}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 9}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 6}
 }</code></pre>
 <h2 id="post-write">POST /write</h2>
 <p>Syntax:</p>
@@ -232,7 +232,7 @@ body: lines of the line protocol (UTF-8)</code></pre>
 <ul><li>When <strong>any</strong> line is wrong, <strong>nothing</strong> of the request is written. Fix the line and send the request again.</li><li><a href="triggers.html">Triggers</a> run <strong>once per request</strong> (not once per line), in the same transaction. <code>CHECK</code>, <code>NOT NULL</code> and <code>REFERENCES</code> rules are checked for every row.</li><li>An immediate <code>INSERT</code> trigger on a table makes the loads <strong>into that table</strong> go row by row, several times slower. A trigger on another table does not slow this one. For a table you load in bulk, make the trigger <a href="triggers.html#deferred">DEFERRED</a>.</li><li>Rows are written as columns, one piece per partition, also into a table with no <code>DEDUP KEY</code>. What a day that already has rows costs depends on the keys: <a href="partitions-and-dedup.html#load-dedup">how loads find duplicates</a>.</li><li>Loads into different tables run at the same time; loads into one table take turns.</li><li><a href="triggers.html#deferred">Deferred triggers</a> do not run inside the request: it returns when the rows are committed, and each deferred trigger gets one job with exactly these rows. Add <code>wait=trigger</code> to wait for the jobs.</li><li>The fastest load is one new day per request: the rows need no duplicate lookups (<a href="performance-tips.html#line-protocol">speed</a>).</li><li>A trigger&#39;s time counts toward the <a href="protection.html#statement-timeout">statement timeout</a> (60 s by default). An admin&#39;s loader may send <code>X-KDB-Statement-Timeout: 5min</code> for triggers that need longer. A trigger that runs too long gives status 408 with <code>&quot;line&quot;: 0</code> and the message <code>trigger &lt;name&gt;: statement timeout (&lt;N&gt; s)</code>: nothing of the request is written, and it is not about a line of the body.</li><li>Big bodies are read on several threads. For speed, send many lines per request (for example 1,000 to 100,000), not one request per line.</li><li>A body may be compressed: send <code>Content-Encoding: gzip</code> or <code>Content-Encoding: deflate</code>. The 64 MB limit counts the <strong>unpacked</strong> lines, so a small body that unpacks to more is refused with 413 <code>request body is too large once decompressed</code>. A damaged body gives 400 <code>the gzip request body could not be decompressed: ...</code> and writes nothing.</li><li>Chunked bodies are not supported: send <code>Content-Length</code>.</li></ul></li></ul>
 <pre><code class="language-bash"># Market ticks from a file, sent gzip-compressed
 gzip -c ticks.lp | curl --data-binary @- -H &quot;Content-Encoding: gzip&quot; &quot;http://127.0.0.1:9900/write?precision=ms&quot;</code></pre>
-<ul><li><strong>QuestDB:</strong> QuestDB creates missing tables and columns; KDB refuses them with a clear message. QuestDB&#39;s line protocol over TCP (port 9009) is not available: use HTTP. The error answer has QuestDB&#39;s shape.</li></ul>
+<ul><li><strong>QuestDB:</strong> QuestDB creates missing tables and columns; KarelaDB refuses them with a clear message. QuestDB&#39;s line protocol over TCP (port 9009) is not available: use HTTP. The error answer has QuestDB&#39;s shape.</li></ul>
 <p><strong>HTTP: Three market ticks, times in seconds</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write?precision=s
 
@@ -267,10 +267,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, ltv, volume FROM liv
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 41, &quot;execute_us&quot;: 108}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 71}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 41, &quot;execute_us&quot;: 108}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 71}
 }</code></pre>
 <p><strong>HTTP: The same moment in three precisions</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write
@@ -314,10 +314,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE 
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 101}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 76}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 101}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 76}
 }</code></pre>
 <p><strong>HTTP: Every kind of value</strong></p>
 <p>Setup:</p>
@@ -370,10 +370,10 @@ GET /exec?compat=0&amp;query=SELECT * FROM feed ORDER BY time</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 83}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 43, &quot;execute_us&quot;: 96}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 83}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 43, &quot;execute_us&quot;: 96}
 }</code></pre>
 <p><strong>HTTP: Send a correction: the same key replaces the row</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write?precision=s
@@ -409,10 +409,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE 
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 115}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 63}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 115}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 63}
 }</code></pre>
 <p><strong>HTTP: Line 2 is wrong: nothing is written</strong> (sample data: sample; shows an error)</p>
 <pre><code class="language-http">POST /write?precision=s
@@ -429,7 +429,7 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHE
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 2: table &#39;live_data&#39;, column &#39;volume&#39; is LONG and cannot take a float; write whole numbers with an i suffix, like 3i&quot;,
   &quot;line&quot;: 2,
-  &quot;errorId&quot;: &quot;d0e4b1bc074d-3&quot;
+  &quot;errorId&quot;: &quot;58c760f66a84-3&quot;
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHERE timestamp = &#39;2026-09-11T05:17:00Z&#39;</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -448,10 +448,10 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHE
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 75}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 60}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 75}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 60}
 }</code></pre>
 <p><strong>HTTP: Every column must exist</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write
@@ -463,7 +463,7 @@ live_data,symbol=CITY ltp=530.0,turnover=1250000.5 1789103700000000000</code></p
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 1: table &#39;live_data&#39; has no column &#39;turnover&#39;; add it first (ALTER TABLE live_data ADD COLUMN ...)&quot;,
   &quot;line&quot;: 1,
-  &quot;errorId&quot;: &quot;d0e4b1bc074d-4&quot;
+  &quot;errorId&quot;: &quot;58c760f66a84-4&quot;
 }</code></pre>
 <p><strong>HTTP: A trigger runs once for the whole request</strong> (sample data: sample)</p>
 <p>Setup:</p>
@@ -501,10 +501,10 @@ GET /exec?compat=0&amp;query=SELECT * FROM write_log</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 84}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 48}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 84}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 48}
 }</code></pre>
 <p><strong>HTTP: Bad precision</strong></p>
 <pre><code class="language-http">POST /write?precision=minutes
@@ -516,7 +516,7 @@ live_data,symbol=CITY ltp=530.0 1</code></pre>
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;unsupported precision &#39;minutes&#39;: use n, u, ms or s&quot;,
   &quot;line&quot;: 0,
-  &quot;errorId&quot;: &quot;d0e4b1bc074d-5&quot;
+  &quot;errorId&quot;: &quot;58c760f66a84-5&quot;
 }</code></pre>
 <p><strong>HTTP: Writing needs POST</strong></p>
 <pre><code class="language-http">GET /write</code></pre>
@@ -561,7 +561,7 @@ body: lines of the line protocol</code></pre>
 <p>The same as <a href="line-protocol.html#post-write">POST /write</a>, at the path InfluxDB 2 clients use. Everything (parameters, answers, errors) is the same.</p>
 <div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). <code>bucket</code> and <code>org</code> are ignored.</td><td>the default database</td></tr><tr><td><code>precision</code></td><td>URL</td><td><code>n</code>, <code>u</code>, <code>ms</code> or <code>s</code> (also <code>ns</code>, <code>us</code>)</td><td><code>n</code></td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Answer</th><th>Meaning</th></tr></thead><tbody><tr><td>204, or <code>{&quot;code&quot;, &quot;message&quot;, &quot;line&quot;, &quot;errorId&quot;}</code></td><td>as for <a href="line-protocol.html#post-write">POST /write</a></td></tr></tbody></table></div>
-<ul><li><strong>Status codes:</strong> as for POST /write.</li><li><strong>Notes:</strong> an InfluxDB client library can send here when its URL is the KDB server and the database is given with <code>db=</code> (or the <code>X-KDB-Database</code> header). With a KDB <code>--token</code>, send it as <code>Authorization: Bearer &lt;token&gt;</code>; InfluxDB&#39;s <code>Authorization: Token ...</code> is not accepted. The client&#39;s gzip setting can stay on: gzip bodies are unpacked.</li></ul>
+<ul><li><strong>Status codes:</strong> as for POST /write.</li><li><strong>Notes:</strong> an InfluxDB client library can send here when its URL is the KarelaDB server and the database is given with <code>db=</code> (or the <code>X-KDB-Database</code> header). With a KarelaDB <code>--token</code>, send it as <code>Authorization: Bearer &lt;token&gt;</code>; InfluxDB&#39;s <code>Authorization: Token ...</code> is not accepted. The client&#39;s gzip setting can stay on: gzip bodies are unpacked.</li></ul>
 <p><strong>HTTP: The InfluxDB 2 path</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /api/v2/write?db=demo&amp;precision=ms&amp;bucket=ignored
 
@@ -591,12 +591,12 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, volume FROM live_dat
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 119}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 64}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 119}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 64}
 }</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/line-protocol.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/line-protocol.md">This page as markdown</a>.</footer>
 </body>
 </html>

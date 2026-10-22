@@ -1,23 +1,23 @@
 # Audit log
 
-> KDB writes security events (logins, users, DDL, backups, refused rights) and, for chosen tables, every changed row with who, when, old and new values.
+> KarelaDB writes security events (logins, users, DDL, backups, refused rights) and, for chosen tables, every changed row with who, when, old and new values.
 
 - Category: Users & security
-- Keywords: audit, audit log, audit trail, hash chain, tamper, tamper-evident, SHOW AUDIT VERIFY, verify, user agent, User-Agent, application\_name, agent, --token-name, KDB\_TOKEN\_NAME, who changed, history of changes, login history, failed logins, lockout, \_audit\_log, AUDIT, SET AUDIT ON, SET AUDIT OFF, old values, new values, accounting, compliance, --audit, --audit-keep-days, retention, erase user, delete user data, right to be forgotten, GDPR, privacy, personal data, erasure
-- See also: [Protection - timeouts, limits, safe updates, read-only](protection.md), [Users and roles](users-and-roles.md), [Keeping kdb serve safe](server-security.md), [Table rights - GRANT ON TABLE](table-rights.md), [Two-factor login (TOTP)](two-factor-login.md), [Logins, tokens and roles over HTTP](http-login.md)
+- Keywords: audit, audit log, audit trail, hash chain, tamper, tamper-evident, SHOW AUDIT VERIFY, verify, user agent, User-Agent, application\_name, agent, --token-name, KARELADB\_TOKEN\_NAME, who changed, history of changes, login history, failed logins, lockout, \_audit\_log, AUDIT, SET AUDIT ON, SET AUDIT OFF, old values, new values, accounting, compliance, --audit, --audit-keep-days, retention, erase user, delete user data, right to be forgotten, GDPR, privacy, personal data, erasure
+- See also: [Protection - timeouts, limits, safe updates, read-only](protection.md), [Users and roles](users-and-roles.md), [Keeping kareladb serve safe](server-security.md), [Table rights - GRANT ON TABLE](table-rights.md), [Two-factor login (TOTP)](two-factor-login.md), [Logins, tokens and roles over HTTP](http-login.md)
 
-The audit log is a table named `_audit_log`. KDB writes it; nobody can change, delete or drop its rows (it is **append-only**). It goes through the log like any change, so it survives crashes, and backups hold it.
+The audit log is a table named `_audit_log`. KarelaDB writes it; nobody can change, delete or drop its rows (it is **append-only**). It goes through the log like any change, so it survives crashes, and backups hold it.
 
 | What | Where | Turn it on |
 |---|---|---|
-| logins (good, failed, lockouts), user and grant changes, `CREATE`/`DROP`/`ALTER` of tables, indexes, views, functions, procedures, triggers and databases, backups, timers, pinned statements, partitions a TTL dropped, refused rights | `_audit_log` of the hidden `_system` database | `kdb serve --data-dir ...` (default `--audit on`) |
+| logins (good, failed, lockouts), user and grant changes, `CREATE`/`DROP`/`ALTER` of tables, indexes, views, functions, procedures, triggers and databases, backups, timers, pinned statements, partitions a TTL dropped, refused rights | `_audit_log` of the hidden `_system` database | `kareladb serve --data-dir ...` (default `--audit on`) |
 | every row a statement adds, changes or deletes in one table | `_audit_log` of that database | `ALTER TABLE t SET AUDIT ON` |
 
 Columns of `_audit_log`: `time`, `event`, `user`, `client`, `db`, `object`, `detail`, `row_key`, `old_values` (JSON), `new_values` (JSON), `session`, `ok`, `seq`, `hash`, `agent`.
 
 `client` is the address and protocol (`10.0.0.5 (http)`). `agent` is the program that sent the request: the HTTP `User-Agent` header (`curl/8.4.0`, the browser of the web console), or the PostgreSQL `application_name` (`psql`, `DBeaver`). It is at most 200 characters, and `NULL` when the client sent none. A client can write anything there, so it helps to tell programs apart but proves nothing.
 
-An action done with the server's `--token` is written with `user` = `token`, or the name given with `--token-name` (or `KDB_TOKEN_NAME`), never with an empty user.
+An action done with the server's `--token` is written with `user` = `token`, or the name given with `--token-name` (or `KARELADB_TOKEN_NAME`), never with an empty user.
 
 | event | Meaning |
 |---|---|
@@ -87,7 +87,7 @@ From now on, every row a statement adds, changes or deletes in the table is also
   - Tables without `SET AUDIT ON` cost nothing extra. An audited table's writes cost one row lookup and one audit row per changed row.
   - An `UPDATE` that changes nothing in a row writes no audit row. Rolled back transactions write none.
   - Read the rows with `SELECT ... FROM _audit_log` (needs role admin on the database).
-  - Older KDB programs refuse a database with an audited table (the setting would be lost).
+  - Older KarelaDB programs refuse a database with an audited table (the setting would be lost).
 
 **Example: Audit an accounts table**
 
@@ -156,25 +156,25 @@ table 'accounts' created
 audit is on for table 'accounts': every changed row is written to _audit_log
 ```
 
-Error: `the audit table _audit_log is append-only: KDB writes it, nobody can change or drop it (old rows are removed by the audit retention setting)`
+Error: `the audit table _audit_log is append-only: KarelaDB writes it, nobody can change or drop it (old rows are removed by the audit retention setting)`
 
 <a id="hash-chain"></a>
 
 ## The hash chain
 
-Every row gets a number and a hash, so a row changed or removed outside KDB (by editing the files) is found.
+Every row gets a number and a hash, so a row changed or removed outside KarelaDB (by editing the files) is found.
 
 | Column | Holds |
 |---|---|
 | `seq` | 1, 2, 3 ... in the order the rows were written |
 | `hash` | SHA-256 (hex) of the previous row's hash and this row's values |
 
-A changed row no longer matches its hash. A removed row leaves a gap in `seq`. `SHOW AUDIT VERIFY`, `kdb check <database>` and `POST /api/check` check the whole chain and name the rows that do not fit.
+A changed row no longer matches its hash. A removed row leaves a gap in `seq`. `SHOW AUDIT VERIFY`, `kareladb check <database>` and `POST /api/check` check the whole chain and name the rows that do not fit.
 
-- **Returns:** `kdb check` prints `audit chain: N row(s) checked, seq 1 to N, newest hash ...`, or a `TAMPERED:` line per problem (exit code 2).
+- **Returns:** `kareladb check` prints `audit chain: N row(s) checked, seq 1 to N, newest hash ...`, or a `TAMPERED:` line per problem (exit code 2).
 - **Notes:**
   - Note the newest hash somewhere else now and then (a ticket, an email). Then even the newest rows cannot be cut off unseen.
-  - Rows written before KDB had the chain keep `seq` and `hash` empty; the check counts them apart.
+  - Rows written before KarelaDB had the chain keep `seq` and `hash` empty; the check counts them apart.
   - When `--audit-keep-days` removes old months, the check starts at the oldest row left.
   - The `agent` column came after the chain. It is in the hashed values only when it has a value: older rows (no agent) keep the hash they were written with, and a row's agent can not be changed or cleared unseen.
 
@@ -226,7 +226,7 @@ Syntax:
 SHOW AUDIT VERIFY
 ```
 
-Checks the hash chain from SQL, the same check as `kdb check`, without stopping the server.
+Checks the hash chain from SQL, the same check as `kareladb check`, without stopping the server.
 
 | Column | Holds |
 |---|---|
@@ -284,7 +284,7 @@ audit is on for table 'ledger': every changed row is written to _audit_log
 
 | log (STRING) | ok (BOOL) | rows_checked (LONG) | unchained (LONG) | first_seq (LONG) | last_seq (LONG) | first_broken (LONG) | problems (STRING) | last_hash (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | 4f8bf0605dba55930de5b81641faa09cf33287adde9c68e299bcae5d37ea3930 |
+| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | 38951a58f3331badc1d7618d409fec870f4cfa67649accc4e99dd45c3620f385 |
 
 (1 row)
 
@@ -350,7 +350,7 @@ HTTP 200 (application/json)
 Syntax:
 
 ```sql
-kdb serve [--audit on|off] [--audit-keep-days N]
+kareladb serve [--audit on|off] [--audit-keep-days N]
 ```
 
 `--audit off` writes no security events. `--audit-keep-days N` removes security events older than N days, a whole month at a time, once a day (0 = keep forever, the default).
@@ -454,7 +454,7 @@ transaction committed: 4 change(s) saved
 
 (3 rows)
 
-**3. What the audit log keeps.** If a table has `SET AUDIT ON`, its `_audit_log` row for the `DELETE` holds the deleted row in `old_values`, and the older `insert` and `update` rows hold it too. **These rows cannot be erased with SQL.** The log is append-only on purpose: `DELETE`, `UPDATE`, `TRUNCATE` and `DROP` of `_audit_log` are refused, and every row is linked to the one before by the [hash chain](#hash-chain), so a row removed by editing the files is reported by `kdb check`. `--audit-keep-days` does not reach these rows either: it only removes security events.
+**3. What the audit log keeps.** If a table has `SET AUDIT ON`, its `_audit_log` row for the `DELETE` holds the deleted row in `old_values`, and the older `insert` and `update` rows hold it too. **These rows cannot be erased with SQL.** The log is append-only on purpose: `DELETE`, `UPDATE`, `TRUNCATE` and `DROP` of `_audit_log` are refused, and every row is linked to the one before by the [hash chain](#hash-chain), so a row removed by editing the files is reported by `kareladb check`. `--audit-keep-days` does not reach these rows either: it only removes security events.
 
 **Example: The deleted row is still in old_values**
 

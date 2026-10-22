@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Candles cookbook - KDB (KARELA DataBase) docs</title>
+<title>Candles cookbook - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Ready market-data queries: candles from minute data and from trades, daily change, top gainers, volume leaders, 52-week high and low, moving averages and filled gaps.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/candles-cookbook.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/candles-cookbook.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/candles-cookbook.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/candles-cookbook.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="candles-cookbook">Candles cookbook</h1>
 <blockquote><p>Ready market-data queries: candles from minute data and from trades, daily change, top gainers, volume leaders, 52-week high and low, moving averages and filled gaps.</p></blockquote>
@@ -167,7 +167,7 @@ ORDER BY change_pct DESC
 LIMIT 10</code></pre>
 <p>Gainers of a day: the change %, biggest first. Losers: the same with <code>ORDER BY change_pct</code> (smallest first).</p>
 <ul><li><strong>Notes:</strong>
-<ul><li>The inner <code>WHERE time &gt;= ...</code> should start a few days before the day you want (weekends and holidays have no rows). Then KDB does not read the whole table.</li><li>For the market <strong>right now</strong>, use the live snapshots with <code>LATEST ON</code> (second example).</li></ul></li></ul>
+<ul><li>The inner <code>WHERE time &gt;= ...</code> should start a few days before the day you want (weekends and holidays have no rows). Then KarelaDB does not read the whole table.</li><li>For the market <strong>right now</strong>, use the live snapshots with <code>LATEST ON</code> (second example).</li></ul></li></ul>
 <p><strong>Example: Top gainers of 2026-09-10 from daily candles</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT symbol, prev_close, close,
        round((close - prev_close) / prev_close * 100, 2) AS change_pct
@@ -272,7 +272,7 @@ ema(close, n) OVER (PARTITION BY symbol ORDER BY time)
 rsi(close, n) OVER (PARTITION BY symbol ORDER BY time)</code></pre>
 <p><code>sma</code> is the simple moving average of the last <code>n</code> rows, <code>ema</code> the exponential one, <code>rsi</code> the Relative Strength Index (0 to 100). See <a href="functions-indicators.html">indicator functions</a> for all of them.</p>
 <ul><li><strong>NULL:</strong> before there are <code>n</code> rows (for <code>rsi</code>: <code>n + 1</code>), the result is <code>NULL</code>.</li><li><strong>Notes:</strong>
-<ul><li>Use <code>PARTITION BY symbol</code> when the rows have many symbols.</li><li>Compute over <strong>enough history</strong> in a subquery, then filter the days you want to show outside.</li><li>An indicator can be inside another one: <code>lag(sma(close, 3)) OVER (...)</code>, <code>cross_above(sma(close, 3), sma(close, 5)) OVER (...)</code>. The inner one, written without <code>OVER</code>, takes the outer one&#39;s <code>PARTITION BY</code> and <code>ORDER BY</code>; KDB computes it first, in a subquery of its own.</li></ul></li></ul>
+<ul><li>Use <code>PARTITION BY symbol</code> when the rows have many symbols.</li><li>Compute over <strong>enough history</strong> in a subquery, then filter the days you want to show outside.</li><li>An indicator can be inside another one: <code>lag(sma(close, 3)) OVER (...)</code>, <code>cross_above(sma(close, 3), sma(close, 5)) OVER (...)</code>. The inner one, written without <code>OVER</code>, takes the outer one&#39;s <code>PARTITION BY</code> and <code>ORDER BY</code>; KarelaDB computes it first, in a subquery of its own.</li></ul></li></ul>
 <p><strong>Example: 5-day SMA and EMA, newest rows of CITY</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT time, symbol, close,
        round(sma(close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS sma5,
@@ -364,10 +364,10 @@ CREATE PROCEDURE ta_build_h1() AS BEGIN
 END;
 -- 4. a timer that runs it after each trading day (POST /api/timers)
 {&quot;name&quot;: &quot;ta_h1&quot;, &quot;schedule&quot;: &quot;trading nepse 15:10&quot;, &quot;sql&quot;: &quot;REFRESH MATERIALIZED VIEW ta_v_h1 INCREMENTAL; CALL ta_build_h1()&quot;}</code></pre>
-<p>Screeners and charts often read the same candles again and again: 5-minute, 15-minute, hourly, weekly and monthly, each with a set of indicators. Build them once in KDB, and read the table.</p>
-<div class="table-wrap"><table><thead><tr><th>Part</th><th>Why</th></tr></thead><tbody><tr><td><a href="views.html#materialized-view">Materialized view</a></td><td>Holds the candles. KDB updates only the buckets an insert touches.</td></tr><tr><td>Table with indicator columns</td><td>An indicator needs every candle before it, so it cannot be in the view. The procedure writes it.</td></tr><tr><td><a href="procedures.html">Procedure</a></td><td><code>DELETE</code> and <code>INSERT</code> in one <code>CALL</code> are one transaction: a reader sees the old rows or the new ones, never an empty table.</td></tr><tr><td><a href="timers.html">Timer</a> on a <a href="calendars.html">calendar</a></td><td><code>trading nepse 15:10</code> runs after the close on trading days only. Start the server with <code>--timezone Asia/Kathmandu</code> so 15:10 is Nepal time.</td></tr></tbody></table></div>
+<p>Screeners and charts often read the same candles again and again: 5-minute, 15-minute, hourly, weekly and monthly, each with a set of indicators. Build them once in KarelaDB, and read the table.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Why</th></tr></thead><tbody><tr><td><a href="views.html#materialized-view">Materialized view</a></td><td>Holds the candles. KarelaDB updates only the buckets an insert touches.</td></tr><tr><td>Table with indicator columns</td><td>An indicator needs every candle before it, so it cannot be in the view. The procedure writes it.</td></tr><tr><td><a href="procedures.html">Procedure</a></td><td><code>DELETE</code> and <code>INSERT</code> in one <code>CALL</code> are one transaction: a reader sees the old rows or the new ones, never an empty table.</td></tr><tr><td><a href="timers.html">Timer</a> on a <a href="calendars.html">calendar</a></td><td><code>trading nepse 15:10</code> runs after the close on trading days only. Start the server with <code>--timezone Asia/Kathmandu</code> so 15:10 is Nepal time.</td></tr></tbody></table></div>
 <ul><li><strong>Notes:</strong>
-<ul><li>Nepal is UTC+05:45. 5- and 15-minute buckets are the same in UTC and Nepal time. Hours need <code>WITH OFFSET &#39;00:15&#39;</code> (or <code>TIME ZONE &#39;Asia/Kathmandu&#39;</code>), see <a href="candles-cookbook.html#hourly-nepal">hourly candles</a>.</li><li>Weekly and monthly candles come from the day table: <code>SAMPLE BY 1w WEEK START SUNDAY</code> and <code>SAMPLE BY 1M</code>, see <a href="candles-cookbook.html#weekly-candles">weekly candles</a>.</li><li>Give each timeframe its own names. KDB names ignore case, so <code>ta_1m</code> and <code>ta_1M</code> would be the same table: use <code>m5</code>, <code>m15</code>, <code>h1</code>, <code>w1</code>, <code>mo1</code>.</li><li><code>bench/006/ta-folders.mjs</code> in the source sets all of this up for the five timeframes, writes one file per symbol and timeframe, and with <code>--compare &lt;folder&gt;</code> checks the files against another set, column by column with a tolerance (<code>node bench/006/ta-folders.mjs</code> prints the help; <code>sql</code> prints the whole recipe).</li></ul></li></ul>
+<ul><li>Nepal is UTC+05:45. 5- and 15-minute buckets are the same in UTC and Nepal time. Hours need <code>WITH OFFSET &#39;00:15&#39;</code> (or <code>TIME ZONE &#39;Asia/Kathmandu&#39;</code>), see <a href="candles-cookbook.html#hourly-nepal">hourly candles</a>.</li><li>Weekly and monthly candles come from the day table: <code>SAMPLE BY 1w WEEK START SUNDAY</code> and <code>SAMPLE BY 1M</code>, see <a href="candles-cookbook.html#weekly-candles">weekly candles</a>.</li><li>Give each timeframe its own names. KarelaDB names ignore case, so <code>ta_1m</code> and <code>ta_1M</code> would be the same table: use <code>m5</code>, <code>m15</code>, <code>h1</code>, <code>w1</code>, <code>mo1</code>.</li><li><code>bench/006/ta-folders.mjs</code> in the source sets all of this up for the five timeframes, writes one file per symbol and timeframe, and with <code>--compare &lt;folder&gt;</code> checks the files against another set, column by column with a tolerance (<code>node bench/006/ta-folders.mjs</code> prints the help; <code>sql</code> prints the whole recipe).</li></ul></li></ul>
 <p><strong>Example: Hourly Nepal candles with indicators, rebuilt by one CALL</strong> (sample data: sample)</p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE MATERIALIZED VIEW ta_v_h1 AS (
@@ -429,6 +429,6 @@ FILL(PREV, PREV, PREV, PREV, 0);</code></pre>
 <div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T06:45:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>620</td></tr><tr><td>2026-09-10T06:46:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:47:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:48:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:49:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:50:00.000Z</td><td>380.2</td><td>380.2</td><td>379.8</td><td>379.8</td><td>800</td></tr></tbody></table></div>
 <p>(6 rows)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/candles-cookbook.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/candles-cookbook.md">This page as markdown</a>.</footer>
 </body>
 </html>

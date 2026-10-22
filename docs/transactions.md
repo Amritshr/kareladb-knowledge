@@ -3,16 +3,16 @@
 > BEGIN, COMMIT and ROLLBACK: save many changes together, or none of them.
 
 - Category: Transactions
-- Keywords: transaction, TRANSACTION, WORK, BEGIN TRANSACTION, BEGIN WORK, COMMIT WORK, ROLLBACK WORK, START, atomic, all or nothing, rollback, undo, FOR UPDATE, SELECT FOR UPDATE, SKIP LOCKED, NOWAIT, job queue, --per-table-reads, KDB\_PER\_TABLE\_READS, SELECT 1 waits, readers wait, checkpoint, BEGIN without COMMIT, cannot be used inside a transaction, database is busy, table is busy, deadlock, duplicate key while busy, taken key, table lock, --reader-yield, KDB\_READER\_YIELD, reader yield, --snapshot-reads, KDB\_SNAPSHOT\_READS, snapshot, snapshot reads, MVCC, writers at the same time, group commit, lock, lock\_timeout\_ms, lock\_timeout, SET lock\_timeout, --lock-timeout, KDB\_LOCK\_TIMEOUT, X-KDB-Lock-Timeout, 55P03, idle\_transaction\_timeout\_ms, idle\_in\_transaction\_session\_timeout, --idle-in-transaction-timeout, KDB\_IDLE\_IN\_TRANSACTION\_TIMEOUT, session, double entry, ledger, accounting, SAVEPOINT, RELEASE SAVEPOINT, ROLLBACK TO SAVEPOINT, ROLLBACK TO, savepoints, 25P02, 3B001, isolation, isolation level, SERIALIZABLE, READ COMMITTED, SET TRANSACTION, BEGIN ISOLATION LEVEL, default\_transaction\_isolation, transaction\_isolation, 40001, serialization\_failure, 40P01, lost update, READ ONLY, BEGIN READ ONLY, read-only transaction, SET TRANSACTION READ ONLY, default\_transaction\_read\_only, transaction\_read\_only, 25006, READ WRITE, LOCK TABLE, LOCK, IN SHARE MODE, ACCESS EXCLUSIVE, lock modes, LOCK TABLE NOWAIT, pg\_locks, pg\_blocking\_pids, log\_lock\_waits, deadlock\_timeout, --log-lock-waits, KDB\_LOG\_LOCK\_WAITS, --deadlock-timeout, KDB\_DEADLOCK\_TIMEOUT, 25P01, who is blocking, lock waits, txn\_spill\_mb, --txn-spill-mb, KDB\_TXN\_SPILL\_MB, transaction too big for memory, txn\_spills, big transaction
-- See also: [Stored procedures](procedures.md), [Triggers](triggers.md), [Cursors](cursors.md), [Sessions and cursors over HTTP](http-sessions-and-cursors.md), [kdb sql and kdb shell](cli-sql-and-shell.md), [Constraints](constraints.md), [15. Transactions and accounting](../tutorial/15-transactions-and-accounting.md)
+- Keywords: transaction, TRANSACTION, WORK, BEGIN TRANSACTION, BEGIN WORK, COMMIT WORK, ROLLBACK WORK, START, atomic, all or nothing, rollback, undo, FOR UPDATE, SELECT FOR UPDATE, SKIP LOCKED, NOWAIT, job queue, --per-table-reads, KARELADB\_PER\_TABLE\_READS, SELECT 1 waits, readers wait, checkpoint, BEGIN without COMMIT, cannot be used inside a transaction, database is busy, table is busy, deadlock, duplicate key while busy, taken key, table lock, --reader-yield, KARELADB\_READER\_YIELD, reader yield, --snapshot-reads, KARELADB\_SNAPSHOT\_READS, snapshot, snapshot reads, MVCC, writers at the same time, group commit, lock, lock\_timeout\_ms, lock\_timeout, SET lock\_timeout, --lock-timeout, KARELADB\_LOCK\_TIMEOUT, X-KDB-Lock-Timeout, 55P03, idle\_transaction\_timeout\_ms, idle\_in\_transaction\_session\_timeout, --idle-in-transaction-timeout, KARELADB\_IDLE\_IN\_TRANSACTION\_TIMEOUT, session, double entry, ledger, accounting, SAVEPOINT, RELEASE SAVEPOINT, ROLLBACK TO SAVEPOINT, ROLLBACK TO, savepoints, 25P02, 3B001, isolation, isolation level, SERIALIZABLE, READ COMMITTED, SET TRANSACTION, BEGIN ISOLATION LEVEL, default\_transaction\_isolation, transaction\_isolation, 40001, serialization\_failure, 40P01, lost update, READ ONLY, BEGIN READ ONLY, read-only transaction, SET TRANSACTION READ ONLY, default\_transaction\_read\_only, transaction\_read\_only, 25006, READ WRITE, LOCK TABLE, LOCK, IN SHARE MODE, ACCESS EXCLUSIVE, lock modes, LOCK TABLE NOWAIT, pg\_locks, pg\_blocking\_pids, log\_lock\_waits, deadlock\_timeout, --log-lock-waits, KARELADB\_LOG\_LOCK\_WAITS, --deadlock-timeout, KARELADB\_DEADLOCK\_TIMEOUT, 25P01, who is blocking, lock waits, txn\_spill\_mb, --txn-spill-mb, KARELADB\_TXN\_SPILL\_MB, transaction too big for memory, txn\_spills, big transaction
+- See also: [Stored procedures](procedures.md), [Triggers](triggers.md), [Cursors](cursors.md), [Sessions and cursors over HTTP](http-sessions-and-cursors.md), [kareladb sql and kareladb shell](cli-sql-and-shell.md), [Constraints](constraints.md), [15. Transactions and accounting](../tutorial/15-transactions-and-accounting.md)
 
-A **transaction** is a group of changes that KDB saves **together, or not at all**. Nobody ever sees half of it.
+A **transaction** is a group of changes that KarelaDB saves **together, or not at all**. Nobody ever sees half of it.
 
 Moving money is the classic case. A transfer is three changes: take money from one account, give it to the other, and write a ledger row (a row in the list of all transfers). If only the first change is saved, money is lost. Put them in a transaction.
 
 - Start it with `BEGIN`. Save it with `COMMIT`. Undo it with `ROLLBACK`.
-- When any statement in it fails, KDB undoes the whole transaction.
-- KDB writes the changes to its log (the file where every change is saved first) only at `COMMIT`, in one write. After a crash or a power cut, a committed transaction is there completely, and an unfinished one is not there at all.
+- When any statement in it fails, KarelaDB undoes the whole transaction.
+- KarelaDB writes the changes to its log (the file where every change is saved first) only at `COMMIT`, in one write. After a crash or a power cut, a committed transaction is there completely, and an unfinished one is not there at all.
 
 **Example: Accounting: a transfer between two accounts, then check the books**
 
@@ -208,7 +208,7 @@ Saves every change of the open transaction, with one write to the log, and ends 
   - When `COMMIT` returns OK, the changes are safe on disk, also after a crash or a power cut.
   - `COMMIT` without an open transaction is an error.
   - If the disk is full at `COMMIT`, it returns an error and nothing is saved.
-  - In a session (`kdb shell`, HTTP session) whose transaction was already rolled back by an error, `COMMIT` fails with `COMMIT saved nothing`, so your app cannot think it was saved.
+  - In a session (`kareladb shell`, HTTP session) whose transaction was already rolled back by an error, `COMMIT` fails with `COMMIT saved nothing`, so your app cannot think it was saved.
 
 **Example: App sign-up: the user and the first audit row, together**
 
@@ -473,7 +473,7 @@ transaction committed: 2 change(s) saved
 
 ### After an error: ROLLBACK TO SAVEPOINT
 
-In a session (an HTTP session, `kdb shell`, the PostgreSQL protocol), an error after a savepoint does **not** throw the transaction away. As in PostgreSQL:
+In a session (an HTTP session, `kareladb shell`, the PostgreSQL protocol), an error after a savepoint does **not** throw the transaction away. As in PostgreSQL:
 
 1. The work after the newest savepoint is undone, and the transaction is **aborted**: every statement is refused with `current transaction is aborted ...` (`25P02`), except these.
 2. `ROLLBACK TO SAVEPOINT name` goes back to that mark and makes the transaction usable again.
@@ -521,7 +521,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "ab37d2c476871d5a558032bd594384f8", "idle_timeout_ms": 600000}
+{"session": "d770980023cfeb9d19508a205f329d1b", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -540,7 +540,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 13, "execute_us": 5}
+      "timings": {"parse_us": 11, "execute_us": 5}
     },
     {
       "statement": "INSERT INTO users VALUES (2, 'sita@example.np')",
@@ -550,7 +550,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 13, "execute_us": 48}
+      "timings": {"parse_us": 11, "execute_us": 39}
     },
     {
       "statement": "SAVEPOINT before_hari",
@@ -560,13 +560,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "savepoint before_hari set",
-      "timings": {"parse_us": 13, "execute_us": 6}
+      "timings": {"parse_us": 11, "execute_us": 5}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 39, "execute_us": 59}
+  "timings": {"parse_us": 33, "execute_us": 49}
 }
 ```
 
@@ -604,7 +604,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "rolled back to savepoint before_hari: 0 row change(s) undone",
-      "timings": {"parse_us": 6, "execute_us": 6}
+      "timings": {"parse_us": 9, "execute_us": 6}
     },
     {
       "statement": "INSERT INTO users VALUES (3, 'hari@example.np')",
@@ -614,7 +614,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 6, "execute_us": 31}
+      "timings": {"parse_us": 9, "execute_us": 29}
     },
     {
       "statement": "COMMIT",
@@ -624,13 +624,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 2 change(s) saved",
-      "timings": {"parse_us": 6, "execute_us": 8}
+      "timings": {"parse_us": 9, "execute_us": 8}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 18, "execute_us": 45}
+  "timings": {"parse_us": 27, "execute_us": 43}
 }
 ```
 
@@ -657,7 +657,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 38, "execute_us": 100}
+      "timings": {"parse_us": 34, "execute_us": 77}
     }
   ],
   "columns": [
@@ -670,7 +670,7 @@ HTTP 200 (application/json)
     [3, "hari@example.np"]
   ],
   "count": 3,
-  "timings": {"parse_us": 38, "execute_us": 100}
+  "timings": {"parse_us": 34, "execute_us": 77}
 }
 ```
 
@@ -697,7 +697,7 @@ You do not always need `BEGIN`. These are each **one transaction by themselves**
 - **Notes:**
   - Several statements **without** `BEGIN` are separate transactions. When the third one fails, the first two stay saved.
   - Inside `BEGIN ... COMMIT`, all of these become part of the bigger transaction.
-  - At most **10 million changed rows** in one transaction (`DatabaseOptions::max_transaction_rows`). Until `COMMIT`, KDB keeps the old version of every changed row in memory.
+  - At most **10 million changed rows** in one transaction (`DatabaseOptions::max_transaction_rows`). Until `COMMIT`, KarelaDB keeps the old version of every changed row in memory.
   - A long transaction's log records go to a temporary file once they pass 64 MB (see [big transactions](#txn-spill)).
 
 **Command line: One INSERT with a bad row writes no row** (shows an error)
@@ -710,13 +710,13 @@ INSERT INTO brokers VALUES (1, 'Keystone Securities');
 ```
 
 ```bash
-kdb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'), (45, 'Imperial Securities'), (1, 'Keystone again')"
-kdb sql market "SELECT id, name FROM brokers ORDER BY id"
+kareladb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'), (45, 'Imperial Securities'), (1, 'Keystone again')"
+kareladb sql market "SELECT id, name FROM brokers ORDER BY id"
 ```
 
 Output:
 
-`> kdb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'), (45, 'Imperial Securities'), (1, 'Keystone again')"`
+`> kareladb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'), (45, 'Imperial Securities'), (1, 'Keystone again')"`
 
 ```text
 error: row 3: a row with id='1' already exists in 'brokers'. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it
@@ -724,7 +724,7 @@ error: row 3: a row with id='1' already exists in 'brokers'. Use INSERT OR REPLA
 
 exit code 1
 
-`> kdb sql market "SELECT id, name FROM brokers ORDER BY id"`
+`> kareladb sql market "SELECT id, name FROM brokers ORDER BY id"`
 
 ```text
 id | name               
@@ -743,13 +743,13 @@ INSERT INTO brokers VALUES (1, 'Keystone Securities');
 ```
 
 ```bash
-kdb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'); INSERT INTO brokers VALUES (1, 'Keystone again'); INSERT INTO brokers VALUES (45, 'Imperial Securities')"
-kdb sql market "SELECT id, name FROM brokers ORDER BY id"
+kareladb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'); INSERT INTO brokers VALUES (1, 'Keystone again'); INSERT INTO brokers VALUES (45, 'Imperial Securities')"
+kareladb sql market "SELECT id, name FROM brokers ORDER BY id"
 ```
 
 Output:
 
-`> kdb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'); INSERT INTO brokers VALUES (1, 'Keystone again'); INSERT INTO brokers VALUES (45, 'Imperial Securities')"`
+`> kareladb sql market "INSERT INTO brokers VALUES (34, 'Vision Securities'); INSERT INTO brokers VALUES (1, 'Keystone again'); INSERT INTO brokers VALUES (45, 'Imperial Securities')"`
 
 ```text
 1 row(s) inserted
@@ -758,14 +758,14 @@ error: a row with id='1' already exists in 'brokers'. Use INSERT OR REPLACE to o
 
 exit code 1
 
-`> kdb sql market "SELECT id, name FROM brokers ORDER BY id"`
+`> kareladb sql market "SELECT id, name FROM brokers ORDER BY id"`
 
 ```text
 id | name               
 ---+--------------------
  1 | Keystone Securities
 34 | Vision Securities  
-(2 rows, 0.3 ms)
+(2 rows, 0.2 ms)
 ```
 
 <a id="errors"></a>
@@ -778,12 +778,12 @@ Syntax:
 BEGIN; statement; failing statement;   -- the whole transaction is rolled back here
 ```
 
-When a statement inside `BEGIN ... COMMIT` fails (a duplicate key, `REFERENCES`, a `CHECK`, `RAISE` in a procedure or trigger, a typing error in a column name, ...), **KDB rolls back the whole transaction** at once.
+When a statement inside `BEGIN ... COMMIT` fails (a duplicate key, `REFERENCES`, a `CHECK`, `RAISE` in a procedure or trigger, a typing error in a column name, ...), **KarelaDB rolls back the whole transaction** at once.
 
 - **Returns:** the error of the statement, with `(the transaction was rolled back)` at the end.
 - **Notes:**
-  - In one text (`kdb sql`, `POST /exec`, the web console), the statements after the error do not run.
-  - In a session (`kdb shell`, an HTTP session, the PostgreSQL protocol) the session then accepts **only `ROLLBACK`** (or `COMMIT`, which fails). So your next statements cannot run outside the transaction by mistake.
+  - In one text (`kareladb sql`, `POST /exec`, the web console), the statements after the error do not run.
+  - In a session (`kareladb shell`, an HTTP session, the PostgreSQL protocol) the session then accepts **only `ROLLBACK`** (or `COMMIT`, which fails). So your next statements cannot run outside the transaction by mistake.
   - With a [savepoint](#savepoint) set, the error undoes only the work after it, and `ROLLBACK TO SAVEPOINT` lets the transaction go on.
   - A syntax error is found before anything runs: then no statement of the text runs at all.
 
@@ -838,13 +838,13 @@ INSERT INTO accounts VALUES (1, 'Ram', 1000), (2, 'Sita', 0);
 ```
 
 ```bash
-kdb sql market "BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1; INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 99, 100); COMMIT"
-kdb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"
+kareladb sql market "BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1; INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 99, 100); COMMIT"
+kareladb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"
 ```
 
 Output:
 
-`> kdb sql market "BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1; INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 99, 100); COMMIT"`
+`> kareladb sql market "BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1; INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 99, 100); COMMIT"`
 
 ```text
 transaction started
@@ -855,14 +855,14 @@ error: column 'to_account' = '99' has no matching row in accounts(id) (the trans
 
 exit code 1
 
-`> kdb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"`
+`> kareladb sql market "SELECT id, owner, balance FROM accounts ORDER BY id"`
 
 ```text
 id | owner | balance
 ---+-------+--------
  1 | Ram   | 1000.00
  2 | Sita  |    0.00
-(2 rows, 0.4 ms)
+(2 rows, 0.2 ms)
 ```
 
 <a id="no-commit"></a>
@@ -875,11 +875,11 @@ Syntax:
 BEGIN; statement; ...   <end of the text>   -- rolled back
 ```
 
-`kdb sql`, `POST /exec` without a session, and the web console run one text at a time. A transaction cannot stay open after its text ends:
-when the text ends without `COMMIT` or `ROLLBACK`, KDB **rolls it back** and returns an error.
+`kareladb sql`, `POST /exec` without a session, and the web console run one text at a time. A transaction cannot stay open after its text ends:
+when the text ends without `COMMIT` or `ROLLBACK`, KarelaDB **rolls it back** and returns an error.
 
 - **Returns:** the error `BEGIN without COMMIT: the transaction was rolled back (end it with COMMIT to save the changes)`, after the results of the statements that ran.
-- **Notes:** in `kdb shell`, in an HTTP session and over the PostgreSQL protocol, the transaction stays open until you send `COMMIT` or `ROLLBACK` (or leave). Leaving the shell or closing the session rolls it back.
+- **Notes:** in `kareladb shell`, in an HTTP session and over the PostgreSQL protocol, the transaction stays open until you send `COMMIT` or `ROLLBACK` (or leave). Leaving the shell or closing the session rolls it back.
 
 **Example: Forgot the COMMIT** (shows an error)
 
@@ -1002,12 +1002,12 @@ A `SELECT` that says: "I read these rows because I will change them". Write it a
     | `SELECT ... FOR UPDATE NOWAIT` | fails at once with `table 'x' is busy` |
 
     So in a job worker, do the work first and send the `UPDATE` just before `COMMIT`: then the jobs table is held only for a few milliseconds. A worker that marks its job `running` early and then works on it makes the queue look empty to the others until it commits.
-  - `kdb serve --skip-locked-beside on` (off by default) makes `SKIP LOCKED` inside `BEGIN` return the free rows too, and lock them. The catch, until a change stops holding the whole table: the row you got is not free for your `UPDATE`. That `UPDATE` waits for the other transaction's `COMMIT`, and fails with `40001` after the [lock timeout](#lock-timeout) (5 seconds unless set) when that transaction stays open longer. If the other transaction then changes that row too, one of the two gets `deadlock: ...` at once. Turn it on only when your workers commit quickly and retry `40001` and `deadlock`.
+  - `kareladb serve --skip-locked-beside on` (off by default) makes `SKIP LOCKED` inside `BEGIN` return the free rows too, and lock them. The catch, until a change stops holding the whole table: the row you got is not free for your `UPDATE`. That `UPDATE` waits for the other transaction's `COMMIT`, and fails with `40001` after the [lock timeout](#lock-timeout) (5 seconds unless set) when that transaction stays open longer. If the other transaction then changes that row too, one of the two gets `deadlock: ...` at once. Turn it on only when your workers commit quickly and retry `40001` and `deadlock`.
   - With either setting, `SKIP LOCKED` returns **no rows** while another transaction holds the table in a way that names no rows: a `FOR UPDATE` that locks tables (a join, a subquery), a change of more than 4,096 rows of the table, a `DELETE` of every row or a bulk load. It also returns no rows when the table is held by a statement that is running right now for more than 50 ms.
   - On a table **without** a primary key there is no key to lock a row by: `FOR UPDATE` locks the whole table until your transaction ends, and `SKIP LOCKED` returns no rows while another transaction holds it.
   - Without `BEGIN` (no transaction), `FOR UPDATE` locks the rows only while the statement runs.
   - `FOR UPDATE` goes at the very end of the `SELECT`, after `ORDER BY` and `LIMIT`. Row locks are taken for a `SELECT` from one table; with a join, `GROUP BY`, `DISTINCT` or a view it locks the tables, as before.
-  - `FOR SHARE`, `FOR NO KEY UPDATE` and `FOR KEY SHARE` take the same lock as `FOR UPDATE`, with `NOWAIT` and `SKIP LOCKED` too. In PostgreSQL two sessions may both hold `FOR SHARE` on one row; in KDB the second one waits (or `NOWAIT` fails, or `SKIP LOCKED` skips the row). That is stricter, never looser: nothing gets through that PostgreSQL would stop. It is only slower when many readers share rows.
+  - `FOR SHARE`, `FOR NO KEY UPDATE` and `FOR KEY SHARE` take the same lock as `FOR UPDATE`, with `NOWAIT` and `SKIP LOCKED` too. In PostgreSQL two sessions may both hold `FOR SHARE` on one row; in KarelaDB the second one waits (or `NOWAIT` fails, or `SKIP LOCKED` skips the row). That is stricter, never looser: nothing gets through that PostgreSQL would stop. It is only slower when many readers share rows.
 
 **Example: Read the balances to be changed, then move the money**
 
@@ -1101,7 +1101,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "aeed33335b556ca67e8dfc88daeadbaa", "idle_timeout_ms": 600000}
+{"session": "c6015b22e4397d7ad7db4199a1ab4cad", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1120,7 +1120,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 23, "execute_us": 6}
+      "timings": {"parse_us": 23, "execute_us": 4}
     },
     {
       "statement": "SELECT id FROM jobs WHERE state = 'new' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
@@ -1134,7 +1134,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 151}
+      "timings": {"parse_us": 23, "execute_us": 107}
     }
   ],
   "columns": [
@@ -1144,7 +1144,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 46, "execute_us": 157}
+  "timings": {"parse_us": 46, "execute_us": 111}
 }
 ```
 
@@ -1169,7 +1169,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 66, "execute_us": 84}
+      "timings": {"parse_us": 34, "execute_us": 54}
     }
   ],
   "columns": [
@@ -1180,7 +1180,7 @@ HTTP 200 (application/json)
     [2, "new"]
   ],
   "count": 1,
-  "timings": {"parse_us": 66, "execute_us": 84}
+  "timings": {"parse_us": 34, "execute_us": 54}
 }
 ```
 
@@ -1214,7 +1214,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "91ede6e2c499432dfd6ae7ad40f6f98d", "idle_timeout_ms": 600000}
+{"session": "f15165e539fff363a6a19b6492606d1d", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1233,7 +1233,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 16, "execute_us": 4}
+      "timings": {"parse_us": 11, "execute_us": 4}
     },
     {
       "statement": "SELECT id FROM jobs WHERE id = 1 FOR UPDATE",
@@ -1247,7 +1247,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 64}
+      "timings": {"parse_us": 11, "execute_us": 57}
     }
   ],
   "columns": [
@@ -1257,7 +1257,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 32, "execute_us": 68}
+  "timings": {"parse_us": 22, "execute_us": 61}
 }
 ```
 
@@ -1306,7 +1306,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "12fda51f843e6372cb7f667626ffcc65", "idle_timeout_ms": 600000}
+{"session": "c65f3d8a127f233bc504c3fd3d60f4e2", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1325,7 +1325,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 21, "execute_us": 4}
+      "timings": {"parse_us": 9, "execute_us": 2}
     },
     {
       "statement": "SELECT id FROM jobs WHERE id = 1 FOR UPDATE",
@@ -1339,7 +1339,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 21, "execute_us": 71}
+      "timings": {"parse_us": 9, "execute_us": 45}
     }
   ],
   "columns": [
@@ -1349,7 +1349,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 42, "execute_us": 75}
+  "timings": {"parse_us": 18, "execute_us": 47}
 }
 ```
 
@@ -1373,7 +1373,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 25, "execute_us": 61}
+      "timings": {"parse_us": 27, "execute_us": 70}
     }
   ],
   "columns": [
@@ -1383,24 +1383,24 @@ HTTP 200 (application/json)
     [2]
   ],
   "count": 1,
-  "timings": {"parse_us": 25, "execute_us": 61}
+  "timings": {"parse_us": 27, "execute_us": 70}
 }
 ```
 
-<a id="kdb-shell"></a>
+<a id="kareladb-shell"></a>
 
-## Transactions in kdb shell
+## Transactions in kareladb shell
 
 Syntax:
 
 ```sql
-kdb shell database
-kdb> BEGIN;
-kdb> ...;
-kdb> COMMIT;
+kareladb shell database
+kareladb> BEGIN;
+kareladb> ...;
+kareladb> COMMIT;
 ```
 
-In [`kdb shell`](cli-sql-and-shell.md), one transaction can go over many lines: the shell keeps one session for the whole time.
+In [`kareladb shell`](cli-sql-and-shell.md), one transaction can go over many lines: the shell keeps one session for the whole time.
 
 - **Notes:**
   - If you leave the shell (`.exit`) with a transaction still open, it is rolled back.
@@ -1417,7 +1417,7 @@ INSERT INTO accounts VALUES (1, 'Ram', 1000), (2, 'Sita', 0);
 ```
 
 ```bash
-kdb shell market
+kareladb shell market
 > BEGIN;
 > UPDATE accounts SET balance = balance - 250.50 WHERE id = 1;
 > UPDATE accounts SET balance = balance + 250.50 WHERE id = 2;
@@ -1429,18 +1429,18 @@ kdb shell market
 Output:
 
 ```text
-KDB 0.2.0-dev shell on market
+KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> transaction started
-kdb> 1 row(s) updated
-kdb> 1 row(s) updated
-kdb> id | owner | balance
+kareladb> transaction started
+kareladb> 1 row(s) updated
+kareladb> 1 row(s) updated
+kareladb> id | owner | balance
 ---+-------+--------
  1 | Ram   |  749.50
  2 | Sita  |  250.50
-(2 rows, 0.2 ms)
-kdb> transaction committed: 2 change(s) saved
-kdb>
+(2 rows, 0.1 ms)
+kareladb> transaction committed: 2 change(s) saved
+kareladb>
 ```
 
 In the next example, the `INSERT` fails (id 1 is already used). The shell then refuses the next `UPDATE`, so it cannot take 10 from Ram outside the transaction. `ROLLBACK` ends the failed transaction.
@@ -1456,7 +1456,7 @@ INSERT INTO accounts VALUES (1, 'Ram', 1000), (2, 'Sita', 0);
 ```
 
 ```bash
-kdb shell market
+kareladb shell market
 > BEGIN;
 > UPDATE accounts SET balance = balance + 10 WHERE id = 2;
 > INSERT INTO accounts VALUES (1, 'Ram again', 0);
@@ -1469,17 +1469,17 @@ kdb shell market
 Output:
 
 ```text
-KDB 0.2.0-dev shell on market
+KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> transaction started
-kdb> 1 row(s) updated
-kdb> kdb> kdb> transaction rolled back (it was already rolled back: a statement in it failed)
-kdb> id | owner | balance
+kareladb> transaction started
+kareladb> 1 row(s) updated
+kareladb> kareladb> kareladb> transaction rolled back (it was already rolled back: a statement in it failed)
+kareladb> id | owner | balance
 ---+-------+--------
  1 | Ram   | 1000.00
  2 | Sita  |    0.00
-(2 rows, 0.2 ms)
-kdb> 
+(2 rows, 0.1 ms)
+kareladb> 
 error: a row with id='1' already exists in 'accounts'. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it (the transaction was rolled back; send ROLLBACK to end it)
 error: the transaction of this session was rolled back (a statement in it failed); nothing of it was saved. Send ROLLBACK to end it, then start again
 ```
@@ -1547,7 +1547,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "c6c2e2f850f77619986b3b53723d9d39", "idle_timeout_ms": 600000}
+{"session": "30d4ba2d2a5047113deb82d916b7e2a0", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1566,7 +1566,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 24, "execute_us": 9}
+      "timings": {"parse_us": 12, "execute_us": 3}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -1576,13 +1576,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 24, "execute_us": 74}
+      "timings": {"parse_us": 12, "execute_us": 35}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 48, "execute_us": 83}
+  "timings": {"parse_us": 24, "execute_us": 38}
 }
 ```
 
@@ -1608,7 +1608,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 63}
+      "timings": {"parse_us": 20, "execute_us": 63}
     }
   ],
   "columns": [
@@ -1620,7 +1620,7 @@ HTTP 200 (application/json)
     [2, "0.00"]
   ],
   "count": 2,
-  "timings": {"parse_us": 27, "execute_us": 63}
+  "timings": {"parse_us": 20, "execute_us": 63}
 }
 ```
 
@@ -1640,7 +1640,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 18, "execute_us": 56}
+      "timings": {"parse_us": 10, "execute_us": 37}
     },
     {
       "statement": "COMMIT",
@@ -1650,13 +1650,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 2 change(s) saved",
-      "timings": {"parse_us": 18, "execute_us": 13}
+      "timings": {"parse_us": 10, "execute_us": 8}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 36, "execute_us": 69}
+  "timings": {"parse_us": 20, "execute_us": 45}
 }
 ```
 
@@ -1682,7 +1682,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 2, "execute_us": 91}
+      "timings": {"parse_us": 2, "execute_us": 54}
     }
   ],
   "columns": [
@@ -1694,7 +1694,7 @@ HTTP 200 (application/json)
     [2, "100.00"]
   ],
   "count": 2,
-  "timings": {"parse_us": 2, "execute_us": 91}
+  "timings": {"parse_us": 2, "execute_us": 54}
 }
 ```
 
@@ -1703,7 +1703,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "c6c2e2f850f77619986b3b53723d9d39", "closed": true}
+{"session": "30d4ba2d2a5047113deb82d916b7e2a0", "closed": true}
 ```
 
 <a id="one-writer"></a>
@@ -1730,17 +1730,17 @@ A writer **locks every table it uses** until its statement ends. Inside `BEGIN` 
 | Other tables | Writers of different tables do not wait for each other's locks: a live tick feed and a big load into another table run side by side. They can still wait a little for work the whole database shares: a checkpoint that writes the changes to disk, and the disk sync of a commit. |
 | The same table | A second writer waits until the first one ends, first come, first served. Line-protocol writes and bulk loads wait the same way. |
 | What is locked | The tables a statement changes and reads, and what it sets off: tables its triggers and procedures use, tables linked to it by foreign keys, and `_audit_log` for audited tables. A procedure or trigger whose [`EXECUTE`](procedure-language.md#execute) text is made while it runs (`format(...)`, `'...' \|\| name`), and a read of `information_schema` or `pg_catalog` in a writer, lock every table. `EXECUTE` of text written out in the body locks only the tables of that text. |
-| Row-level locks | Inside `BEGIN` ... `COMMIT`, an `UPDATE` of rows of a table with a primary key locks **those rows**, not the table, until the transaction ends. Between its statements the transaction gives the table back: another transaction may change **other rows** of it at once, and one that meets a locked row waits for it, as in PostgreSQL (after the lock timeout: `a row of table 'x' is locked`, `55P03`, or `40001` inside its own transaction). Two transactions that wait for each other's rows: one gets `deadlock: ...` at once. A `ROLLBACK` puts back only its own rows. What still keeps the **whole table** until `COMMIT`: an `INSERT` or `DELETE` in it, an `UPDATE` that changes a row's key, and any change of a table with another `UNIQUE` column or unique index, a foreign key (either way) or a trigger - rows the transaction holds could clash with another writer's there. A read in another transaction does not hold up such a transaction. Turn it off with `KDB_NO_ROW_LOCKS=1` (every table a transaction writes stays locked until it ends, as before). |
+| Row-level locks | Inside `BEGIN` ... `COMMIT`, an `UPDATE` of rows of a table with a primary key locks **those rows**, not the table, until the transaction ends. Between its statements the transaction gives the table back: another transaction may change **other rows** of it at once, and one that meets a locked row waits for it, as in PostgreSQL (after the lock timeout: `a row of table 'x' is locked`, `55P03`, or `40001` inside its own transaction). Two transactions that wait for each other's rows: one gets `deadlock: ...` at once. A `ROLLBACK` puts back only its own rows. What still keeps the **whole table** until `COMMIT`: an `INSERT` or `DELETE` in it, an `UPDATE` that changes a row's key, and any change of a table with another `UNIQUE` column or unique index, a foreign key (either way) or a trigger - rows the transaction holds could clash with another writer's there. A read in another transaction does not hold up such a transaction. Turn it off with `KARELADB_NO_ROW_LOCKS=1` (every table a transaction writes stays locked until it ends, as before). |
 | `SELECT ... FOR UPDATE` | On a table with a primary key it locks only the rows it returns, not the table, until the transaction ends: other writers of the table go on, and only a writer of one of those rows waits ([row locks](#for-update)). |
-| Several writers at once | `kdb serve --table-writers many`: requests that touch a table only by single rows and their primary key run on it at the same time, waiting only for the same row ([several writers of one table](#shared-writers)). Off by default. |
+| Several writers at once | `kareladb serve --table-writers many`: requests that touch a table only by single rows and their primary key run on it at the same time, waiting only for the same row ([several writers of one table](#shared-writers)). Off by default. |
 | Several tables | The tables of one request are locked all at once, always in the same order, so two such requests never wait for each other. |
-| Deadlock | A transaction that needs one more table in a later request can meet another transaction that waits for one of its tables. KDB sees this at once: the one that would wait gets `deadlock: ...` (HTTP status 503) and is rolled back. Run it again. |
+| Deadlock | A transaction that needs one more table in a later request can meet another transaction that waits for one of its tables. KarelaDB sees this at once: the one that would wait gets `deadlock: ...` (HTTP status 503) and is rolled back. Run it again. |
 | Busy | A writer that waited the [lock timeout](#lock-timeout) (5 seconds unless set) gets `table 'x' is busy: ...` (HTTP status 503, PostgreSQL `55P03`; `40001` inside its own `BEGIN ... COMMIT`, see [isolation](#isolation)). Nothing of its statement was done: try the whole transaction again a moment later. |
 | A taken key | An `INSERT ... VALUES` that waits for a busy table looks its keys up in the **committed** rows while it waits. A key that is already there gives the duplicate key error **at once** (PostgreSQL `23505`, HTTP status 400, with the table and constraint named), not `55P03` after the lock timeout. Inside `BEGIN` the transaction ends, as after any `23505`. A key that only the other transaction has added, deleted or changed is not decided yet: the `INSERT` waits for it. When that transaction commits, the `INSERT` gets `23505` (if the key is now taken) or goes in; when it rolls back, the row goes in. A key it deleted is never reported as taken. This covers the primary key, `UNIQUE` columns, plain unique indexes and a time-series `DEDUP KEY` that includes the time column, with literal values or `$1` parameters (not values worked out by an expression, `ON CONFLICT`, or a table with an `INSERT` trigger: those wait as before). |
-| Schema changes of a table | `CREATE TABLE`, `ALTER TABLE` (`RENAME` too), `DROP TABLE`, `CREATE INDEX`, `DROP INDEX`, `CREATE`, `ALTER` and `DROP TRIGGER` and `TRUNCATE` lock only their table (and the tables its foreign keys point at). `CREATE TABLE ... AS` locks the tables its query reads. `CREATE`, `REFRESH` and `DROP MATERIALIZED VIEW` lock the view and its table. They wait for writers of that table, like any writer (`table 'x' is busy: ...`). `CREATE TABLE` (also `IF NOT EXISTS` and `AS SELECT`), `ALTER TABLE` (not `SET TTL`, `SET (dedup_insert ...)` or `DEDUP`), `RENAME TABLE` and `CREATE` / `DROP INDEX` do not wait for writers of **other** tables at all: they run beside them, also beside one long `INSERT ... SELECT`, `COPY` or `CALL` that never pauses. Only a writer that named the new table before it existed is waited for. The other schema changes of a table (`DROP TABLE`, triggers, `TRUNCATE`, materialized views) wait for a long writer of other tables only until it pauses between two of its statements ([reader yield](#reader-yield)). Only the wait for writers counts against the lock timeout: a long `SELECT` or read-only `CALL` is waited for as long as it runs, then the schema change runs. Readers wait while the schema change itself runs, which is short. Turn it off with `kdb serve --ddl-beside-writers off` (they wait for the pause again) or `--scoped-ddl off` (every schema change locks every table). |
+| Schema changes of a table | `CREATE TABLE`, `ALTER TABLE` (`RENAME` too), `DROP TABLE`, `CREATE INDEX`, `DROP INDEX`, `CREATE`, `ALTER` and `DROP TRIGGER` and `TRUNCATE` lock only their table (and the tables its foreign keys point at). `CREATE TABLE ... AS` locks the tables its query reads. `CREATE`, `REFRESH` and `DROP MATERIALIZED VIEW` lock the view and its table. They wait for writers of that table, like any writer (`table 'x' is busy: ...`). `CREATE TABLE` (also `IF NOT EXISTS` and `AS SELECT`), `ALTER TABLE` (not `SET TTL`, `SET (dedup_insert ...)` or `DEDUP`), `RENAME TABLE` and `CREATE` / `DROP INDEX` do not wait for writers of **other** tables at all: they run beside them, also beside one long `INSERT ... SELECT`, `COPY` or `CALL` that never pauses. Only a writer that named the new table before it existed is waited for. The other schema changes of a table (`DROP TABLE`, triggers, `TRUNCATE`, materialized views) wait for a long writer of other tables only until it pauses between two of its statements ([reader yield](#reader-yield)). Only the wait for writers counts against the lock timeout: a long `SELECT` or read-only `CALL` is waited for as long as it runs, then the schema change runs. Readers wait while the schema change itself runs, which is short. Turn it off with `kareladb serve --ddl-beside-writers off` (they wait for the pause again) or `--scoped-ddl off` (every schema change locks every table). |
 | Views, procedures, functions | change a definition, not a table: they lock no table, and writers of tables go on (creating or altering a `CACHED` view and `REFRESH VIEW` lock the tables its query reads). They still wait for a writer that may use the old definition next: a view change for a running writer that reads a view, a procedure or function change for a running writer that runs a procedure, a function or a plpgsql trigger (a long `CALL`, say). After the lock timeout that is `database is busy: ...`. |
 | Other schema changes | Sequences, `BACKUP`, `DEDUP TABLE`, a change of a table a materialized view reads, a `CREATE TABLE ... AS` whose query reads `information_schema`, and a schema change sent in one request with statements it affects (`CREATE OR REPLACE PROCEDURE p ...; CALL p()`, or `CREATE VIEW v ...; INSERT ... SELECT FROM v`) lock every table: they wait until no transaction is open, and after the lock timeout get `database is busy: ...`. While such a change waits for a writer that was already running, writers of other tables still go ahead of it. Once that writer ends, new writers wait behind the change, so it is never kept out. |
-| Schema statements with nothing to do | lock nothing and answer at once: `CREATE TABLE IF NOT EXISTS` of a table that is there, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` of a column that is there, `DROP COLUMN IF EXISTS`, `DROP TABLE IF EXISTS`, `DROP INDEX IF EXISTS` and `DROP VIEW IF EXISTS` of something that is not there, `CREATE INDEX IF NOT EXISTS` and `CREATE VIEW IF NOT EXISTS` of one that is there, `CREATE EXTENSION`, and a `COMMENT ON` that changes nothing (the same text again, or an object whose comments KDB does not keep). So the `CREATE ... IF NOT EXISTS` an app sends at start-up never waits for a long writer. |
+| Schema statements with nothing to do | lock nothing and answer at once: `CREATE TABLE IF NOT EXISTS` of a table that is there, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` of a column that is there, `DROP COLUMN IF EXISTS`, `DROP TABLE IF EXISTS`, `DROP INDEX IF EXISTS` and `DROP VIEW IF EXISTS` of something that is not there, `CREATE INDEX IF NOT EXISTS` and `CREATE VIEW IF NOT EXISTS` of one that is there, `CREATE EXTENSION`, and a `COMMENT ON` that changes nothing (the same text again, or an object whose comments KarelaDB does not keep). So the `CREATE ... IF NOT EXISTS` an app sends at start-up never waits for a long writer. |
 | A request that cannot get its locks | none of its statements ran. The error says so: `... (none of the 2 statements of this request was run)`. Send the whole request again. |
 | Readers and open transactions | A `SELECT` does not wait for an open transaction between its requests: it runs at once and sees the data **without** that transaction's changes. A read never waits for another read. |
 | Readers and a running writer | A `SELECT` waits only while a writer runs on a table it reads (a statement, a long `CALL`, a trigger, a `POST /write`). `SELECT 1`, a login lookup and reads of other tables answer at once ([readers during a long writer](transactions.md#per-table-reads)). With [reader yield](transactions.md#reader-yield) (on unless turned off), a long `CALL`, trigger or request of many statements lets readers of its tables in between its statements; with it off, they wait for the writer's whole request. |
@@ -1784,7 +1784,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "f7e759966764a764063c635d46f4e31d", "idle_timeout_ms": 600000}
+{"session": "6dfe5755814a2c684b877d114c7a8e55", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1803,7 +1803,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 14, "execute_us": 6}
+      "timings": {"parse_us": 26, "execute_us": 2}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -1813,13 +1813,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 14, "execute_us": 73}
+      "timings": {"parse_us": 26, "execute_us": 22}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 28, "execute_us": 79}
+  "timings": {"parse_us": 52, "execute_us": 24}
 }
 ```
 
@@ -1839,13 +1839,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 32, "execute_us": 19}
+      "timings": {"parse_us": 10, "execute_us": 12}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 32, "execute_us": 19}
+  "timings": {"parse_us": 10, "execute_us": 12}
 }
 ```
 
@@ -1879,7 +1879,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "b53794a14362801a49dbfdae615461bd", "idle_timeout_ms": 600000}
+{"session": "c4516d978d633c8a5070f1b43f373082", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1898,7 +1898,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 12, "execute_us": 4}
+      "timings": {"parse_us": 40, "execute_us": 3}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -1908,13 +1908,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 12, "execute_us": 42}
+      "timings": {"parse_us": 40, "execute_us": 33}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 24, "execute_us": 46}
+  "timings": {"parse_us": 80, "execute_us": 36}
 }
 ```
 
@@ -1934,13 +1934,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 23, "execute_us": 34}
+      "timings": {"parse_us": 11, "execute_us": 18}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 23, "execute_us": 34}
+  "timings": {"parse_us": 11, "execute_us": 18}
 }
 ```
 
@@ -1974,7 +1974,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "2fcad7bfc65a0a969b174771e5c08a0e", "idle_timeout_ms": 600000}
+{"session": "0427ceb857cbe9dbe23f688b3a066f35", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1993,7 +1993,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 11, "execute_us": 3}
+      "timings": {"parse_us": 5, "execute_us": 2}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -2003,13 +2003,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 11, "execute_us": 39}
+      "timings": {"parse_us": 5, "execute_us": 29}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 22, "execute_us": 42}
+  "timings": {"parse_us": 10, "execute_us": 31}
 }
 ```
 
@@ -2023,7 +2023,7 @@ HTTP 503 (application/json)
   "results": [],
   "saved": 0,
   "rolled_back": false,
-  "error": "a row of table 'accounts' is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5013 ms (lock_timeout: SET lock_timeout, or kdb serve --lock-timeout). Try again, or keep transactions short",
+  "error": "a row of table 'accounts' is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5024 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
   "sqlstate": "55P03"
 }
 ```
@@ -2058,7 +2058,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "ccf8379d5ccea6c1117951a641db70db", "idle_timeout_ms": 600000}
+{"session": "3f5fb24dc6ddbbd72c3eed21d46e81ff", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2077,7 +2077,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 9, "execute_us": 5}
+      "timings": {"parse_us": 7, "execute_us": 4}
     },
     {
       "statement": "INSERT INTO accounts VALUES (3, 'Hari', 0)",
@@ -2087,13 +2087,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 9, "execute_us": 47}
+      "timings": {"parse_us": 7, "execute_us": 29}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 18, "execute_us": 52}
+  "timings": {"parse_us": 14, "execute_us": 33}
 }
 ```
 
@@ -2107,7 +2107,7 @@ HTTP 503 (application/json)
   "results": [],
   "saved": 0,
   "rolled_back": false,
-  "error": "table 'accounts' is busy: another transaction has held it for 5027 ms; waited 5003 ms (lock_timeout: SET lock_timeout, or kdb serve --lock-timeout). Try again, or keep transactions short",
+  "error": "table 'accounts' is busy: another transaction has held it for 5025 ms; waited 5009 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
   "sqlstate": "55P03"
 }
 ```
@@ -2142,7 +2142,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "3663ba76f5b8fcea203f7cb874c34c46", "idle_timeout_ms": 600000}
+{"session": "ac402a4fda8ac1485bdaa0534ef5611f", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2161,7 +2161,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 24, "execute_us": 5}
+      "timings": {"parse_us": 9, "execute_us": 3}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -2171,13 +2171,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 24, "execute_us": 56}
+      "timings": {"parse_us": 9, "execute_us": 38}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 48, "execute_us": 61}
+  "timings": {"parse_us": 18, "execute_us": 41}
 }
 ```
 
@@ -2230,7 +2230,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "938dc0eedc33ef8407f39dac500ead73", "idle_timeout_ms": 600000}
+{"session": "fe879f956829a47e0e57de0fbd17ffe4", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2249,7 +2249,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 17, "execute_us": 4}
+      "timings": {"parse_us": 11, "execute_us": 4}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -2259,13 +2259,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 17, "execute_us": 47}
+      "timings": {"parse_us": 11, "execute_us": 43}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 34, "execute_us": 51}
+  "timings": {"parse_us": 22, "execute_us": 47}
 }
 ```
 
@@ -2285,7 +2285,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'accounts' already exists",
-      "timings": {"parse_us": 17, "execute_us": 1}
+      "timings": {"parse_us": 12, "execute_us": 1}
     },
     {
       "statement": "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS owner STRING",
@@ -2295,13 +2295,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'accounts' not changed (already as asked)",
-      "timings": {"parse_us": 17, "execute_us": 0}
+      "timings": {"parse_us": 12, "execute_us": 0}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 34, "execute_us": 1}
+  "timings": {"parse_us": 24, "execute_us": 1}
 }
 ```
 
@@ -2319,9 +2319,9 @@ SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED
 SHOW transaction_isolation
 ```
 
-KDB's transactions are **serializable** unless you ask for READ COMMITTED: every table a transaction reads or writes is locked until `COMMIT` or `ROLLBACK`. PostgreSQL's default is READ COMMITTED.
+KarelaDB's transactions are **serializable** unless you ask for READ COMMITTED: every table a transaction reads or writes is locked until `COMMIT` or `ROLLBACK`. PostgreSQL's default is READ COMMITTED.
 
-| | SERIALIZABLE (KDB's default) | READ COMMITTED |
+| | SERIALIZABLE (KarelaDB's default) | READ COMMITTED |
 |---|---|---|
 | A `SELECT` in the transaction | locks the table until the end | locks nothing, unless the transaction already holds the table |
 | Reading again after another session committed | the same rows (the other session had to wait) | the new rows |
@@ -2388,7 +2388,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "29d98ffec3c666650a313a55dbe88401", "idle_timeout_ms": 600000}
+{"session": "e6e9376f3e74fb0c884ea8da1c514383", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2407,13 +2407,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 8, "execute_us": 10}
+      "timings": {"parse_us": 5, "execute_us": 10}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 8, "execute_us": 10}
+  "timings": {"parse_us": 5, "execute_us": 10}
 }
 ```
 
@@ -2437,7 +2437,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 40, "execute_us": 64}
+      "timings": {"parse_us": 14, "execute_us": 39}
     }
   ],
   "columns": [
@@ -2447,7 +2447,7 @@ HTTP 200 (application/json)
     [10]
   ],
   "count": 1,
-  "timings": {"parse_us": 40, "execute_us": 64}
+  "timings": {"parse_us": 14, "execute_us": 39}
 }
 ```
 
@@ -2467,13 +2467,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 19, "execute_us": 50}
+      "timings": {"parse_us": 17, "execute_us": 29}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 19, "execute_us": 50}
+  "timings": {"parse_us": 17, "execute_us": 29}
 }
 ```
 
@@ -2497,7 +2497,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 4, "execute_us": 112}
+      "timings": {"parse_us": 2, "execute_us": 50}
     }
   ],
   "columns": [
@@ -2507,7 +2507,7 @@ HTTP 200 (application/json)
     [11]
   ],
   "count": 1,
-  "timings": {"parse_us": 4, "execute_us": 112}
+  "timings": {"parse_us": 2, "execute_us": 50}
 }
 ```
 
@@ -2527,13 +2527,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 0 change(s) saved",
-      "timings": {"parse_us": 11, "execute_us": 10}
+      "timings": {"parse_us": 6, "execute_us": 5}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 11, "execute_us": 10}
+  "timings": {"parse_us": 6, "execute_us": 5}
 }
 ```
 
@@ -2568,7 +2568,7 @@ A read-only transaction refuses every change, as in PostgreSQL. Use it for repor
   - `SET TRANSACTION READ WRITE` after the transaction ran a query is refused (`25001`), as in PostgreSQL.
   - Over HTTP, `BEGIN READ ONLY` works in one request. `SET default_transaction_read_only` and `SET TRANSACTION` need an [HTTP session](http-sessions-and-cursors.md) (`POST /session`): without one there is nowhere to keep them, so they are refused.
   - One session's setting never changes another session.
-  - To make a whole database or server read-only for everyone, use `ALTER DATABASE ... SET READ ONLY` or `kdb serve --read-only` instead.
+  - To make a whole database or server read-only for everyone, use `ALTER DATABASE ... SET READ ONLY` or `kareladb serve --read-only` instead.
 
 **HTTP: A report session that cannot write by mistake** (shows an error)
 
@@ -2607,7 +2607,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 7, "execute_us": 3}
+      "timings": {"parse_us": 6, "execute_us": 3}
     },
     {
       "statement": "SELECT v FROM report_src",
@@ -2621,7 +2621,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 7, "execute_us": 54}
+      "timings": {"parse_us": 6, "execute_us": 47}
     },
     {
       "statement": "COMMIT",
@@ -2631,13 +2631,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 0 change(s) saved",
-      "timings": {"parse_us": 7, "execute_us": 2}
+      "timings": {"parse_us": 6, "execute_us": 3}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 21, "execute_us": 59}
+  "timings": {"parse_us": 18, "execute_us": 53}
 }
 ```
 
@@ -2657,7 +2657,7 @@ HTTP 403 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 14, "execute_us": 4}
+      "timings": {"parse_us": 6, "execute_us": 2}
     }
   ],
   "saved": 0,
@@ -2674,16 +2674,16 @@ HTTP 403 (application/json)
 Syntax:
 
 ```sql
-kdb serve --lock-timeout 20s              the server (default 5s; 0 = no limit)
-KDB_LOCK_TIMEOUT=20s                      the same, for Docker
-"lock_timeout_ms": 20000                  the same, in kdb.conf
+kareladb serve --lock-timeout 20s              the server (default 5s; 0 = no limit)
+KARELADB_LOCK_TIMEOUT=20s                      the same, for Docker
+"lock_timeout_ms": 20000                  the same, in kareladb.conf
 SET lock_timeout = '20s' | 20000 | 0 | DEFAULT     one session (HTTP session or PostgreSQL connection)
 X-KDB-Lock-Timeout: 20s                   one HTTP request
 ```
 
 | Where | Detail |
 |---|---|
-| The server | A flag wins, then `kdb.conf`, then `KDB_LOCK_TIMEOUT`, then 5 seconds. The console's Settings page shows the value and where it came from. |
+| The server | A flag wins, then `kareladb.conf`, then `KARELADB_LOCK_TIMEOUT`, then 5 seconds. The console's Settings page shows the value and where it came from. |
 | One session | `SET lock_timeout` lasts for the session, like in PostgreSQL. A plain number is milliseconds. `DEFAULT` (or `RESET lock_timeout`) goes back to the server's. `SHOW lock_timeout` gives the value in milliseconds. |
 | One request | The HTTP header `X-KDB-Lock-Timeout` sets it for that request only: `/exec`, the line protocol (`POST /write`) and CSV import (`POST /imp`). |
 | Loads | Rows from the line protocol, `/imp` and a PostgreSQL `COPY` wait in a write queue. Each caller keeps its own lock timeout there, also while it waits behind other loads of the same table. A cancel or a server stop ends its wait at once, and nothing of it is written. |
@@ -2722,7 +2722,7 @@ SET log_lock_waits = on;  SET deadlock_timeout = '1s'              a log line fo
 | Only in a transaction | Outside `BEGIN ... COMMIT` it fails with `LOCK TABLE can only be used in transaction blocks` (`25P01`), as in PostgreSQL. In a procedure body it lasts until the request's transaction ends. |
 | `NOWAIT` | A table another transaction holds in a conflicting mode fails at once with `could not obtain lock on relation "t"` (`55P03`, HTTP 503: try again), and the transaction is rolled back, as in PostgreSQL. Without `NOWAIT` it waits the [lock timeout](#lock-timeout). |
 | A view | locks the tables the view reads, in the same mode. |
-| KDB's own writers | still take turns on a table as always ([one writer per table](#one-writer)): two `UPDATE`s of one table never run at once. `pg_locks` shows a writer's lock as `RowExclusiveLock` (it changes the table), `RowShareLock` (`SELECT ... FOR UPDATE`) or `AccessShareLock` (it reads the table in its transaction). |
+| KarelaDB's own writers | still take turns on a table as always ([one writer per table](#one-writer)): two `UPDATE`s of one table never run at once. `pg_locks` shows a writer's lock as `RowExclusiveLock` (it changes the table), `RowShareLock` (`SELECT ... FOR UPDATE`) or `AccessShareLock` (it reads the table in its transaction). |
 | Readers | A plain `SELECT` waits only for `ACCESS EXCLUSIVE`. A read that started before the lock was granted runs to its end. The session that holds the lock reads on. |
 | Deadlock | Two transactions that wait for each other: one gets `deadlock: process 12 waits for ExclusiveLock on table 't1'; blocked by process 34. Process 34 waits for ...` (`40P01`, HTTP 503) at once and is rolled back. Run it again. |
 | Rights | `ACCESS SHARE` needs the right to read the table; the other modes the right to change it. A read-only transaction may take up to `ROW EXCLUSIVE`. |
@@ -2733,7 +2733,7 @@ SET log_lock_waits = on;  SET deadlock_timeout = '1s'              a log line fo
 
 `pg_blocking_pids(pid)` gives the pids a waiting pid waits for: those holding a lock in its way, and those that came first and wait for the same table. `{}` when it does not wait.
 
-`log_lock_waits` (off by default) writes one line to the server log when a statement has waited for a table lock longer than `deadlock_timeout` (1 second by default), naming it, the lock, who holds it and who waits: `kdb: LOG: process 12 still waiting for RowExclusiveLock on relation 16448 ('t') of database 'main' after 1003 ms; process holding the lock: 34; wait queue: 12`. Set it for the server with `kdb serve --log-lock-waits on --deadlock-timeout 1s` (`KDB_LOG_LOCK_WAITS`, `KDB_DEADLOCK_TIMEOUT`), or for one session with `SET`. KDB finds a deadlock at once whatever `deadlock_timeout` is: it only says when the line is written.
+`log_lock_waits` (off by default) writes one line to the server log when a statement has waited for a table lock longer than `deadlock_timeout` (1 second by default), naming it, the lock, who holds it and who waits: `kareladb: LOG: process 12 still waiting for RowExclusiveLock on relation 16448 ('t') of database 'main' after 1003 ms; process holding the lock: 34; wait queue: 12`. Set it for the server with `kareladb serve --log-lock-waits on --deadlock-timeout 1s` (`KARELADB_LOG_LOCK_WAITS`, `KARELADB_DEADLOCK_TIMEOUT`), or for one session with `SET`. KarelaDB finds a deadlock at once whatever `deadlock_timeout` is: it only says when the line is written.
 
 **HTTP: SHARE mode: another transaction reads the table, its UPDATE would wait; pg_locks shows the lock**
 
@@ -2766,7 +2766,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "18667f6568b87caad682354243a60541", "idle_timeout_ms": 600000}
+{"session": "30cf3cee6e7d718a9ec3fc8f472fbc54", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2785,7 +2785,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 7, "execute_us": 4}
+      "timings": {"parse_us": 7, "execute_us": 5}
     },
     {
       "statement": "LOCK TABLE accounts IN SHARE MODE",
@@ -2801,7 +2801,7 @@ HTTP 200 (application/json)
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 14, "execute_us": 7}
+  "timings": {"parse_us": 14, "execute_us": 8}
 }
 ```
 
@@ -2827,7 +2827,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 64}
+      "timings": {"parse_us": 19, "execute_us": 52}
     },
     {
       "statement": "SELECT c.relname, l.mode, l.granted FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation",
@@ -2843,7 +2843,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 131}
+      "timings": {"parse_us": 19, "execute_us": 118}
     }
   ],
   "columns": [
@@ -2855,7 +2855,7 @@ HTTP 200 (application/json)
     ["accounts", "ShareLock", true]
   ],
   "count": 1,
-  "timings": {"parse_us": 36, "execute_us": 195}
+  "timings": {"parse_us": 38, "execute_us": 170}
 }
 ```
 
@@ -2889,7 +2889,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "4715e1b78204942da6d204e9b1644327", "idle_timeout_ms": 600000}
+{"session": "b1f1ddd934028e8190992853b8ce7049", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2908,7 +2908,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 8, "execute_us": 4}
+      "timings": {"parse_us": 56, "execute_us": 4}
     },
     {
       "statement": "LOCK TABLE accounts IN SHARE MODE",
@@ -2918,13 +2918,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "LOCK TABLE",
-      "timings": {"parse_us": 8, "execute_us": 1}
+      "timings": {"parse_us": 56, "execute_us": 1}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 16, "execute_us": 5}
+  "timings": {"parse_us": 112, "execute_us": 5}
 }
 ```
 
@@ -2950,9 +2950,9 @@ HTTP 503 (application/json)
 Syntax:
 
 ```sql
-kdb serve --idle-in-transaction-timeout 5min    the server (default 30s; 0 = never)
-KDB_IDLE_IN_TRANSACTION_TIMEOUT=5min            the same, for Docker
-"idle_in_transaction_timeout_ms": 300000        the same, in kdb.conf
+kareladb serve --idle-in-transaction-timeout 5min    the server (default 30s; 0 = never)
+KARELADB_IDLE_IN_TRANSACTION_TIMEOUT=5min            the same, for Docker
+"idle_in_transaction_timeout_ms": 300000        the same, in kareladb.conf
 SET idle_in_transaction_session_timeout = '5min' | 300000 | 0 | DEFAULT   one session
 ```
 
@@ -2960,7 +2960,7 @@ An open `BEGIN` ... `COMMIT` that sends no statement for this long is rolled bac
 
 | Where | Detail |
 |---|---|
-| The server | A flag wins, then `kdb.conf`, then `KDB_IDLE_IN_TRANSACTION_TIMEOUT`, then 30 seconds. The start-up lines and the console's Settings page show it and where it came from. |
+| The server | A flag wins, then `kareladb.conf`, then `KARELADB_IDLE_IN_TRANSACTION_TIMEOUT`, then 30 seconds. The start-up lines and the console's Settings page show it and where it came from. |
 | One session | `SET idle_in_transaction_session_timeout` lasts for the session (an HTTP session or a PostgreSQL connection), like in PostgreSQL. A plain number is milliseconds. `0` = never. `DEFAULT` (or `RESET`) goes back to the server's. `SHOW idle_in_transaction_session_timeout` gives it in milliseconds on the PostgreSQL port. |
 | The error | `the transaction of this session was rolled back (it was open without a statement for N ms; the limit is M ms ...)`. |
 
@@ -2971,8 +2971,8 @@ An open `BEGIN` ... `COMMIT` that sends no statement for this long is rolled bac
 Syntax:
 
 ```sql
-kdb serve --per-table-reads on|off     (default on)
-KDB_PER_TABLE_READS=off                (the same, for Docker; a flag wins)
+kareladb serve --per-table-reads on|off     (default on)
+KARELADB_PER_TABLE_READS=off                (the same, for Docker; a flag wins)
 ```
 
 A reader waits only for writers that are **running right now on a table it reads**.
@@ -3001,8 +3001,8 @@ A reader waits only for writers that are **running right now on a table it reads
 Syntax:
 
 ```sql
-kdb serve --reader-yield on|off        (default on)
-KDB_READER_YIELD=off                   (the same, for Docker; a flag wins)
+kareladb serve --reader-yield on|off        (default on)
+KARELADB_READER_YIELD=off                   (the same, for Docker; a flag wins)
 ```
 
 A writer's request can run for many seconds: a `CALL` that builds a day of candles, an immediate trigger, a request with many statements.
@@ -3028,8 +3028,8 @@ Readers never see its changes before it commits. Readers of **other** tables nev
 Syntax:
 
 ```sql
-kdb serve --snapshot-reads on|off      (default off)
-KDB_SNAPSHOT_READS=on                  (the same, for Docker; a flag wins)
+kareladb serve --snapshot-reads on|off      (default off)
+KARELADB_SNAPSHOT_READS=on                  (the same, for Docker; a flag wins)
 ```
 
 With snapshot reads on, a reader of a table that a writer is changing **does not wait**, not even for one long statement. It reads a **snapshot** of the table: the rows committed when the read started.
@@ -3046,7 +3046,7 @@ With snapshot reads on, a reader of a table that a writer is changing **does not
   - A snapshot never holds uncommitted rows, and never half of a commit: all the tables of one transaction or none of them.
   - A snapshot waits until the rows it holds are on disk, as the writer that made them does.
   - Tables with an index get snapshots too, while a writer is busy on them, **at any size** (since 2026-10-02). A read of the snapshot still uses a plain or expression index (`CREATE INDEX`): it checks each row the index finds against the snapshot, and also finds the rows the writer changed or deleted since. So a lookup stays a lookup, never sees an uncommitted row, and `EXPLAIN` shows the index as usual.
-  - A full-text or JSON index is not used on a snapshot, and neither is an index that is not built in memory yet (after a restart, before its first use): such a read scans the snapshot instead. A table like that with more than 1,000,000 rows is not scanned: its readers wait for the writer, as before. `--snapshot-index-rows N` (`KDB_SNAPSHOT_INDEX_ROWS`) moves that line; `0` means indexed tables never get snapshots.
+  - A full-text or JSON index is not used on a snapshot, and neither is an index that is not built in memory yet (after a restart, before its first use): such a read scans the snapshot instead. A table like that with more than 1,000,000 rows is not scanned: its readers wait for the writer, as before. `--snapshot-index-rows N` (`KARELADB_SNAPSHOT_INDEX_ROWS`) moves that line; `0` means indexed tables never get snapshots.
   - An open transaction that sits idle (`BEGIN`, a change, then nothing) gives readers of an indexed table no snapshot: they take it out of their way and use the index on the table itself, as without snapshot reads.
   - Materialized views are still read as before (the reader waits).
   - One statement that writes a table applies its rows in one step at the end. A reader of that same table waits for that step (up to about a second per million rows), never for the whole statement.
@@ -3072,8 +3072,8 @@ With snapshot reads on, a reader of a table that a writer is changing **does not
 Syntax:
 
 ```sql
-kdb serve --table-writers one|many     (default one)
-KDB_TABLE_WRITERS=many                 (the same, for Docker; a flag wins)
+kareladb serve --table-writers one|many     (default one)
+KARELADB_TABLE_WRITERS=many                 (the same, for Docker; a flag wins)
 ```
 
 With `many`, several users change **one table at the same time**, as long as each of their requests touches the table only by **single rows and their primary key**:
@@ -3101,13 +3101,13 @@ The table must be a plain table with a one-column `PRIMARY KEY`, no foreign key 
 Syntax:
 
 ```sql
-kdb serve --txn-spill-mb 64            (default 64; 0 = never)
-KDB_TXN_SPILL_MB=64                    (the same, for Docker; a flag wins)
+kareladb serve --txn-spill-mb 64            (default 64; 0 = never)
+KARELADB_TXN_SPILL_MB=64                    (the same, for Docker; a flag wins)
 ```
 
-A transaction writes its changes to the log only at `COMMIT`. Until then KDB keeps the **log records** (the changes, ready to be written). A long `CALL`, a [deferred trigger](triggers.md#deferred) job or a big `BEGIN ... COMMIT` can make many of them.
+A transaction writes its changes to the log only at `COMMIT`. Until then KarelaDB keeps the **log records** (the changes, ready to be written). A long `CALL`, a [deferred trigger](triggers.md#deferred) job or a big `BEGIN ... COMMIT` can make many of them.
 
-Since 2026-10-02, once they pass **64 MB**, KDB moves them to a temporary file in the database's `_tmp` folder. Only where each record starts stays in memory.
+Since 2026-10-02, once they pass **64 MB**, KarelaDB moves them to a temporary file in the database's `_tmp` folder. Only where each record starts stays in memory.
 
 | When | What happens to the file |
 |---|---|
@@ -3203,4 +3203,4 @@ transaction started
 
 Error: `CHECK constraint 'accounts_balance_check' of table 'accounts' failed: balance >= 0 is false for the row id='1', balance='-150.50' (the transaction was rolled back)`
 
-Without `CHECK` constraints (or in an older KDB), a `BEFORE UPDATE` trigger can refuse the same change: see [triggers](triggers.md#before-after).
+Without `CHECK` constraints (or in an older KarelaDB), a `BEFORE UPDATE` trigger can refuse the same change: see [triggers](triggers.md#before-after).

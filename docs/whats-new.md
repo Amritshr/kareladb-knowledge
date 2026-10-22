@@ -1,16 +1,36 @@
 # What's new
 
-> Everything added to KDB since 2026-09-12, grouped by what it does for you, with the measured number and the topic that explains it.
+> Everything added to KarelaDB since 2026-09-12, grouped by what it does for you, with the measured number and the topic that explains it.
 
 - Category: Getting started
 - Keywords: whats new, whats new, new features, changes, changelog, release notes, recent changes, since 2026-09-12, zone maps, saved stats, warm at open, table locks, group commit, keyless runs, phrase search, word positions, disk full, format
-- See also: [About KDB](about-kdb.md), [Benchmark report](benchmark-report.md), [Test report](test-report.md), [Performance tips](performance-tips.md), [Limits](limits.md)
+- See also: [About KarelaDB](about-kareladb.md), [Benchmark report](benchmark-report.md), [Test report](test-report.md), [Performance tips](performance-tips.md), [Limits](limits.md)
 
-This page lists what was added to KDB from 2026-09-12 to 2026-09-24. Each line says what changed, the number measured before and after (where there is one), and where to read more.
+This page lists what was added to KarelaDB from 2026-09-12 to 2026-09-24. Each line says what changed, the number measured before and after (where there is one), and where to read more.
 
 - Numbers are medians on one PC (Intel i9-14900HX, 32 GB). The reports say how each was measured.
 - "A -> B" means before -> after, on the same machine in the same minutes.
-- A switch like `KDB_NO_ZONE_MAPS=1` turns a new speed-up off. It is there so an answer can be checked against the old path, not for normal use.
+- A switch like `KARELADB_NO_ZONE_MAPS=1` turns a new speed-up off. It is there so an answer can be checked against the old path, not for normal use.
+
+<a id="2026-10-22-grafana"></a>
+
+## 2026-10-22: Grafana and Prometheus, with two ready dashboards
+
+| What changed | Measured | Read more |
+|---|---|---|
+| Grafana's `$__timeGroup` / `$__timeGroupAlias` (`floor(extract(epoch from time)/N)*N`) is grouped in the column engine like `date_trunc`, for buckets of whole seconds and of 1/2, 1/4 or 1/8 second (the ones where it gives exactly PostgreSQL's edges); a bucket like `0.1` stays row by row. | 4M rows into 3,169 five-minute buckets: 6.2 s -> 34 ms | [macros](grafana.md#macros) |
+| Grafana 11's PostgreSQL data source lists tables and columns in its query editor: `array_lower()` is new, and a function that gives one value can be used as a table in `FROM`. | | [data source](grafana.md#data-source) |
+| Two dashboards (the server from Prometheus and `/metrics`; candles, volume and trades from the sample data), provisioning files and a `docker-compose.yml` in `integrations/grafana`; Grafana and Prometheus log in as read-only users. `/metrics` also counts snapshot reads per database (`kdb_snapshot_reads_total`). | all 33 panel queries give rows through Grafana 11.6.0 | [dashboards](grafana.md#dashboards) |
+
+<a id="2026-10-22-cold-storage"></a>
+
+## 2026-10-22: cold storage: old partitions in S3, MinIO, R2 or B2, still read by every query
+
+| What changed | Measured (Windows, the builds before and after side by side, 6M rows in 30 day partitions) | Read more |
+|---|---|---|
+| `ALTER TABLE t SET (cold_storage = 'archive', cold_after = '90 days')` moves sealed partitions older than that to an S3-compatible object store in the background; `ALTER TABLE ... MOVE PARTITION ... TO COLD` / `FROM COLD` moves one now. The store and its keys are server settings (`KARELADB_COLD_<NAME>_URL` ...), never SQL. | queries of local partitions: the same within the noise of the PC (0.13-0.17 ms for a day, 70-78 ms for all 30 days re-read from disk, before and after) | [cold storage](cold-storage.md) |
+| A query of a cold partition fetches only the columns it reads, in 1 MiB pieces, into a local cache (`KARELADB_COLD_CACHE_MB`). | one column of seven: 15 of 38 MB fetched | [cost](cold-storage.md#cost) |
+| A move is uploaded, checked (size, ETag, SHA-256) and only then switched over; a crash at any step leaves the data readable, and the next check tidies up. | power cut tested at each of the five steps | [safety](cold-storage.md#safety) |
 
 <a id="2026-10-18-pg-stream"></a>
 
@@ -27,11 +47,11 @@ This page lists what was added to KDB from 2026-09-12 to 2026-09-24. Each line s
 
 | What changed | Measured (10M floorsheet trades, 2 CPUs, 1.5 GB memory budget, WSL with an emulated 2-CPU quota) | Read more |
 |---|---|---|
-| A grouped view joined to a total of itself over some of its keys (`df d JOIN (SELECT time, symbol, sum(buy_qty) AS tot FROM df GROUP BY time, symbol) t ON d.time = t.time AND d.symbol = t.symbol`, each broker beside the symbol-day's total) makes the totals inside the view's own grouping: no row of the view is joined. An `INNER JOIN` on all of t's keys, t's aggregates `sum` / `min` / `max` of the view's `sum` / `count` / `min` / `max` outputs, a `WHERE` that narrows by those keys and by aggregates only. `EXPLAIN` says "to its own totals"; `KDB_NO_SELF_JOIN_TOTALS=1` turns it off. | OTM filter, one day: 7.6 -> 6.3 ms (side by side on a busy host) | [views](views.md#where-pushdown) |
-| A `HAVING` that reads only aggregates (a `CASE` flag, comparisons, `AND` / `OR` / `NOT`, `IN`, `BETWEEN`) is worked out column-wise over all the groups at once, with the same `NULL` rules, instead of one group at a time. An average, a first/last, a DECIMAL sum or whole-number arithmetic in the test still goes group by group; `KDB_NO_VECTOR_HAVING=1` turns it off. | OTM flag test over a day's 10,000 groups: 3.9 -> 1.4 ms (the step alone) | [HAVING](group-by.md#having) |
+| A grouped view joined to a total of itself over some of its keys (`df d JOIN (SELECT time, symbol, sum(buy_qty) AS tot FROM df GROUP BY time, symbol) t ON d.time = t.time AND d.symbol = t.symbol`, each broker beside the symbol-day's total) makes the totals inside the view's own grouping: no row of the view is joined. An `INNER JOIN` on all of t's keys, t's aggregates `sum` / `min` / `max` of the view's `sum` / `count` / `min` / `max` outputs, a `WHERE` that narrows by those keys and by aggregates only. `EXPLAIN` says "to its own totals"; `KARELADB_NO_SELF_JOIN_TOTALS=1` turns it off. | OTM filter, one day: 7.6 -> 6.3 ms (side by side on a busy host) | [views](views.md#where-pushdown) |
+| A `HAVING` that reads only aggregates (a `CASE` flag, comparisons, `AND` / `OR` / `NOT`, `IN`, `BETWEEN`) is worked out column-wise over all the groups at once, with the same `NULL` rules, instead of one group at a time. An average, a first/last, a DECIMAL sum or whole-number arithmetic in the test still goes group by group; `KARELADB_NO_VECTOR_HAVING=1` turns it off. | OTM flag test over a day's 10,000 groups: 3.9 -> 1.4 ms (the step alone) | [HAVING](group-by.md#having) |
 | A `GROUP BY` over a view joined to a small table whose columns are only group keys (`df d JOIN sector s ON d.symbol = s.symbol GROUP BY d.time, d.broker, s.sector`) runs the join as a lookup of the key inside the view's own grouping: no row of the view is made. Only an `INNER JOIN` on one column, a table of up to 65,536 rows that holds each key once, and columns of texts or whole numbers without NULLs. `EXPLAIN` says "run as a lookup of". | broker-sector, one day: 4.9 -> 1.1 ms; over a year: 31 -> 16 ms | [views](views.md#where-pushdown) |
 | A `GROUP BY` of two to four keys (`time, symbol, broker`) keeps them in one 64-bit number, each key in the bits its saved stats call for, so the merge compares numbers and not 48-byte keys. | daily filter, one day: 3.6 -> 2.6 ms; OTM filter, one day: 6.0 -> 5.4 ms | [GROUP BY](group-by.md) |
-| The small steps around a day's grouping cost less: the zero and one columns of a `UNION ALL` part are kept across queries instead of being made as long as the partition each time, the merge tables are sized once from the pieces, and with few groups the steps after the scan run on one thread instead of a pass over the pool each. `KDB_FLAT_TRACE=1` prints where a grouping's time goes. | (in the numbers above) | [GROUP BY](group-by.md) |
+| The small steps around a day's grouping cost less: the zero and one columns of a `UNION ALL` part are kept across queries instead of being made as long as the partition each time, the merge tables are sized once from the pieces, and with few groups the steps after the scan run on one thread instead of a pass over the pool each. `KARELADB_FLAT_TRACE=1` prints where a grouping's time goes. | (in the numbers above) | [GROUP BY](group-by.md) |
 
 <a id="2026-10-17-window-sums"></a>
 
@@ -83,7 +103,7 @@ This page lists what was added to KDB from 2026-09-12 to 2026-09-24. Each line s
 
 | What changed | Measured (34M trades in 447 day partitions, `--memory 1536`, 2 cores, data on a Windows disk, after a line-protocol load) | Read more |
 |---|---|---|
-| A query that reads a few columns of a table bigger than the room left first cuts the partitions held whole (just written, or read for every column) down in memory to its columns, then unloads only if it must. Only when that lets all its columns fit: a bigger query, or one over a small table, leaves them whole. `KDB_NO_SLIM_SCAN=1` goes back. | `REFRESH VIEW` of a daily GROUP BY: 3.0-3.3 s -> 0.34-0.38 s (median of 15); its second build 2.6-2.8 s -> 0.39-0.47 s; files read again per run: 189-254 -> 0 | [memory](performance-tips.md#memory) |
+| A query that reads a few columns of a table bigger than the room left first cuts the partitions held whole (just written, or read for every column) down in memory to its columns, then unloads only if it must. Only when that lets all its columns fit: a bigger query, or one over a small table, leaves them whole. `KARELADB_NO_SLIM_SCAN=1` goes back. | `REFRESH VIEW` of a daily GROUP BY: 3.0-3.3 s -> 0.34-0.38 s (median of 15); its second build 2.6-2.8 s -> 0.39-0.47 s; files read again per run: 189-254 -> 0 | [memory](performance-tips.md#memory) |
 | A number column whose saved stats say one value in the whole file (the day of a day partition) is filled from the stats instead of read. | bytes read for a cold pass of that view: 1,417 -> 1,146 MB | [memory](performance-tips.md#memory) |
 
 <a id="2026-10-06-statement-cost"></a>
@@ -102,8 +122,8 @@ This page lists what was added to KDB from 2026-09-12 to 2026-09-24. Each line s
 
 | What changed | Measured (15.3M minute bars, `--memory 1536 --memory-limit 3GB`) | Read more |
 |---|---|---|
-| `INSERT ... SELECT ... ORDER BY` sorts its rows in batches on disk and writes them in that order; a `DEDUP KEY` on a minute bucket (`DEDUP KEY (symbol, minute)`) keeps the copied rows as compact runs. `KDB_NO_SORTED_INSERT_STREAM=1` goes back. | 1.8M bars of 5 symbols `ORDER BY time` into `DEDUP KEY (symbol, minute)`: peak 4.9 GB and stopped -> 1.9 GB, 10 s; the same rows kept | [INSERT](insert.md) |
-| A quick statement let in at the limit that needs more than its small reserve waits up to 2 s for memory to come back, then runs on. | the three `GROUP BY` checks right after that copy: `memory full` -> answered | [kdb serve](cli-serve.md#memory-limit) |
+| `INSERT ... SELECT ... ORDER BY` sorts its rows in batches on disk and writes them in that order; a `DEDUP KEY` on a minute bucket (`DEDUP KEY (symbol, minute)`) keeps the copied rows as compact runs. `KARELADB_NO_SORTED_INSERT_STREAM=1` goes back. | 1.8M bars of 5 symbols `ORDER BY time` into `DEDUP KEY (symbol, minute)`: peak 4.9 GB and stopped -> 1.9 GB, 10 s; the same rows kept | [INSERT](insert.md) |
+| A quick statement let in at the limit that needs more than its small reserve waits up to 2 s for memory to come back, then runs on. | the three `GROUP BY` checks right after that copy: `memory full` -> answered | [kareladb serve](cli-serve.md#memory-limit) |
 
 <a id="2026-10-02-read-slots"></a>
 
@@ -145,13 +165,13 @@ This page lists what was added to KDB from 2026-09-12 to 2026-09-24. Each line s
 
 ## 2026-09-24: fixes from the 006 test report
 
-The NChartPro team (session 006) tested KDB as a replacement for PostgreSQL, QuestDB and Redis and listed what was missing. Most of the list went in on 2026-09-24, in five waves. The day-by-day list is in the console (Help > What's new).
+The NChartPro team (session 006) tested KarelaDB as a replacement for PostgreSQL, QuestDB and Redis and listed what was missing. Most of the list went in on 2026-09-24, in five waves. The day-by-day list is in the console (Help > What's new).
 
 **Wave 1: waits, sessions and a busy server.**
 
 | What changed | Read more |
 |---|---|
-| `--http-threads`, `--max-connections`, `--lock-timeout`, and `SET lock_timeout` for one session. | [kdb serve](cli-serve.md), [transactions](transactions.md) |
+| `--http-threads`, `--max-connections`, `--lock-timeout`, and `SET lock_timeout` for one session. | [kareladb serve](cli-serve.md), [transactions](transactions.md) |
 | Session settings (`SET` / `current_setting`), advisory locks, `INTERVAL` columns. | [PostgreSQL functions](functions-postgres.md) |
 | Exact statement timeouts, admin queue commands, a TTL that runs on a busy database. | [protection](protection.md) |
 | A schema change with nothing to do locks nothing; small writers no longer wait for another table's checkpoint. | [transactions](transactions.md) |
@@ -163,7 +183,7 @@ The NChartPro team (session 006) tested KDB as a replacement for PostgreSQL, Que
 | A `SELECT` waits only for writers of the tables it reads; a checkpoint lets readers in while it writes its files. `NOWAIT` / `SKIP LOCKED` answer at once. | a login lookup during a long CALL: 3.4 s -> 1.5 ms | [transactions](transactions.md#per-table-reads) |
 | A `CALL` that only reads runs like a `SELECT`. Reader yield is on by default. | | [procedures](procedures.md#read-only-call) |
 | The result cache is kept per symbol: a write of one symbol keeps the other symbols' results. `GET /api/rev` and `kdb_rev()`. | | [revisions](revisions.md) |
-| One memory limit for the whole process (`--memory-limit`); small tables are unloaded last. | | [kdb serve](cli-serve.md) |
+| One memory limit for the whole process (`--memory-limit`); small tables are unloaded last. | | [kareladb serve](cli-serve.md) |
 | Timers fire on time; failed deferred trigger jobs run again and raise an alert; `DROP TABLE` / `DROP PARTITION` answer at once. | DROP of 230 partitions: 1,000 -> 23 ms | [timers](timers.md), [triggers](triggers.md) |
 
 **Wave 3: speed.**
@@ -185,7 +205,7 @@ The NChartPro team (session 006) tested KDB as a replacement for PostgreSQL, Que
 
 | What changed | Read more |
 |---|---|
-| `SET TIME ZONE` and `kdb serve --timezone`: `CURRENT_DATE`, `::date`, `date_trunc` and `EXTRACT` on your clock; times stay stored in UTC. | [time zones](time-and-time-zones.md) |
+| `SET TIME ZONE` and `kareladb serve --timezone`: `CURRENT_DATE`, `::date`, `date_trunc` and `EXTRACT` on your clock; times stay stored in UTC. | [time zones](time-and-time-zones.md) |
 | `SET int_division = integer` (7 / 2 = 3); `GROUP BY ROLLUP`, `CUBE`, `GROUPING SETS` and `GROUPING()`. | [operators](operators.md), [GROUP BY](group-by.md) |
 | `SAVEPOINT`, `READ COMMITTED` on request, 40001 for a busy table inside a transaction, `SET ROLE`. | [transactions](transactions.md), [users and roles](users-and-roles.md) |
 | `WITH (dedup_insert = 'upsert')`: a plain `INSERT` replaces a row with the same DEDUP KEY. | [partitions and DEDUP](partitions-and-dedup.md) |
@@ -200,7 +220,7 @@ The NChartPro team (session 006) tested KDB as a replacement for PostgreSQL, Que
 | TLS on both ports, named API tokens that can be revoked, logins that survive a restart. | [TLS](tls.md), [API tokens](api-tokens.md) |
 | Rate limits per address and per user, a time limit per user, an audit log chained by hashes. | [protection](protection.md), [audit log](audit-log.md) |
 | `GET /metrics` for Prometheus, a slow-query log, trash emptied by size, disk use by kind. | [server info](http-server-info.md), [trash](trash.md) |
-| `INSERT ... SELECT` copies in batches; at the memory limit the biggest statement is stopped, not the server. | [INSERT](insert.md), [kdb serve](cli-serve.md) |
+| `INSERT ... SELECT` copies in batches; at the memory limit the biggest statement is stopped, not the server. | [INSERT](insert.md), [kareladb serve](cli-serve.md) |
 
 <a id="queries"></a>
 
@@ -210,13 +230,13 @@ Queries now read less: partitions are skipped by their saved minimum and maximum
 
 | What changed | Measured | Read more |
 |---|---|---|
-| **Zone maps.** `WHERE qty > x`, `BETWEEN`, `IN` and `time IN` on number, date, time and `DECIMAL` columns skip every partition and block whose minimum and maximum rule it out. `EXPLAIN` says "K skipped by column stats". Off: `KDB_NO_ZONE_MAPS=1`. | an id-like column, 814,535 rows in 15 day files: 0.93 -> 0.56 ms (14 of 15 files skipped); a value no file holds: 1.66 -> 0.59 ms | [EXPLAIN](explain.md), report |
-| **One symbol of a partition not in memory.** With `--memory` full, `WHERE symbol = 'X'` on a table sorted by symbol first reads only that symbol's rows of a partition file, not the whole file, and pushes nothing out. No partition file is read under the readers' shared lock any more. Off: `KDB_NO_SLICE_READS=1`. | 14.6M minute bars, 500 symbols, 2 cores, `--memory 300`, 006's chart mix: 9 -> 237 requests/s (1 client), 12 -> 378 (10 clients), 18 -> 363 (50 clients) | [performance tips](performance-tips.md#slice-reads) |
+| **Zone maps.** `WHERE qty > x`, `BETWEEN`, `IN` and `time IN` on number, date, time and `DECIMAL` columns skip every partition and block whose minimum and maximum rule it out. `EXPLAIN` says "K skipped by column stats". Off: `KARELADB_NO_ZONE_MAPS=1`. | an id-like column, 814,535 rows in 15 day files: 0.93 -> 0.56 ms (14 of 15 files skipped); a value no file holds: 1.66 -> 0.59 ms | [EXPLAIN](explain.md), report |
+| **One symbol of a partition not in memory.** With `--memory` full, `WHERE symbol = 'X'` on a table sorted by symbol first reads only that symbol's rows of a partition file, not the whole file, and pushes nothing out. No partition file is read under the readers' shared lock any more. Off: `KARELADB_NO_SLICE_READS=1`. | 14.6M minute bars, 500 symbols, 2 cores, `--memory 300`, 006's chart mix: 9 -> 237 requests/s (1 client), 12 -> 378 (10 clients), 18 -> 363 (50 clients) | [performance tips](performance-tips.md#slice-reads) |
 | **Totals from saved stats.** `count(*)`, `count(col)`, `sum`, `min`, `max` and `avg` with no `WHERE` (or only a time `WHERE`) are answered from the numbers saved with each file, for partitions not in memory. `EXPLAIN` says "answer from saved stats". | 4M rows in 200 day files, right after a restart: 99.7 -> 0.28 ms, 0 partitions loaded | [EXPLAIN](explain.md) |
 | **LIKE, ILIKE and OR in the column engine.** `LIKE`, `ILIKE` and `NOT LIKE` on `SYMBOL` and `STRING` columns, and `col = a OR col = b`, no longer fall back to the slow row path. A `SYMBOL` pattern is checked once per name, not once per row. | 1M rows: `sym LIKE 'S6%'` 242 -> 1.2 ms; `ILIKE` 230 -> 2.2 ms; `sum(qty) WHERE sym = 'S1' OR sym = 'S2'` 151 -> 0.30 ms | [WHERE](where.md), [performance tips](performance-tips.md) |
 | **Branch-free filters.** Every compare on `LONG` and `DOUBLE`, and `BETWEEN`, runs as a tight loop over 8 rows at a time. | 1M random rows: `x > L` 4.68 -> 0.67 ms; `y > L` (DOUBLE) 7.03 -> 0.62 ms; `b BETWEEN` 8.77 -> 0.84 ms | [performance tips](performance-tips.md) |
-| **The row path reads only the columns a query uses.** Queries the column engine cannot run no longer build all columns of every row. Off: `KDB_NO_COLUMN_MASK=1`. | a 21-column table, 1M rows: `count(*) WHERE a * 1 > X` 460 -> 210 ms; `GROUP BY` 549 -> 242 ms; `SELECT *` not slower (465 -> 436 ms) | [EXPLAIN](explain.md) ("build 2 of 3 stored columns") |
-| **Warm at open.** Indexes are built on a background thread right after a database opens, so the first query after a restart finds them ready. `--warm-indexes on\|off`, on by default. | first request after a restart, 200k posts: author lookup 89.7 -> 1.5 ms; common-word search count 774 -> 3.1 ms | [kdb serve](cli-serve.md), [indexes](indexes.md), report |
+| **The row path reads only the columns a query uses.** Queries the column engine cannot run no longer build all columns of every row. Off: `KARELADB_NO_COLUMN_MASK=1`. | a 21-column table, 1M rows: `count(*) WHERE a * 1 > X` 460 -> 210 ms; `GROUP BY` 549 -> 242 ms; `SELECT *` not slower (465 -> 436 ms) | [EXPLAIN](explain.md) ("build 2 of 3 stored columns") |
+| **Warm at open.** Indexes are built on a background thread right after a database opens, so the first query after a restart finds them ready. `--warm-indexes on\|off`, on by default. | first request after a restart, 200k posts: author lookup 89.7 -> 1.5 ms; common-word search count 774 -> 3.1 ms | [kareladb serve](cli-serve.md), [indexes](indexes.md), report |
 | **Pinned queries.** An admin pins a query with `POST /api/pins`; its answer stays in the result cache, is never pushed out, and is made again after writes. | a pinned dashboard query answers from memory after every restart | [pinned queries](pinned-queries.md) |
 | **GROUP BY with many groups.** Tens of thousands of groups, `buyer = seller`, `date_trunc` keys, `count(DISTINCT)` and `CASE` inside `sum` run in the column engine. | 30 days of trades by symbol and broker: 84 -> 14 ms | [GROUP BY](group-by.md), [performance tips](performance-tips.md#many-groups), report |
 | **GROUP BY over UNION ALL** groups each part by itself first. | buy side + sell side in one query: 1,750 -> 29 ms | [UNION](union-subqueries.md), [performance tips](performance-tips.md#big-group-by) |
@@ -269,7 +289,7 @@ Big loads go through the fast columnar path in more cases, and a trigger on one 
 | What changed | Measured | Read more |
 |---|---|---|
 | **Line protocol in one pass (2026-10-06).** A line shaped like the one before it is read in one pass, and its values go straight into the table columns; a line that is different in any way is read as before, with the same errors. | 1 million trades lines in 100,000-line batches, 2 cores: 1.55M -> 2.2M rows/s, half the server CPU; 2 million candles 1.7M -> 2.4M rows/s | [line protocol](line-protocol.md) |
-| **Tables without a DEDUP KEY are written as runs.** A trade list, where two trades in one second are both real, now takes the same fast path as a candle table. | 814,535 real trades, 20,000 rows a request: 438k -> 918k rows/s; QuestDB 678k rows/s on the same PC (KDB 35% faster, was 36% slower) | [line protocol](line-protocol.md), report |
+| **Tables without a DEDUP KEY are written as runs.** A trade list, where two trades in one second are both real, now takes the same fast path as a candle table. | 814,535 real trades, 20,000 rows a request: 438k -> 918k rows/s; QuestDB 678k rows/s on the same PC (KarelaDB 35% faster, was 36% slower) | [line protocol](line-protocol.md), report |
 | **Per-table trigger gate.** An immediate trigger on one table no longer sends every write of the database down the row-by-row path. | a 20,000-row write into a table with no trigger, while another table has one: 34 -> 8 ms (the same as no trigger at all) | [triggers](triggers.md) |
 | **Deferred triggers.** `CREATE TRIGGER ... AFTER INSERT ON t DEFERRED` runs the trigger body after the load returns, as a background job. | a 20,000-row write into a table with a heavy trigger: 103 -> 9 ms once the trigger is deferred | [triggers](triggers.md#deferred) |
 | **Batch duplicate check.** A `/write` batch into a table whose `SORT BY` differs from its `DEDUP KEY` is checked as one batch and stays on the fast path. | | [partitions and DEDUP KEY](partitions-and-dedup.md) |
@@ -285,7 +305,7 @@ Searches of 200,000 news articles now beat PostgreSQL 18 with a GIN index on eve
 
 The one tie is a word plus a symbol and a month (0.54 vs 0.48 ms). The articles hold 378 MB of text.
 
-| What changed | Measured (KDB vs PostgreSQL 18) | Read more |
+| What changed | Measured (KarelaDB vs PostgreSQL 18) | Read more |
 |---|---|---|
 | **Counts come from the index.** `count(*)` of a search no longer fetches every found row, and a search never falls back to reading every text. | common word: 3.6 ms vs 250 ms (69x); mid word: 0.66 ms vs 82 ms (124x) | [full-text search](full-text-search.md), report |
 | **Word positions in the index.** A phrase like `"hydro power"` is answered from the index. | 2,347 -> 9.7 ms (PostgreSQL 295 ms) | [search text](full-text-search.md#search-syntax) |
@@ -306,7 +326,7 @@ Writers of different tables now run at the same time.
 | **Group commit.** Several transactions that finish together share one disk flush. | (part of the number above) | [transactions](transactions.md) |
 | **LOCK TABLE, pg_locks, pg_blocking_pids.** `LOCK TABLE ... IN <mode> MODE [NOWAIT]` with PostgreSQL's eight modes; `pg_locks` shows holders and waiters with `pg_stat_activity`'s pids; a deadlock names both pids (`40P01`); `log_lock_waits` logs a wait over `deadlock_timeout`. | the same speed while no `LOCK TABLE` is held (before and after, side by side): taking and freeing one table lock 81-84 ns and 83-84 ns; a one-row `UPDATE` 16.8-17.0 us and 16.5-17.3 us; a primary-key `SELECT` 6.3-6.8 us and 6.2-6.4 us | [LOCK TABLE](transactions.md#lock-table) |
 | **One disk wait per pipeline.** On the PostgreSQL port, several `Execute`s before one `Sync` wait for the disk once, at the `Sync`. | counter updates, batches of 32, 1 connection: 211 -> 4,277 a second | [performance tips](performance-tips.md#one-wait) |
-| **Reader yield.** With `--reader-yield on` (or `KDB_READER_YIELD=on`) reads do not wait for a long trigger or `CALL`; they read the last committed rows. | | [kdb serve](cli-serve.md) |
+| **Reader yield.** With `--reader-yield on` (or `KARELADB_READER_YIELD=on`) reads do not wait for a long trigger or `CALL`; they read the last committed rows. | | [kareladb serve](cli-serve.md) |
 | **Index lookups on a snapshot** (2026-10-02). With snapshot reads on, a lookup by a plain or expression index on a table a long `CALL` writes uses the index on the snapshot, at any table size, instead of waiting (over 1,000,000 rows) or reading every row. | 1.1 million rows, lookups during a long `CALL`: p50 0.12 ms, p99 3.3 ms | [snapshot reads](transactions.md#snapshot-reads) |
 | **Opening a big database** no longer blocks the database list, `/api/stats` or other databases. | a 9.5 GB database, 124 s open: `/api/stats` answered in 100 to 110 ms all the way through | [many databases](cli-serve.md#many-databases) |
 | **Shared memory budget.** Idle databases give memory back first; writers keep a floor. | | [performance tips](performance-tips.md#memory) |
@@ -322,9 +342,9 @@ New checks for a full disk, junk input and slow patterns, all with tests.
 | **A full disk.** Committed rows stay intact, the client gets HTTP **507** `{"code":"disk full"}` (SQLSTATE **53100** on the PostgreSQL port), and writes go on when space comes back, with no restart. Five faults fixed on the way. | 24 rounds x 3 log modes x 2 places for the fault, all pass | [limits](limits.md#disk-memory), report |
 | **Junk text.** NUL bytes, broken UTF-8, emoji, 1 MB texts and broken search syntax through every text function and the search. | 12,132 junk statements: no crash, no hang; every junk row still found by its clean word after a restart | report |
 | **The statement timeout stops scans sooner.** It is now checked every 1,024 rows, also for rows not yet saved to files. | a 300 ms timeout ended a 187 s regexp scan of 200,000 rows in 0.9 s | [statement timeout](protection.md#statement-timeout) |
-| **Encryption at rest** (2026-09-26). `CREATE DATABASE x WITH (encryption = on)` encrypts every file, log record and backup of that database with AES-256-GCM (ChaCha20-Poly1305 without AES instructions). Off by default; the master key comes from `KDB_MASTER_KEY` or a key file, never the data folder. | scans of loaded data +3%; the first scan after opening +18%, short of the 10% goal; files +2.3% | [encryption at rest](encryption.md) |
+| **Encryption at rest** (2026-09-26). `CREATE DATABASE x WITH (encryption = on)` encrypts every file, log record and backup of that database with AES-256-GCM (ChaCha20-Poly1305 without AES instructions). Off by default; the master key comes from `KARELADB_MASTER_KEY` or a key file, never the data folder. | scans of loaded data +3%; the first scan after opening +18%, short of the 10% goal; files +2.3% | [encryption at rest](encryption.md) |
 | **Timers need admin and are audited.** | | [timers](timers.md) |
-| **The memory limit holds.** It counts what the process holds (resident), not only the heap; quick statements run in a small reserve at the limit; the result cache is dropped before the limit refuses work; a big `INSERT ... SELECT` into a keyed table puts its rows in as it goes; `SELECT` of another database runs there. | 400,000 rows into a DEDUP `YEAR, SYMBOL` table: ~1,100 -> ~150-280 bytes a row, 1.7 s -> 0.9 s; `count(*)` of 400,000 rows in another database: 486 ms and 363 MB -> 0.2 ms | [kdb serve](cli-serve.md#memory-limit) |
+| **The memory limit holds.** It counts what the process holds (resident), not only the heap; quick statements run in a small reserve at the limit; the result cache is dropped before the limit refuses work; a big `INSERT ... SELECT` into a keyed table puts its rows in as it goes; `SELECT` of another database runs there. | 400,000 rows into a DEDUP `YEAR, SYMBOL` table: ~1,100 -> ~150-280 bytes a row, 1.7 s -> 0.9 s; `count(*)` of 400,000 rows in another database: 486 ms and 363 MB -> 0.2 ms | [kareladb serve](cli-serve.md#memory-limit) |
 | **All 52 test programs under ASan and UBSan** (tools that catch memory mistakes). | one finding, fixed (an empty text passed to `memcpy` in the password hash code) | [test report](test-report.md) |
 
 <a id="operations"></a>
@@ -338,11 +358,11 @@ Less disk, faster checkpoints, backups under load, and the help in the terminal.
 | **Old files leave the trash while the server runs.** The idle thread empties trash older than an hour, every minute (it used to wait for a restart). `PURGE TRASH` and `PURGE VERSIONS [KEEP n]` free space now; `GET /api/disk` shows what each part takes. | `PURGE TRASH` freed 39.6 GB in 49 s on a real data folder | [PURGE TRASH](databases.md#purge-trash), [PURGE VERSIONS](databases.md#purge-versions), report |
 | **Keep data for a time.** `DROP PARTITION ... OLDER THAN`, a table TTL, and monthly timers drop old rows on a schedule. | | [Keep data page](console-keep-data.md), [timers](timers.md), [DROP PARTITION](partitions-and-dedup.md#drop-partition) |
 | **Old log kept per database.** `ALTER DATABASE ... SET WAL_ARCHIVE` keeps the old write-ahead log for point-in-time restore. | | [WAL_ARCHIVE](databases.md#wal-archive) |
-| **Leftover keys of dropped tables are swept** at open and at every checkpoint. `kdb info` shows the count. | 300 partitions, one table dropped: manifest 1,128 -> 573 KB; checkpoint 24.6 -> 14.7 ms | [kdb info](cli-maintenance.md) |
+| **Leftover keys of dropped tables are swept** at open and at every checkpoint. `kareladb info` shows the count. | 300 partitions, one table dropped: manifest 1,128 -> 573 KB; checkpoint 24.6 -> 14.7 ms | [kareladb info](cli-maintenance.md) |
 | **Backup under load.** | a 2.1 GB backup made and verified in 7 s while 16 query lanes and 2 writers ran: 0 errors, 0 timeouts | [backup](backup-and-safety.md) |
 | **30-minute soak** on the table-locks build. | 19.9M line-protocol rows + 1.36M SQL rows, 64,637 queries, 14 checkpoints, 0 errors, every row accounted for | [test report](test-report.md), report |
 | **Memory given back** to the system on Linux (glibc) builds after big queries. | | [performance tips](performance-tips.md#memory) |
-| **`kdb help [<topic> \| tutorial]`** prints the help topics and the tutorial in the terminal. | | [the kdb program](cli-overview.md) |
+| **`kareladb help [<topic> \| tutorial]`** prints the help topics and the tutorial in the terminal. | | [the kareladb program](cli-overview.md) |
 
 <a id="sql"></a>
 
@@ -387,5 +407,5 @@ A new console layout, install packages, and the console, help and skill as plain
 | A redesigned console: timers page, activity log (inserts and trigger time), a Tools panel (`PURGE TRASH`, `TRUNCATE ALL TABLES`), a Delete button for databases, a Keep data page and a Save disk view. | [web console](web-console.md), [Keep data page](console-keep-data.md), [Monitor page](console-monitor.md) |
 | Comments and suggestions from the Help menu. | [feedback](feedback.md) |
 | Install packages for Windows and Linux, and a Docker image. | [install packages](install-packages.md) |
-| Nothing is built into the program: the console, the help and the Claude skill are the folders `web/`, `help/` and `skill/` next to `kdb`. A console or help change needs no new program. | [where kdb finds them](install-packages.md#folders) |
-| A skill file that teaches an AI assistant in another project how to use KDB (`kdb skill install`, `GET /skill.md`). | [the Claude skill](install-packages.md#skill) |
+| Nothing is built into the program: the console, the help and the Claude skill are the folders `web/`, `help/` and `skill/` next to `kareladb`. A console or help change needs no new program. | [where kareladb finds them](install-packages.md#folders) |
+| A skill file that teaches an AI assistant in another project how to use KarelaDB (`kareladb skill install`, `GET /skill.md`). | [the Claude skill](install-packages.md#skill) |

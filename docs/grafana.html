@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grafana and Prometheus - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="Draw KarelaDB data in Grafana through the PostgreSQL port, watch the server with Prometheus, and use the two ready dashboards.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/grafana.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/grafana.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="grafana-and-prometheus">Grafana and Prometheus</h1>
+<blockquote><p>Draw KarelaDB data in Grafana through the PostgreSQL port, watch the server with Prometheus, and use the two ready dashboards.</p></blockquote>
+<ul><li>Category: Postgres protocol</li><li>Keywords: Grafana, grafana-oss, dashboard, dashboards, panel, panels, Prometheus, scrape, /metrics, Telegraf, PostgreSQL data source, grafana-postgresql-datasource, data source, datasource, provisioning, $__timeFilter, $__timeGroup, $__timeGroupAlias, $__timeFrom, $__timeTo, $__unixEpochFilter, $__unixEpochGroup, $__interval, $__rate_interval, template variable, __text, __value, multi-value, candlestick, candles, OHLC, TimescaleDB, time_bucket, array_lower, function in FROM, kdb_snapshot_reads_total, integrations/grafana, docker compose, outputs.http, chunked</li><li>See also: <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a>, <a href="http-server-info.html#metrics">Health, info, check and backup over HTTP (metrics)</a>, <a href="line-protocol.html">Line protocol (POST /write)</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="latest-on.html">LATEST ON</a>, <a href="performance-tips.html">Performance tips</a>, <a href="api-tokens.html">API tokens</a>, <a href="users-and-roles.html">Users and roles</a></li></ul>
+<p>Grafana draws charts from databases. KarelaDB works with it in two ways:</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>How</th><th>Grafana data source</th></tr></thead><tbody><tr><td>Your data: prices, trades, sensor readings</td><td>SQL over the <a href="postgres-protocol.html">PostgreSQL port</a> (8832)</td><td>the built-in <strong>PostgreSQL</strong> data source</td></tr><tr><td>The server&#39;s health: requests, latency, memory</td><td>Prometheus reads <a href="http-server-info.html#metrics">GET /metrics</a></td><td><strong>Prometheus</strong></td></tr></tbody></table></div>
+<p>Two ready dashboards, the data source files and a <code>docker-compose.yml</code> are in the folder <code>integrations/grafana</code> of the KarelaDB source. Everything on this page was run with Grafana 11.6.0 and Prometheus 3.1.0 on 2026-10-22: every panel of both dashboards came back with rows through Grafana&#39;s own <code>/api/ds/query</code>.</p>
+<h2 id="data-source">Connect the PostgreSQL data source</h2>
+<p>In Grafana: <strong>Connections</strong>, <strong>Data sources</strong>, <strong>Add data source</strong>, <strong>PostgreSQL</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Host URL</td><td><code>127.0.0.1:8832</code>; Grafana in Docker and KarelaDB on the same computer: <code>host.docker.internal:8832</code>; in <code>docker-compose.yml</code>: <code>kareladb:8832</code></td></tr><tr><td>Database name</td><td>a KarelaDB database, like <code>market</code></td></tr><tr><td>Username</td><td>a KarelaDB user with <code>ROLE read</code> (below); without KarelaDB users, any name</td></tr><tr><td>Password</td><td>that user&#39;s password (the server&#39;s token also works, but it gives Grafana full rights: below)</td></tr><tr><td>TLS/SSL Mode</td><td><code>disable</code> without TLS; <code>require</code> when <code>kareladb serve</code> runs with <a href="tls.html">TLS</a></td></tr><tr><td>Version</td><td><code>14</code> (KarelaDB says it is PostgreSQL 14)</td></tr><tr><td>TimescaleDB</td><td><strong>off</strong> (KarelaDB has no <code>time_bucket</code>; <a href="#macros">macros</a>)</td></tr></tbody></table></div>
+<p><strong>Save &amp; test</strong> answers <code>Database Connection OK</code>.</p>
+<ul><li>Grafana only reads. Give it a user that may only read, so a panel can never change data. Anyone who may edit a panel can send any SQL through the data source, so with the server&#39;s token (<code>KARELADB_TOKEN</code>, <code>--token</code>, full rights) as the password they could <code>DROP</code> or <code>DELETE</code> anything: use the token only for a quick try on your own computer.</li></ul>
+<p><strong>Example: A read-only user for Grafana</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER grafana WITH PASSWORD &#39;Grafana-reads-only-7&#39; ROLE read;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>CREATE USER admin WITH PASSWORD &#39;***&#39; ROLE admin</code></p>
+<pre><code class="language-text">user &#39;admin&#39; created with role admin</code></pre>
+<p><code>CREATE USER grafana WITH PASSWORD &#39;***&#39; ROLE read</code></p>
+<pre><code class="language-text">user &#39;grafana&#39; created with role read</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T09:56:02.305Z</td><td>2026-10-22T09:56:02.305Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>grafana</td><td>read</td><td>NULL</td><td>2026-10-22T09:56:02.358Z</td><td>2026-10-22T09:56:02.358Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<ul><li>An API token is not a password for the PostgreSQL port (<a href="api-tokens.html">API tokens</a>): Grafana logs in with the user&#39;s password.</li><li>The query editor lists tables and columns for the <strong>Builder</strong> mode. KarelaDB answers the exact catalog SQL Grafana 11 sends (it reads the <code>search_path</code> with <code>array_lower</code> and with <code>string_to_array(...)</code> used as a table).</li></ul>
+<p>Instead of clicking, Grafana can read the data source from a file at start (<code>integrations/grafana/provisioning/datasources/kareladb.yaml</code>). Grafana fills <code>${...}</code> from its own environment, so the password is not in the file. Never put the server&#39;s token in Grafana&#39;s environment:</p>
+<pre><code class="language-yaml">apiVersion: 1
+datasources:
+  - name: KarelaDB
+    type: grafana-postgresql-datasource
+    uid: kareladb-pg
+    url: ${KARELADB_PG_HOST}          # 127.0.0.1:8832
+    user: grafana
+    jsonData:
+      database: ${KARELADB_DATABASE}  # market
+      sslmode: disable
+      postgresVersion: 1400
+      timescaledb: false
+    secureJsonData:
+      password: ${KARELADB_GRAFANA_PASSWORD}   # the grafana user&#39;s (ROLE read)</code></pre>
+<h2 id="macros">The macros</h2>
+<p>Grafana changes its macros into plain SQL before it sends the query. The table shows what KarelaDB receives for a dashboard showing 2026-09-09 to 2026-09-11.</p>
+<div class="table-wrap"><table><thead><tr><th>Macro</th><th>KarelaDB receives</th><th>Works</th></tr></thead><tbody><tr><td><code>$__timeFilter(time)</code></td><td><code>time BETWEEN &#39;2026-09-09T00:00:00Z&#39; AND &#39;2026-09-11T00:00:00Z&#39;</code></td><td>yes</td></tr><tr><td><code>$__timeFrom()</code>, <code>$__timeTo()</code></td><td><code>&#39;2026-09-09T00:00:00Z&#39;</code>, <code>&#39;2026-09-11T00:00:00Z&#39;</code></td><td>yes</td></tr><tr><td><code>$__time(time)</code></td><td><code>time AS &quot;time&quot;</code></td><td>yes</td></tr><tr><td><code>$__timeEpoch(time)</code></td><td><code>extract(epoch from time) as &quot;time&quot;</code></td><td>yes</td></tr><tr><td><code>$__timeGroup(time, 1h)</code></td><td><code>floor(extract(epoch from time)/3600)*3600</code></td><td>yes, on the column engine</td></tr><tr><td><code>$__timeGroupAlias(time, 1h)</code></td><td>the same with <code>AS &quot;time&quot;</code></td><td>yes, on the column engine</td></tr><tr><td><code>$__timeGroup(time, 1h, 0)</code>, <code>NULL</code>, <code>previous</code></td><td>the same; Grafana fills the missing buckets itself</td><td>yes</td></tr><tr><td><code>$__unixEpochFilter(col)</code>, <code>$__unixEpochFrom()</code>, <code>$__unixEpochTo()</code></td><td><code>col &gt;= 1788912000 AND col &lt;= 1789084800</code></td><td>yes, for a column of whole seconds</td></tr><tr><td><code>$__unixEpochGroup(col, 1h)</code>, <code>$__unixEpochGroupAlias</code></td><td><code>floor((col)/3600)*3600</code></td><td>yes</td></tr><tr><td><code>$__interval</code>, <code>$__interval_ms</code></td><td><code>2m</code>, <code>120000</code>: the width of one point on the panel</td><td>yes</td></tr><tr><td>TimescaleDB on: <code>$__timeGroup</code> as <code>time_bucket(...)</code></td><td><code>time_bucket(&#39;3600.000s&#39;,time)</code></td><td><strong>no</strong>: keep TimescaleDB off</td></tr></tbody></table></div>
+<ul><li><code>$__unixEpochFilter(extract(epoch from time))</code> does not work: Grafana&#39;s macro reader stops at the first <code>)</code>. Use <code>$__timeFilter(time)</code> on a time column.</li><li><code>$__timeGroup</code> is the same SQL for every database, so it comes from Grafana&#39;s own code. KarelaDB sees the shape <code>floor(extract(epoch from col)/N)*N</code> and groups it in the column engine like <code>date_trunc</code>, with exactly the rows the row-by-row engine gives (4 million rows into 3,169 five-minute buckets: 34 ms instead of 6.2 s). That is for buckets of whole seconds and of 1/2, 1/4 or 1/8 second. A bucket like <code>0.1</code> (Grafana&#39;s <code>100ms</code>, <code>50ms</code>, <code>1ms</code> intervals) is not exact in a computer&#39;s floating point, so <code>floor(.../0.1)</code> must be worked out row by row to give the same edges as PostgreSQL; such a query runs on the row engine. A panel <strong>Min interval</strong> of <code>1s</code> keeps every panel on the fast path.</li></ul>
+<p>The panel query and what reaches KarelaDB, run on the sample data:</p>
+<pre><code class="language-text">SELECT $__timeGroupAlias(time, 1h), symbol AS metric, last(close) AS close
+FROM ochl_minutes
+WHERE $__timeFilter(time)
+GROUP BY 1, 2
+ORDER BY 1</code></pre>
+<p><strong>Example: $__timeGroupAlias(time, 1h) as KarelaDB receives it</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT floor(extract(epoch from time)/3600)*3600 AS &quot;time&quot;, symbol AS metric, last(close) AS close
+FROM ochl_minutes
+WHERE time BETWEEN &#39;2026-09-09T00:00:00Z&#39; AND &#39;2026-09-11T00:00:00Z&#39;
+GROUP BY 1, 2
+ORDER BY 1
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (DOUBLE)</th><th>metric (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>1788930000</td><td>CITY</td><td>507.8</td></tr><tr><td>1788930000</td><td>COAST</td><td>392.9</td></tr><tr><td>1788933600</td><td>CITY</td><td>506</td></tr><tr><td>1788933600</td><td>COAST</td><td>387.7</td></tr><tr><td>1788937200</td><td>CITY</td><td>509.4</td></tr><tr><td>1788937200</td><td>COAST</td><td>382.3</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p>(The <code>LIMIT 6</code> only keeps this page short.) <code>time</code> comes back as seconds since 1970, which Grafana reads as a time.</p>
+<h2 id="formats">Time series and table panels</h2>
+<div class="table-wrap"><table><thead><tr><th>Format (under the query)</th><th>What the query must give</th></tr></thead><tbody><tr><td><strong>Time series</strong></td><td>a column named <code>time</code> (a <code>TIMESTAMP</code>, or seconds since 1970), then number columns. A text column named <code>metric</code> makes one line per value (<code>symbol AS metric</code>). Rows sorted by <code>time</code>.</td></tr><tr><td><strong>Table</strong></td><td>any columns; Grafana shows them as they come</td></tr></tbody></table></div>
+<ul><li>Several numbers per row without a <code>metric</code> column make one line per number column.</li><li>A <code>TIMESTAMP</code> column is sent as PostgreSQL <code>timestamp</code> (UTC). Set the dashboard&#39;s time zone, not the query&#39;s.</li></ul>
+<h2 id="variables">Template variables</h2>
+<p>A variable is a list the dashboard user picks from. Its query runs over the same data source.</p>
+<div class="table-wrap"><table><thead><tr><th>Variable query</th><th>Gives</th></tr></thead><tbody><tr><td><code>SELECT DISTINCT symbol FROM ochl_minutes ORDER BY 1</code></td><td>one value per row</td></tr><tr><td><code>SELECT name AS __text, symbol AS __value FROM securities ORDER BY symbol</code></td><td><code>__text</code> is shown, <code>__value</code> goes into the SQL</td></tr></tbody></table></div>
+<p><strong>Example: A variable with names shown and symbols used</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT name AS __text, symbol AS __value FROM securities ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>__text (STRING)</th><th>__value (SYMBOL)</th></tr></thead><tbody><tr><td>Acme Investment Company</td><td>ACME</td></tr><tr><td>City Bank Limited</td><td>CITY</td></tr><tr><td>Coastal Bank Limited</td><td>COAST</td></tr><tr><td>Northwind Telecom Limited</td><td>TELCO</td></tr><tr><td>Volt River Hydropower Limited</td><td>VOLT</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p>How Grafana puts a variable into the SQL:</p>
+<div class="table-wrap"><table><thead><tr><th>Variable</th><th>Write</th><th>KarelaDB receives</th></tr></thead><tbody><tr><td>one value</td><td><code>symbol = &#39;$symbol&#39;</code></td><td><code>symbol = &#39;CITY&#39;</code></td></tr><tr><td>multi-value or <strong>All</strong></td><td><code>symbol IN ($symbols)</code></td><td><code>symbol IN (&#39;CITY&#39;,&#39;COAST&#39;)</code> (Grafana adds the quotes)</td></tr></tbody></table></div>
+<p><strong>Example: A multi-value variable as KarelaDB receives it</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sum(quantity) AS volume, sum(amount) AS amount
+FROM trade_log
+WHERE date BETWEEN &#39;2026-09-09T00:00:00Z&#39; AND &#39;2026-09-11T00:00:00Z&#39; AND symbol IN (&#39;CITY&#39;,&#39;COAST&#39;)
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>volume (LONG)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2420</td><td>1247230</td></tr><tr><td>COAST</td><td>3070</td><td>1227510</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="candles">Candles with SAMPLE BY</h2>
+<p><a href="sample-by.html">SAMPLE BY</a> cuts the time into equal buckets and is the fastest way to draw candles: one bucket per point of the panel with <code>SAMPLE BY $__interval</code>. Give the panel a <strong>Min interval</strong> of the data&#39;s own step (<code>1m</code> for one-minute candles), so a narrow time range does not ask for buckets smaller than the data. Use Grafana&#39;s <strong>Candlestick</strong> panel: it finds the columns <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code> and <code>volume</code> by name.</p>
+<pre><code class="language-text">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE $__timeFilter(time) AND symbol = &#39;$symbol&#39;
+SAMPLE BY $__interval</code></pre>
+<p><strong>Example: Thirty-minute candles of CITY, as KarelaDB receives them</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE time BETWEEN &#39;2026-09-09T00:00:00Z&#39; AND &#39;2026-09-11T00:00:00Z&#39; AND symbol = &#39;CITY&#39;
+SAMPLE BY 30m
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T05:00:00.000Z</td><td>512</td><td>512.4</td><td>509.8</td><td>510.7</td><td>13730</td></tr><tr><td>2026-09-09T05:30:00.000Z</td><td>510.7</td><td>511.5</td><td>507</td><td>507.8</td><td>22270</td></tr><tr><td>2026-09-09T06:00:00.000Z</td><td>507.8</td><td>507.8</td><td>504.2</td><td>504.8</td><td>24120</td></tr><tr><td>2026-09-09T06:30:00.000Z</td><td>504.8</td><td>506.3</td><td>504</td><td>506</td><td>20990</td></tr><tr><td>2026-09-09T07:00:00.000Z</td><td>506</td><td>508.9</td><td>505.8</td><td>507.6</td><td>25210</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="fast-panels">Fast panels</h2>
+<p>A dashboard runs every panel&#39;s query on each refresh, for every person looking at it. These keep each query short:</p>
+<div class="table-wrap"><table><thead><tr><th>Do</th><th>Why</th></tr></thead><tbody><tr><td><code>WHERE $__timeFilter(time)</code> on the table&#39;s <a href="partitions-and-dedup.html">designated time column</a></td><td>only the partitions in the time range are read (<a href="explain.html">EXPLAIN</a> says &quot;1 of 2 partitions&quot;)</td></tr><tr><td><code>SAMPLE BY $__interval</code> or <code>$__timeGroupAlias(time, $__interval)</code></td><td>one row per point of the panel, worked out in the column engine; never thousands of raw rows for Grafana to thin out</td></tr><tr><td><code>symbol = &#39;$symbol&#39;</code> or <code>symbol IN ($symbols)</code> on a <code>SYMBOL</code> column</td><td>a SYMBOL compare is a number compare (<a href="performance-tips.html#symbol">SYMBOL columns</a>)</td></tr><tr><td><a href="latest-on.html">LATEST ON</a> for &quot;last price&quot; tables and stat panels</td><td>reads the newest rows of each symbol, not the whole range</td></tr><tr><td>A <strong>Min interval</strong> on the panel, and <code>LIMIT</code> on table panels</td><td>a narrow range or a big table cannot ask for a million rows</td></tr><tr><td>TimescaleDB off, no <code>time_bucket</code></td><td><code>$__timeGroup</code> is grouped by the column engine; <code>time_bucket</code> does not exist</td></tr></tbody></table></div>
+<p><strong>Example: Only the day in the time range is read, in the column engine</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE, qty LONG) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks SELECT CAST(1788912000000 + (x - 1) * 60000 AS TIMESTAMP), CASE WHEN x % 2 = 0 THEN &#39;CITY&#39; ELSE &#39;COAST&#39; END, 100 + x % 7, x % 50
+FROM long_sequence(2880);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT floor(extract(epoch from time)/300)*300 AS &quot;time&quot;, symbol AS metric, sum(qty) AS volume
+FROM ticks
+WHERE time BETWEEN &#39;2026-09-10T00:00:00Z&#39; AND &#39;2026-09-10T23:59:59Z&#39;
+GROUP BY 1, 2
+ORDER BY 1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ticks (1 of 2 partitions, about 2880 rows)</td></tr><tr><td>build 3 of 4 stored column(s) per row: time, symbol, qty</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>group by 2 key(s), 1 aggregate(s)</td></tr><tr><td>sort by 1 key(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p>(Two days of one-minute ticks, so the table has two day partitions.)</p>
+<ul><li>A table with a computed column (<code>amount DOUBLE AS (quantity * rate)</code>, like the sample&#39;s <code>trade_log</code>) is still grouped row by row, even when the query does not read that column; <code>EXPLAIN</code> says <code>engine: row</code>.</li><li>Grafana&#39;s relative ranges (<code>now-6h</code>) give new times on every refresh, so the <a href="performance-tips.html#result-cache">result cache</a> seldom answers them. A fixed range (a past day) is answered from the cache after the first look.</li><li>The PostgreSQL port has its own line in the server dashboard (statement latency, <code>pg</code>). A slow panel shows up in <code>GET /api/slow-queries</code> with its full SQL, macros already replaced.</li></ul>
+<h2 id="prometheus">Prometheus: the server&#39;s health</h2>
+<p><a href="http-server-info.html#metrics">GET /metrics</a> gives the server&#39;s counters in Prometheus&#39;s text format: requests, statement latency (HTTP and PostgreSQL), memory, result cache, WAL and checkpoint writes, lock waits, snapshot reads per database (<code>kdb_snapshot_reads_total</code>), slow statements and disk use. A scrape never waits for a database lock. Metric names start with <code>kdb_</code> and stay that way, so alerts and dashboards keep working.</p>
+<p><code>/metrics</code> needs only the <code>read</code> right, so never give Prometheus the server&#39;s token. Make a read-only user; Prometheus logs in with its name and password, or with an <a href="api-tokens.html">API token</a> of it:</p>
+<p><strong>Example: A token for Prometheus</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER monitor WITH PASSWORD &#39;Monitor-reads-only-9&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">CREATE TOKEN prometheus FOR USER monitor;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>prometheus</td><td>monitor</td><td>kdbt_78i_GZx9BSKrN0jrS_yA29Lohf66lkWWCk-_z7LF8YY</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">token &#39;prometheus&#39; for user &#39;monitor&#39; created: copy it now, it is shown only this once. Send it as Authorization: Bearer &lt;token&gt;</code></pre>
+<p>Put the user&#39;s password in a file next to <code>prometheus.yml</code>, one line, and point the scrape job at the HTTP port:</p>
+<pre><code class="language-yaml">scrape_configs:
+  - job_name: kareladb
+    metrics_path: /metrics
+    basic_auth:
+      username: monitor
+      password_file: /etc/prometheus/kareladb_password
+    # or the token: authorization: { type: Bearer, credentials_file: /etc/prometheus/kareladb_token }
+    static_configs:
+      - targets: [&quot;127.0.0.1:9900&quot;]</code></pre>
+<ul><li>In Prometheus, <strong>Status</strong>, <strong>Targets</strong> shows the job <code>up</code>. A <code>401</code> there is a wrong or missing token.</li><li>Add Prometheus to Grafana as a <strong>Prometheus</strong> data source (<code>http://127.0.0.1:9090</code>).</li><li>Only open databases have per-database lines (<code>database=&quot;market&quot;</code>); counters start at 0 when the server starts, which <code>rate()</code> handles.</li></ul>
+<h2 id="dashboards">The ready dashboards</h2>
+<div class="table-wrap"><table><thead><tr><th>File in <code>integrations/grafana/dashboards</code></th><th>Data source</th><th>Panels</th></tr></thead><tbody><tr><td><code>kareladb-server.json</code> (KarelaDB server)</td><td>Prometheus</td><td>version, uptime, requests per second and by status, HTTP latency p50 / p95 / p99, statement latency by protocol, statements and errors, slow statements, lock waits, memory by kind, resident memory and limit, processor, WAL and checkpoint writes, snapshot reads, result cache and partition loads, disk use</td></tr><tr><td><code>kareladb-market.json</code> (KarelaDB market example)</td><td>PostgreSQL</td><td>candles of a symbol (SAMPLE BY), last daily close (LATEST ON), volume per day, close by symbol (<code>$__timeGroupAlias</code> with fill), traded amount, trades; variables for the symbol and a multi-value symbol list</td></tr></tbody></table></div>
+<p>The market dashboard reads the help&#39;s <a href="sample-data.html">sample data</a> in a database named <code>market</code> (<a href="quick-start.html#sample-data">quick start</a> loads it); its time range is 2026-09-09 to 2026-09-11, the days the sample holds.</p>
+<p><strong>Import one by hand:</strong> <strong>Dashboards</strong>, <strong>New</strong>, <strong>Import</strong>, upload the JSON file. Each dashboard has a data source picker at the top (<code>KarelaDB</code>, <code>Prometheus</code>); pick yours there.</p>
+<p><strong>Load them at start (provisioning):</strong> mount the folders into Grafana:</p>
+<div class="table-wrap"><table><thead><tr><th>Folder</th><th>Mount at</th></tr></thead><tbody><tr><td><code>integrations/grafana/provisioning</code></td><td><code>/etc/grafana/provisioning</code></td></tr><tr><td><code>integrations/grafana/dashboards</code></td><td><code>/var/lib/grafana/dashboards/kareladb</code></td></tr></tbody></table></div>
+<p>They appear in a <strong>KarelaDB</strong> folder. Set <code>KARELADB_PG_HOST</code>, <code>KARELADB_DATABASE</code>, <code>KARELADB_GRAFANA_PASSWORD</code> (the read-only user&#39;s) and <code>KARELADB_PROMETHEUS_URL</code> in Grafana&#39;s environment.</p>
+<p><strong>All three together:</strong> <code>integrations/grafana/docker-compose.yml</code> builds the <code>kareladb</code> image from the source and starts KarelaDB, Prometheus and Grafana. A one-off step makes the users <code>admin</code>, <code>grafana</code> (<code>ROLE read</code>) and <code>monitor</code> (<code>ROLE read</code>); only KarelaDB and that step see the server&#39;s token:</p>
+<pre><code class="language-bash">cd integrations/grafana
+export KARELADB_TOKEN=$(openssl rand -hex 32)
+export KARELADB_ADMIN_PASSWORD=$(openssl rand -hex 16)
+export KARELADB_GRAFANA_PASSWORD=$(openssl rand -hex 16)
+export KARELADB_MONITOR_PASSWORD=$(openssl rand -hex 16)
+printf %s &quot;$KARELADB_MONITOR_PASSWORD&quot; &gt; prometheus/kareladb_password
+docker compose up -d --build
+# Grafana: http://127.0.0.1:3000 (admin / admin)</code></pre>
+<p>Then load the sample data into the database <code>market</code> and open <strong>Dashboards</strong>, <strong>KarelaDB</strong>. <code>node verify.mjs http://admin:&lt;password&gt;@127.0.0.1:3000</code> runs every panel query and every variable through Grafana and says which ones gave rows.</p>
+<h2 id="telegraf">Telegraf</h2>
+<p>Telegraf collects metrics (processor, memory, disks, many services) and can write them to KarelaDB with the <a href="line-protocol.html">line protocol</a>. Each measurement becomes a table that <code>POST /write</code> makes by itself; Grafana then reads it with SQL. Use Telegraf&#39;s <strong>http</strong> output:</p>
+<pre><code class="language-toml">[[outputs.http]]
+  url = &quot;http://127.0.0.1:9900/write?db=metrics&amp;precision=ns&quot;
+  method = &quot;POST&quot;
+  data_format = &quot;influx&quot;
+  [outputs.http.headers]
+    Authorization = &quot;Bearer ${KARELADB_TELEGRAF_TOKEN}&quot;   # an API token of a user with write on metrics
+    Content-Type = &quot;text/plain; charset=utf-8&quot;</code></pre>
+<ul><li>Make the database first (<code>CREATE DATABASE metrics</code>); <code>/write</code> makes tables, not databases.</li><li>Telegraf&#39;s <code>influxdb</code> and <code>influxdb_v2</code> outputs send the body in chunks without a length, which KarelaDB answers with <code>501 chunked request bodies are not supported</code>; the <code>http</code> output sends the length. The <code>influxdb_v2</code> output also sends <code>Authorization: Token ...</code>, and KarelaDB takes only <code>Bearer</code>.</li><li>Tested with Telegraf 1.33.0: <code>inputs.cpu</code> and <code>inputs.mem</code> made the tables <code>cpu</code> and <code>mem</code>, with a <code>timestamp</code> column for <code>$__timeFilter(timestamp)</code>.</li></ul>
+<h2 id="troubleshooting">When it does not work</h2>
+<div class="table-wrap"><table><thead><tr><th>Grafana says</th><th>Why</th><th>Fix</th></tr></thead><tbody><tr><td><code>password authentication failed for user &quot;grafana&quot;</code></td><td>wrong password, or a user that is not a KarelaDB user on a server with users</td><td>the user&#39;s password, or the token on a server without users</td></tr><tr><td><code>pq: SSL is not enabled on the server</code></td><td>TLS/SSL Mode <code>require</code> on a server without TLS</td><td><code>disable</code>, or turn <a href="tls.html">TLS</a> on</td></tr><tr><td><code>connections from other computers need a password</code></td><td>no token and no users, and Grafana runs in Docker (another address)</td><td>start the server with a token or make a user</td></tr><tr><td><code>database &#39;x&#39; does not exist</code></td><td>the Database name field</td><td>a database from <code>SHOW DATABASES</code></td></tr><tr><td><code>unknown function &#39;time_bucket&#39;</code></td><td>TimescaleDB is on in the data source</td><td>turn it off; <code>$__timeGroup</code> works without it</td></tr><tr><td><code>db has no time column</code></td><td>Time series format without a <code>time</code> column</td><td><code>AS &quot;time&quot;</code>, <code>$__time(col)</code> or <code>$__timeGroupAlias(...)</code></td></tr><tr><td>Prometheus target <code>down</code>, <code>401</code></td><td>a wrong password in <code>password_file</code>, or a wrong token</td><td>the password or a token of a user with <code>read</code></td></tr></tbody></table></div>
+</main>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/grafana.md">This page as markdown</a>.</footer>
+</body>
+</html>

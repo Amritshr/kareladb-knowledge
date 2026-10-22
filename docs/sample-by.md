@@ -70,7 +70,7 @@ Makes one row for each bucket of time (and for each key, like `symbol`). The opt
 - **NULL:** rows whose time is `NULL` are skipped. Aggregates skip `NULL` values, as always.
 - **Notes:**
   - `first(x)` and `last(x)` use the **time order** of the rows: the open of the earliest row, the close of the latest row.
-  - `WHERE` runs before `SAMPLE BY`. Always filter by time (`time IN '2026-09-10'`) so KDB reads only the partitions it needs.
+  - `WHERE` runs before `SAMPLE BY`. Always filter by time (`time IN '2026-09-10'`) so KarelaDB reads only the partitions it needs.
   - A plain column without an aggregate is a key, even when you did not mean it: `SELECT time, close ... SAMPLE BY 1d` gives one row per different `close` value.
   - A window function can sit next to `SAMPLE BY`: it runs **after** the candles are made, over the candles, like `lag(last(close)) OVER (PARTITION BY symbol ORDER BY time)`. With more than one symbol, always write `OVER (PARTITION BY symbol ORDER BY time)`: without it the series is all candles in time order, so the symbols are mixed. Making the candles in a [subquery](union-subqueries.md#from-subquery) and the indicator outside works too (see the [cookbook](candles-cookbook.md#indicators-on-candles)).
   - You may also write `GROUP BY symbol` after the SAMPLE BY options. It gives the same rows.
@@ -535,7 +535,7 @@ Sets the range of the buckets (QuestDB). The result runs from the bucket that ho
   - The buckets keep their usual start ([ALIGN TO CALENDAR](sample-by.md#align-to-calendar), [TIME ZONE](sample-by.md#time-zone), [WITH OFFSET](sample-by.md#with-offset)). A `start` inside a bucket begins with that bucket, which then only has the rows from `start` on.
   - With no rows in the range and no key columns, every bucket is still a filled row (`FILL(0)` gives zeros). With key columns there is no key to fill, so there are no rows.
   - `FROM` and `TO` are constants: a column or a subquery is an error. Not with [ALIGN TO FIRST OBSERVATION](sample-by.md#align-to-first-observation).
-  - The time conditions come from `FROM` / `TO` like a written `WHERE`, so KDB reads only the partitions in the range.
+  - The time conditions come from `FROM` / `TO` like a written `WHERE`, so KarelaDB reads only the partitions in the range.
 
 **Example: Every minute from 12:28 to 12:35 Nepal time (TO is not included)** (sample data: sample)
 
@@ -1101,7 +1101,7 @@ Chooses the first day of a week bucket. The default is `MONDAY`. On a Sunday-to-
 - **Returns:** week buckets that start at 00:00 UTC of that day (or of the TIME ZONE clock).
 - **Notes:**
   - Only with a week interval (`1w`, `2w`, ...).
-  - QuestDB cannot do this in SQL; the 006 app folds days into Sunday weeks in Go. In KDB one query does it.
+  - QuestDB cannot do this in SQL; the 006 app folds days into Sunday weeks in Go. In KarelaDB one query does it.
   - `ochl_day` rows are at 00:00 UTC, so these examples have no `TIME ZONE`. When your daily rows are at **local** midnight (Nepal 00:00 = 18:15 UTC the day before), add `TIME ZONE 'Asia/Kathmandu'`, or the weeks are stamped on the wrong day (see [TIME ZONE](sample-by.md#time-zone)).
 
 **Example: Sunday-to-Thursday trading weeks of CITY** (sample data: sample)

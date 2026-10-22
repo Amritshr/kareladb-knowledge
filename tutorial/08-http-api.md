@@ -4,16 +4,16 @@
 
 ## What you will learn
 
-- Every HTTP route of `kdb serve`, with `curl` examples and the real JSON answers.
+- Every HTTP route of `kareladb serve`, with `curl` examples and the real JSON answers.
 - How one server serves many databases: `db=<name>` and `/api/databases`.
-- How to call KDB from PowerShell, Python, Node, Go and C#.
+- How to call KarelaDB from PowerShell, Python, Node, Go and C#.
 - The rules: GET only reads, row limits, errors, access token, users and logins.
 - Fast loads with the line protocol (`POST /write`), all-or-nothing requests (`atomic=1`), results by column (`format=columns`) and the `ETag`.
 
-Start the server first (with a backup folder, for the backup routes). `kdb serve market` serves the one database folder `market`; [Many databases](#many-databases) shows a server for a whole data folder.
+Start the server first (with a backup folder, for the backup routes). `kareladb serve market` serves the one database folder `market`; [Many databases](#many-databases) shows a server for a whole data folder.
 
 ```powershell
-kdb serve market --backups backups
+kareladb serve market --backups backups
 ```
 
 All examples use `http://127.0.0.1:9900`. On Windows, write `curl.exe` (in PowerShell, `curl` alone is another command).
@@ -50,14 +50,14 @@ All examples use `http://127.0.0.1:9900`. On Windows, write `curl.exe` (in Power
 | GET | `/api/trigger-queue` | The queues of deferred triggers (chapter 13) | yes |
 | GET, POST | `/api/timers` | SQL that runs on a schedule (admins) | yes |
 | GET, POST, DELETE | `/api/pins` | Statements whose results are kept ready (admins; chapter 17) | yes |
-| GET, POST | `/api/settings`, POST `/api/restart` | Saved settings in `kdb.conf` (the console's **Settings** page); restart in place (admins) | yes |
-| GET | `/` | The web console (chapter 6), from the folder `web/` next to `kdb` | no |
-| GET | `/help/` | The help pages, from the folder `help/` next to `kdb` | no |
-| GET | `/skill.md` | The Claude skill file, from the folder `skill/` next to `kdb` | no |
+| GET, POST | `/api/settings`, POST `/api/restart` | Saved settings in `kareladb.conf` (the console's **Settings** page); restart in place (admins) | yes |
+| GET | `/` | The web console (chapter 6), from the folder `web/` next to `kareladb` | no |
+| GET | `/help/` | The help pages, from the folder `help/` next to `kareladb` | no |
+| GET | `/skill.md` | The Claude skill file, from the folder `skill/` next to `kareladb` | no |
 
 "Login needed" applies when the server was started with `--token`, or when its data folder has users (chapter 16). Then each user may only do what their role allows; other requests get HTTP 403.
 
-Every route that reads or changes data (all except `/health` and `/api/databases`) works on **one database**: the one named by the parameter `db=<name>` or the header `X-KDB-Database: <name>`. Without them, the server's default database is used. With `kdb serve market` the server has only that database, so you can leave `db` out. See [Many databases](#many-databases).
+Every route that reads or changes data (all except `/health` and `/api/databases`) works on **one database**: the one named by the parameter `db=<name>` or the header `X-KDB-Database: <name>`. Without them, the server's default database is used. With `kareladb serve market` the server has only that database, so you can leave `db` out. See [Many databases](#many-databases).
 
 Parameters for `/exec` and `/exp`:
 
@@ -122,7 +122,7 @@ The answer (formatted for reading; the server sends it on one line):
 |---|---|
 | `query` | The SQL you sent |
 | `results` | One object per statement |
-| `results[].statement` | The statement, as KDB understood it |
+| `results[].statement` | The statement, as KarelaDB understood it |
 | `results[].columns` | Name and type of each column |
 | `results[].dataset` | The rows. Each row is a list of values in column order. |
 | `results[].count` | Number of rows in `dataset` |
@@ -201,7 +201,7 @@ curl.exe -s "http://127.0.0.1:9900/exec?compat=0" --data-binary "DELETE FROM bro
 
 ### Errors
 
-A bad statement gets **HTTP 400** and an `error`. When KDB knows the place, `line` and `column` are separate fields:
+A bad statement gets **HTTP 400** and an `error`. When KarelaDB knows the place, `line` and `column` are separate fields:
 
 ```powershell
 curl.exe -s -w "\nHTTP status: %{http_code}\n" http://127.0.0.1:9900/exec --data-binary "SELECT clsoe FROM ochl_day"
@@ -415,7 +415,7 @@ The JSON has these fields (the start of a real answer, cut):
 
 | Field | Meaning |
 |---|---|
-| `dir`, `version` | Database folder and KDB version |
+| `dir`, `version` | Database folder and KarelaDB version |
 | `opened_ms`, `server_time_ms` | When the database was opened; the server clock (ms since 1970, UTC) |
 | `last_lsn` | Number of the last change in the log |
 | `data_files`, `data_bytes` | Count and size of the data files |
@@ -458,7 +458,7 @@ curl.exe -s http://127.0.0.1:9900/api/backups
 {"backups":[{"name":"20260923-120933-857","dir":"backups/20260923-120933-857","created_ms":1790165373857,"created":"2026-09-23T12:09:33.857Z","end_lsn":32,"checkpoint_lsn":32,"files":9,"bytes":194672}]}
 ```
 
-- Without `--backups`, `/api/backup` answers HTTP 400 `no backup folder is set; start KDB with a backup folder (for example --backups D:/kdb_backups)`.
+- Without `--backups`, `/api/backup` answers HTTP 400 `no backup folder is set; start KarelaDB with a backup folder (for example --backups D:/kdb_backups)`.
 - After each backup the server removes old backups: it keeps the newest of each of the last 7 days and 4 weeks.
 - `BACKUP DATABASE` (as SQL, with POST) does the same:
 
@@ -488,7 +488,7 @@ check ok: 14 files
 
 ## Many databases
 
-`kdb serve` without a folder serves **every database in the data folder** (chapter 1). Each request chooses its database:
+`kareladb serve` without a folder serves **every database in the data folder** (chapter 1). Each request chooses its database:
 
 - the parameter `db=<name>` (in the URL, or as a form field), or
 - the header `X-KDB-Database: <name>` (handy when a program talks to one database all the time).
@@ -500,7 +500,7 @@ This example starts a second server on port 9946 for the data folder `kdb-data`:
 ```powershell
 # A server for a whole data folder: every database in it, chosen per request.
 # --pg-port 0: the first server already has the Postgres port 8832.
-$server = Start-Process kdb -ArgumentList "serve", "--data-dir", "kdb-data", "--port", "9946", "--pg-port", "0" -PassThru -WindowStyle Hidden
+$server = Start-Process kareladb -ArgumentList "serve", "--data-dir", "kdb-data", "--port", "9946", "--pg-port", "0" -PassThru -WindowStyle Hidden
 Start-Sleep -Seconds 1
 $u = "http://127.0.0.1:9946"
 
@@ -567,8 +567,8 @@ A query can also **read** a table of another database on the same server: write 
 |---|---|
 | `databases[]` | Every database, sorted by name: `name`, `dir` (its folder), `default`, `open`, `tables`, `bytes` (data files). When a database cannot be opened (for example another program uses it), `tables` is `null` and `error` says why. |
 | `default` | The database used when a request has no `db=` |
-| `data_dir` | The data folder (empty for `kdb serve <folder>`) |
-| `can_create` | `false` for `kdb serve <folder>`: that server has one database and cannot create or drop others |
+| `data_dir` | The data folder (empty for `kareladb serve <folder>`) |
+| `can_create` | `false` for `kareladb serve <folder>`: that server has one database and cannot create or drop others |
 
 Listing opens every database, so the list can count its tables.
 
@@ -692,18 +692,19 @@ $r.results | ForEach-Object { $_.message }
 `client.py`:
 
 ```python
-# client.py - query KDB from Python. Only the standard library is used.
+# client.py - query KarelaDB from Python. Only the standard library is used.
 import json
 import os
 import urllib.error
 import urllib.parse
 import urllib.request
 
-KDB = os.environ.get("KDB_URL", "http://127.0.0.1:9900")
+# KARELADB_URL; KDB_URL is its old name and still read.
+KARELADB = os.environ.get("KARELADB_URL") or os.environ.get("KDB_URL") or "http://127.0.0.1:9900"
 TOKEN = ""  # set this if the server was started with --token
 
-def kdb(sql, limit=10000):
-    url = KDB + "/exec?" + urllib.parse.urlencode({"limit": limit, "compat": 0})
+def kareladb(sql, limit=10000):
+    url = KARELADB + "/exec?" + urllib.parse.urlencode({"limit": limit, "compat": 0})
     req = urllib.request.Request(url, data=sql.encode("utf-8"), method="POST")
     req.add_header("Content-Type", "text/plain; charset=utf-8")
     if TOKEN:
@@ -713,21 +714,21 @@ def kdb(sql, limit=10000):
             return json.load(resp)["results"]
     except urllib.error.HTTPError as e:
         body = json.load(e)
-        raise RuntimeError(f"KDB error (HTTP {e.code}): {body['error']}") from None
+        raise RuntimeError(f"KarelaDB error (HTTP {e.code}): {body['error']}") from None
 
 # Insert a row (INSERT OR REPLACE: safe to run again).
-print(kdb("INSERT OR REPLACE INTO ochl_day VALUES "
+print(kareladb("INSERT OR REPLACE INTO ochl_day VALUES "
           "('2026-09-13', 'CITY', 505, 509, 503.1, 508.2, 91000)")[0]["message"])
 
 # Read rows as dictionaries.
-res = kdb("SELECT time, symbol, close FROM ochl_day WHERE symbol = 'CITY' AND time >= '2026-09-09'")[0]
+res = kareladb("SELECT time, symbol, close FROM ochl_day WHERE symbol = 'CITY' AND time >= '2026-09-09'")[0]
 names = [c["name"] for c in res["columns"]]
 for row in res["dataset"]:
     print(dict(zip(names, row)))
 
 # Errors become exceptions.
 try:
-    kdb("SELECT clsoe FROM ochl_day")
+    kareladb("SELECT clsoe FROM ochl_day")
 except RuntimeError as err:
     print(err)
 ```
@@ -741,7 +742,7 @@ python client.py
 {'time': '2026-09-09T00:00:00.000Z', 'symbol': 'CITY', 'close': 504.6}
 {'time': '2026-09-10T00:00:00.000Z', 'symbol': 'CITY', 'close': 504.9}
 {'time': '2026-09-13T00:00:00.000Z', 'symbol': 'CITY', 'close': 508.2}
-KDB error (HTTP 400): line 1, column 8: unknown column 'clsoe' (table 'ochl_day' has: time symbol open high low close volume)
+KarelaDB error (HTTP 400): line 1, column 8: unknown column 'clsoe' (table 'ochl_day' has: time symbol open high low close volume)
 ```
 
 Tested with Python 3.15. To turn a time text into a Python `datetime`: `datetime.fromisoformat(t.replace("Z", "+00:00"))`.
@@ -751,12 +752,13 @@ Tested with Python 3.15. To turn a time text into a Python `datetime`: `datetime
 `client.mjs`:
 
 ```javascript
-// client.mjs - query KDB from Node.js 18 or newer (fetch is built in).
-const KDB = process.env.KDB_URL || "http://127.0.0.1:9900";
+// client.mjs - query KarelaDB from Node.js 18 or newer (fetch is built in).
+// KARELADB_URL; KDB_URL is its old name and still read.
+const KARELADB = process.env.KARELADB_URL || process.env.KDB_URL || "http://127.0.0.1:9900";
 const TOKEN = ""; // set this if the server was started with --token
 
-async function kdb(sql, limit = 10000) {
-  const res = await fetch(`${KDB}/exec?limit=${limit}&compat=0`, {
+async function kareladb(sql, limit = 10000) {
+  const res = await fetch(`${KARELADB}/exec?limit=${limit}&compat=0`, {
     method: "POST",
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
@@ -765,11 +767,11 @@ async function kdb(sql, limit = 10000) {
     body: sql,
   });
   const body = await res.json();
-  if (!res.ok) throw new Error(`KDB error (HTTP ${res.status}): ${body.error}`);
+  if (!res.ok) throw new Error(`KarelaDB error (HTTP ${res.status}): ${body.error}`);
   return body.results;
 }
 
-const [res] = await kdb(
+const [res] = await kareladb(
   "SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY pct_change DESC"
 );
 const names = res.columns.map((c) => c.name);
@@ -778,7 +780,7 @@ for (const row of res.dataset) {
 }
 
 try {
-  await kdb("INSERT INTO brokers VALUES (58, 'Duplicate')");
+  await kareladb("INSERT INTO brokers VALUES (58, 'Duplicate')");
 } catch (err) {
   console.log(err.message);
 }
@@ -793,7 +795,7 @@ node client.mjs
 { symbol: 'TELCO', ltp: 897.7, pct_change: 1.9 }
 { symbol: 'COAST', ltp: 401.9, pct_change: 0.7 }
 { symbol: 'VOLT', ltp: 184, pct_change: -0.86 }
-KDB error (HTTP 400): a row with id='58' already exists in 'brokers'. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it
+KarelaDB error (HTTP 400): a row with id='58' already exists in 'brokers'. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it
 ```
 
 Tested with Node 24.
@@ -803,7 +805,7 @@ Tested with Node 24.
 `client.go`:
 
 ```go
-// client.go - query KDB from Go (standard library only).
+// client.go - query KarelaDB from Go (standard library only).
 // Run: go run client.go
 package main
 
@@ -866,13 +868,15 @@ func query(sql string) ([]result, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("KDB error (HTTP %d): %s", resp.StatusCode, r.Error)
+		return nil, fmt.Errorf("KarelaDB error (HTTP %d): %s", resp.StatusCode, r.Error)
 	}
 	return r.Results, nil
 }
 
 func main() {
-	if u := os.Getenv("KDB_URL"); u != "" {
+	if u := os.Getenv("KARELADB_URL"); u != "" { // KDB_URL: the old name, still read
+		kdbURL = u
+	} else if u := os.Getenv("KDB_URL"); u != "" {
 		kdbURL = u
 	}
 	res, err := query("SELECT time, first(open) AS open, last(close) AS close FROM ochl_minutes " +
@@ -900,7 +904,7 @@ go run client.go
 2026-09-10T06:15:00.000Z open=505.3 close=502.7
 2026-09-10T07:15:00.000Z open=502.7 close=502.6
 2026-09-10T08:15:00.000Z open=502.6 close=504.9
-KDB error (HTTP 400): cannot remove brokers(id) = '58': table 'trade_log' column 'buyer' still refers to it (foreign key 'trade_log_buyer_fkey')
+KarelaDB error (HTTP 400): cannot remove brokers(id) = '58': table 'trade_log' column 'buyer' still refers to it (foreign key 'trade_log_buyer_fkey')
 ```
 
 Tested with Go 1.26. Parse times with `time.Parse(time.RFC3339Nano, s)`. A Go app can also use its PostgreSQL driver `pgx` on port 8832 (chapter 14). This HTTP client needs no driver at all.
@@ -910,7 +914,7 @@ Tested with Go 1.26. Parse times with `time.Parse(time.RFC3339Nano, s)`. A Go ap
 `Client.cs` (**not run** while writing this tutorial: there was no .NET SDK on the test PC):
 
 ```csharp
-// Client.cs - query KDB from C# (.NET 6 or newer).
+// Client.cs - query KarelaDB from C# (.NET 6 or newer).
 // NOT RUN while writing the tutorial (no .NET SDK on that computer).
 // Use it in a console project: dotnet new console, then replace Program.cs.
 using System;
@@ -933,7 +937,7 @@ class KdbClient
         var text = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(text).RootElement.Clone();
         if (!response.IsSuccessStatusCode)
-            throw new Exception($"KDB error (HTTP {(int)response.StatusCode}): {json.GetProperty("error").GetString()}");
+            throw new Exception($"KarelaDB error (HTTP {(int)response.StatusCode}): {json.GetProperty("error").GetString()}");
         return json.GetProperty("results");
     }
 
@@ -948,10 +952,10 @@ class KdbClient
 
 ## Access token
 
-A second server on another port, with a token. Every `kdb serve` also opens the PostgreSQL port 8832 (chapter 14), and only one server can have it, so a second server needs `--pg-port 0` (off) or another port:
+A second server on another port, with a token. Every `kareladb serve` also opens the PostgreSQL port 8832 (chapter 14), and only one server can have it, so a second server needs `--pg-port 0` (off) or another port:
 
 ```powershell
-kdb serve tokendb --port 9944 --pg-port 0 --token change-me-please
+kareladb serve tokendb --port 9944 --pg-port 0 --token change-me-please
 ```
 
 Then:
@@ -984,7 +988,7 @@ one
 
 ## Stop a slow request
 
-`kdb serve` stops every statement after `--statement-timeout` (60 s by default) with HTTP 408. Send your own shorter time, or give the request an id so that you can stop it:
+`kareladb serve` stops every statement after `--statement-timeout` (60 s by default) with HTTP 408. Send your own shorter time, or give the request an id so that you can stop it:
 
 | Header | Does |
 |---|---|
@@ -1000,11 +1004,11 @@ Closing the connection also stops the statement. Nothing of a stopped change is 
 
 ## Users and logins
 
-When the data folder has users (`CREATE USER`, or `kdb user add`), every request needs a login. Chapter 16 explains users and roles; here is only the HTTP part.
+When the data folder has users (`CREATE USER`, or `kareladb user add`), every request needs a login. Chapter 16 explains users and roles; here is only the HTTP part.
 
 | How | Send | For |
 |---|---|---|
-| HTTP Basic | `curl -u name:password ...` (header `Authorization: Basic ...`) | scripts; KDB remembers a good password for 10 minutes, so it is not slow |
+| HTTP Basic | `curl -u name:password ...` (header `Authorization: Basic ...`) | scripts; KarelaDB remembers a good password for 10 minutes, so it is not slow |
 | Log in once | `POST /api/login` with `{"user":"...","password":"..."}` (JSON or form; users with two-factor login add `"code":"123456"`, chapter 21). The answer has `token` and sets the cookie `kdb_login` (HttpOnly, SameSite=Strict, 12 hours). Then send `Authorization: Bearer <token>`. | apps, the web console |
 | Log out | `POST /api/logout` with the cookie or the Bearer token | |
 | The `--token` | `Authorization: Bearer <token>` | everything, as before |
@@ -1038,14 +1042,14 @@ curl.exe -s -w "   (HTTP %{http_code})" -H "Host: market.example.com" "http://12
 | Rule | Why |
 |---|---|
 | GET /exec and /exp only read | Links and images can send GET requests |
-| Browser requests from other sites get 403 | A bad web page must not use your local KDB |
+| Browser requests from other sites get 403 | A bad web page must not use your local KarelaDB |
 | Without a token, the `Host` must be `localhost` or `127.x.x.x` | Stops DNS rebinding. A reverse proxy needs `--token` or users. |
-| `kdb serve --bind 0.0.0.0` without `--token` and without users does not start | Nobody can open all data to the network by mistake |
+| `kareladb serve --bind 0.0.0.0` without `--token` and without users does not start | Nobody can open all data to the network by mistake |
 | Login cookies are `HttpOnly` and `SameSite=Strict`; `POST /api/login` from another site gets 403 | Scripts and other sites cannot steal or use a login |
 | Failed logins are logged and slowed down | Guessing passwords does not work |
 | The token is compared in constant time | Guessing it by timing does not work |
 
-Programs like curl, Python, Go and Node do not send `Sec-Fetch-Site` or `Origin`, so they are not affected. JavaScript in a web page on **another** site cannot call KDB (there are no CORS headers). Call KDB from your backend (for example the 006 Go app), not from browser code.
+Programs like curl, Python, Go and Node do not send `Sec-Fetch-Site` or `Origin`, so they are not affected. JavaScript in a web page on **another** site cannot call KarelaDB (there are no CORS headers). Call KarelaDB from your backend (for example the 006 Go app), not from browser code.
 
 ## Limits
 
@@ -1068,7 +1072,7 @@ Reads see the last committed rows. They do not wait for an open transaction, onl
 
 ## Not available yet
 
-| Feature | QuestDB has it | KDB |
+| Feature | QuestDB has it | KarelaDB |
 |---|---|---|
 | ILP over its own TCP port | yes (port 9009) | no. Send the same lines over HTTP: [POST /write](#post-write-line-protocol). |
 | HTTPS | no (use a proxy) | no (use a proxy) |
@@ -1090,12 +1094,12 @@ The PostgreSQL protocol is there: port 8832, for `psql`, DBeaver, Go `pgx` and P
 2. ```powershell
    curl.exe -s -G http://127.0.0.1:9900/exp --data-urlencode "query=SELECT * FROM ochl_day WHERE symbol = 'COAST' ORDER BY time" -o coast.csv
    ```
-3. With `kdb()` from `client.py`:
+3. With `kareladb()` from `client.py`:
    ```python
-   kdb("CREATE TABLE IF NOT EXISTS index_live (time TIMESTAMP, name SYMBOL, value DOUBLE) "
+   kareladb("CREATE TABLE IF NOT EXISTS index_live (time TIMESTAMP, name SYMBOL, value DOUBLE) "
        "TIMESERIES(time) PARTITION BY DAY DEDUP KEY (name, time)")
-   kdb("INSERT OR REPLACE INTO index_live VALUES ('2026-09-10T15:00:00+05:45', 'MARKET', 2650.5)")
-   print(kdb("SELECT * FROM index_live")[0]["dataset"])
+   kareladb("INSERT OR REPLACE INTO index_live VALUES ('2026-09-10T15:00:00+05:45', 'MARKET', 2650.5)")
+   print(kareladb("SELECT * FROM index_live")[0]["dataset"])
    ```
    It prints `[['2026-09-10T09:15:00.000Z', 'MARKET', 2650.5]]`.
 

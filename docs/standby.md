@@ -1,12 +1,12 @@
-# Standby server: a live read-only copy (--standby-of, kdb promote)
+# Standby server: a live read-only copy (--standby-of, kareladb promote)
 
-> A second KDB server that copies every database of a primary from its log, a moment behind, and serves reads.
+> A second KarelaDB server that copies every database of a primary from its log, a moment behind, and serves reads.
 
 - Category: Backup, check, repair, restore
-- Keywords: standby, hot standby, replica, read replica, replication, failover, --standby-of, --standby-token, KDB\_STANDBY\_OF, KDB\_STANDBY\_TOKEN, GET /api/wal, api/wal, GET /api/standby, api/standby, in\_hot\_standby, wal, log shipping, lsn, kdb promote, POST /api/promote, api/promote, promote, failover, lag, replication lag, kdb\_standby\_lag\_seconds, 25006, read\_only\_sql\_transaction
-- See also: [Backup, check, repair and restore](backup-and-safety.md), [Change stream and live subscriptions: changes('t'), GET /api/changes, GET /api/subscribe](change-stream.md), [kdb serve](cli-serve.md), [Databases and the data folder](databases.md)
+- Keywords: standby, hot standby, replica, read replica, replication, failover, --standby-of, --standby-token, KARELADB\_STANDBY\_OF, KARELADB\_STANDBY\_TOKEN, GET /api/wal, api/wal, GET /api/standby, api/standby, in\_hot\_standby, wal, log shipping, lsn, kareladb promote, POST /api/promote, api/promote, promote, failover, lag, replication lag, kdb\_standby\_lag\_seconds, 25006, read\_only\_sql\_transaction
+- See also: [Backup, check, repair and restore](backup-and-safety.md), [Change stream and live subscriptions: changes('t'), GET /api/changes, GET /api/subscribe](change-stream.md), [kareladb serve](cli-serve.md), [Databases and the data folder](databases.md)
 
-A **standby** is a second `kdb serve` that keeps a copy of every database of another server, the **primary**. It reads the primary's log (the WAL) over HTTP and applies each transaction in order, so the copy is a moment behind the primary. Users of the standby can read; every change is made on the primary.
+A **standby** is a second `kareladb serve` that keeps a copy of every database of another server, the **primary**. It reads the primary's log (the WAL) over HTTP and applies each transaction in order, so the copy is a moment behind the primary. Users of the standby can read; every change is made on the primary.
 
 Use it to keep reports and dashboards off the primary, and to have a second copy on another computer.
 
@@ -15,18 +15,18 @@ Use it to keep reports and dashboards off the primary, and to have a second copy
 ## Start a standby
 
 ```bash
-# the primary: any kdb serve with a token
-kdb serve --data-dir D:/kdb-data --token <secret>
+# the primary: any kareladb serve with a token
+kareladb serve --data-dir D:/kdb-data --token <secret>
 
 # the standby: another folder (another computer), pointing at the primary
-kdb serve --data-dir E:/kdb-copy --standby-of http://primary:9900 --standby-token <secret>
+kareladb serve --data-dir E:/kdb-copy --standby-of http://primary:9900 --standby-token <secret>
 ```
 
 | Setting | Meaning |
 |---|---|
-| `--standby-of URL` (`KDB_STANDBY_OF`) | the primary's address, `http://host:port` or `https://host:port` |
-| `--standby-token T` (`KDB_STANDBY_TOKEN`) | what the standby sends to the primary: the primary's `--token`, or an API token of an admin |
-| `KDB_STANDBY_POLL_MS` | how often an up-to-date standby asks again (default 100 ms) |
+| `--standby-of URL` (`KARELADB_STANDBY_OF`) | the primary's address, `http://host:port` or `https://host:port` |
+| `--standby-token T` (`KARELADB_STANDBY_TOKEN`) | what the standby sends to the primary: the primary's `--token`, or an API token of an admin |
+| `KARELADB_STANDBY_POLL_MS` | how often an up-to-date standby asks again (default 100 ms) |
 
 The standby copies:
 
@@ -73,7 +73,7 @@ The lag, over every database:
 | Field | Meaning |
 |---|---|
 | `lag_lsn`, `lag_bytes`, `lag_seconds` | as above |
-| `promoted` | `kdb promote` ran: this server is a primary now |
+| `promoted` | `kareladb promote` ran: this server is a primary now |
 | `connected`, `error` | the last request to the primary worked, or why not |
 | `databases[].applied_lsn` | the last LSN of the primary this copy holds |
 | `databases[].primary_lsn`, `behind_lsn` | the end of the primary's log when last asked, and the difference |
@@ -88,7 +88,7 @@ The lag, over every database:
 When the primary is lost, make the standby the primary:
 
 ```bash
-kdb promote --url http://standby:9900 --token <secret>
+kareladb promote --url http://standby:9900 --token <secret>
 ```
 
 That sends `POST /api/promote` (server admins). The standby stops copying (a transaction being applied ends first), and from that moment:
@@ -108,7 +108,7 @@ Before you promote:
 - Make sure the old primary is really gone, or stop it. Two primaries take different writes, and the copies cannot be joined again.
 - Look at `lag_lsn`: what the primary committed and the standby had not copied is lost.
 
-After the promote, start the server again **without** `--standby-of` (and drop `KDB_STANDBY_OF`); with it, it would be a standby again. To get a new standby, start one against the new primary. The old primary's folder cannot follow the new one: copy it again from a backup of the new primary.
+After the promote, start the server again **without** `--standby-of` (and drop `KARELADB_STANDBY_OF`); with it, it would be a standby again. To get a new standby, start one against the new primary. The old primary's folder cannot follow the new one: copy it again from a backup of the new primary.
 
 <a id="seed"></a>
 

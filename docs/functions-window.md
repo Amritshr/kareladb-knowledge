@@ -263,7 +263,7 @@ The order of the rows inside the window. It decides what "previous" means for `l
 - **NULL:** rows where the order value is NULL come **last**, also with `DESC`. `NULLS FIRST` is accepted here but has no effect yet.
 - **Notes:**
   - This `ORDER BY` only orders the window. The result rows need their own `ORDER BY` at the end of the query.
-  - An aggregate with `ORDER BY` and no `ROWS` is a **running** value: from the first row to this row. When two rows have the same order value, KDB still adds them one at a time (PostgreSQL would give both rows the same total; in KDB write `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` for that, see [RANGE](#range)).
+  - An aggregate with `ORDER BY` and no `ROWS` is a **running** value: from the first row to this row. When two rows have the same order value, KarelaDB still adds them one at a time (PostgreSQL would give both rows the same total; in KarelaDB write `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` for that, see [RANGE](#range)).
   - With `DESC`, `lead` looks at the row that comes next in the window, which is the **earlier** time.
 
 **Example: Biggest volume first: rank the days of COAST** (sample data: sample)

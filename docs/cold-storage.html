@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cold storage (S3, MinIO, R2, B2) - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="Move old partitions of a time-series table to S3-compatible object storage (AWS S3, MinIO, Cloudflare R2, Backblaze B2) and keep reading them as if they were local.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/cold-storage.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cold-storage.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="cold-storage-s3-minio-r2-b2">Cold storage (S3, MinIO, R2, B2)</h1>
+<blockquote><p>Move old partitions of a time-series table to S3-compatible object storage (AWS S3, MinIO, Cloudflare R2, Backblaze B2) and keep reading them as if they were local.</p></blockquote>
+<ul><li>Category: Time-series</li><li>Keywords: cold storage, cold, tiering, tiered storage, archive, object storage, S3, AWS S3, MinIO, Cloudflare R2, R2, Backblaze B2, B2, bucket, cold_storage, cold_after, WITH (cold_storage, SET (cold_storage, RESET (cold_storage, MOVE PARTITION, TO COLD, FROM COLD, cold_partitions(), KARELADB_COLD, KARELADB_COLD_CACHE_MB, KARELADB_COLD_DELETE, old partitions, move old data, cheap storage, disk full, kdb_cold, multipart, SigV4</li><li>See also: <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a></li></ul>
+<p>A time-series table keeps every partition on the server&#39;s disk. Old partitions are read rarely but take the same space. <strong>Cold storage</strong> moves them to an object store (a bucket in AWS S3, MinIO, Cloudflare R2 or Backblaze B2) and keeps a small note in their place. Queries do not change: a query that reads an old day fetches what it needs and answers as before.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>Local partition</th><th>Cold partition</th></tr></thead><tbody><tr><td>Where the rows are</td><td>a file in the data folder</td><td>an object in the bucket, plus a stub of at most about 70 KB on disk</td></tr><tr><td>A query that does not touch it</td><td>nothing</td><td>nothing (no request is sent)</td></tr><tr><td>A query that reads it</td><td>reads the file</td><td>fetches only the columns it reads, in 1 MiB pieces, into a local cache</td></tr><tr><td>Writes (late rows, UPDATE, DELETE)</td><td>as usual</td><td>accepted; the next checkpoint writes the partition back as a local file</td></tr><tr><td>Backup</td><td>copies the file</td><td>copies the stub: the bucket is part of the backup</td></tr></tbody></table></div>
+<p>Setup used by the examples below:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE, volume LONG)
+  TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO ticks VALUES
+  (&#39;2025-01-15T10:00:00Z&#39;, &#39;CITY&#39;, 500.0, 120), (&#39;2025-01-16T10:00:00Z&#39;, &#39;BANK&#39;, 211.5, 900),
+  (&#39;2025-02-12T10:00:00Z&#39;, &#39;CITY&#39;, 507.5, 300), (&#39;2025-02-13T10:00:00Z&#39;, &#39;BANK&#39;, 209.0, 450),
+  (&#39;2025-03-11T10:00:00Z&#39;, &#39;CITY&#39;, 512.0, 210), (&#39;2025-03-12T10:00:00Z&#39;, &#39;BANK&#39;, 214.0, 380),
+  (&#39;2026-10-01T10:00:00Z&#39;, &#39;CITY&#39;, 530.0, 150);</code></pre>
+<h2 id="define-a-store">Define a store</h2>
+<p>A store is defined by settings where the server starts, never by SQL. Its keys never appear in a statement, the log, a system table, <code>/api/info</code> or <code>/api/stats</code>. <code>&lt;NAME&gt;</code> is the store&#39;s name in capitals; tables use it in lower case.</p>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_URL</code></td><td>the endpoint, without the bucket: <code>https://s3.eu-west-1.amazonaws.com</code>, <code>http://minio:9000</code>, or a folder <code>file:///mnt/cold</code></td><td>required</td></tr><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_BUCKET</code></td><td>the bucket (not used by <code>file://</code>)</td><td>required for S3</td></tr><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_PREFIX</code></td><td>a folder inside the bucket, put before every object</td><td>none</td></tr><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_REGION</code></td><td>the region the request is signed for; R2 takes <code>auto</code></td><td><code>us-east-1</code></td></tr><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_ACCESS_KEY</code></td><td>the access key id</td><td>none</td></tr><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_SECRET_KEY</code></td><td>the secret key</td><td>none</td></tr><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_PATH_STYLE</code></td><td><code>on</code>: <code>http://host/bucket/key</code> (MinIO); <code>off</code>: <code>http://bucket.host/key</code></td><td><code>on</code>, except for <code>*.amazonaws.com</code></td></tr><tr><td><code>KARELADB_COLD_&lt;NAME&gt;_TIMEOUT_MS</code></td><td>the most one request may take</td><td><code>300000</code></td></tr><tr><td><code>KARELADB_COLD_CACHE_MB</code></td><td>the local cache of fetched pieces, all databases together; <code>0</code> = no cache</td><td><code>1024</code></td></tr></tbody></table></div>
+<ul><li>Every <code>KARELADB_COLD_*</code> setting may also be written <code>KDB_COLD_*</code>; the <code>KARELADB_</code> one wins.</li><li><code>kareladb serve</code> prints each store it found at start (where it is, never its keys). <code>GET /api/stats</code> lists them under <code>cold.stores</code>.</li><li>The server talks to the store over HTTPS (it checks the certificate like any HTTPS client) or plain HTTP. Every request is signed with AWS Signature Version 4, and every upload carries the SHA-256 of its body, so the store refuses a body damaged on the way.</li><li>The folder store (<code>file://</code>) needs no keys: a network drive, or a disk of its own.</li></ul>
+<pre><code class="language-text"># AWS S3
+KARELADB_COLD_ARCHIVE_URL=https://s3.eu-west-1.amazonaws.com
+KARELADB_COLD_ARCHIVE_BUCKET=my-company-cold
+KARELADB_COLD_ARCHIVE_REGION=eu-west-1
+KARELADB_COLD_ARCHIVE_ACCESS_KEY=AKIA...
+KARELADB_COLD_ARCHIVE_SECRET_KEY=...
+
+# MinIO
+KARELADB_COLD_ARCHIVE_URL=http://minio:9000
+KARELADB_COLD_ARCHIVE_BUCKET=cold
+
+# Cloudflare R2
+KARELADB_COLD_ARCHIVE_URL=https://&lt;account id&gt;.r2.cloudflarestorage.com
+KARELADB_COLD_ARCHIVE_REGION=auto
+
+# Backblaze B2
+KARELADB_COLD_ARCHIVE_URL=https://s3.us-west-004.backblazeb2.com
+KARELADB_COLD_ARCHIVE_REGION=us-west-004</code></pre>
+<p>In Docker, pass them with <code>-e</code>, as <code>KARELADB_TOKEN</code> is. The bucket must exist; KarelaDB does not make it.</p>
+<p>The examples on this page use a store named <code>archive</code>, a folder the help build made.</p>
+<h2 id="turn-on">Turn it on for a table</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time) PARTITION BY DAY | MONTH | YEAR
+  WITH (cold_storage = &#39;store&#39; [, cold_after = &#39;span&#39;])
+ALTER TABLE name SET (cold_storage = &#39;store&#39; [, cold_after = &#39;span&#39;])
+ALTER TABLE name RESET (cold_storage) | RESET (cold_after)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th></tr></thead><tbody><tr><td><code>cold_storage</code></td><td>the store&#39;s name (letters, digits and <code>_</code>). The store must be defined where the statement runs</td></tr><tr><td><code>cold_after</code></td><td>how long after a partition&#39;s time <strong>ended</strong> it moves: <code>&#39;90 days&#39;</code>, <code>&#39;6 months&#39;</code>, <code>&#39;1 year&#39;</code>. Units: seconds, minutes, hours, days, weeks, months (30 days) and years (365 days). <code>&#39;0&#39;</code> or not set: nothing moves by itself, only <a href="cold-storage.html#move-partition">MOVE PARTITION</a> moves</td></tr></tbody></table></div>
+<ul><li>The server checks every minute for <strong>sealed</strong> partitions (every one but the newest) whose time range ended more than <code>cold_after</code> ago, and moves them one at a time, in the background. The newest partition, where rows still arrive, never moves.</li><li>Only tables with time partitions (<code>PARTITION BY DAY</code>, <code>MONTH</code> or <code>YEAR</code>) can have a cold store.</li><li><code>RESET (cold_storage)</code> stops further moves. Partitions already cold stay there until <a href="cold-storage.html#move-partition">FROM COLD</a> brings them back.</li><li><code>SHOW CREATE TABLE</code> shows the options.</li></ul>
+<p><strong>Example: Old partitions of ticks go to the store &#39;archive&#39; half a year after they end</strong></p>
+<pre><code class="language-sql">ALTER TABLE ticks SET (cold_storage = &#39;archive&#39;, cold_after = &#39;6 months&#39;);
+SHOW CREATE TABLE ticks;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE ticks SET (cold_storage = &#39;archive&#39;, cold_after = &#39;180 days&#39;)</code></p>
+<pre><code class="language-text">table &#39;ticks&#39;: cold store &#39;archive&#39; (folder ./cold-archive); sealed partitions whose time ended more than 180 days ago move there in the background</code></pre>
+<p><code>SHOW CREATE TABLE ticks</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE ticks (   time TIMESTAMP,   symbol SYMBOL,   price DOUBLE,   volume LONG ) TIMESERIES(time) PARTITION BY MONTH SORT BY (symbol, time) WITH (cold_storage = &#39;archive&#39;, cold_after = &#39;180 ...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A store that is not defined is refused</strong> (shows an error)</p>
+<pre><code class="language-sql">ALTER TABLE ticks SET (cold_storage = &#39;nowhere&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>cold store &#39;nowhere&#39; is not defined: set KARELADB_COLD_NOWHERE_URL (and _BUCKET, _ACCESS_KEY, _SECRET_KEY) where the server starts</code></p>
+<h2 id="move-partition">MOVE PARTITION ... TO COLD and FROM COLD</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE name MOVE PARTITION [LIST] &#39;partition&#39; [, ...] TO COLD
+ALTER TABLE name MOVE PARTITION [LIST] &#39;partition&#39; [, ...] FROM COLD</code></pre>
+<p><code>TO COLD</code> moves the partitions now, whatever <code>cold_after</code> says. <code>FROM COLD</code> writes cold partitions back as local files. The answer has one row per partition: what happened, and the bytes moved.</p>
+<ul><li>Send it <strong>alone</strong>, outside a transaction, like <code>CHECKPOINT</code>. It uploads or fetches for as long as that takes; it holds the database alone only for the moment it switches each partition over.</li><li>A partition with unsaved changes is first written by a checkpoint, so what moves is one whole file.</li><li>The newest partition cannot move. When none of the partitions named can move, the statement fails and says why for each.</li><li>After <code>FROM COLD</code>, a table whose <code>cold_after</code> still says the partition is old moves it again at the next check. <code>RESET (cold_storage)</code> or a longer <code>cold_after</code> keeps it local.</li><li>Rights: the <code>ddl</code> role (or <code>admin</code>), as for <code>COMPRESS TABLE</code>.</li></ul>
+<p><strong>Example: Move two old months now</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">ALTER TABLE ticks SET (cold_storage = &#39;archive&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks MOVE PARTITION &#39;2025-01&#39;, &#39;2025-02&#39; TO COLD;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>partition (STRING)</th><th>result (STRING)</th><th>bytes (LONG)</th></tr></thead><tbody><tr><td>2025-01</td><td>moved to cold store &#39;archive&#39;</td><td>692</td></tr><tr><td>2025-02</td><td>moved to cold store &#39;archive&#39;</td><td>692</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<pre><code class="language-text">2 partition(s) of table &#39;ticks&#39; moved to cold store &#39;archive&#39; (they stay there: cold_after is not set)</code></pre>
+<p>Each statement on its own, as <code>kareladb shell</code> and the console send them:</p>
+<p><strong>Command line: Queries read cold partitions as before</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE, volume LONG)
+  TIMESERIES(time) PARTITION BY MONTH WITH (cold_storage = &#39;archive&#39;);
+INSERT INTO ticks VALUES
+  (&#39;2025-01-15T10:00:00Z&#39;, &#39;CITY&#39;, 500.0, 120), (&#39;2025-01-16T10:00:00Z&#39;, &#39;BANK&#39;, 211.5, 900),
+  (&#39;2025-02-12T10:00:00Z&#39;, &#39;CITY&#39;, 507.5, 300), (&#39;2025-02-13T10:00:00Z&#39;, &#39;BANK&#39;, 209.0, 450),
+  (&#39;2025-03-11T10:00:00Z&#39;, &#39;CITY&#39;, 512.0, 210), (&#39;2025-03-12T10:00:00Z&#39;, &#39;BANK&#39;, 214.0, 380),
+  (&#39;2026-10-01T10:00:00Z&#39;, &#39;CITY&#39;, 530.0, 150);</code></pre>
+<pre><code class="language-bash">kdb shell market
+&gt; ALTER TABLE ticks MOVE PARTITION &#39;2025-01&#39;, &#39;2025-02&#39; TO COLD;
+&gt; SELECT symbol, count(*) AS days, avg(price) AS avg_price, sum(volume) AS volume FROM ticks WHERE time &lt; &#39;2026-01-01&#39; GROUP BY symbol ORDER BY symbol;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kareladb&gt; partition | result                        | bytes
+----------+-------------------------------+------
+2025-01   | moved to cold store &#39;archive&#39; |   692
+2025-02   | moved to cold store &#39;archive&#39; |   692
+(2 rows, 36.8 ms)
+2 partition(s) of table &#39;ticks&#39; moved to cold store &#39;archive&#39; (they stay there: cold_after is not set)
+kareladb&gt; symbol | days | avg_price | volume
+-------+------+-----------+-------
+BANK   |    3 |     211.5 |   1730
+CITY   |    3 |     506.5 |    630
+(2 rows, 0.4 ms)
+kareladb&gt;</code></pre>
+<p><strong>Example: The newest partition stays</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">ALTER TABLE ticks SET (cold_storage = &#39;archive&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks MOVE PARTITION &#39;2026-10&#39; TO COLD;</code></pre>
+<p>Result:</p>
+<p>Error: <code>nothing of table &#39;ticks&#39; can move to cold storage: 2026-10: it is the newest partition, where rows still arrive</code></p>
+<p><strong>Command line: Bring a month back as a local file</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE, volume LONG)
+  TIMESERIES(time) PARTITION BY MONTH WITH (cold_storage = &#39;archive&#39;);
+INSERT INTO ticks VALUES
+  (&#39;2025-01-15T10:00:00Z&#39;, &#39;CITY&#39;, 500.0, 120), (&#39;2025-01-16T10:00:00Z&#39;, &#39;BANK&#39;, 211.5, 900),
+  (&#39;2025-02-12T10:00:00Z&#39;, &#39;CITY&#39;, 507.5, 300), (&#39;2025-02-13T10:00:00Z&#39;, &#39;BANK&#39;, 209.0, 450),
+  (&#39;2025-03-11T10:00:00Z&#39;, &#39;CITY&#39;, 512.0, 210), (&#39;2025-03-12T10:00:00Z&#39;, &#39;BANK&#39;, 214.0, 380),
+  (&#39;2026-10-01T10:00:00Z&#39;, &#39;CITY&#39;, 530.0, 150);</code></pre>
+<pre><code class="language-bash">kdb shell market
+&gt; ALTER TABLE ticks MOVE PARTITION &#39;2025-01&#39;, &#39;2025-02&#39; TO COLD;
+&gt; ALTER TABLE ticks MOVE PARTITION &#39;2025-02&#39; FROM COLD;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kareladb&gt; partition | result                        | bytes
+----------+-------------------------------+------
+2025-01   | moved to cold store &#39;archive&#39; |   692
+2025-02   | moved to cold store &#39;archive&#39; |   692
+(2 rows, 37.8 ms)
+2 partition(s) of table &#39;ticks&#39; moved to cold store &#39;archive&#39; (they stay there: cold_after is not set)
+kareladb&gt; partition | result                       | bytes
+----------+------------------------------+------
+2025-02   | written back as a local file |     0
+(1 row, 9.2 ms)
+1 partition(s) of table &#39;ticks&#39; are local files again
+kareladb&gt;</code></pre>
+<h2 id="cost">What a query costs</h2>
+<div class="table-wrap"><table><thead><tr><th>Query</th><th>What it reads</th></tr></thead><tbody><tr><td>a time range with no cold partition in it</td><td>the local files, exactly as before: a partition the time range rules out is never opened, local or cold</td></tr><tr><td>a cold partition, its count, min, max, or the plan</td><td>nothing from the store: the file&#39;s header, first block and checksums are in the stub</td></tr><tr><td>columns of a cold partition</td><td>only those columns&#39; parts of the file, fetched in 1 MiB pieces by ranged GETs (pieces next to each other in one request of up to 16 MiB)</td></tr><tr><td>the same piece again</td><td>the local cache (<code>KARELADB_COLD_CACHE_MB</code>), least recently used first out</td></tr></tbody></table></div>
+<ul><li>Every piece is checked twice: against a CRC32C kept with it in the cache, and, like every local file, against the partition file&#39;s own checksum of each 64 KiB block. A damaged cache file is fetched again.</li><li>The cache is only a copy: it is emptied when the database opens and closes.</li><li>Once read, a cold partition stays in memory like any other until memory is needed.</li></ul>
+<h2 id="watch">Watch it: cold_partitions(), /api/stats, /metrics</h2>
+<p><code>cold_partitions()</code> lists the cold partitions of the current database.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table_name</code></td><td>STRING</td><td>the table</td></tr><tr><td><code>partition</code></td><td>STRING</td><td>the partition name</td></tr><tr><td><code>store</code></td><td>STRING</td><td>the cold store</td></tr><tr><td><code>object_key</code></td><td>STRING</td><td>the object in the bucket: <code>kareladb/&lt;database id&gt;/&lt;table id&gt;/&lt;partition&gt;/v&lt;version&gt;-&lt;digest&gt;.kdb</code></td></tr><tr><td><code>bytes</code></td><td>LONG</td><td>the size of the object (the whole partition file)</td></tr><tr><td><code>moved_at</code></td><td>TIMESTAMP</td><td>when it moved</td></tr><tr><td><code>stub_bytes</code></td><td>LONG</td><td>the size of the stub on disk</td></tr><tr><td><code>sha256</code></td><td>STRING</td><td>the SHA-256 of the object, as uploaded</td></tr></tbody></table></div>
+<p><strong>Command line: The cold partitions of this database</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE, volume LONG)
+  TIMESERIES(time) PARTITION BY MONTH WITH (cold_storage = &#39;archive&#39;);
+INSERT INTO ticks VALUES
+  (&#39;2025-01-15T10:00:00Z&#39;, &#39;CITY&#39;, 500.0, 120), (&#39;2025-01-16T10:00:00Z&#39;, &#39;BANK&#39;, 211.5, 900),
+  (&#39;2025-02-12T10:00:00Z&#39;, &#39;CITY&#39;, 507.5, 300), (&#39;2025-02-13T10:00:00Z&#39;, &#39;BANK&#39;, 209.0, 450),
+  (&#39;2025-03-11T10:00:00Z&#39;, &#39;CITY&#39;, 512.0, 210), (&#39;2025-03-12T10:00:00Z&#39;, &#39;BANK&#39;, 214.0, 380),
+  (&#39;2026-10-01T10:00:00Z&#39;, &#39;CITY&#39;, 530.0, 150);</code></pre>
+<pre><code class="language-bash">kdb shell market
+&gt; ALTER TABLE ticks MOVE PARTITION &#39;2025-01&#39;, &#39;2025-02&#39;, &#39;2025-03&#39; TO COLD;
+&gt; SELECT table_name, partition, store, bytes FROM cold_partitions() ORDER BY partition;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kareladb&gt; partition | result                        | bytes
+----------+-------------------------------+------
+2025-01   | moved to cold store &#39;archive&#39; |   692
+2025-02   | moved to cold store &#39;archive&#39; |   692
+2025-03   | moved to cold store &#39;archive&#39; |   692
+(3 rows, 51.8 ms)
+3 partition(s) of table &#39;ticks&#39; moved to cold store &#39;archive&#39; (they stay there: cold_after is not set)
+kareladb&gt; table_name | partition | store   | bytes
+-----------+-----------+---------+------
+ticks      | 2025-01   | archive |   692
+ticks      | 2025-02   | archive |   692
+ticks      | 2025-03   | archive |   692
+(3 rows, 0.1 ms)
+kareladb&gt;</code></pre>
+<p><code>GET /api/stats</code> has an object <code>cold</code>, and <code>GET /metrics</code> has the same counts as <code>kdb_cold_*</code> (since the server started):</p>
+<div class="table-wrap"><table><thead><tr><th>/api/stats <code>cold.</code></th><th>/metrics</th><th>Meaning</th></tr></thead><tbody><tr><td><code>partitions</code></td><td><code>kdb_cold_partitions</code></td><td>cold partitions of the open databases now</td></tr><tr><td><code>remote_bytes</code></td><td><code>kdb_cold_remote_bytes</code></td><td>their bytes in object storage</td></tr><tr><td><code>moved</code>, <code>moved_bytes</code></td><td><code>kdb_cold_moved_total</code>, <code>kdb_cold_moved_bytes_total</code></td><td>partitions moved, and bytes uploaded</td></tr><tr><td><code>returned</code></td><td><code>kdb_cold_returned_total</code></td><td>partitions written back with <code>FROM COLD</code></td></tr><tr><td><code>fetches</code>, <code>fetched_bytes</code></td><td><code>kdb_cold_fetches_total</code>, <code>kdb_cold_fetched_bytes_total</code></td><td>ranged reads from the store, and their bytes</td></tr><tr><td><code>cache_hits</code>, <code>cache_misses</code></td><td><code>kdb_cold_cache_hits_total</code>, <code>kdb_cold_cache_misses_total</code></td><td>1 MiB pieces read from the cache, and fetched</td></tr><tr><td><code>cache_bytes</code>, <code>cache_cap_bytes</code></td><td><code>kdb_cold_cache_bytes</code></td><td>the cache now, and its size limit</td></tr><tr><td><code>cache_evictions</code></td><td><code>kdb_cold_cache_evictions_total</code></td><td>pieces the cache let go</td></tr><tr><td><code>deleted_objects</code></td><td><code>kdb_cold_deleted_objects_total</code></td><td>objects deleted once no partition named them</td></tr><tr><td><code>errors</code></td><td><code>kdb_cold_errors_total</code></td><td>moves, reads and deletes that failed (the server log says which)</td></tr><tr><td><code>stores</code></td><td></td><td>each store defined here: its name and where it is</td></tr></tbody></table></div>
+<h2 id="safety">How a move stays safe</h2>
+<p>A partition moves in five steps. The data is readable at every moment, from the local file or from the store, never from neither.</p>
+<div class="table-wrap"><table><thead><tr><th>Step</th><th>What happens</th><th>After a crash here</th></tr></thead><tbody><tr><td>1. intent</td><td>the server notes in the manifest that the object is being made</td><td>the next check deletes the object and the note; the partition stays local</td></tr><tr><td>2. upload</td><td>the file is checked block by block, then sent whole: one PUT up to 16 MiB, else a multipart upload of 16 MiB parts</td><td>as step 1</td></tr><tr><td>3. verify</td><td>the store&#39;s size and the SHA-256 of the object must match the file, and its ETag too where the bucket does not encrypt with KMS or a customer key (SSE-KMS and SSE-C ETags are not MD5s)</td><td>as step 1</td></tr><tr><td>4. switch</td><td>with the database held alone, the stub is published in the manifest, in the same save that ends the intent</td><td>the partition is cold and reads from the store</td></tr><tr><td>5. let go</td><td>only now the local file moves to <code>_trash</code> (removed with the trash, within the hour)</td><td>the next check lets the local file go</td></tr></tbody></table></div>
+<ul><li>Network trouble and &quot;slow down&quot; answers (5xx, 429) are tried again, with pauses growing from 0.25 to 4 seconds. A refusal (403, wrong keys) is reported at once, without the keys. A read a query waits for gives up after 30 seconds a try and 2 minutes in all, or as soon as the statement is cancelled or reaches its <code>statement_timeout</code>.</li><li>Every request carries the SHA-256 of its body, signed, so the store refuses one damaged on the way. Buckets encrypted by default with SSE-KMS work like any other.</li><li>Objects are never deleted where the data changes. The server deletes an object it made once no partition file of the database names it any more: after <code>DROP PARTITION</code>, a TTL, <code>DROP TABLE</code> (once it leaves the trash), <code>TRUNCATE</code>, or a partition written back. It waits an hour after it first finds the object unnamed, and deletes nothing while a backup or an <code>AS OF</code> read is running, so a backup taken a moment before still finds every object it names. An older version of a partition (kept for repairs) still names its object; <code>PURGE VERSIONS</code> lets it go sooner.</li><li>A database deletes only objects under its own id (<code>kareladb/&lt;database id&gt;/</code>). A <a href="as-of-and-branches.html">branch</a> gets an id of its own: it reads the objects of the database it came from but never deletes them, even when it drops those partitions.</li><li><code>DROP DATABASE</code> deletes nothing in the bucket. Once the dropped database leaves the trash, remove its objects under <code>kareladb/&lt;database id&gt;/</code> by hand (the id is in the <code>object_key</code> column of <code>cold_partitions()</code>; note it before you drop).</li><li><strong>Backups</strong> copy the stubs, not the objects: the bucket is part of every backup. Keep the bucket while you keep the backups, and turn on the bucket&#39;s versioning (or object lock) if a backup must bring back a partition that was dropped later.</li><li>A backup restored into a <strong>second</strong> folder next to the original shares the original&#39;s objects and id. Before you drop partitions in such a copy, start it with <code>KARELADB_COLD_DELETE=off</code> (it then deletes no object at all), or give it its own bucket. A restore never finishes or cleans up an upload the original had under way when the backup was taken: at worst that object is left in the bucket.</li><li><code>kareladb check</code> checks the stubs; it does not read the objects.</li></ul>
+<h2 id="limits">Limits</h2>
+<ul><li>A database encrypted at rest (<a href="encryption.html">encryption</a>) cannot use cold storage yet: its partitions would leave the computer without its key&#39;s protection.</li><li>A standby copy keeps its own local files; moves happen on the primary.</li><li>Writes into a cold partition are accepted. The write itself fetches the partition when it needs its rows (an UPDATE, a DELETE, a key already there), before it takes any lock other tables wait for; a store that cannot be reached then fails that statement. The checkpoint that saves the changes writes the partition locally.</li><li>When the store cannot be reached at a checkpoint (down, or its <code>KARELADB_COLD_*</code> settings missing after a restart), that checkpoint saves every other partition and leaves this one&#39;s changes in memory and the log, as safe as any commit: the log is kept from that partition&#39;s last save and replayed at the next open. <code>errors</code> in <code>/api/stats</code> counts it and the server log names the partition. Checkpoints try it again after a minute; until then the log and memory hold its changes, so bring the store back (or define it again) soon.</li><li>An older KarelaDB build refuses a database with cold partitions (feature <code>cold_storage</code>), rather than taking the stubs for damaged files. <code>ALTER TABLE ... MOVE PARTITION ... FROM COLD</code> and <code>RESET (cold_storage)</code> take a database back.</li></ul>
+</main>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cold-storage.md">This page as markdown</a>.</footer>
+</body>
+</html>

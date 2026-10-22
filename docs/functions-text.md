@@ -6,7 +6,7 @@
 - Keywords: text, string, STRING, ascii, chr, translate, overlay, PLACING, normalize, NFC, NFD, NFKC, NFKD, U&, to\_ascii, remove accents, bit\_length, to\_hex, parse\_ident, string\_to\_table, number format, format a number, VARCHAR, UTF-8, Unicode, Nepali, Devanagari, characters, letters, bytes, upper case, lower case, cut text, clean text, ||, join text, concatenate, lcase, ucase, len, mid, instr, locate, position IN, lengthb, format, sprintf, printf, string format, quote a name, quote a value, quote\_ident, quote\_literal, quote\_nullable, SQL injection
 - See also: [Regular expressions](functions-regex.md), [WHERE](where.md), [Conversion functions](functions-conversion.md), [Bytes, hex and base64](functions-bytes.md), [Full-text search](full-text-search.md)
 
-These functions work on text (`STRING`). KDB keeps text as **UTF-8**. UTF-8 is the usual way to store the letters of every language. An English letter takes 1 byte; a Nepali letter like `न` takes 3 bytes.
+These functions work on text (`STRING`). KarelaDB keeps text as **UTF-8**. UTF-8 is the usual way to store the letters of every language. An English letter takes 1 byte; a Nepali letter like `न` takes 3 bytes.
 
 - Text functions count **characters**, not bytes. `length('नेपाल')` is `5`. Only `octet_length` counts bytes.
 - A `NULL` argument gives `NULL`. Only `concat`, `concat_ws`, `format` and `quote_nullable` take NULLs.
@@ -1324,7 +1324,7 @@ Joins two values into one text: `'CITY' || '-' || 2082` is `CITY-2082`. A number
 
 - **Returns:** `STRING`. Two `BYTES` values give `BYTES`.
 - **NULL:** `NULL` on either side gives `NULL`. Use `concat` or `coalesce` when a value can be `NULL`.
-- **Notes:** `||` has the **same** priority as `+` and `-`, and they are done from left to right. So `'a' || 1 + 2` is `('a' || 1) + 2`, which is an error. PostgreSQL does `+` first. Write `'a' || (1 + 2)`. MySQL reads `||` as OR unless a setting is changed; KDB always joins text.
+- **Notes:** `||` has the **same** priority as `+` and `-`, and they are done from left to right. So `'a' || 1 + 2` is `('a' || 1) + 2`, which is an error. PostgreSQL does `+` first. Write `'a' || (1 + 2)`. MySQL reads `||` as OR unless a setting is changed; KarelaDB always joins text.
 
 **Example**
 
@@ -1489,7 +1489,7 @@ Syntax:
 to_str(time, format)
 ```
 
-Writes a time as text in the QuestDB format letters. QuestDB apps use this name; KDB's own name for the same job is [to_char](functions-date-time.md#to_char).
+Writes a time as text in the QuestDB format letters. QuestDB apps use this name; KarelaDB's own name for the same job is [to_char](functions-date-time.md#to_char).
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -1509,7 +1509,7 @@ Writes a time as text in the QuestDB format letters. QuestDB apps use this name;
 
 - **Returns:** `STRING`.
 - **NULL:** `NULL` when the time or the format is `NULL`.
-- **Notes:** everything is **UTC**. For a local clock add its offset first, for example 20700000 for Nepal: `to_str(time + 20700000, 'HH:mm')`. Letters KDB does not know are written as they are. `UUU` (microseconds) is always `000`, because KDB keeps milliseconds.
+- **Notes:** everything is **UTC**. For a local clock add its offset first, for example 20700000 for Nepal: `to_str(time + 20700000, 'HH:mm')`. Letters KarelaDB does not know are written as they are. `UUU` (microseconds) is always `000`, because KarelaDB keeps milliseconds.
 
 **Example: Minute candles with a readable clock** (sample data: sample)
 
@@ -1829,7 +1829,7 @@ to_ascii(text, 'LATIN1')
 The text with accents taken off, in plain ASCII: `to_ascii('Karél')` is `Karel`.
 
 - **Returns:** `STRING`.
-- **Notes:** Latin-1 letters follow PostgreSQL's table (`Æ` → `A`, `ß` → `B`, `ÿ` → `y`). Other letters with accents keep their letter (`ě` → `e`). A PostgreSQL database in UTF-8 refuses `to_ascii` altogether; KDB answers as a PostgreSQL database in LATIN1 does.
+- **Notes:** Latin-1 letters follow PostgreSQL's table (`Æ` → `A`, `ß` → `B`, `ÿ` → `y`). Other letters with accents keep their letter (`ě` → `e`). A PostgreSQL database in UTF-8 refuses `to_ascii` altogether; KarelaDB answers as a PostgreSQL database in LATIN1 does.
 - **Errors:** a character with no ASCII form, such as Nepali letters: "has no ASCII equivalent" (SQLSTATE 22P05). Encodings other than LATIN1 are not supported (0A000).
 
 **Example**

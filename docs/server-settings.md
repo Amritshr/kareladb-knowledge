@@ -3,10 +3,10 @@
 > One list of the server's settings behind pg_settings, SHOW ALL, SHOW PARAMETERS and GET /api/settings; SET for a session, ALTER SYSTEM and pg_reload_conf() for the server.
 
 - Category: Postgres protocol
-- Keywords: settings, pg\_settings, SHOW ALL, SHOW PARAMETERS, SET, RESET, ALTER SYSTEM, pg\_reload\_conf, current\_setting, work\_mem, max\_parallel\_workers\_per\_gather, enable\_hashjoin, enable\_nestloop, enable\_indexscan, log\_statement, plan\_cache\_mode, plan cache, kdb.conf, kdb\_settings, QuestDB, parameters, txn\_spill\_mb, memory\_limit
-- See also: [PostgreSQL protocol (port 8832)](postgres-protocol.md), [PostgreSQL-compatible functions](functions-postgres.md), [kdb serve](cli-serve.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md), [Limits](limits.md), [Joins](joins.md), [Indexes](indexes.md)
+- Keywords: settings, pg\_settings, SHOW ALL, SHOW PARAMETERS, SET, RESET, ALTER SYSTEM, pg\_reload\_conf, current\_setting, work\_mem, max\_parallel\_workers\_per\_gather, enable\_hashjoin, enable\_nestloop, enable\_indexscan, log\_statement, plan\_cache\_mode, plan cache, kareladb.conf, kdb\_settings, QuestDB, parameters, txn\_spill\_mb, memory\_limit
+- See also: [PostgreSQL protocol (port 8832)](postgres-protocol.md), [PostgreSQL-compatible functions](functions-postgres.md), [kareladb serve](cli-serve.md), [Settings page (data folder, old log, capacity, program files and users)](console-settings.md), [Limits](limits.md), [Joins](joins.md), [Indexes](indexes.md)
 
-KDB keeps **one list** of its settings. The same list is behind:
+KarelaDB keeps **one list** of its settings. The same list is behind:
 
 | Where | Shows |
 |---|---|
@@ -17,12 +17,12 @@ KDB keeps **one list** of its settings. The same list is behind:
 | `GET /api/settings` | the list under `"parameters"`, with the server's values |
 | `SHOW work_mem`, `current_setting('work_mem')` | one setting, for this session |
 
-Each setting says what KDB does with it (the `use` column of `kdb_settings`):
+Each setting says what KarelaDB does with it (the `use` column of `kdb_settings`):
 
 | use | Meaning |
 |---|---|
-| `applied` | KDB acts on it (`statement_timeout`, `work_mem`, `enable_hashjoin`, ...) |
-| `shown` | kept and shown for clients, but KDB works the same either way (`DateStyle`, `search_path`) |
+| `applied` | KarelaDB acts on it (`statement_timeout`, `work_mem`, `enable_hashjoin`, ...) |
+| `shown` | kept and shown for clients, but KarelaDB works the same either way (`DateStyle`, `search_path`) |
 | `ignored` | accepted so PostgreSQL scripts run, with a NOTICE (`shared_buffers` in a session, `enable_seqscan`, `jit`, ...) |
 
 <a id="set"></a>
@@ -47,7 +47,7 @@ The `context` column says when a setting may change:
 | `user` | `SET` in any session |
 | `superuser` | `SET` by an admin (`log_statement`) |
 | `sighup` | `ALTER SYSTEM` and `SELECT pg_reload_conf()` |
-| `postmaster` | a restart: a `kdb serve` flag, `kdb.conf` or an environment variable (`55P02` on `SET`) |
+| `postmaster` | a restart: a `kareladb serve` flag, `kareladb.conf` or an environment variable (`55P02` on `SET`) |
 | `internal` | never (`server_version`, `block_size`) |
 
 Over HTTP, a `SET` lasts for the rest of the same request (and for the whole session when you use one: [sessions](http-sessions-and-cursors.md)).
@@ -87,7 +87,7 @@ work_mem is 64MB for this session
 
 <a id="planner"></a>
 
-## The planner settings KDB applies
+## The planner settings KarelaDB applies
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -105,13 +105,13 @@ The switches are there to compare answers and times, as in PostgreSQL. They are 
 
 ## Memory settings set at start
 
-These change only with a restart (`postmaster`): a `kdb serve` flag or an environment variable.
+These change only with a restart (`postmaster`): a `kareladb serve` flag or an environment variable.
 
 | Setting | Default | Flag / variable | What it does |
 |---|---|---|---|
-| `memory_limit` | none | `--memory-limit`, `KDB_MEMORY_LIMIT` | one limit for everything the server holds |
-| `shared_buffers` | 512 MB | `--memory`, `KDB_MEMORY` | table data kept loaded |
-| `txn_spill_mb` | `64` | `--txn-spill-mb`, `KDB_TXN_SPILL_MB` | a transaction's log records past this many MB (or 1/16 of `memory_limit`) go to a temporary file until `COMMIT`. `0` = never. See [big transactions](transactions.md#txn-spill) |
+| `memory_limit` | none | `--memory-limit`, `KARELADB_MEMORY_LIMIT` | one limit for everything the server holds |
+| `shared_buffers` | 512 MB | `--memory`, `KARELADB_MEMORY` | table data kept loaded |
+| `txn_spill_mb` | `64` | `--txn-spill-mb`, `KARELADB_TXN_SPILL_MB` | a transaction's log records past this many MB (or 1/16 of `memory_limit`) go to a temporary file until `COMMIT`. `0` = never. See [big transactions](transactions.md#txn-spill) |
 
 **Example: Read the memory settings**
 
@@ -191,7 +191,7 @@ ALTER SYSTEM RESET ALL
 SELECT pg_reload_conf();
 ```
 
-`ALTER SYSTEM` saves the value in `kdb.conf`, under `"system"`. It is in use after `SELECT pg_reload_conf()` (or the next start) for every new statement of every session that did not `SET` it itself. Only a server admin may run either. `ALTER SYSTEM` cannot run inside `BEGIN ... COMMIT`.
+`ALTER SYSTEM` saves the value in `kareladb.conf`, under `"system"`. It is in use after `SELECT pg_reload_conf()` (or the next start) for every new statement of every session that did not `SET` it itself. Only a server admin may run either. `ALTER SYSTEM` cannot run inside `BEGIN ... COMMIT`.
 
 ```text
 ALTER SYSTEM SET work_mem = '256MB';
@@ -199,7 +199,7 @@ ALTER SYSTEM SET log_statement = 'ddl';
 SELECT pg_reload_conf();       -- true
 ```
 
-`kdb.conf` then holds:
+`kareladb.conf` then holds:
 
 ```text
 {
@@ -208,16 +208,16 @@ SELECT pg_reload_conf();       -- true
 }
 ```
 
-- Settings that only change with a restart (`port`, `shared_buffers`, `max_connections`, ...) give `55P02` and name the flag or `kdb.conf` key to use.
-- A database folder served by its path (`kdb serve D:\kdb\market`) has no `kdb.conf` of its own: `ALTER SYSTEM` says so.
-- A value in `kdb.conf` that is no longer valid is skipped with a warning in the server's log; the default is used.
+- Settings that only change with a restart (`port`, `shared_buffers`, `max_connections`, ...) give `55P02` and name the flag or `kareladb.conf` key to use.
+- A database folder served by its path (`kareladb serve D:\kdb\market`) has no `kareladb.conf` of its own: `ALTER SYSTEM` says so.
+- A value in `kareladb.conf` that is no longer valid is skipped with a warning in the server's log; the default is used.
 
 <a id="fixes"></a>
 
 ## Also fixed on 2026-09-26
 
-- `KDB_NO_ZONE_MAPS=0` (and every other `KDB_NO_*` switch set to `0`, `off`, `no` or `false`) now means **off**: the speed-up stays on. Some switches used to turn off for any value.
-- An on/off variable set but empty (`KDB_SCOPED_DDL=` in a compose file) no longer stops the server: it counts as not set. `true`/`false`, `yes`/`no` and `1`/`0` work too.
-- `kdb serve <folder>` (a database folder by its path) no longer takes `alert_webhook` from the default `kdb.conf`, like every other `kdb.conf` setting.
-- `KDB_INDEX_MAX_VISITS` must be a whole number of 1 or more; any other value is ignored with a warning, instead of making ordered index reads give up at once.
-- `kdb help` lists what `kdb.conf` may hold.
+- `KARELADB_NO_ZONE_MAPS=0` (and every other `KARELADB_NO_*` switch set to `0`, `off`, `no` or `false`) now means **off**: the speed-up stays on. Some switches used to turn off for any value.
+- An on/off variable set but empty (`KARELADB_SCOPED_DDL=` in a compose file) no longer stops the server: it counts as not set. `true`/`false`, `yes`/`no` and `1`/`0` work too.
+- `kareladb serve <folder>` (a database folder by its path) no longer takes `alert_webhook` from the default `kareladb.conf`, like every other `kareladb.conf` setting.
+- `KARELADB_INDEX_MAX_VISITS` must be a whole number of 1 or more; any other value is ignored with a warning, instead of making ordered index reads give up at once.
+- `kareladb help` lists what `kareladb.conf` may hold.

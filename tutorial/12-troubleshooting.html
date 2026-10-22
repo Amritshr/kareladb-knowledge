@@ -3,30 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>12. Troubleshooting - KDB (KARELA DataBase) docs</title>
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/12-troubleshooting.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/12-troubleshooting.md">
+<title>12. Troubleshooting - KarelaDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/tutorial/12-troubleshooting.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/12-troubleshooting.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="12-troubleshooting">12. Troubleshooting</h1>
 <ul><li>Category: Tutorial</li></ul>
 <h2 id="what-you-will-learn">What you will learn</h2>
-<ul><li>The common error messages, exactly as KDB prints them.</li><li>What each one means and how to fix it.</li><li>Answers to frequent questions.</li></ul>
+<ul><li>The common error messages, exactly as KarelaDB prints them.</li><li>What each one means and how to fix it.</li><li>Answers to frequent questions.</li></ul>
 <p>All messages below are real output (<code>examples/12-troubleshooting/</code>). Use <code>Ctrl+F</code> and search for words from your error.</p>
 <h2 id="quick-table">Quick table</h2>
 <div class="table-wrap"><table><thead><tr><th>Message starts with</th><th>Section</th></tr></thead><tbody><tr><td><code>the database is open in another program</code></td><td><a href="#database-is-locked">Database is locked</a></td></tr><tr><td><code>a row with ... already exists</code></td><td><a href="#duplicate-key">Duplicate key</a></td></tr><tr><td><code>unknown column</code></td><td><a href="#unknown-column">Unknown column</a></td></tr><tr><td><code>table or view ... does not exist</code></td><td><a href="#unknown-table">Unknown table</a></td></tr><tr><td><code>expected ... but found ...</code></td><td><a href="#syntax-error">Syntax error</a></td></tr><tr><td><code>is not a time like</code> / <code>cannot compare TIMESTAMP</code></td><td><a href="#time-format">Time format</a></td></tr><tr><td><code>has more than 2 decimal places</code></td><td><a href="#decimal-places">Decimal places</a></td></tr><tr><td><code>has no matching row in</code></td><td><a href="#references-failure">REFERENCES failure</a></td></tr><tr><td><code>cannot remove ... still refers to it</code></td><td><a href="#cannot-delete-a-referenced-row">Cannot delete a referenced row</a></td></tr><tr><td><code>cannot be NULL</code> / <code>needs a value</code></td><td><a href="#missing-value">Missing value</a></td></tr><tr><td><code>is out of range</code></td><td><a href="#number-out-of-range">Number out of range</a></td></tr><tr><td><code>cannot compare STRING ... with LONG</code></td><td><a href="#type-mismatch">Type mismatch</a></td></tr><tr><td><code>port ... is already in use</code></td><td><a href="#port-in-use">Port in use</a></td></tr><tr><td><code>access token required</code> / <code>wrong access token</code> (HTTP 401)</td><td><a href="#token-401">Token 401</a></td></tr><tr><td><code>cross-site requests are not allowed</code> (HTTP 403)</td><td><a href="#403-cross-site-cross-origin-host-name">403 cross-site</a></td></tr><tr><td><code>this SQL changes data, so it must be sent with POST</code> (HTTP 405)</td><td><a href="#405-get-changes-data">405 GET changes data</a></td></tr><tr><td><code>????</code> or broken letters instead of non-English text</td><td><a href="#text-in-other-languages-looks-broken">Text in other languages looks broken</a></td></tr><tr><td><code>failed its checksum</code>, <code>DAMAGED</code></td><td><a href="#damage">Damage</a></td></tr></tbody></table></div>
 <h2 id="database-is-locked">Database is locked</h2>
-<pre><code class="language-text">error: Locked: the database is open in another program (for example kdb serve). Stop it, or query it through that server&#39;s console or HTTP API (kdb serve)
+<pre><code class="language-text">error: Locked: the database is open in another program (for example kareladb serve). Stop it, or query it through that server&#39;s console or HTTP API (kareladb serve)
 exit code: 1
 error: the database is open in another program. Stop it first, or run BACKUP DATABASE in that server&#39;s console or API.
 exit code: 1</code></pre>
-<p>(The first line is from <code>kdb sql</code>, the second from <code>kdb backup</code>, while <code>kdb serve</code> had the database open.)</p>
-<p><strong>Why:</strong> only one program can open a database folder. <code>kdb serve</code>, <code>kdb shell</code> or another <code>kdb sql</code> has it open.</p>
+<p>(The first line is from <code>kareladb sql</code>, the second from <code>kareladb backup</code>, while <code>kareladb serve</code> had the database open.)</p>
+<p><strong>Why:</strong> only one program can open a database folder. <code>kareladb serve</code>, <code>kareladb shell</code> or another <code>kareladb sql</code> has it open.</p>
 <p><strong>Fix:</strong></p>
-<ul><li>Use the running server: the console, <code>POST /exec</code>, <code>POST /api/backup</code>, <code>POST /api/check</code> (chapter 8).</li><li>Or stop the other program (Ctrl+C in its window), then run your command.</li><li>Look for a forgotten <code>kdb shell</code> in another window. In PowerShell: <code>Get-Process kdb</code>.</li><li>Do not delete <code>kdb.lock</code>. The lock is held by the running program, not by the file. When no program runs, the lock is free.</li></ul>
+<ul><li>Use the running server: the console, <code>POST /exec</code>, <code>POST /api/backup</code>, <code>POST /api/check</code> (chapter 8).</li><li>Or stop the other program (Ctrl+C in its window), then run your command.</li><li>Look for a forgotten <code>kareladb shell</code> in another window. In PowerShell: <code>Get-Process kareladb</code>.</li><li>Do not delete <code>kdb.lock</code>. The lock is held by the running program, not by the file. When no program runs, the lock is free.</li></ul>
 <h2 id="duplicate-key">Duplicate key</h2>
 <pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507, 500.7, 504.9, 183040);</code></pre>
 <pre><code class="language-text">error: a row with symbol=&#39;CITY&#39;, time=&#39;2026-09-10T00:00:00.000Z&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
@@ -43,11 +43,11 @@ WHERE symbol = &#39;CITY&#39;;</code></pre>
 <h2 id="unknown-table">Unknown table</h2>
 <pre><code class="language-sql">SELECT * FROM ochl_days;</code></pre>
 <pre><code class="language-text">error: line 1, column 15: table or view &#39;ochl_days&#39; does not exist</code></pre>
-<p><strong>Fix:</strong> <code>SHOW TABLES</code> or <code>.tables</code> in the shell. Check that you opened the right database <strong>folder</strong>: <code>kdb sql</code> creates a new empty database when the folder does not exist, so a wrong folder name gives &quot;does not exist&quot; for every table.</p>
+<p><strong>Fix:</strong> <code>SHOW TABLES</code> or <code>.tables</code> in the shell. Check that you opened the right database <strong>folder</strong>: <code>kareladb sql</code> creates a new empty database when the folder does not exist, so a wrong folder name gives &quot;does not exist&quot; for every table.</p>
 <h2 id="syntax-error">Syntax error</h2>
 <pre><code class="language-sql">SELECT symbol close FROM ochl_day WHERE;</code></pre>
 <pre><code class="language-text">error: line 1, column 40: expected an expression (a value, column name, function call or &#39;(&#39;) but found &#39;;&#39;</code></pre>
-<p><strong>Why:</strong> the SQL does not follow the grammar. The message says what KDB expected at that place.</p>
+<p><strong>Why:</strong> the SQL does not follow the grammar. The message says what KarelaDB expected at that place.</p>
 <p>Watch out: <code>SELECT symbol close</code> is <strong>not</strong> an error. It means &quot;column symbol, named close&quot;. A missing comma changes your column names quietly.</p>
 <p>An unclosed text:</p>
 <pre><code class="language-sql">SELECT * FROM brokers WHERE name = &#39;Northgate;</code></pre>
@@ -59,7 +59,7 @@ WHERE symbol = &#39;CITY&#39;;</code></pre>
 <pre><code class="language-sql">SELECT time, close FROM ochl_day WHERE time &gt;= &#39;2026-9-1&#39;;</code></pre>
 <pre><code class="language-text">error: line 1, column 45: cannot compare TIMESTAMP &#39;2025-12-28T00:00:00.000Z&#39; with STRING &#39;2026-9-1&#39;</code></pre>
 <p><strong>Fix:</strong> always <code>YYYY-MM-DD</code> with two digits for month and day: <code>&#39;2026-09-01&#39;</code>. Add <code>+05:45</code> for Nepal times. Convert other formats in your script before sending (for example in PowerShell: <code>([datetime]::ParseExact(&#39;10/09/2026&#39;, &#39;dd/MM/yyyy&#39;, $null)).ToString(&#39;yyyy-MM-dd&#39;)</code>).</p>
-<p><strong>Times are 5:45 hours wrong?</strong> You wrote Nepal time without <code>+05:45</code>. KDB read it as UTC. Fix the data with an UPDATE: <code>UPDATE t SET time = time - 20700000 WHERE ...</code> (this subtracts 5 h 45 min), but check the DEDUP KEY first.</p>
+<p><strong>Times are 5:45 hours wrong?</strong> You wrote Nepal time without <code>+05:45</code>. KarelaDB read it as UTC. Fix the data with an UPDATE: <code>UPDATE t SET time = time - 20700000 WHERE ...</code> (this subtracts 5 h 45 min), but check the DEDUP KEY first.</p>
 <h2 id="decimal-places">Decimal places</h2>
 <pre><code class="language-sql">CREATE TABLE wallet (id INT PRIMARY KEY, balance DECIMAL(2));
 INSERT INTO wallet VALUES (1, 100.50);
@@ -68,7 +68,7 @@ UPDATE wallet SET balance = balance * 1.015 WHERE id = 1;</code></pre>
 
 1 row(s) inserted
 error: column &#39;balance&#39; (DECIMAL(2)): 102.0075 has more than 2 decimal places</code></pre>
-<p><strong>Why:</strong> KDB never rounds money by itself.</p>
+<p><strong>Why:</strong> KarelaDB never rounds money by itself.</p>
 <p><strong>Fix:</strong> round it yourself, the way your business rule says:</p>
 <pre><code class="language-sql">UPDATE wallet SET balance = round(balance * 1.015, 2) WHERE id = 1;
 SELECT id, balance FROM wallet;</code></pre>
@@ -78,7 +78,7 @@ id | balance
 ---+--------
  1 |  102.01
 (1 row, 0.1 ms)</code></pre>
-<p>For amounts with more than about 15 digits, send the value as <strong>text</strong> (<code>&#39;123456789012345.67&#39;</code>). A number that big cannot be stored exactly as a DOUBLE, so KDB refuses it and tells you to write it as text.</p>
+<p>For amounts with more than about 15 digits, send the value as <strong>text</strong> (<code>&#39;123456789012345.67&#39;</code>). A number that big cannot be stored exactly as a DOUBLE, so KarelaDB refuses it and tells you to write it as text.</p>
 <h2 id="references-failure">REFERENCES failure</h2>
 <pre><code class="language-sql">INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate)
 VALUES (&#39;2026-09-10&#39;, 200001, &#39;CITY&#39;, 77, 58, 10, 515);</code></pre>
@@ -111,7 +111,7 @@ VALUES (&#39;2026-09-10&#39;, 200001, &#39;CITY&#39;, 77, 58, 10, 515);</code></
 <h2 id="port-in-use">Port in use</h2>
 <pre><code class="language-text">error: Already exists: port 9945 on 127.0.0.1 is already in use
 exit code: 1</code></pre>
-<p><strong>Why:</strong> another program (often another <code>kdb serve</code>) listens on that port.</p>
+<p><strong>Why:</strong> another program (often another <code>kareladb serve</code>) listens on that port.</p>
 <p><strong>Fix:</strong> use another port (<code>--port 9901</code>), or find the program:</p>
 <pre><code class="language-powershell">Get-NetTCPConnection -LocalPort 9900 -State Listen | Select-Object OwningProcess
 Get-Process -Id &lt;OwningProcess&gt;</code></pre>
@@ -124,26 +124,26 @@ Get-Process -Id &lt;OwningProcess&gt;</code></pre>
 <pre><code class="language-text">{&quot;error&quot;:&quot;cross-site requests are not allowed&quot;}   (HTTP 403)
 {&quot;error&quot;:&quot;cross-origin requests are not allowed&quot;}   (HTTP 403)
 {&quot;error&quot;:&quot;host name &#39;market.example.com&#39; is not allowed without an access token; use localhost or start the server with --token&quot;}   (HTTP 403)</code></pre>
-<p><strong>Why:</strong> protection against web pages that try to use your local KDB (chapter 8).</p>
+<p><strong>Why:</strong> protection against web pages that try to use your local KarelaDB (chapter 8).</p>
 <p><strong>Fix:</strong></p>
-<ul><li>Call KDB from a program or your backend, not from JavaScript on another web site.</li><li>Open the console with <code>http://127.0.0.1:9900</code> or <code>http://localhost:9900</code>.</li><li>Behind a reverse proxy or with a host name: start the server with <code>--token</code>.</li></ul>
+<ul><li>Call KarelaDB from a program or your backend, not from JavaScript on another web site.</li><li>Open the console with <code>http://127.0.0.1:9900</code> or <code>http://localhost:9900</code>.</li><li>Behind a reverse proxy or with a host name: start the server with <code>--token</code>.</li></ul>
 <h2 id="405-get-changes-data">405 GET changes data</h2>
 <pre><code class="language-text">{&quot;error&quot;:&quot;this SQL changes data, so it must be sent with POST /exec (GET /exec only reads)&quot;}   (HTTP 405)
 {&quot;error&quot;:&quot;CSV export needs a SELECT, SHOW or EXPLAIN statement&quot;}   (HTTP 400)</code></pre>
 <p><strong>Why:</strong> <code>GET /exec</code> only runs reading statements, and <code>/exp</code> only exports reading statements. A web page could otherwise change your data with a simple link.</p>
 <p><strong>Fix:</strong> send INSERT, UPDATE, DELETE, CREATE, DROP, ALTER and BACKUP DATABASE with <strong>POST</strong>: <code>curl.exe http://127.0.0.1:9900/exec --data-binary &quot;INSERT ...&quot;</code>.</p>
 <h2 id="text-in-other-languages-looks-broken">Text in other languages looks broken</h2>
-<pre><code class="language-powershell">kdb sql market &quot;CREATE TABLE IF NOT EXISTS names_np (symbol SYMBOL PRIMARY KEY, name_np STRING)&quot;
+<pre><code class="language-powershell">kareladb sql market &quot;CREATE TABLE IF NOT EXISTS names_np (symbol SYMBOL PRIMARY KEY, name_np STRING)&quot;
 
 # Text in any language (here Nepali) works directly on the command line:
-kdb sql market &quot;INSERT OR REPLACE INTO names_np VALUES (&#39;VOLT&#39;, &#39;भोल्ट रिभर&#39;)&quot;
-kdb sql market &quot;SELECT symbol, name_np FROM names_np&quot;
+kareladb sql market &quot;INSERT OR REPLACE INTO names_np VALUES (&#39;VOLT&#39;, &#39;भोल्ट रिभर&#39;)&quot;
+kareladb sql market &quot;SELECT symbol, name_np FROM names_np&quot;
 
 # It also works from a UTF-8 file (or over HTTP):
 $OutputEncoding = New-Object System.Text.UTF8Encoding $false
 &quot;INSERT OR REPLACE INTO names_np VALUES (&#39;VOLT&#39;, &#39;भोल्ट रिभर&#39;);&quot; | Set-Content np.sql -Encoding UTF8
-Get-Content np.sql -Raw -Encoding UTF8 | kdb sql market -
-kdb sql market &quot;SELECT symbol, name_np FROM names_np&quot;</code></pre>
+Get-Content np.sql -Raw -Encoding UTF8 | kareladb sql market -
+kareladb sql market &quot;SELECT symbol, name_np FROM names_np&quot;</code></pre>
 <pre><code class="language-text">table &#39;names_np&#39; created
 1 row(s) inserted
 symbol | name_np   
@@ -155,46 +155,46 @@ symbol | name_np
 -------+-----------
 VOLT   | भोल्ट रिभर
 (1 row, 0.2 ms)</code></pre>
-<p><strong>If you see <code>????</code>:</strong> Windows PowerShell 5.1 sends pipe text as ASCII unless <code>$OutputEncoding</code> is UTF-8. Set it (as above) before you pipe SQL into <code>kdb sql -</code> or <code>kdb shell</code>. Text in command-line arguments and over HTTP is fine.</p>
+<p><strong>If you see <code>????</code>:</strong> Windows PowerShell 5.1 sends pipe text as ASCII unless <code>$OutputEncoding</code> is UTF-8. Set it (as above) before you pipe SQL into <code>kareladb sql -</code> or <code>kareladb shell</code>. Text in command-line arguments and over HTTP is fine.</p>
 <p>If the letters look broken only in the <strong>console window</strong>, the window font may not have Devanagari. Use Windows Terminal, or save the output as CSV and open it in an editor.</p>
 <h2 id="damage">Damage</h2>
 <p>Messages like <code>failed its checksum</code>, <code>DAMAGED</code>, <code>the end of the log is damaged</code>, exit code 2:</p>
-<ol><li>Stop the server and all programs that use the database.</li><li>Copy the whole database folder to a safe place.</li><li><code>kdb check &lt;db&gt;</code> to see the damage.</li><li><code>kdb repair &lt;db&gt; --backups &lt;backups&gt;</code>.</li><li>If it still fails: <code>kdb restore &lt;newest backup&gt; &lt;new folder&gt; --logs-from &lt;db&gt;</code>.</li></ol>
+<ol><li>Stop the server and all programs that use the database.</li><li>Copy the whole database folder to a safe place.</li><li><code>kareladb check &lt;db&gt;</code> to see the damage.</li><li><code>kareladb repair &lt;db&gt; --backups &lt;backups&gt;</code>.</li><li>If it still fails: <code>kareladb restore &lt;newest backup&gt; &lt;new folder&gt; --logs-from &lt;db&gt;</code>.</li></ol>
 <p>Chapter 9 shows a full real example.</p>
 <h2 id="the-server-stopped">The server stopped</h2>
-<p>If the server process ends without Ctrl+C (crash, closed window, killed), start it again. The banner then shows <code>last shutdown: not clean (crash or kill)</code> and KDB replays the log. Committed data is not lost.</p>
+<p>If the server process ends without Ctrl+C (crash, closed window, killed), start it again. The banner then shows <code>last shutdown: not clean (crash or kill)</code> and KarelaDB replays the log. Committed data is not lost.</p>
 <h2 id="faq">FAQ</h2>
 <p><strong>Where are my times? They look 5:45 hours early.</strong>
-KDB shows UTC. <code>05:15Z</code> is 11:00 in Nepal. The chart in the console shows your local time.</p>
+KarelaDB shows UTC. <code>05:15Z</code> is 11:00 in Nepal. The chart in the console shows your local time.</p>
 <p><strong>Can two programs write at the same time?</strong>
-Not to the same folder directly. Run one <code>kdb serve</code> and let all programs use its HTTP API or its PostgreSQL port. In the server, writers of <strong>different</strong> tables run at the same time. Writers of the <strong>same</strong> table take turns. A read waits for a long write of the same database unless the server runs with <code>--reader-yield on</code> (the Docker image does), then it runs between the writer&#39;s statements (chapter 15).</p>
-<p><strong>Is a statement saved when KDB says &quot;inserted&quot;?</strong>
+Not to the same folder directly. Run one <code>kareladb serve</code> and let all programs use its HTTP API or its PostgreSQL port. In the server, writers of <strong>different</strong> tables run at the same time. Writers of the <strong>same</strong> table take turns. A read waits for a long write of the same database unless the server runs with <code>--reader-yield on</code> (the Docker image does), then it runs between the writer&#39;s statements (chapter 15).</p>
+<p><strong>Is a statement saved when KarelaDB says &quot;inserted&quot;?</strong>
 Yes, it is on the disk. A power cut after that does not lose it.</p>
 <p><strong>How do I undo a change?</strong>
-Inside <code>BEGIN</code> ... <code>COMMIT</code>, <code>ROLLBACK</code> undoes everything since <code>BEGIN</code> (chapter 13). A dropped table comes back with <code>UNDROP TABLE</code> for 7 days (chapter 21). After a committed change, restore a backup to the time before it (<code>kdb restore --until</code>, chapter 9). Make a backup before big changes.</p>
+Inside <code>BEGIN</code> ... <code>COMMIT</code>, <code>ROLLBACK</code> undoes everything since <code>BEGIN</code> (chapter 13). A dropped table comes back with <code>UNDROP TABLE</code> for 7 days (chapter 21). After a committed change, restore a backup to the time before it (<code>kareladb restore --until</code>, chapter 9). Make a backup before big changes.</p>
 <p><strong>How big can a table be?</strong>
 There is no fixed limit. Very old data can be removed quickly with <code>ALTER TABLE ... DROP PARTITION OLDER THAN 1 YEAR</code>, or by itself with a TTL (<code>ALTER TABLE ... SET TTL 90 DAYS</code>, chapter 3).</p>
 <p><strong>Why is my query slow?</strong>
 Add a time filter on the time-series table (<code>time IN &#39;2026-09&#39;</code>), select fewer columns, and check with <code>EXPLAIN</code> how many partitions are read (chapter 5).</p>
 <p><strong>Can I use DBeaver, psql or Excel to connect?</strong>
-DBeaver and <code>psql</code>: yes, through the PostgreSQL port 8832 (chapter 14). For Excel, export CSV (<code>kdb sql ... --format csv</code>, or the console&#39;s <strong>Export CSV</strong>).</p>
-<p><strong>Does KDB know stock exchange holidays?</strong>
+DBeaver and <code>psql</code>: yes, through the PostgreSQL port 8832 (chapter 14). For Excel, export CSV (<code>kareladb sql ... --format csv</code>, or the console&#39;s <strong>Export CSV</strong>).</p>
+<p><strong>Does KarelaDB know stock exchange holidays?</strong>
 No. <code>is_trading_day()</code> only checks for a Sunday-to-Thursday week (as on some exchanges). Keep a holiday table if you need it.</p>
 <p><strong>Can I copy the database folder to another PC?</strong>
-Yes, when no program has it open. Better: <code>kdb backup</code>, copy the backup folder, <code>kdb restore</code> on the other PC. The restore checks every file.</p>
+Yes, when no program has it open. Better: <code>kareladb backup</code>, copy the backup folder, <code>kareladb restore</code> on the other PC. The restore checks every file.</p>
 <p><strong>Do Linux and Windows use the same files?</strong>
 The file format is the same on all systems (chapter 1, FORMAT.md).</p>
-<p><strong>Where is <code>kdb.conf</code>?</strong>
-Next to the <code>kdb</code> program (or the file named with <code>--config &lt;file&gt;</code>). It is a small JSON file that the console&#39;s <strong>Settings</strong> page writes. It holds <code>data_dir</code>, <code>wal_archive_mb</code>, <code>trash_keep_hours</code>, <code>keep_versions</code>, and the folders of the console, the help and the Claude skill (<code>web_dir</code>, <code>help_dir</code>, <code>skill_dir</code>). An option on the command line always wins over it. Everything else is a command-line option (<code>kdb</code> with no command lists them).</p>
+<p><strong>Where is <code>kareladb.conf</code>?</strong>
+Next to the <code>kareladb</code> program (or the file named with <code>--config &lt;file&gt;</code>). It is a small JSON file that the console&#39;s <strong>Settings</strong> page writes. It holds <code>data_dir</code>, <code>wal_archive_mb</code>, <code>trash_keep_hours</code>, <code>keep_versions</code>, and the folders of the console, the help and the Claude skill (<code>web_dir</code>, <code>help_dir</code>, <code>skill_dir</code>). An option on the command line always wins over it. Everything else is a command-line option (<code>kareladb</code> with no command lists them).</p>
 <h2 id="try-it-yourself">Try it yourself</h2>
 <ol><li>You get <code>error: line 3, column 5: unknown column &#39;volum&#39;</code>. What do you do?</li><li>A script prints <code>the database is open in another program</code>, but no server is running. What else can hold the database?</li><li>An INSERT of 5000 rows fails with a duplicate key. How many rows were saved?</li></ol>
 <details>
 <summary>Answers</summary>
-<ol><li>Look at line 3, column 5 of your SQL, and fix the name to <code>volume</code> (the message lists the real columns).</li><li>A <code>kdb shell</code> or <code>kdb sql</code> in another window, or a scheduled task (backup script) that is running. Check with <code>Get-Process kdb</code>.</li><li>None. One statement is all or nothing. Use <code>INSERT OR REPLACE</code> or <code>INSERT OR IGNORE</code>, or remove the duplicates.</li></ol>
+<ol><li>Look at line 3, column 5 of your SQL, and fix the name to <code>volume</code> (the message lists the real columns).</li><li>A <code>kareladb shell</code> or <code>kareladb sql</code> in another window, or a scheduled task (backup script) that is running. Check with <code>Get-Process kareladb</code>.</li><li>None. One statement is all or nothing. Use <code>INSERT OR REPLACE</code> or <code>INSERT OR IGNORE</code>, or remove the duplicates.</li></ol>
 </details>
 <hr>
 <p>Next: <a href="13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a>. Back to the index. Also read the <a href="known-limitations.html">known limitations</a>.</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/12-troubleshooting.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/12-troubleshooting.md">This page as markdown</a>.</footer>
 </body>
 </html>

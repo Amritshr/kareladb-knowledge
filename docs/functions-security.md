@@ -4,7 +4,7 @@
 
 - Category: Functions — security
 - Keywords: security, password, hash, salt, pbkdf2, login, register, sign up, session, session token, api key, reset link, uuid, random, crypto, pgcrypto, SHA2, HMAC, webhook signature, digest, sha224, sha384, sha512, sha256 bytea, encode sha256 hex, encrypt, decrypt, encryption, pgp, openpgp, gpg, pgp\_sym\_encrypt, pgp\_sym\_decrypt, crypt, gen\_salt, bcrypt, gen\_random\_bytes, armor, dearmor, aes, base64
-- See also: [Users and roles](users-and-roles.md), [Keeping kdb serve safe](server-security.md), [Bytes, hex and base64](functions-bytes.md), [Constraints](constraints.md), [UPDATE and DELETE](update-delete.md)
+- See also: [Users and roles](users-and-roles.md), [Keeping kareladb serve safe](server-security.md), [Bytes, hex and base64](functions-bytes.md), [Constraints](constraints.md), [UPDATE and DELETE](update-delete.md)
 
 These functions help your **app** keep its users safe: people who register and log in to your web site or mobile app.
 
@@ -14,7 +14,7 @@ These functions help your **app** keep its users safe: people who register and l
 - `random_bytes`, `random_token` and `gen_random_uuid` take random bytes from the operating system. They give a new value on every call and for every row.
 - A `NULL` argument gives `NULL`.
 
-Database users (who may connect to the KDB server itself) are a different thing: see [Users and roles](users-and-roles.md).
+Database users (who may connect to the KarelaDB server itself) are a different thing: see [Users and roles](users-and-roles.md).
 
 **Example: Register a user, then check the password at login**
 
@@ -33,7 +33,7 @@ WHERE email = 'sita@example.com' AND password_verify('correct horse battery', pa
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$vl`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$1I`
 
 ```text
 1 row(s) inserted
@@ -43,7 +43,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$vln72/8Tbvb7tIBblnmZng$ZkbNxX0kxWN7KFOq41E4zyhsng8NwgAv8jWGxJ6KFt8 |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$1I6cQ2vg2J0Gi0+vYvXikw$CVignDobNJxvKCxd2l8LsMgfIeHmkccuLhEnh+0Rb8E |
 
 (1 row)
 
@@ -75,11 +75,11 @@ Makes a hash of a password, to store in your users table. Each call uses a new r
 - **NULL:** `NULL` in, `NULL` out.
 - **Notes:**
   - With 600000 rounds one call takes about 0.05 to 0.1 seconds on a PC with SHA instructions in the CPU, about 0.4 seconds without them.
-  - In `INSERT ... VALUES` and `UPDATE ... SET`, a `password_hash('...')` with plain text is made **before** the statement takes the database lock, so other statements do not wait. The statement KDB shows back has the finished hash, not the password.
+  - In `INSERT ... VALUES` and `UPDATE ... SET`, a `password_hash('...')` with plain text is made **before** the statement takes the database lock, so other statements do not wait. The statement KarelaDB shows back has the finished hash, not the password.
   - Because of that, `UPDATE app_users SET password_hash = password_hash('x')` gives **every** changed row the same hash (one salt). Change passwords one row at a time (`WHERE id = ...`).
   - An empty password `''` is accepted. Check the length in your app.
   - Do not compare two hashes with `=`: each hash has its own salt, so they never match. Use `password_verify`.
-  - PostgreSQL's pgcrypto way, `crypt(pw, gen_salt('bf'))`, works in KDB too: see [crypt](#crypt). Use it when the hashes must also work in PostgreSQL. MySQL has no safe built-in password hash. KDB's text follows the common `$name$settings$salt$hash` style, but other tools may write the salt and hash a little differently.
+  - PostgreSQL's pgcrypto way, `crypt(pw, gen_salt('bf'))`, works in KarelaDB too: see [crypt](#crypt). Use it when the hashes must also work in PostgreSQL. MySQL has no safe built-in password hash. KarelaDB's text follows the common `$name$settings$salt$hash` style, but other tools may write the salt and hash a little differently.
 
 **Example: The same password twice gives two different hashes**
 
@@ -91,7 +91,7 @@ Result:
 
 | first (STRING) | second (STRING) |
 |---|---|
-| $pbkdf2-sha256$i=600000$0pnQZx6a4/IIeRfauSkdQA$zy5KnOiE7N5YQ5/iiFm+uUbAqZVxZnhVJb2WwVQVK4M | $pbkdf2-sha256$i=600000$ho2r8Zd82jw3ZhIXEo5RuA$SsKIue9WqfZg8d9Hu8VBoCGwARz+3Ch/09Sc7g/14/E |
+| $pbkdf2-sha256$i=600000$PVef9ulCrObYbGJazwegEg$A3KytHFmLCzlNIvvglN1BjpHKHxbApn+FF3i1PwiDcI | $pbkdf2-sha256$i=600000$o4lti0hRVBdCEaJqpkuS+g$I8p4QzfZTN6FWsTqRiTBbNWaMeN3WFgA89yRysmXIck |
 
 (1 row)
 
@@ -110,7 +110,7 @@ SELECT id, email, password_hash FROM app_users;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$nf`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$SY`
 
 ```text
 1 row(s) inserted
@@ -120,7 +120,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$nfwwS0+qlWaMdCV0GXGSVw$YF/p0RJM0FKX0P8NX9tRAlcweWv4ifyAjTICoTAjotI |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$SYTcRn1uhGOdHtbEAjoT3Q$xZKCcdeYDFJ+1LWNJKCyYmsXtus9EKUrmWlLOqA/CsI |
 
 (1 row)
 
@@ -157,7 +157,7 @@ SELECT id, password_hash FROM app_users;
 
 Result:
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$x0cnx3AxK+atLxX4HGHTwA$KHrHm3PXCPdEb8D`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$ljFlnUO8MXVgj5Mf3fMHWA$Hgo50ZKQDPmGCpJ`
 
 ```text
 2 row(s) updated
@@ -167,8 +167,8 @@ Result:
 
 | id (INT) | password_hash (STRING) |
 |---|---|
-| 1 | $pbkdf2-sha256$i=600000$x0cnx3AxK+atLxX4HGHTwA$KHrHm3PXCPdEb8DZ/AyFPQpfuf2CvAzYrWG17qKh+ZM |
-| 2 | $pbkdf2-sha256$i=600000$x0cnx3AxK+atLxX4HGHTwA$KHrHm3PXCPdEb8DZ/AyFPQpfuf2CvAzYrWG17qKh+ZM |
+| 1 | $pbkdf2-sha256$i=600000$ljFlnUO8MXVgj5Mf3fMHWA$Hgo50ZKQDPmGCpJ+BhEv2bMhWHOcva2U+6HfOhw3eRE |
+| 2 | $pbkdf2-sha256$i=600000$ljFlnUO8MXVgj5Mf3fMHWA$Hgo50ZKQDPmGCpJ+BhEv2bMhWHOcva2U+6HfOhw3eRE |
 
 (2 rows)
 
@@ -183,7 +183,7 @@ Result:
 
 | ok_but_weak (STRING) |
 |---|
-| $pbkdf2-sha256$i=1000$+hrOkMalFQNlI43P1NpBMg$JcyX4QNfYeMFxgIynapibAJL01nVk4rKjBwpBQHyKwc |
+| $pbkdf2-sha256$i=1000$tox5kPbVOn1sdqHJGgVWQQ$KU6+B1Kr9pAhzJCfEf04yQeIqOv/OAc5XQD1l3TrU/o |
 
 (1 row)
 
@@ -204,7 +204,7 @@ Checks if a typed password matches a hash made by `password_hash`.
 | `password` | text | the password the user typed at login |
 | `hash` | text | the stored hash, `$pbkdf2-sha256$i=...$...$...` |
 
-- **Returns:** `BOOL`: `true` when the password is right, `false` when it is wrong **or** when the hash is damaged or not a KDB hash. It never gives an error.
+- **Returns:** `BOOL`: `true` when the password is right, `false` when it is wrong **or** when the hash is damaged or not a KarelaDB hash. It never gives an error.
 - **NULL:** `NULL` when an argument is `NULL`.
 - **Notes:**
   - It is as slow as `password_hash`. Call it **once** per login.
@@ -286,7 +286,7 @@ Result:
 
 (1 row)
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$feo0AWDSoGFGHM+3dv+ruw$8aZsUz7MpEqozA+`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$tXkPonJdoJDZfL3mHYSb1w$3gdKD2+kYn8bsmG`
 
 ```text
 1 row(s) updated
@@ -318,15 +318,15 @@ The SHA-256 hash of a value. The same value always gives the same hash. It is fa
 | `bytes` | `BYTES` | raw bytes to hash |
 
 - **Returns:**
-  - text in: `STRING` of lower-case hex characters (64 for `sha256`), KDB's own handy form.
+  - text in: `STRING` of lower-case hex characters (64 for `sha256`), KarelaDB's own handy form.
   - `BYTES` in: `BYTES`, the raw hash (32 bytes for `sha256`), as PostgreSQL's `sha256(bytea)` gives.
 - **NULL:** `NULL` in, `NULL` out.
 - **Notes:**
   - The text is hashed as UTF-8 bytes, so text in any language (Nepali, Chinese, emoji) works.
   - Never use it for passwords: it is far too fast to guess. Use `password_hash`.
   - Good uses: store the hash of a session token or reset token (a stolen copy of the table can not be used to log in), find the same news article loaded twice, make a short key from a long text.
-  - PostgreSQL code works as it is: `encode(sha256(convert_to(token, 'UTF8')), 'hex')` and `encode(sha256('abc'), 'hex')` give the 64 hex characters of the hash (KDB encodes the hash's own bytes, not its hex text again).
-  - For other hash kinds by name, use [digest](#digest). MySQL's `SHA2(text, 256)` returns hex like KDB's text form.
+  - PostgreSQL code works as it is: `encode(sha256(convert_to(token, 'UTF8')), 'hex')` and `encode(sha256('abc'), 'hex')` give the 64 hex characters of the hash (KarelaDB encodes the hash's own bytes, not its hex text again).
+  - For other hash kinds by name, use [digest](#digest). MySQL's `SHA2(text, 256)` returns hex like KarelaDB's text form.
 
 **Example**
 
@@ -515,7 +515,7 @@ Result:
 
 | four_bytes (STRING) | api_secret (STRING) | hex_chars (LONG) |
 |---|---|---|
-| e26b7c06 | 4e4bf8d2d9e3ebdea71bb5cb940038d0 | 32 |
+| fd79299e | e173d18b474ace4ab05d03f35824fb7d | 32 |
 
 (1 row)
 
@@ -571,7 +571,7 @@ Result:
 
 | session_token (STRING) | shorter (STRING) | chars (LONG) |
 |---|---|---|
-| n-J8MpRR8HSapktJaUpT7j31V6b9UvMWNYnFdx-RqPs | 6tZDNkubg_00i8SN3tWRcQ | 43 |
+| xK4Dw9U8e5zCNeGmbbfcoymM_kVxgqYuMyQzoXs08b0 | XACTbTqSXlH3au1Ev1B5Ow | 43 |
 
 (1 row)
 
@@ -596,7 +596,7 @@ Result:
 
 | token_for_the_email_link (STRING) |
 |---|
-| -cYr4YFsxZWB0_td7LGL2OGEv1J3p97tmbvlO2ccMrQ |
+| 51spJAezWx6NBL3KfGygZRWsvpGVbUf870iu0T1cClw |
 
 (1 row)
 
@@ -634,7 +634,7 @@ gen_random_uuid()
 
 A random id in the standard UUID form (version 4), like `0465d47f-8194-4c94-a372-eda3b70504a0`. Two calls practically never give the same id.
 
-- **Returns:** `STRING` of 36 characters. KDB has no separate UUID column type: use a `STRING` column.
+- **Returns:** `STRING` of 36 characters. KarelaDB has no separate UUID column type: use a `STRING` column.
 - **NULL:** takes no arguments.
 - **Notes:**
   - Good as a public id of a forum post or an order, when you do not want people to guess the next id (`/post/7`, `/post/8`, ...).
@@ -652,7 +652,7 @@ Result:
 
 | id (STRING) | chars (LONG) |
 |---|---|
-| 851a606a-46e5-4dc4-bc25-5f6fc5d569c5 | 36 |
+| 2bc73589-4ae5-4617-a527-fd450efb8fce | 36 |
 
 (1 row)
 
@@ -681,8 +681,8 @@ Result:
 
 | public_id (STRING) | author (STRING) | title (STRING) |
 |---|---|---|
-| 072bad61-f07a-422d-908b-99e76b29ddd8 | sita | CITY dividend news |
-| 32448266-e23d-418c-b0b3-5a46969eb428 | ram | बजार आज कस्तो होला? |
+| c643c8ad-d4d2-49ab-b83f-f6d038757dfd | sita | CITY dividend news |
+| cf3ef857-9ad4-4b3c-80c6-63b837d2b13b | ram | बजार आज कस्तो होला? |
 
 (2 rows)
 
@@ -700,7 +700,7 @@ Error: `line 1, column 8: function 'gen_random_uuid' takes 0 argument(s), got 1`
 
 ## PostgreSQL pgcrypto functions
 
-KDB has the functions of PostgreSQL's **pgcrypto** extension, and they give the **same bytes**. Data encrypted in PostgreSQL opens in KDB, and data encrypted in KDB opens in PostgreSQL (and in GnuPG). There is no `CREATE EXTENSION` to run: they are always there.
+KarelaDB has the functions of PostgreSQL's **pgcrypto** extension, and they give the **same bytes**. Data encrypted in PostgreSQL opens in KarelaDB, and data encrypted in KarelaDB opens in PostgreSQL (and in GnuPG). There is no `CREATE EXTENSION` to run: they are always there.
 
 | Function | What it does |
 |---|---|
@@ -742,7 +742,7 @@ Encrypts with a password. The result is an **OpenPGP** message (RFC 4880), the f
 | `disable-mdc` | `1`: no integrity check (old format; do not use) | `0` |
 | `convert-crlf` | `1`: line ends become `\r\n` | `0` |
 | `unicode-mode` | `1`: mark the text as UTF-8 | `0` |
-| `compress-algo` | `0` only (KDB does not compress) | `0` |
+| `compress-algo` | `0` only (KarelaDB does not compress) | `0` |
 
 - **Returns:** `BYTES`. The same text gives different bytes every time (a new salt and a random start).
 - **NULL:** `NULL` in, `NULL` out.
@@ -805,7 +805,7 @@ Result:
 
 | message (STRING) |
 |---|
-| -----BEGIN PGP MESSAGE-----  ww0EBwMCXnHyjTZj6Fdj0joBjUjjMtBH+x0hfH+mF8tBGbB9QT1bwlrCUWPRU0E4HbJSoHJY2M4l Yay+xdBjWzhq/BG6qSeB16fD =0YMk -----END PGP MESSAGE-----  |
+| -----BEGIN PGP MESSAGE-----  ww0EBwMCoJ2I1uRl1/1g0joBVuzilwkIThUC8ulOmW56kgUxH5v3jkOAFUegCSfkO2M9WkDt2IyC Unnvy7UqeTfFHf25FTISq5WL =2q9w -----END PGP MESSAGE-----  |
 
 (1 row)
 
@@ -962,7 +962,7 @@ pgcrypto's password hashes. `gen_salt` makes a new random salt; `crypt` makes th
   - bcrypt uses only the first 72 bytes of a password.
   - A salt it can not use gives `crypt(3) returned NULL` (SQLSTATE `39000`). An unknown type in `gen_salt` gives SQLSTATE `22023`.
   - A high `rounds` can take very long (31 is hours); the statement timeout stops it.
-  - KDB's own [password_hash](#password-hash) is the simpler choice when PostgreSQL does not need the hashes.
+  - KarelaDB's own [password_hash](#password-hash) is the simpler choice when PostgreSQL does not need the hashes.
 
 **Example: Register and log in with bcrypt**
 
@@ -1048,7 +1048,7 @@ Result:
 
 | bytes (LONG) | hex (STRING) |
 |---|---|
-| 16 | a46cbc749ee6115a |
+| 16 | 27a7b1b53295b65c |
 
 (1 row)
 
@@ -1085,14 +1085,14 @@ Result:
 **Example: With a header line**
 
 ```sql
-SELECT armor('\x01'::bytea, ARRAY['Comment'], ARRAY['made by KDB']) AS text;
+SELECT armor('\x01'::bytea, ARRAY['Comment'], ARRAY['made by KarelaDB']) AS text;
 ```
 
 Result:
 
 | text (STRING) |
 |---|
-| -----BEGIN PGP MESSAGE----- Comment: made by KDB  AQ== =5yUo -----END PGP MESSAGE-----  |
+| -----BEGIN PGP MESSAGE----- Comment: made by KarelaDB  AQ== =5yUo -----END PGP MESSAGE-----  |
 
 (1 row)
 
@@ -1152,7 +1152,7 @@ The whole way an app lets people register, log in and stay logged in. Your backe
 - **NULL:** a `NULL` token or password finds no row.
 - **Notes:**
   - Always send user text as **parameters** of your driver (`$1`, `$2`), never glued into the SQL text (that allows SQL injection).
-  - Count failed logins per email and per IP address in your app and wait longer after each failure. KDB does this for its own logins, not for your tables.
+  - Count failed logins per email and per IP address in your app and wait longer after each failure. KarelaDB does this for its own logins, not for your tables.
   - Delete old sessions now and then: `DELETE FROM app_sessions WHERE expires_at < now();`
   - After a password change, delete the user's other sessions.
 
@@ -1193,7 +1193,7 @@ SELECT count(*) AS sessions_left FROM app_sessions;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$cr`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$aI`
 
 ```text
 1 row(s) inserted
@@ -1211,7 +1211,7 @@ Result:
 
 | token (STRING) |
 |---|
-| pTgWGxsCFm56yLo_2L0yprtaE-S9HFDsEENAhIJcynI |
+| 3nL6uIjbvrsAWhlqVLbyVmWLbrCPTvwIKrHy672_HSA |
 
 (1 row)
 

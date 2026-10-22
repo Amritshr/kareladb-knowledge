@@ -12,7 +12,7 @@ These tools choose a value for each row.
 - `coalesce` gives the first value that is not `NULL`. Use it to show `0` or `'-'` instead of an empty cell.
 - `nullif` does the opposite: it turns one value (like `0` or `''`) into `NULL`.
 
-`NULL` means "no value" or "not known". The last entry, [NULL rules](functions-conditional.md#null-rules), lists how every part of KDB treats it.
+`NULL` means "no value" or "not known". The last entry, [NULL rules](functions-conditional.md#null-rules), lists how every part of KarelaDB treats it.
 
 **Example: Label each CITY day as up, down or flat** (sample data: sample)
 
@@ -85,7 +85,7 @@ CASE WHEN condition THEN result
 END
 ```
 
-KDB checks the conditions from top to bottom. The result of the **first** true condition is the answer. When no condition is true, the answer is the `ELSE` value, or `NULL` when there is no `ELSE`.
+KarelaDB checks the conditions from top to bottom. The result of the **first** true condition is the answer. When no condition is true, the answer is the `ELSE` value, or `NULL` when there is no `ELSE`.
 
 | Part | Type | Meaning |
 |---|---|---|
@@ -94,12 +94,12 @@ KDB checks the conditions from top to bottom. The result of the **first** true c
 | `other_result` | any | the value when no condition is true (optional) |
 
 - **Returns:** the value of the chosen branch.
-- **NULL:** a condition that is `NULL` counts as not true, so KDB goes on to the next `WHEN`. Without `ELSE`, no match gives `NULL`.
+- **NULL:** a condition that is `NULL` counts as not true, so KarelaDB goes on to the next `WHEN`. Without `ELSE`, no match gives `NULL`.
 - **Notes:**
   - A condition must be true, false or `NULL`. `CASE WHEN 1 THEN ...` is an error (write `WHEN x = 1`).
   - Only the chosen branch is worked out. The other results are not computed.
   - You can use `CASE` everywhere a value can go: `SELECT`, `WHERE`, `ORDER BY`, `GROUP BY`, inside `sum(...)`, and inside another `CASE`.
-  - KDB does not make the branches one type. `CASE WHEN ... THEN 1 ELSE 'low' END` gives a number in some rows and text in others. Give every branch the same type.
+  - KarelaDB does not make the branches one type. `CASE WHEN ... THEN 1 ELSE 'low' END` gives a number in some rows and text in others. Give every branch the same type.
   - `GROUP BY` cannot use the name after `AS`. Repeat the whole `CASE` in `GROUP BY` (see the example).
 
 **Example: Live price moves in five groups** (sample data: sample)
@@ -210,7 +210,7 @@ CASE value
 END
 ```
 
-The short form. KDB compares `value` with each `match`, like `value = match`, and gives the result of the first one that is equal.
+The short form. KarelaDB compares `value` with each `match`, like `value = match`, and gives the result of the first one that is equal.
 
 | Part | Type | Meaning |
 |---|---|---|
@@ -313,9 +313,9 @@ Gives the first value that is not `NULL`. `coalesce(phone, 'no phone')` shows th
 - **Returns:** the first value that is not `NULL`, with its own type.
 - **NULL:** `NULL` only when every value is `NULL`.
 - **Notes:**
-  - KDB stops at the first value that is not `NULL`. The values after it are not worked out.
+  - KarelaDB stops at the first value that is not `NULL`. The values after it are not worked out.
   - The values keep their types. `coalesce(debit, 0)` gives a `DECIMAL(2)` in some rows and the whole number `0` in others. Then `sum` of it becomes a `DOUBLE`. For exact money write `coalesce(debit, 0::DECIMAL(2))`.
-  - Other databases call this `ifnull`, `nvl` or `isnull`. KDB has only `coalesce`.
+  - Other databases call this `ifnull`, `nvl` or `isnull`. KarelaDB has only `coalesce`.
 
 **Example**
 

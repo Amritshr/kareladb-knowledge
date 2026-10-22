@@ -315,7 +315,7 @@ The argument order is **y first, then x**, as in PostgreSQL.
 | `bool_or` | `bool_or(b)` | true if any value is true | NULL values skipped |
 | `arg_min` (`argmin`, `min_by`) | `arg_min(x, y)` | x of the row with the smallest y | rows with NULL y skipped |
 | `arg_max` (`argmax`, `max_by`) | `arg_max(x, y)` | x of the row with the biggest y | rows with NULL y skipped |
-| `approx_count_distinct` | `approx_count_distinct(x)` | number of different values (exact in KDB) | 0 with no rows |
+| `approx_count_distinct` | `approx_count_distinct(x)` | number of different values (exact in KarelaDB) | 0 with no rows |
 | `sum_of_squares` | `sum_of_squares(x)` | Σx² | NULL with no values |
 | `product` | `product(x)` | x1 × x2 × ... | NULL with no values, or when too big |
 | `weighted_avg` (`wavg`) | `weighted_avg(x, weight)` | Σ(x·weight) / Σweight | NULL when the weights add up to 0 |
@@ -373,7 +373,7 @@ The argument order is **y first, then x**, as in PostgreSQL.
 #### approx_count_distinct
 
 - **Syntax:** `approx_count_distinct(x)`
-- **Description:** the number of different values. KDB counts exactly; the name is for programs written for other databases.
+- **Description:** the number of different values. KarelaDB counts exactly; the name is for programs written for other databases.
 - **Returns:** LONG. **NULLs:** NULL values are not counted; 0 with no rows.
 - **Example:** `SELECT approx_count_distinct(buyer) FROM trade_log`
 
@@ -750,7 +750,7 @@ These run over the rows in time order, like `sma`. Use `OVER (PARTITION BY symbo
 
 ## Part 4: Technical indicators
 
-All indicators are series functions over candles in time order. Most follow **TA-Lib**: the same formulas, and the first value on the same row as TA-Lib (the "warm-up" rows before it are NULL). Where TA-Lib versions differ for flat prices (a window where high = low, or no price change), KDB follows TA-Lib 0.6. The table says whose definition each one uses.
+All indicators are series functions over candles in time order. Most follow **TA-Lib**: the same formulas, and the first value on the same row as TA-Lib (the "warm-up" rows before it are NULL). Where TA-Lib versions differ for flat prices (a window where high = low, or no price change), KarelaDB follows TA-Lib 0.6. The table says whose definition each one uses.
 
 NULL rules for indicators:
 
@@ -876,7 +876,7 @@ VWAP for a trading session or a rolling window needs no new function: `vwap(clos
 #### stoch_k
 
 - **Syntax:** `stoch_k(high, low, close [, k [, k_smooth [, d]]])`, defaults 14, 3, 3
-- **Description:** slow stochastic %K (TA-Lib `STOCH` with SMA smoothing): raw %K = 100 × (close - lowest low of k rows) / (highest high - lowest low), 0 when the high equals the low; slow %K = SMA of raw %K over k_smooth rows. As in TA-Lib, %K and %D both start on row k + k_smooth + d - 2. TA-Lib's own default k is 5; KDB uses the common 14.
+- **Description:** slow stochastic %K (TA-Lib `STOCH` with SMA smoothing): raw %K = 100 × (close - lowest low of k rows) / (highest high - lowest low), 0 when the high equals the low; slow %K = SMA of raw %K over k_smooth rows. As in TA-Lib, %K and %D both start on row k + k_smooth + d - 2. TA-Lib's own default k is 5; KarelaDB uses the common 14.
 - **Returns:** DOUBLE, 0 to 100. **NULLs:** window rule.
 - **Example:** `SELECT time, stoch_k(high, low, close), stoch_d(high, low, close) FROM candles WHERE symbol = 'COAST'`
 
@@ -987,7 +987,7 @@ VWAP for a trading session or a rolling window needs no new function: `vwap(clos
 #### bb_upper
 
 - **Syntax:** `bb_upper(x [, n [, k]])`, `bb_middle(x [, n [, k]])`, `bb_lower(x [, n [, k]])`; defaults 20, 2
-- **Description:** Bollinger bands: middle = SMA(x, n); upper and lower = middle ± k × the **population** standard deviation of the last n values (as John Bollinger and TA-Lib `BBANDS` with SMA). TA-Lib's own default n is 5; KDB uses the common 20.
+- **Description:** Bollinger bands: middle = SMA(x, n); upper and lower = middle ± k × the **population** standard deviation of the last n values (as John Bollinger and TA-Lib `BBANDS` with SMA). TA-Lib's own default n is 5; KarelaDB uses the common 20.
 - **Returns:** DOUBLE. **NULLs:** window rule; first value on row n.
 - **Example:** `SELECT time, close, bb_lower(close), bb_middle(close), bb_upper(close) FROM candles WHERE symbol = 'CITY'`
 
@@ -1165,7 +1165,7 @@ VWAP for a trading session or a rolling window needs no new function: `vwap(clos
 #### ichimoku_senkou_a
 
 - **Syntax:** `ichimoku_senkou_a(high, low [, tenkan [, kijun [, shift]]])`
-- **Description:** leading span A. A chart draws it `shift` rows **ahead**; a table has no future rows, so KDB puts on each row the value that was computed `shift` rows before (the cloud as drawn over that row). Pass shift 25 to match TradingView, which draws it 25 bars ahead.
+- **Description:** leading span A. A chart draws it `shift` rows **ahead**; a table has no future rows, so KarelaDB puts on each row the value that was computed `shift` rows before (the cloud as drawn over that row). Pass shift 25 to match TradingView, which draws it 25 bars ahead.
 - **Returns:** DOUBLE. **NULLs:** window rule.
 - **Example:** price above the cloud: `SELECT time FROM (SELECT time, close, ichimoku_senkou_a(high, low) AS a, ichimoku_senkou_b(high, low) AS b FROM candles WHERE symbol = 'CITY') x WHERE close > greatest(a, b)`
 
@@ -1391,7 +1391,7 @@ A NULL argument gives NULL for every function in this part (except `random()` an
 #### safe_divide
 
 - **Syntax:** `safe_divide(a, b)`
-- **Description:** a / b, but NULL when b is 0. (KDB's `/` already gives NULL for a division by zero; this name is for programs written for BigQuery.)
+- **Description:** a / b, but NULL when b is 0. (KarelaDB's `/` already gives NULL for a division by zero; this name is for programs written for BigQuery.)
 - **Returns:** DOUBLE. **Example:** `SELECT safe_divide(sum_if(volume, close > open), sum(volume)) FROM candles`
 
 #### div0
@@ -1410,7 +1410,7 @@ A NULL argument gives NULL for every function in this part (except `random()` an
 #### is_nan
 
 - **Syntax:** `is_nan(x)`, `is_inf(x)`, `is_finite(x)`
-- **Description:** tests for "not a number", infinity, and a normal finite number. KDB stores a NaN in a DOUBLE column as NULL, so these are mostly for values made in a query.
+- **Description:** tests for "not a number", infinity, and a normal finite number. KarelaDB stores a NaN in a DOUBLE column as NULL, so these are mostly for values made in a query.
 - **Returns:** BOOL. **NULLs:** NULL argument gives NULL.
 - **Example:** `SELECT is_finite(1.5)`
 
@@ -1631,7 +1631,7 @@ All in **UTC** (for a local clock add its offset, for example `20700000` ms for 
 #### fiscal_year
 
 - **Syntax:** `fiscal_year(t [, start_month [, start_day]])`
-- **Description:** the (Gregorian) year in which t's fiscal year starts. Nepal's fiscal year starts on Shrawan 1 of the Bikram Sambat calendar, which is July 16 or 17. KDB does not know the BS calendar: it uses a fixed start day, July 17 by default. In a year where Shrawan 1 is July 16, that one day is counted in the old year; pass `7, 16` for such a year. For a calendar year use `fiscal_year(t, 1, 1)`.
+- **Description:** the (Gregorian) year in which t's fiscal year starts. Nepal's fiscal year starts on Shrawan 1 of the Bikram Sambat calendar, which is July 16 or 17. KarelaDB does not know the BS calendar: it uses a fixed start day, July 17 by default. In a year where Shrawan 1 is July 16, that one day is counted in the old year; pass `7, 16` for such a year. For a calendar year use `fiscal_year(t, 1, 1)`.
 - **Returns:** LONG. **NULLs:** error when the start day is not 1 to 28.
 - **Example:** `SELECT fiscal_year(time) AS fy, symbol, sum(volume) FROM candles`
 

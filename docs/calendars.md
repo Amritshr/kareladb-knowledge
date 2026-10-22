@@ -411,4 +411,4 @@ A [timer](timers.md#schedules) with the schedule `trading nepse 15:05` runs at 1
 
 ## How it is stored
 
-Calendars are part of the database's catalog, like tables and [ENUM types](column-types.md#enum): in every backup, kept across restarts, and replayed from the log after a crash. A database with a calendar needs a KDB from 2026-09-25 or newer (feature `calendars`, see [versions](versions.md)).
+Calendars are part of the database's catalog, like tables and [ENUM types](column-types.md#enum): in every backup, kept across restarts, and replayed from the log after a crash. A database with a calendar needs a KarelaDB from 2026-09-25 or newer (feature `calendars`, see [versions](versions.md)).

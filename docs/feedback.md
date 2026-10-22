@@ -1,12 +1,12 @@
 # Comments and suggestions
 
-> How people who use a KDB server send comments, suggestions and problem reports, and how its admins read them.
+> How people who use a KarelaDB server send comments, suggestions and problem reports, and how its admins read them.
 
 - Category: Web console
 - Keywords: feedback, comment, comments, suggestion, suggestions, problem report, bug report, send feedback, contact, POST /api/feedback, GET /api/feedback, POST /api/feedback/\<id\>, \_feedback
-- See also: [Web console](web-console.md), [Logins, tokens and roles over HTTP](http-login.md), [Users and roles](users-and-roles.md), [About KDB](about-kdb.md)
+- See also: [Web console](web-console.md), [Logins, tokens and roles over HTTP](http-login.md), [Users and roles](users-and-roles.md), [About KarelaDB](about-kareladb.md)
 
-Anyone who may use a KDB server can send its admins a **comment**, a **suggestion** or a **problem** report. The message is saved on that server, in the table `_feedback`, so it survives restarts and is part of every backup.
+Anyone who may use a KarelaDB server can send its admins a **comment**, a **suggestion** or a **problem** report. The message is saved on that server, in the table `_feedback`, so it survives restarts and is part of every backup.
 
 | Who | What they can do | Where |
 |---|---|---|
@@ -14,10 +14,10 @@ Anyone who may use a KDB server can send its admins a **comment**, a **suggestio
 | a server admin (the user's own `ROLE admin`, or the token) | read every message and mark it read or done | the same page, under **Received** |
 | a program | the same, over HTTP | [POST /api/feedback](#post-api-feedback), [GET /api/feedback](#get-api-feedback), [POST /api/feedback/<id>](#mark-feedback) |
 
-- Messages go to the admins of **this** server, not to the makers of KDB.
+- Messages go to the admins of **this** server, not to the makers of KarelaDB.
 - A message can be up to 4,000 characters. A name or email for an answer is optional.
 - One user can send at most 10 messages in 10 minutes (without a user name: one client address), so a script cannot fill the table.
-- Messages are kept in the hidden `_system` database when the server has a data folder, or in the served database when `kdb serve` runs on one folder.
+- Messages are kept in the hidden `_system` database when the server has a data folder, or in the served database when `kareladb serve` runs on one folder.
 
 <a id="page"></a>
 
@@ -59,7 +59,7 @@ Saves one message. Needs a login or the token, like every `/api` route; no role 
 - The server adds the time, the user name and the client address itself.
 
 ```text
-curl -s -X POST "$KDB_URL/api/feedback" -H "Authorization: Bearer $KDB_TOKEN" \
+curl -s -X POST "$KARELADB_URL/api/feedback" -H "Authorization: Bearer $KARELADB_TOKEN" \
   -H "Content-Type: application/json" \
   --data-binary '{"kind":"suggestion","message":"Please add a CSV export to dashboards.","contact":"ram@example.com"}'
 
@@ -162,7 +162,7 @@ HTTP 200 (application/json)
   "dataset": [
     [
       1,
-      "2026-10-22T05:43:41.888Z",
+      "2026-10-22T09:55:17.505Z",
       "suggestion",
       "new",
       "Please add a CSV export to dashboards.",

@@ -1,15 +1,15 @@
 # HTTP API overview
 
-> How to talk to kdb serve over HTTP - the address, choosing the database, JSON answers, errors, safety rules and limits.
+> How to talk to kareladb serve over HTTP - the address, choosing the database, JSON answers, errors, safety rules and limits.
 
 - Category: HTTP API
-- Keywords: HTTP, API, REST, Idempotency-Key, idempotent, retry, Idempotent-Replayed, 422, route, URL, base URL, port 9900, X-KDB-Database, db, JSON, error, status code, 304, 404, 405, 413, 431, 408, 501, 503, 507, disk full, CORS, OPTIONS, HEAD, Cache-Control, ETag, gzip, Content-Encoding, Accept-Encoding, compressed answers, --http-gzip, KDB\_HTTP\_GZIP, Vary, worker threads, poller, curl, Invoke-RestMethod, fetch, requests, web console, help page
-- See also: [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases over HTTP (/api/databases)](http-databases.md), [Health, info, check and backup over HTTP](http-server-info.md), [Line protocol (POST /write)](line-protocol.md), [Keeping kdb serve safe](server-security.md), [kdb serve](cli-serve.md), [Limits](limits.md)
+- Keywords: HTTP, API, REST, Idempotency-Key, idempotent, retry, Idempotent-Replayed, 422, route, URL, base URL, port 9900, X-KDB-Database, db, JSON, error, status code, 304, 404, 405, 413, 431, 408, 501, 503, 507, disk full, CORS, OPTIONS, HEAD, Cache-Control, ETag, gzip, Content-Encoding, Accept-Encoding, compressed answers, --http-gzip, KARELADB\_HTTP\_GZIP, Vary, worker threads, poller, curl, Invoke-RestMethod, fetch, requests, web console, help page
+- See also: [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Logins, tokens and roles over HTTP](http-login.md), [Databases over HTTP (/api/databases)](http-databases.md), [Health, info, check and backup over HTTP](http-server-info.md), [Line protocol (POST /write)](line-protocol.md), [Keeping kareladb serve safe](server-security.md), [kareladb serve](cli-serve.md), [Limits](limits.md)
 
-`kdb serve` starts a small web server. Programs send it **HTTP requests** (the messages a browser or `curl` sends) and get **JSON** answers (text like `{"name": "value"}` that every language can read).
+`kareladb serve` starts a small web server. Programs send it **HTTP requests** (the messages a browser or `curl` sends) and get **JSON** answers (text like `{"name": "value"}` that every language can read).
 
 - A **route** is a method and a path, like `POST /exec`. The method says what you want: `GET` reads, `POST` changes or runs something, `DELETE` removes.
-- The address is `http://127.0.0.1:9900` by default. `--port` and `--bind` of [kdb serve](cli-serve.md) change it.
+- The address is `http://127.0.0.1:9900` by default. `--port` and `--bind` of [kareladb serve](cli-serve.md) change it.
 - The same server also gives the [web console](web-console.md) (`GET /`) and the [PostgreSQL port](postgres-protocol.md).
 
 Tutorial: [chapter 8, HTTP API](../tutorial/08-http-api.md).
@@ -70,10 +70,10 @@ X-KDB-Database: <name>     (a header)
 |---|---|---|
 | `db=<name>` | The database of this request. Wins when both are given. | - |
 | `X-KDB-Database: <name>` | The same as a **header** (an extra line of the request). Handy when a program always uses one database. | - |
-| neither | The server's default database: `--db <name>` of `kdb serve`, else `default` (made when it is first used). | `default` |
+| neither | The server's default database: `--db <name>` of `kareladb serve`, else `default` (made when it is first used). | `default` |
 
 - Names ignore case: `MARKET` and `market` are the same database.
-- A server started for one folder (`kdb serve D:\kdb\market`) has only that database.
+- A server started for one folder (`kareladb serve D:\kdb\market`) has only that database.
 - A database that does not exist gives **HTTP 404**.
 - `GET /health` and `GET /api/databases` do not use a database.
 - `USE other;` inside the SQL changes the database only for the rest of that one request.
@@ -111,10 +111,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 26, "execute_us": 66}
+      "timings": {"parse_us": 39, "execute_us": 65}
     }
   ],
-  "timings": {"parse_us": 26, "execute_us": 66}
+  "timings": {"parse_us": 39, "execute_us": 65}
 }
 ```
 
@@ -140,10 +140,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 51, "execute_us": 163}
+      "timings": {"parse_us": 30, "execute_us": 147}
     }
   ],
-  "timings": {"parse_us": 51, "execute_us": 163}
+  "timings": {"parse_us": 30, "execute_us": 147}
 }
 ```
 
@@ -190,7 +190,7 @@ A **status code** is the number at the start of every HTTP answer. `200` means O
 | `503` | Busy: another transaction held the lock too long, or too many sessions. Also every new request while the server is **stopping**, with `Retry-After: 2` ([stopping](cli-serve.md#stop)). |
 | `507` | The disk is full: nothing of the request was saved. It works again once space is freed. `/write` answers `{"code": "disk full", ...}`. |
 
-An error answer has an `error` text. `/exec` adds `query`, the `results` of the statements that ran before the error, and `line` and `column` when KDB knows the place:
+An error answer has an `error` text. `/exec` adds `query`, the `results` of the statements that ran before the error, and `line` and `column` when KarelaDB knows the place:
 
 **HTTP: An error with its position** (sample data: sample; shows an error)
 
@@ -277,7 +277,7 @@ More in [GET /exec](http-exec.md#get-exec).
 
 ## Retrying safely: Idempotency-Key
 
-A client that sends a write and loses the answer (a timeout, a dropped connection) cannot know whether the write happened. Sent again, it might write twice. Give the request an **`Idempotency-Key`** header, any text you choose (up to 255 characters), and send the retry with the same key: KDB answers it with the first answer and does not run it again.
+A client that sends a write and loses the answer (a timeout, a dropped connection) cannot know whether the write happened. Sent again, it might write twice. Give the request an **`Idempotency-Key`** header, any text you choose (up to 255 characters), and send the retry with the same key: KarelaDB answers it with the first answer and does not run it again.
 
 **HTTP: The same key twice: one row, the second answer is the first** (sample data: sample)
 
@@ -317,10 +317,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'idem_orders' created",
-      "timings": {"parse_us": 23, "execute_us": 4278}
+      "timings": {"parse_us": 29, "execute_us": 4994}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 4278}
+  "timings": {"parse_us": 29, "execute_us": 4994}
 }
 ```
 
@@ -340,10 +340,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 18, "execute_us": 28}
+      "timings": {"parse_us": 24, "execute_us": 30}
     }
   ],
-  "timings": {"parse_us": 18, "execute_us": 28}
+  "timings": {"parse_us": 24, "execute_us": 30}
 }
 ```
 
@@ -363,10 +363,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 18, "execute_us": 28}
+      "timings": {"parse_us": 24, "execute_us": 30}
     }
   ],
-  "timings": {"parse_us": 18, "execute_us": 28}
+  "timings": {"parse_us": 24, "execute_us": 30}
 }
 ```
 
@@ -390,7 +390,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 81, "execute_us": 342}
+      "timings": {"parse_us": 22, "execute_us": 85}
     }
   ],
   "columns": [
@@ -400,7 +400,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 81, "execute_us": 342}
+  "timings": {"parse_us": 22, "execute_us": 85}
 }
 ```
 
@@ -422,7 +422,7 @@ HTTP 200 (application/json)
 
 | Server | What a request needs |
 |---|---|
-| `kdb serve` on `127.0.0.1`, no `--token`, no users | Nothing. Only programs on the same computer can connect. |
+| `kareladb serve` on `127.0.0.1`, no `--token`, no users | Nothing. Only programs on the same computer can connect. |
 | started with `--token <secret>` | `Authorization: Bearer <secret>`, or the cookie `kdb_auth` that `POST /api/session` sets |
 | the data folder has users | a user name and password (HTTP Basic), or a login token from `POST /api/login` (as `Authorization: Bearer <token>` or the cookie `kdb_login`) |
 
@@ -444,7 +444,7 @@ The server refuses requests that a web page in your browser could send behind yo
 | The browser says the request comes from another site (header `Sec-Fetch-Site: cross-site` or `same-site`) | 403 `cross-site requests are not allowed` |
 | Without a login: an `Origin` header that is not this server | 403 `cross-origin requests are not allowed` |
 | Without `--token`: a `Host` that is not `localhost` or `127.x.x.x` (stops "DNS rebinding") | 403 `host name '...' is not allowed without an access token` |
-| `kdb serve --bind 0.0.0.0` without `--token` and without users | the server does not start |
+| `kareladb serve --bind 0.0.0.0` without `--token` and without users | the server does not start |
 
 Programs like `curl`, Python, Go, Node and C# do not send these headers, so they are not affected.
 
@@ -482,9 +482,9 @@ HTTP 403 (application/json)
 
 ## CORS
 
-**CORS** is how a server allows JavaScript on *other* web sites to call it. KDB sends **no** CORS headers, and `OPTIONS` requests get 405. So JavaScript in a page of another site cannot call KDB. This is on purpose.
+**CORS** is how a server allows JavaScript on *other* web sites to call it. KarelaDB sends **no** CORS headers, and `OPTIONS` requests get 405. So JavaScript in a page of another site cannot call KarelaDB. This is on purpose.
 
-Call KDB from your **backend** (your Go, Node, Python or C# server), not from browser code. The [web console](web-console.md) works because it is served by KDB itself.
+Call KarelaDB from your **backend** (your Go, Node, Python or C# server), not from browser code. The [web console](web-console.md) works because it is served by KarelaDB itself.
 
 **HTTP: A browser's CORS check (OPTIONS) is not answered**
 
@@ -513,7 +513,7 @@ HTTP 405 (application/json)
 | Chunked request bodies | not supported | 501 |
 | Rows per statement (`limit=`) | `/exec`: 10,000 by default; `/exp`: 1,000,000; at most 1,000,000 | `"truncated": true` |
 | SQL echoed back in `query` | the first 4,096 bytes | the rest is cut |
-| HTTP threads | one poller thread, and a pool of workers: one per CPU thread, at least 8 (`kdb serve --http-threads N`) | more requests wait for a free worker |
+| HTTP threads | one poller thread, and a pool of workers: one per CPU thread, at least 8 (`kareladb serve --http-threads N`) | more requests wait for a free worker |
 | Open sessions (`POST /session`) | 1,000; idle ones close after 10 minutes | 503 |
 | Open cursors (`POST /cursor`) | 16 per database; idle ones close after 10 minutes | error |
 
@@ -526,7 +526,7 @@ HTTP 405 (application/json)
 
 A client that sends `Accept-Encoding: gzip` gets answers of 2 KB or more compressed: JSON from `/exec`, CSV from `/exp`, and the console's files. The answer then has `Content-Encoding: gzip`. Browsers, Go's `net/http`, Python `requests`, Node's `fetch` and `curl --compressed` send the header and unpack the answer by themselves, so nothing changes in your code - only fewer bytes travel (a 500-bar chart: 31 KB becomes about 7 KB).
 
-| `kdb serve --http-gzip` | Who gets compressed answers |
+| `kareladb serve --http-gzip` | Who gets compressed answers |
 |---|---|
 | `remote` (the default) | clients beyond this computer and its private networks (the internet, another site). A client on the same computer (`127.x`), on the same LAN (`10.x`, `172.16-31.x`, `192.168.x`) or in another container on this computer (Docker's bridge, `172.17.x`) gets plain answers: there the bytes arrive in less time than compressing them takes (a 10,000-row answer: 5-7 ms to compress, under a millisecond to send). |
 | `on` | every client that asks |
@@ -535,7 +535,7 @@ A client that sends `Accept-Encoding: gzip` gets answers of 2 KB or more compres
 - Answers that may come compressed have `Vary: Accept-Encoding`.
 - A compressed answer carries its `ETag` as a weak tag (`W/"..."`). Send either form back in `If-None-Match`: both get the 304.
 - The rows of a result from the [result cache](performance-tips.md#result-cache) are compressed once and kept, so a repeated chart read costs almost nothing more.
-- `HEAD` requests and answers under 2 KB are never compressed. Also `KDB_HTTP_GZIP`.
+- `HEAD` requests and answers under 2 KB are never compressed. Also `KARELADB_HTTP_GZIP`.
 - A [LISTEN stream](listen-notify.md#listen-http) (`GET /listen`, `text/event-stream`) is never compressed either: each notification must reach the client the moment it is sent.
 
 API answers have `Cache-Control: no-store`, so no browser or proxy keeps a copy. The server prints one line per request, for example `2026-09-11 23:04:12  GET /health 200 0 ms`.
@@ -602,14 +602,14 @@ Syntax:
 GET /
 ```
 
-The [web console](web-console.md): a page for running SQL in the browser. Its files (`/index.html`, `/app.js`, `/logic.js`, `/style.css`, ...) are the `web` folder next to the program, not part of `kdb.exe`, so it needs no internet and a new console needs no new program ([where kdb finds it](install-packages.md#folders)).
+The [web console](web-console.md): a page for running SQL in the browser. Its files (`/index.html`, `/app.js`, `/logic.js`, `/style.css`, ...) are the `web` folder next to the program, not part of `kareladb.exe`, so it needs no internet and a new console needs no new program ([where kareladb finds it](install-packages.md#folders)).
 
 | Answer | Meaning |
 |---|---|
 | `Content-Type: text/html; charset=utf-8` | an HTML page |
 | `Content-Security-Policy`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` | the page loads nothing from other sites and cannot be put inside another site's page |
 
-- **Status codes:** 200; 304 when the browser's copy of a file is still current; 404 with a short page when the console files are not installed (it lists the folders KDB looked in).
+- **Status codes:** 200; 304 when the browser's copy of a file is still current; 404 with a short page when the console files are not installed (it lists the folders KarelaDB looked in).
 - **Notes:** the page itself needs no login; the console asks for the login or token when it calls the API. Open it at `http://127.0.0.1:9900/`.
 
 **HTTP: Is the console there? (HEAD: the headers only)**
@@ -633,26 +633,26 @@ GET /help
 GET /help/
 ```
 
-This help, served by `kdb serve`. Open `http://127.0.0.1:9900/help/` in a browser. In the web console, the **Help** menu and **F1** open it too ([web console](web-console.md#help-menu)).
+This help, served by `kareladb serve`. Open `http://127.0.0.1:9900/help/` in a browser. In the web console, the **Help** menu and **F1** open it too ([web console](web-console.md#help-menu)).
 
-The help is **not inside the kdb program**. It is a folder of pages: `index.html` with the search, one page per topic, and `help.css`, `help.js`, `help-index.js`, `search-text.js`. `kdb serve` sends the files of that folder. It looks for the folder here, and the first one found wins:
+The help is **not inside the kareladb program**. It is a folder of pages: `index.html` with the search, one page per topic, and `help.css`, `help.js`, `help-index.js`, `search-text.js`. `kareladb serve` sends the files of that folder. It looks for the folder here, and the first one found wins:
 
 | Where | Example |
 |---|---|
-| `help_dir` in `kdb.conf` | `"help_dir": "D:/kdb/help"` |
-| the `KDB_HELP_DIR` environment variable | `KDB_HELP_DIR=/usr/local/share/kdb/help` |
-| a `help` folder next to the program | `C:\Programs\kdb\help\` |
-| `../share/kdb/help` from the program folder | `/usr/local/bin/kdb` uses `/usr/local/share/kdb/help` |
-| in a KDB source folder, for a kdb run from `build/bin` | `docs/help/site/` |
+| `help_dir` in `kareladb.conf` | `"help_dir": "D:/kdb/help"` |
+| the `KARELADB_HELP_DIR` environment variable | `KARELADB_HELP_DIR=/usr/local/share/kareladb/help` |
+| a `help` folder next to the program | `C:\Programs\kareladb\help\` |
+| `../share/kareladb/help` from the program folder | `/usr/local/bin/kareladb` uses `/usr/local/share/kareladb/help` |
+| in a KarelaDB source folder, for a kareladb run from `build/bin` | `docs/help/site/` |
 
 | Answer | Meaning |
 |---|---|
 | `GET /help` | `302` to `/help/`, so the links between pages work |
 | `GET /help/`, `GET /help/<file>` | the home page, or one file of the folder |
-| `Content-Security-Policy`, `X-Frame-Options: SAMEORIGIN` | the pages load nothing from other sites; only KDB's own console may show them inside a frame |
+| `Content-Security-Policy`, `X-Frame-Options: SAMEORIGIN` | the pages load nothing from other sites; only KarelaDB's own console may show them inside a frame |
 
 - **Status codes:** 200; 302 for `/help`; 304 when the browser's copy is still current; 404 when the file is not there, or when no help folder is installed (the page then says so and how to build it).
-- **Notes:** the help is made from `docs/help/topics/*.md` by `node tools/help/build_help.mjs`, which writes `docs/help/site/`. Changing the help does not need a new kdb program: build the help, then copy the folder next to kdb (the Docker image copies it when it is built). The pages need no internet and no login, and also work opened from disk.
+- **Notes:** the help is made from `docs/help/topics/*.md` by `node tools/help/build_help.mjs`, which writes `docs/help/site/`. Changing the help does not need a new kareladb program: build the help, then copy the folder next to kareladb (the Docker image copies it when it is built). The pages need no internet and no login, and also work opened from disk.
 
 ```bash
 curl -s http://127.0.0.1:9900/help/ -o kdb-help.html
@@ -678,18 +678,18 @@ Syntax:
 GET /skill.md
 ```
 
-The [Claude skill](install-packages.md#skill): one markdown file that tells an AI assistant in another project how to use KDB. It is `skill/skill.md` next to the program (`.claude/skills/kdb/SKILL.md` in the source), the same file `kdb skill` prints.
+The [Claude skill](install-packages.md#skill): one markdown file that tells an AI assistant in another project how to use KarelaDB. It is `skill/skill.md` next to the program (`.claude/skills/kareladb/SKILL.md` in the source), the same file `kareladb skill` prints.
 
 | Answer | Meaning |
 |---|---|
 | `Content-Type: text/markdown; charset=utf-8` | the skill as plain markdown |
 
 - **Status codes:** 200; 404 with a plain-text message when the skill file is not installed.
-- **Notes:** it needs no login and holds no token. `kdb skill install` adds this machine's address and token to its own copy.
+- **Notes:** it needs no login and holds no token. `kareladb skill install` adds this machine's address and token to its own copy.
 
 ```bash
-mkdir -p ~/.claude/skills/kdb
-curl -s http://127.0.0.1:9900/skill.md -o ~/.claude/skills/kdb/SKILL.md
+mkdir -p ~/.claude/skills/kareladb
+curl -s http://127.0.0.1:9900/skill.md -o ~/.claude/skills/kareladb/SKILL.md
 ```
 
 **HTTP: Is the skill there? (HEAD: the headers only)**

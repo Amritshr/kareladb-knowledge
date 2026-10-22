@@ -4,7 +4,7 @@
 
 ## What you will learn
 
-KDB already protects your data from crashes and disk damage (chapter 9) and from strangers (chapter 16). This chapter is about the other dangers of a real app:
+KarelaDB already protects your data from crashes and disk damage (chapter 9) and from strangers (chapter 16). This chapter is about the other dangers of a real app:
 
 - **Part A.** A slow or huge query that blocks the server: timeouts, cancel, memory limits, statements per user, and a stop that lets running requests finish.
 - **Part B.** "Who changed this?": the audit log.
@@ -19,10 +19,10 @@ Everything here is fast. A running query looks at one flag every 16,384 rows (ne
 
 ## The short version
 
-For the NChartPro server on a VPS, start KDB like this:
+For the NChartPro server on a VPS, start KarelaDB like this:
 
 ```sh
-kdb serve --data-dir /srv/kdb/data --backups /srv/kdb/backups \
+kareladb serve --data-dir /srv/kareladb/data --backups /srv/kareladb/backups \
   --backup-schedule "daily 16:00" --backup-copy /mnt/backup-disk/kdb \
   --statement-timeout 30s --max-queries-per-user 32 --safe-updates
 ```
@@ -38,7 +38,7 @@ ALTER USER admin ENABLE TOTP;
 
 The rest of the chapter explains each line.
 
-| Protection | Default in `kdb serve` | How to change |
+| Protection | Default in `kareladb serve` | How to change |
 |---|---|---|
 | statement timeout | 60 s | `--statement-timeout 30s`, `SET statement_timeout = '5s'` |
 | memory of one query | 1 GB of rows, 5,000,000 groups | `--max-result-memory`, `--max-groups` |
@@ -52,9 +52,9 @@ The rest of the chapter explains each line.
 | two-factor login | off | `ALTER USER x ENABLE TOTP` |
 | safe updates | off | `--safe-updates`, `SET safe_updates = on` |
 | read-only | off | `--read-only`, `ALTER DATABASE x SET READ ONLY` |
-| DROP TABLE trash | 7 days (also `kdb sql` and `kdb shell`) | `--trash-days N` |
+| DROP TABLE trash | 7 days (also `kareladb sql` and `kareladb shell`) | `--trash-days N` |
 
-`kdb sql`, `kdb shell` and apps that use the KDB library directly have no timeouts or limits (they are your own programs). Their `DROP TABLE` keeps the trash.
+`kareladb sql`, `kareladb shell` and apps that use the KarelaDB library directly have no timeouts or limits (they are your own programs). Their `DROP TABLE` keeps the trash.
 
 ---
 
@@ -62,7 +62,7 @@ The rest of the chapter explains each line.
 
 ### Statement timeout
 
-A statement that runs longer than the limit is stopped. In the web console of `kdb serve market` (with the sample data of chapter 2):
+A statement that runs longer than the limit is stopped. In the web console of `kareladb serve market` (with the sample data of chapter 2):
 
 ```sql
 SET statement_timeout = '2s';
@@ -85,9 +85,9 @@ error: canceling statement due to statement timeout (2 s); make the query faster
 
 | From | How |
 |---|---|
-| Go `pgx`, Python, psql | cancel the context / press Ctrl+C: the driver sends a PostgreSQL CancelRequest, KDB stops the statement (`57014`, "due to user request") |
+| Go `pgx`, Python, psql | cancel the context / press Ctrl+C: the driver sends a PostgreSQL CancelRequest, KarelaDB stops the statement (`57014`, "due to user request") |
 | HTTP | send `X-KDB-Request-Id: <your id>` with `POST /exec`; `DELETE /exec/<your id>` stops it |
-| HTTP | close the connection: KDB notices it within 0.2 s and stops the statement |
+| HTTP | close the connection: KarelaDB notices it within 0.2 s and stops the statement |
 
 ```sh
 # terminal 1: a long report
@@ -113,7 +113,7 @@ error: the query makes more than 5000000 groups (max_groups). Group by fewer col
 
 Set them with `--max-result-memory 512MB` and `--max-groups 1000000`. HTTP status 413, SQLSTATE `54000`. For a small VPS (1-2 GB), use `--max-result-memory 256MB`.
 
-A big `GROUP BY` is not stopped just because its groups need a lot of memory. When they need more than half of `--max-result-memory`, KDB writes the groups that do not fit to temporary files in the database folder (`_tmp/`) and adds them up after the scan. The result is the same, only slower. The files are removed when the query ends. One query may write at most 16 GB of them; past that it stops with `the GROUP BY needs more than N MB of temporary files (max_spill_bytes)`.
+A big `GROUP BY` is not stopped just because its groups need a lot of memory. When they need more than half of `--max-result-memory`, KarelaDB writes the groups that do not fit to temporary files in the database folder (`_tmp/`) and adds them up after the scan. The result is the same, only slower. The files are removed when the query ends. One query may write at most 16 GB of them; past that it stops with `the GROUP BY needs more than N MB of temporary files (max_spill_bytes)`.
 
 ### Statements per user
 
@@ -137,12 +137,12 @@ Keep the drain time below how long your service manager waits before it kills th
 
 ### Security events
 
-`kdb serve --data-dir ...` writes these events to a table `_audit_log` in the hidden `_system` database:
+`kareladb serve --data-dir ...` writes these events to a table `_audit_log` in the hidden `_system` database:
 
 | event | When |
 |---|---|
 | `login`, `login_failed`, `lockout` | a login (HTTP, Basic, PostgreSQL), a wrong password or code, an address that must wait |
-| `user` | `CREATE/ALTER/DROP USER`, `GRANT`, `REVOKE`, also `kdb user ...` while the server is stopped |
+| `user` | `CREATE/ALTER/DROP USER`, `GRANT`, `REVOKE`, also `kareladb user ...` while the server is stopped |
 | `ddl` | `CREATE`, `DROP`, `ALTER`, `RENAME` of tables, indexes, views, functions, procedures, triggers; `CREATE/DROP DATABASE` |
 | `protection` | `SET AUDIT`, `UNDROP TABLE`, `ALTER DATABASE ... SET READ ONLY` |
 | `backup` | every scheduled or manual backup, OK or failed |
@@ -168,7 +168,7 @@ Nobody can change the audit rows: `DELETE FROM _audit_log` answers `the audit ta
 
 Old rows: `--audit-keep-days 400` removes whole months older than 400 days, once a day. The default keeps everything. For accounting data, keep the log as long as the law asks.
 
-A server started on one folder by its path (`kdb serve D:\kdb\market`) has no `_system` and writes no security events. Use `--data-dir`.
+A server started on one folder by its path (`kareladb serve D:\kdb\market`) has no `_system` and writes no security events. Use `--data-dir`.
 
 ### Who changed this row?
 
@@ -200,10 +200,10 @@ time                     | event  | user | row_key | old_values                 
 
 ## Part C: backups on a schedule
 
-Chapter 9 made backups by hand. `kdb serve` can do it by itself:
+Chapter 9 made backups by hand. `kareladb serve` can do it by itself:
 
 ```sh
-kdb serve --data-dir D:\kdb\data --backups D:\kdb_backups --backup-schedule "daily 16:00" --backup-copy E:\kdb_copy
+kareladb serve --data-dir D:\kdb\data --backups D:\kdb_backups --backup-schedule "daily 16:00" --backup-copy E:\kdb_copy
 ```
 
 ```text
@@ -223,9 +223,9 @@ kdb serve --data-dir D:\kdb\data --backups D:\kdb_backups --backup-schedule "dai
 - Times are the **local time** of the computer. In a zone without daylight saving (such as Nepal, +05:45), `16:00` stays 16:00 all year. On a VPS set to UTC, write the UTC time: `daily 10:15` for 16:00 in Nepal.
 - Every database of the data folder and `_system` (users and audit log) are backed up. Each backup is read back and checked, as in chapter 9.
 - **The backup does not stop the server.** It waits for an open transaction to end (at most a few seconds), writes a checkpoint, then copies the files while reads and writes go on. The test `test_protection` writes rows during a scheduled backup to check this.
-- `--backup-copy <dir>`: after each backup, a second copy in another folder, best on another disk. KDB checks every block and log checksum of the copy by reading it back from that disk. A failed copy is reported (`COPY FAILED`) and the backup itself still counts.
+- `--backup-copy <dir>`: after each backup, a second copy in another folder, best on another disk. KarelaDB checks every block and log checksum of the copy by reading it back from that disk. A failed copy is reported (`COPY FAILED`) and the backup itself still counts.
 - Old backups go by `--keep-daily 7 --keep-weekly 4`, in both folders.
-- `--backup-warn-hours 26`: when a database's newest good backup is older, the log says `WARNING: the last good backup of 'x' is 30 hours old ...` once an hour. Watch for it (`journalctl -u kdb | grep WARNING`).
+- `--backup-warn-hours 26`: when a database's newest good backup is older, the log says `WARNING: the last good backup of 'x' is 30 hours old ...` once an hour. Watch for it (`journalctl -u kareladb | grep WARNING`).
 - The console's health panel shows the schedule, the next backup and a `(!)` when the last one failed. `/api/info` has the full status in `backup_schedule`.
 
 ---
@@ -295,7 +295,7 @@ Put the secret into Google Authenticator, Microsoft Authenticator, Aegis or 1Pas
 - Programs send it to `POST /api/login` as `{"user": "admin", "password": "...", "code": "492039"}`.
 - A code works once. Wrong codes count as failed logins (after 5, the address must wait).
 - HTTP Basic and the PostgreSQL port cannot ask for a code, so they refuse this user. Programs use their own users without two-factor login.
-- `ALTER USER admin DISABLE TOTP` turns it off. A lost phone: stop the server and run `kdb user reset-2fa admin`.
+- `ALTER USER admin DISABLE TOTP` turns it off. A lost phone: stop the server and run `kareladb user reset-2fa admin`.
 
 ### Other login protection
 
@@ -309,7 +309,7 @@ Put the secret into Google Authenticator, Microsoft Authenticator, Aegis or 1Pas
 ### UPDATE or DELETE without WHERE
 
 ```sh
-kdb serve ... --safe-updates
+kareladb serve ... --safe-updates
 ```
 
 ```sql
@@ -330,7 +330,7 @@ ALTER DATABASE market_2025 SET READ ONLY;
 
 Now every change of `market_2025` is refused (`the database is read-only (...)`, HTTP 403, SQLSTATE `25006`); reads, backups and checks work. The setting is kept in the data folder and holds after a restart. `ALTER DATABASE market_2025 SET READ WRITE` undoes it. A read-only database cannot be dropped.
 
-`kdb serve --read-only` makes the whole server read-only: all databases, no new databases, no user changes. Use it for a report server that works on a copy of the data.
+`kareladb serve --read-only` makes the whole server read-only: all databases, no new databases, no user changes. Use it for a report server that works on a copy of the data.
 
 ### DROP TABLE by mistake
 
@@ -371,7 +371,7 @@ Add this to the checklist of chapter 16:
 | Check | Why |
 |---|---|
 | `--backup-schedule "daily 10:15"` (16:00 in Nepal, +05:45, on a UTC VPS) and `--backup-copy` on a second disk or mounted storage | backups happen even when you forget |
-| `journalctl -u kdb | grep -E "WARNING|FAILED"` in a daily mail or monitor | a broken backup is noticed |
+| `journalctl -u kareladb | grep -E "WARNING|FAILED"` in a daily mail or monitor | a broken backup is noticed |
 | `--statement-timeout 30s`, `--max-result-memory 256MB` on a 1-2 GB VPS | one report cannot freeze the app |
 | `--max-queries-per-user` above your app's pool size | a loop in a script cannot take every thread |
 | `ALTER TABLE ... SET AUDIT ON` for accounts, ledger, orders, portfolio | every money change has who and when |
@@ -384,14 +384,14 @@ Add this to the checklist of chapter 16:
 Example `systemd` line:
 
 ```ini
-ExecStart=/usr/local/bin/kdb serve --data-dir /srv/kdb/data --backups /srv/kdb/backups --backup-schedule "daily 10:15" --backup-copy /mnt/backup/kdb --statement-timeout 30s --max-result-memory 256MB --safe-updates --audit-keep-days 2000
+ExecStart=/usr/local/bin/kareladb serve --data-dir /srv/kareladb/data --backups /srv/kareladb/backups --backup-schedule "daily 10:15" --backup-copy /mnt/backup/kdb --statement-timeout 30s --max-result-memory 256MB --safe-updates --audit-keep-days 2000
 ```
 
 ---
 
 ## What it costs
 
-Measured on the development PC (Intel i9-14900HX, Windows 11), same data, runs mixed so that other work on the PC hits both sides. "On" is `kdb serve` with its defaults (60 s timeout, memory and group limits, 32 statements per user); "off" is the same program with `--statement-timeout 0 --max-result-memory 0 --max-groups 0 --max-queries-per-user 0`.
+Measured on the development PC (Intel i9-14900HX, Windows 11), same data, runs mixed so that other work on the PC hits both sides. "On" is `kareladb serve` with its defaults (60 s timeout, memory and group limits, 32 statements per user); "off" is the same program with `--statement-timeout 0 --max-result-memory 0 --max-groups 0 --max-queries-per-user 0`.
 
 | Test | Off (or before) | On (after) |
 |---|---|---|
@@ -416,14 +416,14 @@ The differences are smaller than the noise between two runs. Only `SET AUDIT ON`
 ## Limits
 
 - Security events are written every 200 ms: a crash can lose the events of that moment (data-change audit rows are never lost: same transaction).
-- A server on one folder path (`kdb serve D:\kdb\market`) has no security audit log (it has no `_system`). Data-change audit works there.
+- A server on one folder path (`kareladb serve D:\kdb\market`) has no security audit log (it has no `_system`). Data-change audit works there.
 - The audit log is not signed: a person who can change the data files can change it too. Keep the data folder private and copy backups off the server.
 - Table rights: no column rights (masking of columns in results is not built), no row rights. `CALL` and triggers ignore table rights.
 - Two-factor login is only for HTTP logins (console, `/api/login`). HTTP Basic and the PostgreSQL port refuse two-factor users.
 - The statement timeout does not stop a single very long step that has no rows in between (for example sorting one huge result); memory limits usually stop such a query first.
-- `kdb sql`, `kdb shell` and library apps have no timeouts or limits.
+- `kareladb sql`, `kareladb shell` and library apps have no timeouts or limits.
 - The trash keeps tables with named `UNIQUE`/`PRIMARY KEY` constraints only after the constraint work supports renaming them; such tables are dropped for good now.
-- Older KDB programs refuse a database with audited tables, and a data folder with table rights, two-factor users or read-only settings (they would ignore them). Update every `kdb` program first.
+- Older KarelaDB programs refuse a database with audited tables, and a data folder with table rights, two-factor users or read-only settings (they would ignore them). Update every `kareladb` program first.
 - No encryption of the files yet (Part G).
 
 ---

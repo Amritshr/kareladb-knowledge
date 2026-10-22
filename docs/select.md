@@ -51,7 +51,7 @@ SELECT [DISTINCT] item [[AS] alias], ...
 [LIMIT n [OFFSET m]]
 ```
 
-The parts must be written in this order. KDB does the work in another order:
+The parts must be written in this order. KarelaDB does the work in another order:
 
 | Step | Part | What happens |
 |---|---|---|
@@ -152,7 +152,7 @@ SELECT alias.*, other_item, ... FROM table alias JOIN ...
 `*` means every column of every table in `FROM`, in table order. `alias.*` means every column of one table.
 
 - **Returns:** the stored columns and the computed columns (`AS (...)`) of the table.
-- **Notes:** `*` cannot be used together with aggregates or `SAMPLE BY`. In programs, list the columns you need: KDB then takes only those columns out of each stored row, which is faster on wide tables (`EXPLAIN` shows `build 3 of 7 stored column(s) per row`), and a new column in the table does not change your result.
+- **Notes:** `*` cannot be used together with aggregates or `SAMPLE BY`. In programs, list the columns you need: KarelaDB then takes only those columns out of each stored row, which is faster on wide tables (`EXPLAIN` shows `build 3 of 7 stored column(s) per row`), and a new column in the table does not change your result.
 
 **Example** (sample data: sample)
 
@@ -312,7 +312,7 @@ Syntax:
 SELECT expression [[AS] alias], ...
 ```
 
-Without `FROM`, KDB computes the values once and gives one row. Use it like a calculator, or to test a function.
+Without `FROM`, KarelaDB computes the values once and gives one row. Use it like a calculator, or to test a function.
 
 - **Returns:** one row.
 - **Notes:** `WHERE` still works (a false condition gives 0 rows). `*` needs a `FROM` table.

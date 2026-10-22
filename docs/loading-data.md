@@ -3,20 +3,20 @@
 > Load thousands or millions of rows: multi-row INSERT, SQL files, CSV files (POST /imp, COPY), the line protocol and the C++ InsertRows API, with speed tips.
 
 - Category: Writing data
-- Keywords: bulk load, bulk insert, import, batch insert, load data, load file, SQL file, pipe, stdin, kdb sql -, CSV, CSV import, export CSV, --format csv, migrate, migration, QuestDB export, csv-to-sql.ps1, line protocol, ILP, POST /write, POST /imp, COPY, COPY FROM STDIN, pgx CopyFrom, InsertRows, C++ API, InsertMode, InsertRequest, fast insert, speed, sync-commits, disk full, 507, trigger slows load, going back, back to QuestDB, back to PostgreSQL, export-since.mjs, roll back migration, export new rows, shadow period, dual-write, compare QuestDB, compare.mjs, \_shadow\_diffs, nightly compare
-- See also: [INSERT](insert.md), [Performance tips](performance-tips.md), [Line protocol (POST /write)](line-protocol.md), [kdb sql and kdb shell](cli-sql-and-shell.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md)
+- Keywords: bulk load, bulk insert, import, batch insert, load data, load file, SQL file, pipe, stdin, kareladb sql -, CSV, CSV import, export CSV, --format csv, migrate, migration, QuestDB export, csv-to-sql.ps1, line protocol, ILP, POST /write, POST /imp, COPY, COPY FROM STDIN, pgx CopyFrom, InsertRows, C++ API, InsertMode, InsertRequest, fast insert, speed, sync-commits, disk full, 507, trigger slows load, going back, back to QuestDB, back to PostgreSQL, export-since.mjs, roll back migration, export new rows, shadow period, dual-write, compare QuestDB, compare.mjs, \_shadow\_diffs, nightly compare
+- See also: [INSERT](insert.md), [Performance tips](performance-tips.md), [Line protocol (POST /write)](line-protocol.md), [kareladb sql and kareladb shell](cli-sql-and-shell.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md)
 
 A daily import can be tens of thousands of rows: trades, minute candles, sensor readings or log lines. There are several ways to load them. All of them check the same rules as `INSERT` (types, keys, `NOT NULL`, `REFERENCES`, `CHECK`).
 
 | Way | Good for | Speed |
 |---|---|---|
 | [Multi-row INSERT](#multi-row-insert) | scripts and apps | good: one commit per statement |
-| [SQL file with `kdb sql <db> -`](#sql-files) | a file on the same PC, server stopped | good |
+| [SQL file with `kareladb sql <db> -`](#sql-files) | a file on the same PC, server stopped | good |
 | [CSV file](#csv) with `POST /imp` | data from Excel, QuestDB or another database | fast: one request |
 | [`COPY ... FROM STDIN`](#csv) on the PostgreSQL port | Go, Python or psql programs | fast |
-| [HTTP `POST /exec`](#http) | while `kdb serve` runs | good |
+| [HTTP `POST /exec`](#http) | while `kareladb serve` runs | good |
 | [Line protocol `POST /write`](#line-protocol) | live feeds, many rows from programs | fastest over HTTP |
-| [C++ `InsertRows`](#insert-rows) | a program that has KDB inside | fastest |
+| [C++ `InsertRows`](#insert-rows) | a program that has KarelaDB inside | fastest |
 
 The golden rule: **use `INSERT OR REPLACE` with a `DEDUP KEY` or `PRIMARY KEY`**. Then a file can be loaded again after an error, and you never get double rows.
 
@@ -136,26 +136,26 @@ Error: `row 3: column 'buyer' = '77' has no matching row in brokers(id)`
 
 <a id="sql-files"></a>
 
-## SQL files: kdb sql <db> -
+## SQL files: kareladb sql <db> -
 
 Syntax:
 
 ```sql
-Get-Content load.sql -Raw -Encoding UTF8 | kdb sql database -      (PowerShell)
-kdb sql database - < load.sql                                     (cmd.exe, bash)
+Get-Content load.sql -Raw -Encoding UTF8 | kareladb sql database -      (PowerShell)
+kareladb sql database - < load.sql                                     (cmd.exe, bash)
 ```
 
-Write the statements into a `.sql` file, then send the file into `kdb sql`. The `-` means "read the SQL from the pipe". KDB runs the statements one by one and stops at the first error.
+Write the statements into a `.sql` file, then send the file into `kareladb sql`. The `-` means "read the SQL from the pipe". KarelaDB runs the statements one by one and stops at the first error.
 
-- `kdb sql` opens the database files directly, so `kdb serve` must **not** run on the same database. While the server runs, send the file over [HTTP](#http).
+- `kareladb sql` opens the database files directly, so `kareladb serve` must **not** run on the same database. While the server runs, send the file over [HTTP](#http).
 - Save the file as UTF-8. In Windows PowerShell 5.1, run `$OutputEncoding = New-Object System.Text.UTF8Encoding $false` first, or text in other languages becomes `?`.
 - Check the exit code: `0` all statements ran, `1` an error (the output shows which statement).
-- **Notes:** a big file is read into memory first. For millions of rows, split it: one file per day or month. More in [kdb sql](cli-sql-and-shell.md#stdin).
+- **Notes:** a big file is read into memory first. For millions of rows, split it: one file per day or month. More in [kareladb sql](cli-sql-and-shell.md#stdin).
 
-**Command line: A small SQL file piped into kdb sql** (sample data: sample)
+**Command line: A small SQL file piped into kareladb sql** (sample data: sample)
 
 ```bash
-kdb sql market -
+kareladb sql market -
 > INSERT OR REPLACE INTO ochl_day VALUES
 >   ('2026-09-13', 'CITY', 505.0, 509.0, 503.1, 508.2, 91000),
 >   ('2026-09-13', 'COAST',  376.0, 379.9, 374.0, 378.5, 120500);
@@ -171,14 +171,14 @@ time                     | symbol | close
 -------------------------+--------+------
 2026-09-13T00:00:00.000Z | CITY   | 508.2
 2026-09-13T00:00:00.000Z | COAST  | 378.5
-(2 rows, 0.2 ms)
+(2 rows, 0.1 ms)
 ```
 
 ```powershell
 # A real file (not run here). Load the tables in order: parents (brokers) before children (trade_log).
 $OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Get-Content brokers.sql -Raw -Encoding UTF8 | kdb sql market -
-Get-Content trade_log_2026-09-10.sql -Raw -Encoding UTF8 | kdb sql market -
+Get-Content brokers.sql -Raw -Encoding UTF8 | kareladb sql market -
+Get-Content trade_log_2026-09-10.sql -Raw -Encoding UTF8 | kareladb sql market -
 "exit code: $LASTEXITCODE"
 ```
 
@@ -189,10 +189,10 @@ Get-Content trade_log_2026-09-10.sql -Raw -Encoding UTF8 | kdb sql market -
 Syntax:
 
 ```sql
-POST /imp?name=<table>&db=<database>        body: the CSV file       (kdb serve running)
+POST /imp?name=<table>&db=<database>        body: the CSV file       (kareladb serve running)
 COPY table FROM STDIN (FORMAT csv)                                    (the PostgreSQL port)
-CSV file  ->  INSERT OR REPLACE statements  ->  kdb sql database -    (server stopped)
-kdb sql database "SELECT ..." --format csv > file.csv                 (export)
+CSV file  ->  INSERT OR REPLACE statements  ->  kareladb sql database -    (server stopped)
+kareladb sql database "SELECT ..." --format csv > file.csv                 (export)
 ```
 
 There are three ways to load a CSV file:
@@ -201,7 +201,7 @@ There are three ways to load a CSV file:
 |---|---|
 | [POST /imp](http-import.md) | send the file to the running server. It is QuestDB's import route: it can make the table from the file, and it upserts like the line protocol. One request is one transaction |
 | `COPY table FROM STDIN` | on the [PostgreSQL port](postgres-protocol.md): psql `\copy`, pgx `CopyFrom`, psycopg `copy`. Text, CSV and binary format. One `COPY` is one transaction |
-| SQL statements | convert the CSV into `INSERT OR REPLACE` statements and pipe them into `kdb sql`. The tutorial has a script: `docs/tutorial/examples/10-migrating-from-questdb/csv-to-sql.ps1` ([chapter 10](../tutorial/10-migrating-from-questdb.md)) |
+| SQL statements | convert the CSV into `INSERT OR REPLACE` statements and pipe them into `kareladb sql`. The tutorial has a script: `docs/tutorial/examples/10-migrating-from-questdb/csv-to-sql.ps1` ([chapter 10](../tutorial/10-migrating-from-questdb.md)) |
 
 Rules for converting a CSV row into SQL values:
 
@@ -214,18 +214,18 @@ Rules for converting a CSV row into SQL values:
 
 - Write one `INSERT OR REPLACE` per 1,000 to 5,000 CSV rows.
 - To **export** a table as CSV, use `--format csv`; the first line is the header.
-- **Notes:** QuestDB times with 6 digits after the second (`.000000Z`) are fine: KDB keeps milliseconds.
+- **Notes:** QuestDB times with 6 digits after the second (`.000000Z`) are fine: KarelaDB keeps milliseconds.
 
 ```powershell
 # Convert (not run here): one INSERT OR REPLACE per 5000 rows, then load.
 .\csv-to-sql.ps1 -Csv trade_log.csv -Table trade_log -Out trade_log.sql -BatchSize 5000
-Get-Content trade_log.sql -Raw -Encoding UTF8 | kdb sql market -
+Get-Content trade_log.sql -Raw -Encoding UTF8 | kareladb sql market -
 ```
 
 **Command line: Export daily candles as CSV** (sample data: sample)
 
 ```bash
-kdb sql market "SELECT time, symbol, open, high, low, close, volume FROM ochl_day WHERE time IN '2026-09-10' ORDER BY symbol" --format csv
+kareladb sql market "SELECT time, symbol, open, high, low, close, volume FROM ochl_day WHERE time IN '2026-09-10' ORDER BY symbol" --format csv
 ```
 
 Output:
@@ -248,7 +248,7 @@ POST /exec?db=<database>
 body: the SQL text (many statements allowed)
 ```
 
-While `kdb serve` runs, send the same SQL text in the body of `POST /exec`. It works like `kdb sql`: the statements run one by one, and the answer says which statement failed.
+While `kareladb serve` runs, send the same SQL text in the body of `POST /exec`. It works like `kareladb sql`: the statements run one by one, and the answer says which statement failed.
 
 - The body may be up to **64 MB**; split bigger files.
 - **Notes:** for many small writes from many clients, start the server with `--sync-commits batch` ([performance tips](performance-tips.md#sync-commits)). Details in [POST /exec](http-exec.md).
@@ -278,7 +278,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'ochl_day' created",
-      "timings": {"parse_us": 27, "execute_us": 17780}
+      "timings": {"parse_us": 19, "execute_us": 30922}
     },
     {
       "statement": "INSERT OR REPLACE INTO ochl_day VALUES ('2026-09-10', 'CITY', 504.9, 183040), ('2026-09-10', 'COAST', 376.1, 186200)",
@@ -288,13 +288,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 2,
       "message": "2 row(s) inserted",
-      "timings": {"parse_us": 27, "execute_us": 2004}
+      "timings": {"parse_us": 19, "execute_us": 2083}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 54, "execute_us": 19784}
+  "timings": {"parse_us": 38, "execute_us": 33005}
 }
 ```
 
@@ -361,7 +361,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 79, "execute_us": 112}
+      "timings": {"parse_us": 11, "execute_us": 59}
     }
   ],
   "columns": [
@@ -375,7 +375,7 @@ HTTP 200 (application/json)
     ["2026-09-10T05:20:00.000Z", "COAST", 380.2, 900]
   ],
   "count": 2,
-  "timings": {"parse_us": 79, "execute_us": 112}
+  "timings": {"parse_us": 11, "execute_us": 59}
 }
 ```
 
@@ -394,7 +394,7 @@ Status Database::InsertRows(const std::string& table,
 Status Database::InsertRows(const std::vector<InsertRequest>& requests, InsertSummary* summary = nullptr);
 ```
 
-A program that has KDB inside (see `src/db/database.h`) can insert rows **without SQL**: no text to build or parse.
+A program that has KarelaDB inside (see `src/db/database.h`) can insert rows **without SQL**: no text to build or parse.
 
 | Argument | Meaning |
 |---|---|
@@ -442,19 +442,19 @@ What makes loading fast:
 | Tip | Why |
 |---|---|
 | 1,000 to 5,000 rows per `INSERT` | one commit per statement instead of one per row |
-| one `kdb sql <db> -` run or one HTTP request for many statements | no new process or connection per statement |
+| one `kareladb sql <db> -` run or one HTTP request for many statements | no new process or connection per statement |
 | load in **time order**, one day or month at a time | rows go to the end of few partitions |
 | a good `PARTITION BY` (see [partitions](partitions-and-dedup.md)) | small partitions for big daily data, big ones for small data |
 | create indexes **after** a big first import | every index is updated for every row |
 | `REFERENCES` and `UNIQUE` only where needed | they look up every new row |
-| `--sync-commits batch` for live feeds | commits are put on disk together every 10 ms ([kdb serve](cli-serve.md)) |
+| `--sync-commits batch` for live feeds | commits are put on disk together every 10 ms ([kareladb serve](cli-serve.md)) |
 | the line protocol or `InsertRows` for programs | no SQL text to build and parse |
 
 - **Notes:** do not wrap a load of millions of rows in `BEGIN ... COMMIT`: a transaction keeps the old version of every changed row in memory (at most 10 million). Plain statements are saved one by one. Load the parent tables (brokers) before the child tables (trade_log).
 - **Notes:** an immediate `INSERT` [trigger](triggers.md) on a table makes the loads into **that** table go row by row, several times slower. A trigger on another table does not slow it. For a table loaded in bulk, make the trigger [DEFERRED](triggers.md#deferred): it then runs after the load, once per request.
 - **Notes:** a line protocol or `/imp` load is fastest into a day with no rows yet, or into a table whose `DEDUP KEY` holds every `SORT BY` column. A table with no `DEDUP KEY` loads just as fast. Details: [how loads find duplicates](partitions-and-dedup.md#load-dedup).
 - **Notes:** loads into different tables run at the same time; loads into one table take turns. A load that waits more than 5 s for a table gets `table 'x' is busy: ...` (HTTP 503) and writes nothing: send it again.
-- **Notes:** KDB keeps 64 MB of the disk free. Below that a write is refused with HTTP 507 (`disk full`; SQLSTATE `53100` on the PostgreSQL port) and nothing is written; free some space ([PURGE TRASH](databases.md#purge-trash)) and send it again. If the disk fills up in the middle of writing the log anyway, the write gets 507 too and reads go on; writes work again once space is freed. Rows already confirmed are safe in both cases.
+- **Notes:** KarelaDB keeps 64 MB of the disk free. Below that a write is refused with HTTP 507 (`disk full`; SQLSTATE `53100` on the PostgreSQL port) and nothing is written; free some space ([PURGE TRASH](databases.md#purge-trash)) and send it again. If the disk fills up in the middle of writing the log anyway, the write gets 507 too and reads go on; writes work again once space is freed. Rows already confirmed are safe in both cases.
 
 **Example: Check a load: rows, first and last time, total volume**
 
@@ -489,16 +489,16 @@ Result:
 Syntax:
 
 ```sql
-node tools/go-back/export-since.mjs --url <kdb url> --token <token> --db <database> --since <switch time>
+node tools/go-back/export-since.mjs --url <kareladb url> --token <token> --db <database> --since <switch time>
      [--tables a,b] [--out <folder>] [--questdb <url>] [--with-relational]
 ```
 
-Your app moved from QuestDB or PostgreSQL to KDB, and you want to go back. The old database still has everything up to the switch. This script exports only what KDB got **after** it, so the old database can catch up. It needs Node 18 or newer and nothing else. It is in the KDB source, in `tools/go-back/`.
+Your app moved from QuestDB or PostgreSQL to KarelaDB, and you want to go back. The old database still has everything up to the switch. This script exports only what KarelaDB got **after** it, so the old database can catch up. It needs Node 18 or newer and nothing else. It is in the KarelaDB source, in `tools/go-back/`.
 
 | Option | Meaning | Default |
 |---|---|---|
-| `--url` | the KDB server | `KDB_URL` |
-| `--token` | the token or an [API key](api-tokens.md) with `read` | `KDB_TOKEN` |
+| `--url` | the KarelaDB server | `KARELADB_URL` |
+| `--token` | the token or an [API key](api-tokens.md) with `read` | `KARELADB_TOKEN` |
 | `--db` | the database | required |
 | `--since` | the switch time. Rows with a time **after** it are exported. `2026-09-20T00:00:00Z`, or with an offset: `2026-09-20T05:45:00+05:45` | required |
 | `--tables` | only these tables, comma separated | every time-series table |
@@ -516,14 +516,14 @@ Your app moved from QuestDB or PostgreSQL to KDB, and you want to go back. The o
 - **Big tables:** the script asks `/exp` for at most 1,000,000 rows per request (its default), so it splits the time range until each part fits, and writes all parts into one file. A table without a time column is read in pages of 1,000,000 rows, ordered by its primary key (or by every column when it has none). If its row count changes during the export, the script stops with an error instead of writing a file that does not match the table.
 - **Run it from the folder** it wrote: the load scripts name the CSV files without a path.
 - **Notes:**
-  - Rows **changed** or **deleted** in KDB after the switch are not in the export: only rows whose time is after the switch are. If the app updates old rows, export those tables whole with `--tables` and `--with-relational`, or compare them.
+  - Rows **changed** or **deleted** in KarelaDB after the switch are not in the export: only rows whose time is after the switch are. If the app updates old rows, export those tables whole with `--tables` and `--with-relational`, or compare them.
   - Computed columns (`amount DOUBLE AS (quantity * rate)`) are exported as values. If the PostgreSQL table makes that column itself (`GENERATED ALWAYS AS ... STORED`), remove it from the `\copy` column list and from the CSV.
   - PostgreSQL: the tables must exist. A row whose key is already there makes the whole load fail; load into a copy of the table and `INSERT ... ON CONFLICT DO NOTHING` from it instead.
   - QuestDB: `/imp` adds the rows, and makes a missing table with the same time column and partitioning. A QuestDB table with `DEDUP UPSERT KEYS` can take the same file twice without doubles.
-  - Stop the writes to KDB first (or [set it read-only](protection.md#read-only)), so no row arrives after the export.
+  - Stop the writes to KarelaDB first (or [set it read-only](protection.md#read-only)), so no row arrives after the export.
 
 ```bash
-node tools/go-back/export-since.mjs --url http://127.0.0.1:9900 --token "$KDB_TOKEN" --db market --since 2026-09-09T12:00:00Z
+node tools/go-back/export-since.mjs --url http://127.0.0.1:9900 --token "$KARELADB_TOKEN" --db market --since 2026-09-09T12:00:00Z
 cd go-back-market
 sh load-questdb.sh                                               # back to QuestDB
 psql "postgres://app@localhost/app" -v ON_ERROR_STOP=1 -f load-postgres.sql   # or back to PostgreSQL
@@ -548,17 +548,17 @@ curl -sS -F data=@ochl_day.csv "http://localhost:9000/imp?name=ochl_day&overwrit
 
 <a id="shadow-compare"></a>
 
-## Shadow period: compare QuestDB and KDB
+## Shadow period: compare QuestDB and KarelaDB
 
 Syntax:
 
 ```sql
-node tools/shadow/compare.mjs --db <database> [--kdb <kdb url>] [--questdb <questdb url>]
+node tools/shadow/compare.mjs --db <database> [--kdb <kareladb url>] [--questdb <questdb url>]
      [--since <time>] [--until <time>] [--tables a,b] [--sum a,b] [--symbol <column>]
      [--nightly [--at HH:MM] [--days N]] [--listen <port>]
 ```
 
-Before the switch, run the app against both databases for a few weeks: it writes every row to QuestDB **and** to KDB (dual-write). This script checks that the two hold the same data. It needs Node 18 or newer and nothing else. It is in the KDB source, in `tools/shadow/`.
+Before the switch, run the app against both databases for a few weeks: it writes every row to QuestDB **and** to KarelaDB (dual-write). This script checks that the two hold the same data. It needs Node 18 or newer and nothing else. It is in the KarelaDB source, in `tools/shadow/`.
 
 For every table and every UTC day it compares, on both sides:
 
@@ -570,36 +570,36 @@ For every table and every UTC day it compares, on both sides:
 
 | Option | Meaning | Default |
 |---|---|---|
-| `--kdb` | the KDB server. The token is read from the `KDB_TOKEN` environment variable only (never a flag, so it is not seen in a process list). It needs `read`, and `write` to log the differences | `KDB_URL`, then `http://127.0.0.1:9900` |
-| `--db` | the KDB database | required |
+| `--kdb` | the KarelaDB server. The token is read from the `KARELADB_TOKEN` environment variable only (never a flag, so it is not seen in a process list). It needs `read`, and `write` to log the differences | `KARELADB_URL`, then `http://127.0.0.1:9900` |
+| `--db` | the KarelaDB database | required |
 | `--questdb` | QuestDB's HTTP address (its `/exec`) | `http://localhost:9000` |
 | `--since`, `--until` | the time compared: from `--since` up to, not including, `--until`. A date alone is 00:00 UTC; `--until now` takes in today | yesterday (UTC) |
-| `--tables` | only these tables | every KDB time-series table |
+| `--tables` | only these tables | every KarelaDB time-series table |
 | `--sum` | the columns to sum | `price`, `open`, `high`, `low`, `close`, `volume`, `qty`, `quantity`, `amount`, `turnover` (those the table has) |
 | `--symbol` | the column to split by; `none` for no split | the table's first `SYMBOL` column |
 | `--report-dir` | the folder for the report | `reports` |
-| `--diff-table` | the KDB table for the differences; `--no-log` writes none | `_shadow_diffs` |
+| `--diff-table` | the KarelaDB table for the differences; `--no-log` writes none | `_shadow_diffs` |
 | `--max-minutes` | at most this many differing minutes per symbol and day | `100` |
 | `--tolerance` | how far two sums may be apart, relative: the two servers add numbers in another order | `1e-9` |
 
-- **What you get:** one line per table, a dated report `reports/<date>_<time>_shadow-compare_<db>.md`, and one row per difference in `_shadow_diffs` (`run`, `tbl`, `day`, `level` = `day`/`symbol`/`minute`/`table`, `symbol`, `minute`, `what`, `questdb`, `kdb`). The exit code is `0` when all is the same, `3` when something differs, `1` on an error.
-- **Times:** QuestDB keeps microseconds and KDB milliseconds, so times are compared to the millisecond.
+- **What you get:** one line per table, a dated report `reports/<date>_<time>_shadow-compare_<db>.md`, and one row per difference in `_shadow_diffs` (`run`, `tbl`, `day`, `level` = `day`/`symbol`/`minute`/`table`, `symbol`, `minute`, `what`, `questdb`, `kareladb`). The exit code is `0` when all is the same, `3` when something differs, `1` on an error.
+- **Times:** QuestDB keeps microseconds and KarelaDB milliseconds, so times are compared to the millisecond.
 - **A table missing on one side** is one `table` / `error` row; the other tables are still compared.
 - **Rows still arriving:** compare whole days that are over (the default), or the newest rows may be on one side and not yet on the other.
 
 ```bash
-export KDB_TOKEN=...                      # the token, in the environment
+export KARELADB_TOKEN=...                      # the token, in the environment
 node tools/shadow/compare.mjs --kdb http://127.0.0.1:9900 --db market --questdb http://localhost:9000 --since 2026-09-20
 ```
 
 ```text
-ticks: 2 day(s), 8 row(s) in QuestDB, 7 in KDB, 5 difference(s)
+ticks: 2 day(s), 8 row(s) in QuestDB, 7 in KarelaDB, 5 difference(s)
 5 difference(s); report reports/2026-10-02_0200_shadow-compare_market.md; 5 row(s) in _shadow_diffs
 ```
 
 ```sql
 -- Which minutes differ, newest run first
-SELECT run, tbl, day, symbol, minute, what, questdb, kdb
+SELECT run, tbl, day, symbol, minute, what, questdb, kareladb
 FROM _shadow_diffs WHERE level = 'minute' ORDER BY run DESC, tbl, minute;
 ```
 
@@ -610,9 +610,9 @@ FROM _shadow_diffs WHERE level = 'minute' ORDER BY run DESC, tbl, minute;
 | Way | How |
 |---|---|
 | keep it running | `--nightly` compares once now, then every day at `--at` (UTC, default `02:00`) the last `--days` full days (default 1) |
-| cron (Linux) | `15 2 * * * cd /opt/kdb-src && KDB_TOKEN=... node tools/shadow/compare.mjs --db market >> shadow.log 2>&1` |
-| Windows Task Scheduler | a daily task that runs `node tools\shadow\compare.mjs --db market`, with `KDB_TOKEN` set for that user |
-| a KDB [timer](timers.md) | start the script with `--listen 9890`. Then `GET /run` starts a compare of yesterday (or `?since=...&until=...`) and answers at once; `GET /last` shows the last result. A timer calls it with [http_get](http-functions.md), once that host is allowed |
+| cron (Linux) | `15 2 * * * cd /opt/kdb-src && KARELADB_TOKEN=... node tools/shadow/compare.mjs --db market >> shadow.log 2>&1` |
+| Windows Task Scheduler | a daily task that runs `node tools\shadow\compare.mjs --db market`, with `KARELADB_TOKEN` set for that user |
+| a KarelaDB [timer](timers.md) | start the script with `--listen 9890`. Then `GET /run` starts a compare of yesterday (or `?since=...&until=...`) and answers at once; `GET /last` shows the last result. A timer calls it with [http_get](http-functions.md), once that host is allowed |
 
 ```text
 POST /api/timers
@@ -622,4 +622,4 @@ Content-Type: application/json
  "sql": "SELECT http_get('http://host.docker.internal:9890/run')"}
 ```
 
-Start the script first with `--listen 9890 --listen-host 0.0.0.0` (KDB in Docker reaches the PC as `host.docker.internal`; allow that host in `http_functions`). `--listen` has no login of its own: keep it on `127.0.0.1` (the default) unless KDB runs in Docker, and then only on a private network.
+Start the script first with `--listen 9890 --listen-host 0.0.0.0` (KarelaDB in Docker reaches the PC as `host.docker.internal`; allow that host in `http_functions`). `--listen` has no login of its own: keep it on `127.0.0.1` (the default) unless KarelaDB runs in Docker, and then only on a private network.

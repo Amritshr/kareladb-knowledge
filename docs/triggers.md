@@ -6,7 +6,7 @@
 - Keywords: trigger, BEFORE, AFTER, EXECUTE, TRIGGERS, CREATE OR REPLACE TRIGGER, ENABLE TRIGGER, DISABLE TRIGGER, ENABLE, DISABLE, EXECUTE PROCEDURE, EXECUTE CALL, statement level, triggers are nested too deeply, has triggers, audit log, DEFERRED, deferred trigger, RETRY TRIGGER QUEUE, SKIP TRIGGER JOB, trigger queue, /api/trigger-queue, wait
 - See also: [Stored procedures](procedures.md), [The procedure language](procedure-language.md), [Transactions](transactions.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [13. Functions, procedures and triggers](../tutorial/13-functions-procedures-triggers.md)
 
-A **trigger** is SQL that KDB runs by itself every time a table changes. You do not call it.
+A **trigger** is SQL that KarelaDB runs by itself every time a table changes. You do not call it.
 Use it to keep another table up to date, to write an audit log (a list of who changed what), or to refuse bad changes.
 
 - A trigger runs **once per statement**, not once per row. It reads the changed rows from the tables [`NEW` and `OLD`](triggers.md#new-old).
@@ -726,7 +726,7 @@ Syntax:
 INSERT INTO t VALUES (...), (...), (...)   -- the trigger runs once, NEW has 3 rows
 ```
 
-A KDB trigger is **statement level**: it runs once for each statement (or `POST /write` request, or bulk load call), and `NEW` / `OLD` hold all rows of that statement.
+A KarelaDB trigger is **statement level**: it runs once for each statement (or `POST /write` request, or bulk load call), and `NEW` / `OLD` hold all rows of that statement.
 It is not "for each row" like in some other databases.
 
 - **Notes:**
@@ -794,7 +794,7 @@ An app shows every user their own watch list: the last price of each share they 
 - **Upsert:** `INSERT ... ON CONFLICT (key) DO UPDATE` writes the row when it is new and changes it when it is there ([ON CONFLICT](insert.md#on-conflict)).
 - **One row per share from `NEW`:** a write with many trades of one share gives the trigger many rows. `GROUP BY symbol` with `last(price)` makes it one, so each result row is written once.
 - **Reading is a key lookup:** `WHERE user_name = 'ram'` on the key reads only that user's rows, however many users there are.
-- **In memory:** a small table like `user_quotes` stays loaded; it is the last one KDB unloads when memory is short ([memory limit](cli-serve.md#memory-limit)).
+- **In memory:** a small table like `user_quotes` stays loaded; it is the last one KarelaDB unloads when memory is short ([memory limit](cli-serve.md#memory-limit)).
 
 **Example: A watch list with alerts, kept up to date by triggers**
 
@@ -915,7 +915,7 @@ Writes into **other tables** are not slowed by it.
   - For a table that is loaded in bulk (a live feed, a floor sheet, a day of candles), make its triggers `DEFERRED`.
   - A disabled trigger does not count. `UPDATE` and `DELETE` triggers do not change how rows are inserted.
   - One `POST /write` with rows for several tables goes the slow way as a whole when one of its tables has an immediate `INSERT` trigger.
-  - A trigger locks the tables its body uses, for as long as it runs (see [one writer per table](transactions.md#one-writer)). A body with [`EXECUTE`](procedure-language.md#execute) (dynamic SQL) locks **every** table of the database, because KDB cannot know the tables before the text is made.
+  - A trigger locks the tables its body uses, for as long as it runs (see [one writer per table](transactions.md#one-writer)). A body with [`EXECUTE`](procedure-language.md#execute) (dynamic SQL) locks **every** table of the database, because KarelaDB cannot know the tables before the text is made.
 
 <a id="errors"></a>
 
@@ -960,7 +960,7 @@ The rule is the same for `INSERT`, `UPDATE` and `DELETE` over `/exec`, for [POST
 
 - **Notes:**
   - A trigger that builds a day of candles may need several seconds, more on a big or cold day. Make it [DEFERRED](triggers.md#deferred): the load then returns at once and the work runs after it. Or move the work to a [timer](timers.md).
-  - Readers never see a trigger's changes before it commits (in every table it wrote, all at once). Whether they **wait** for a long trigger depends on the server: with [reader yield](transactions.md#reader-yield) on, other sessions' `SELECT`s answer at once with the rows as the last commit left them; with it off (`kdb serve --reader-yield off`), they wait until the trigger's statement ends.
+  - Readers never see a trigger's changes before it commits (in every table it wrote, all at once). Whether they **wait** for a long trigger depends on the server: with [reader yield](transactions.md#reader-yield) on, other sessions' `SELECT`s answer at once with the rows as the last commit left them; with it off (`kareladb serve --reader-yield off`), they wait until the trigger's statement ends.
 
 **Command line: The refused INSERT wrote nothing** (shows an error)
 
@@ -978,13 +978,13 @@ END;
 ```
 
 ```bash
-kdb sql market "INSERT INTO accounts VALUES (1, 'Ram', 1000), (2, 'Sita', 500000)"
-kdb sql market "SELECT (SELECT count(*) FROM accounts) AS accounts, (SELECT count(*) FROM audit_log) AS audit_rows"
+kareladb sql market "INSERT INTO accounts VALUES (1, 'Ram', 1000), (2, 'Sita', 500000)"
+kareladb sql market "SELECT (SELECT count(*) FROM accounts) AS accounts, (SELECT count(*) FROM audit_log) AS audit_rows"
 ```
 
 Output:
 
-`> kdb sql market "INSERT INTO accounts VALUES (1, 'Ram', 1000), (2, 'Sita', 500000)"`
+`> kareladb sql market "INSERT INTO accounts VALUES (1, 'Ram', 1000), (2, 'Sita', 500000)"`
 
 ```text
 error: trigger 'log_accounts', line 4: a new account cannot start with more than 1 lakh
@@ -992,13 +992,13 @@ error: trigger 'log_accounts', line 4: a new account cannot start with more than
 
 exit code 1
 
-`> kdb sql market "SELECT (SELECT count(*) FROM accounts) AS accounts, (SELECT count(*) FROM audit_log) AS audit_rows"`
+`> kareladb sql market "SELECT (SELECT count(*) FROM accounts) AS accounts, (SELECT count(*) FROM audit_log) AS audit_rows"`
 
 ```text
 accounts | audit_rows
 ---------+-----------
        0 |          0
-(1 row, 0.3 ms)
+(1 row, 0.2 ms)
 ```
 
 **Example: A trigger that fires itself** (shows an error)
@@ -1050,9 +1050,9 @@ Use it when a trigger is slow, or when its table is loaded in bulk: a trigger th
 | NEW | `NEW` holds exactly the rows that one write committed. They are kept with the job, so a later write cannot change them. |
 | One job per write | Every `POST /write`, `POST /imp`, `INSERT` or `COMMIT` that inserts rows makes one **job** for each deferred trigger of the table. |
 | Order | Jobs of a trigger run one at a time, in the order their writes committed. |
-| Failure | A job that fails **runs again by itself**: 3 more tries, 1 s, 2 s and 4 s later (`kdb serve --trigger-retries`). The jobs behind it wait. When every try failed, it **stops its trigger's queue**. The job and its rows stay. Nothing is ever skipped by itself. See [recovery](triggers.md#deferred-recovery). |
+| Failure | A job that fails **runs again by itself**: 3 more tries, 1 s, 2 s and 4 s later (`kareladb serve --trigger-retries`). The jobs behind it wait. When every try failed, it **stops its trigger's queue**. The job and its rows stay. Nothing is ever skipped by itself. See [recovery](triggers.md#deferred-recovery). |
 | Noticed | Each failed try and each stopped queue is an `error` event in the activity log, counts in `GET /api/stats`, and can be sent to a [webhook](triggers.md#deferred-alerts). |
-| Queue limit | At most 10,000 jobs wait in one database (`kdb serve --max-trigger-jobs`). A write past that is refused with `503` and the reason, usually a stopped queue. Nothing of it is stored. |
+| Queue limit | At most 10,000 jobs wait in one database (`kareladb serve --max-trigger-jobs`). A write past that is refused with `503` and the reason, usually a stopped queue. Nothing of it is stored. |
 | All or nothing | A job's work and the record "job done" commit together. After a crash in the middle of a job, it runs again from the start. Its work is applied exactly once. |
 | Restart | Waiting jobs and their rows survive a restart. A stopped queue is still stopped after the restart. |
 | TIMEOUT | How long one job may run. Without it, the server's statement timeout. A job that runs out fails, and its queue stops. |
@@ -1169,8 +1169,8 @@ A script that loads data and must wait until the trigger caught up. A job is fin
 ```bash
 # wait until the trigger fs_after_insert has no job left (up to 30 s per call)
 while :; do
-  q=$(curl -s -H "Authorization: Bearer $KDB_TOKEN" \
-      "$KDB_URL/api/trigger-queue?db=mydb&trigger=fs_after_insert&wait=30s")
+  q=$(curl -s -H "Authorization: Bearer $KARELADB_TOKEN" \
+      "$KARELADB_URL/api/trigger-queue?db=mydb&trigger=fs_after_insert&wait=30s")
   echo "$q" | jq -e '.queues[0].failed_job != null' >/dev/null && { echo "job failed: $q"; exit 1; }
   echo "$q" | jq -e '.queues[0].pending == 0 and .queues[0].running_job == null' >/dev/null && break
 done
@@ -1207,13 +1207,13 @@ SKIP TRIGGER JOB trigger_name job_id
 
 ### Hearing about a failed job
 
-The write that made a job succeeded, so nobody is told when the job fails. KDB tells you in three places:
+The write that made a job succeeded, so nobody is told when the job fails. KarelaDB tells you in three places:
 
 | Where | What |
 |---|---|
 | Activity log (console) | an `error` event for each failed try and for the job that stopped its queue |
 | `GET /api/stats` | `alerts`: `trigger_jobs_failed`, `trigger_job_retries`, the `last` message, and how the webhook went (`webhook_sent`, `webhook_failed`, `webhook_last_error`) |
-| A webhook | `kdb serve --alert-webhook http://10.0.0.5:8080/kdb-alerts` (or `KDB_ALERT_WEBHOOK`, or `alert_webhook` in `kdb.conf`) |
+| A webhook | `kareladb serve --alert-webhook http://10.0.0.5:8080/kdb-alerts` (or `KARELADB_ALERT_WEBHOOK`, or `alert_webhook` in `kareladb.conf`) |
 
 The webhook gets one JSON `POST` per event:
 
@@ -1221,13 +1221,13 @@ The webhook gets one JSON `POST` per event:
 {"source": "kdb", "event": "trigger_job_failed", "database": "market",
  "trigger": "build_totals", "table": "trades", "job": 42, "rows": 1500, "retries": 3,
  "error": "...", "time_ms": 1790000000000,
- "text": "KDB market: trigger build_totals on trades, job 42 failed and stopped its queue ..."}
+ "text": "KarelaDB market: trigger build_totals on trades, job 42 failed and stopped its queue ..."}
 ```
 
 `event` is `trigger_job_retrying` for a try that will run again, `trigger_job_failed` when the queue stopped.
 
 - **Notes:**
-  - Plain `http://` to an IPv4 address or `localhost`. KDB does not look up host names and sends no TLS. For Slack or Teams (https), point it at a small relay on your network.
+  - Plain `http://` to an IPv4 address or `localhost`. KarelaDB does not look up host names and sends no TLS. For Slack or Teams (https), point it at a small relay on your network.
   - Sending never slows the database: a background thread sends, with 5 s per try. When the receiver is down, the newest 100 wait and older ones are dropped (`webhook_dropped`).
 
 <a id="enable-disable"></a>

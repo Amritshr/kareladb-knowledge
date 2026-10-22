@@ -11,7 +11,7 @@ A **regular expression** (regex) is a small pattern that describes text. `\d+` m
 - A `NULL` argument gives `NULL`.
 - Upper and lower case must match, unless you give the flag `'i'`.
 - The pattern is found **anywhere** in the text. Put `^` at the start and `$` at the end to check the whole text.
-- KDB never backtracks (tries the same text again and again). So no pattern can hang the server. A very big job stops with an error.
+- KarelaDB never backtracks (tries the same text again and again). So no pattern can hang the server. A very big job stops with an error.
 - Simple searches are easier with [LIKE and ILIKE](where.md). For searching words in many rows (a forum, news), use [full-text search](full-text-search.md). A regular expression reads every row.
 - `x ~ 'pattern'` is the same as `regexp_like(x, 'pattern')` (`~*` ignores case). [SIMILAR TO](where.md#similar-to) is a whole-text match written with `%` and `_`.
 
@@ -154,7 +154,7 @@ The first part of the text that matches the pattern. `NULL` when nothing matches
 
 - **Returns:** `STRING`, or `NULL` when there is no match.
 - **NULL:** `NULL` when any argument is `NULL`.
-- **Notes:** it always gives the whole match; there is no argument for a group. To get only group 1, use `regexp_replace(text, '^.*?(pattern).*$', '\1')` (see the example below). The flag `'g'` is not allowed. Oracle and MySQL have more arguments (position, occurrence); KDB does not.
+- **Notes:** it always gives the whole match; there is no argument for a group. To get only group 1, use `regexp_replace(text, '^.*?(pattern).*$', '\1')` (see the example below). The flag `'g'` is not allowed. Oracle and MySQL have more arguments (position, occurrence); KarelaDB does not.
 
 **Example**
 
@@ -574,7 +574,7 @@ Result:
 | `g` | every match (`regexp_matches` only) |
 | `i` / `c` | ignore case / case must match; the last one wins |
 | `q` | the pattern is plain text: `.` is a dot |
-| `s`, `t` | accepted: what KDB always does (`.` matches a line break, no spaces-ignored syntax) |
+| `s`, `t` | accepted: what KarelaDB always does (`.` matches a line break, no spaces-ignored syntax) |
 
 - **Errors:** PostgreSQL's flags `n`, `m`, `p`, `w`, `x`, `b` and `e` are refused (SQLSTATE 0A000), because they would change what matches. Any other letter: "invalid regular expression option" (22023). A wrong pattern: SQLSTATE 2201B.
 

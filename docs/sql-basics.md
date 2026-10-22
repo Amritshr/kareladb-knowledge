@@ -1,12 +1,12 @@
 # SQL basics
 
-> How KDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.
+> How KarelaDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.
 
 - Category: Getting started
 - Keywords: syntax, statement, semicolon, ;, case, upper case, lower case, identifier, name, quoted name, double quotes, string, text, single quote, escape quote, number, integer, float, scientific notation, boolean, constant, comment, --, /\*, error message, line and column, syntax error, reserved word, keyword, three-valued logic, IS NULL, IS NOT NULL, unknown, alias
 - See also: [Quick start](quick-start.md), [Operators](operators.md), [Conditional and NULL functions](functions-conditional.md), [Column types](column-types.md), [SELECT](select.md), [WHERE](where.md)
 
-**SQL** is the language you use to talk to KDB. A **statement** is one command, like `SELECT` or `INSERT`. This page shows the small rules that every statement follows.
+**SQL** is the language you use to talk to KarelaDB. A **statement** is one command, like `SELECT` or `INSERT`. This page shows the small rules that every statement follows.
 
 **Example: Names, text, numbers, NULL and a comment in one query**
 
@@ -40,9 +40,9 @@ statement ; statement ; ...
 
 A text can hold many statements. Put `;` between them. The `;` after the last statement is optional. Extra `;` are ignored.
 
-- When you send a text (with `kdb sql`, a file, or HTTP `/exec`), KDB first checks the **grammar** of the whole text. If one statement has a syntax error, **no** statement runs. (`kdb shell` runs what you typed each time a line ends with `;`.)
+- When you send a text (with `kareladb sql`, a file, or HTTP `/exec`), KarelaDB first checks the **grammar** of the whole text. If one statement has a syntax error, **no** statement runs. (`kareladb shell` runs what you typed each time a line ends with `;`.)
 - Then the statements run one by one. Each one is saved on its own.
-- At the first error while running, KDB **stops**. The statements before it stay saved. The statements after it do not run.
+- At the first error while running, KarelaDB **stops**. The statements before it stay saved. The statements after it do not run.
 - One statement is all or nothing: an `INSERT` of 5000 rows with one bad row saves no row.
 - **Notes:** to make many statements succeed or fail together, use [BEGIN ... COMMIT](transactions.md).
 
@@ -125,7 +125,7 @@ Keywords, table names, column names and function names do not care about case. *
 
 - A table or column keeps the spelling you used in `CREATE TABLE`. `SHOW TABLES` shows that spelling.
 - A column name in the result keeps the spelling of the alias you wrote.
-- **Notes:** in PostgreSQL, a name in double quotes is case sensitive. In KDB it is not: `"Total"` and `"total"` are the same name.
+- **Notes:** in PostgreSQL, a name in double quotes is case sensitive. In KarelaDB it is not: `"Total"` and `"total"` are the same name.
 
 **Example: Any case works for names; text compares exactly**
 
@@ -441,7 +441,7 @@ Syntax:
 /* between these marks, also over many lines */
 ```
 
-KDB skips comments. Use them to explain a script.
+KarelaDB skips comments. Use them to explain a script.
 
 - `/* ... */` comments do not nest: the first `*/` ends the comment.
 - A `/*` without `*/` is an error that shows where the comment starts.
@@ -495,7 +495,7 @@ error: line L, column C: expected ... but found ...
 error: <what is wrong>
 ```
 
-When KDB cannot run a statement, it prints `error:` and a message. Messages about the SQL text say **where**: `line 3, column 8` is the place in the text you sent (in a file: the line of the file). They also say what KDB expected there.
+When KarelaDB cannot run a statement, it prints `error:` and a message. Messages about the SQL text say **where**: `line 3, column 8` is the place in the text you sent (in a file: the line of the file). They also say what KarelaDB expected there.
 
 | Message starts with | Meaning |
 |---|---|
@@ -505,7 +505,7 @@ When KDB cannot run a statement, it prints `error:` and a message. Messages abou
 | `a row with ... already exists` | a duplicate key; see [INSERT](insert.md#duplicates) |
 | `column 'x' (TYPE): ...` | a value does not fit the column; see [column types](column-types.md) |
 
-- **Returns:** exit code `1` from `kdb sql`; HTTP status 400 from the HTTP API.
+- **Returns:** exit code `1` from `kareladb sql`; HTTP status 400 from the HTTP API.
 - **Notes:** a missing comma is not an error: `SELECT symbol close` means "column `symbol`, named `close`". [Chapter 12](../tutorial/12-troubleshooting.md) lists many messages and their fixes.
 
 **Example: The message points to line 3, column 8** (shows an error)
@@ -557,8 +557,8 @@ PRIMARY REFERENCES SELECT SET TABLE THEN TO TRUE UNIQUE UPDATE VALUES WHEN WHERE
 
 These 40 words have a fixed meaning. They cannot be a table, column or alias name, unless you write them in double quotes: `"order"`, `"from"`.
 
-- All other words are normal names, also words like `CHECK`, `INDEX`, `BEGIN`, `KEY`, `USER`, `DATE`, `TIME`, `OPEN` and `CLOSE`: KDB knows them from their place in the statement.
-- **Notes:** PostgreSQL reserves more words. A name that works in KDB may need quotes in PostgreSQL.
+- All other words are normal names, also words like `CHECK`, `INDEX`, `BEGIN`, `KEY`, `USER`, `DATE`, `TIME`, `OPEN` and `CLOSE`: KarelaDB knows them from their place in the statement.
+- **Notes:** PostgreSQL reserves more words. A name that works in KarelaDB may need quotes in PostgreSQL.
 
 **Example: Columns called time, date, open, close, key and value need no quotes**
 

@@ -19,7 +19,7 @@ Every table has a **storage key**: the `PRIMARY KEY`, or `SORT BY` / `DEDUP KEY`
 
 A condition on another column is different. `WHERE thread_id = 7` must read **every row** of the table and check each one. With 10 rows this is fast. With 1 million forum posts it is slow.
 
-An **index** is a second, sorted list of one or more columns. Each entry points to its row. With an index on `thread_id`, KDB jumps to the posts of thread 7 and reads only those.
+An **index** is a second, sorted list of one or more columns. Each entry points to its row. With an index on `thread_id`, KarelaDB jumps to the posts of thread 7 and reads only those.
 
 | Without index | With index |
 |---|---|
@@ -31,12 +31,12 @@ Create an index for the columns your app uses in `WHERE` and `ORDER BY` again an
 
 ## Where the index lives
 
-An index is kept **in memory**. KDB does not write it to disk:
+An index is kept **in memory**. KarelaDB does not write it to disk:
 
-- When the database opens, `kdb serve` **builds every index at once**, on a background thread. The first query then finds it ready. Building takes about 0.2 seconds per million rows (a full-text index: about 2 seconds for 200,000 news articles). Queries and writes go on while it builds.
-- A query that needs an index before the build is done builds it itself, as before. `kdb sql` and `kdb shell` do not build at open: there the **first query that needs an index builds it**. `kdb serve --warm-indexes off` (or `KDB_WARM_INDEXES=off`) makes the server do the same.
+- When the database opens, `kareladb serve` **builds every index at once**, on a background thread. The first query then finds it ready. Building takes about 0.2 seconds per million rows (a full-text index: about 2 seconds for 200,000 news articles). Queries and writes go on while it builds.
+- A query that needs an index before the build is done builds it itself, as before. `kareladb sql` and `kareladb shell` do not build at open: there the **first query that needs an index builds it**. `kareladb serve --warm-indexes off` (or `KARELADB_WARM_INDEXES=off`) makes the server do the same.
 - After that, every change (`INSERT`, `UPDATE`, `DELETE`, `InsertRows`, line protocol, `ROLLBACK`) also changes the index.
-- After a crash or a power cut, the index is built again from the rows. It can never be old or broken. `kdb check`, `kdb repair` and backups have nothing extra to do.
+- After a crash or a power cut, the index is built again from the rows. It can never be old or broken. `kareladb check`, `kareladb repair` and backups have nothing extra to do.
 - Only the **definition** (`CREATE INDEX ...`) is saved, with the table.
 - A slow query that a page asks again and again (a dashboard, a front page) can be **pinned**: the server keeps its result ready in the result cache and makes it again after a write. See the help topic **Pinned queries** (`/api/pins`).
 
@@ -82,7 +82,7 @@ index 'posts_author' created on table 'posts' (0 rows)
 
 - A reply has the `id` of the post it answers in `parent_id`. A post that starts a discussion has `parent_id` NULL.
 - `posts_thread_time` has **three columns**. The order matters: first `thread_id`, then `created_at`, then `id`. It helps `WHERE thread_id = ...`, and also `WHERE thread_id = ... ORDER BY created_at`. It does **not** help `WHERE created_at > ...` alone, because `created_at` is not the first column.
-- You can create an index on a table that already has rows. KDB builds it at once.
+- You can create an index on a table that already has rows. KarelaDB builds it at once.
 
 The syntax:
 
@@ -134,8 +134,8 @@ id | author | created_at
 
 How it works:
 
-1. The index `(thread_id, created_at, id)` already has the posts of thread 1 sorted by time. KDB reads them from the newest end and **stops after 3 rows**. It does not read the other posts, not even the other posts of the thread.
-2. For the next page, the app remembers `created_at` and `id` of the **last row** it showed (post 4). The **row comparison** `(created_at, id) < ('...', 4)` means: older than post 4, or the same time and a smaller id. KDB starts reading the index right there.
+1. The index `(thread_id, created_at, id)` already has the posts of thread 1 sorted by time. KarelaDB reads them from the newest end and **stops after 3 rows**. It does not read the other posts, not even the other posts of the thread.
+2. For the next page, the app remembers `created_at` and `id` of the **last row** it showed (post 4). The **row comparison** `(created_at, id) < ('...', 4)` means: older than post 4, or the same time and a smaller id. KarelaDB starts reading the index right there.
 
 This is called **keyset pagination**. Page 1000 is as fast as page 1.
 
@@ -215,9 +215,9 @@ filter while scanning: 1 condition(s)
 ```
 
 The line `use index <name>` says which index is used. No such line: every row is read.
-The line `build 3 of 6 stored column(s)` says that KDB reads only the columns the query needs, not the long `body` text of every post.
+The line `build 3 of 6 stored column(s)` says that KarelaDB reads only the columns the query needs, not the long `body` text of every post.
 
-**When KDB uses an index** (plain index, columns `(a, b, c)`):
+**When KarelaDB uses an index** (plain index, columns `(a, b, c)`):
 
 | Your query | Uses the index |
 |---|---|
@@ -235,7 +235,7 @@ Other rules:
 
 - `UPDATE ... WHERE` and `DELETE ... WHERE` use indexes too.
 - In a `JOIN`, only the first table (after `FROM`) uses an index.
-- When an index would find more than a quarter of the table (for example `status = 'active'` on most rows), reading the whole table is faster, and KDB does that.
+- When an index would find more than a quarter of the table (for example `status = 'active'` on most rows), reading the whole table is faster, and KarelaDB does that.
 - The result is always the same, with or without an index. Only the speed changes.
 
 ## Step 5: UNIQUE indexes
@@ -415,9 +415,9 @@ A search needs at least one word without `-`.
 
 **`search_rank(columns..., 'words')`** says how well a row matches: higher is better, 0 when the row does not match. It uses the BM25 formula: a word that is rare in the table counts more than a common word, a word that is there many times counts more, and a long text counts a little less. Use the same columns and words as in `MATCH`.
 
-`ORDER BY search_rank(...) DESC LIMIT 20` together with `MATCH(...)` is the fastest form: KDB takes the 20 best rows straight from the index and reads only those rows.
+`ORDER BY search_rank(...) DESC LIMIT 20` together with `MATCH(...)` is the fastest form: KarelaDB takes the 20 best rows straight from the index and reads only those rows.
 
-`MATCH` and `search_rank` also work **without** a FULLTEXT index. Then KDB reads every row.
+`MATCH` and `search_rank` also work **without** a FULLTEXT index. Then KarelaDB reads every row.
 
 ### Highlight the words
 
@@ -495,7 +495,7 @@ limit 10
 12-show-indexes.sql:
 
 ```sql
--- kdb sql opens the database again, so no index is in memory yet. The first query builds one.
+-- kareladb sql opens the database again, so no index is in memory yet. The first query builds one.
 SHOW INDEXES FROM posts;
 SELECT count(*) AS posts FROM posts WHERE thread_id = 1;
 SHOW INDEXES FROM posts;
@@ -523,7 +523,7 @@ CREATE UNIQUE INDEX users_email ON users (email)
 ```
 
 - `built` is `true` when the index is in memory now; `rows` and `memory_bytes` show its size.
-- `building` is `true` while the server's background thread builds it right after the database opened. `kdb sql` never builds at open, so here it is always `false`.
+- `building` is `true` while the server's background thread builds it right after the database opened. `kareladb sql` never builds at open, so here it is always `false`.
 - `SHOW CREATE TABLE` gives the table and then one `CREATE INDEX` line per index. Run them in this order to make the same table again.
 
 13-drop-index.sql:
@@ -548,18 +548,18 @@ error: cannot drop column 'parent_id' from table 'posts': index 'posts_parent' u
 
 ## How fast
 
-Measured with `kdb_bench_indexes` (bench/bench_indexes.cpp) on the test PC (Windows, 16 threads for KDB, release build). Query times are the middle value of many runs and include parsing the SQL.
+Measured with `kdb_bench_indexes` (bench/bench_indexes.cpp) on the test PC (Windows, 16 threads for KarelaDB, release build). Query times are the middle value of many runs and include parsing the SQL.
 
 | What | Rows | Time |
 |---|---|---|
 | `CREATE INDEX posts_thread ON posts (thread_id, created_at, id)` | 1,000,000 posts | 170 ms |
-| Build of that index when the database opens (`kdb sql`: by the first query) | 1,000,000 posts | 150-320 ms, once |
+| Build of that index when the database opens (`kareladb sql`: by the first query) | 1,000,000 posts | 150-320 ms, once |
 | `SELECT * FROM posts WHERE author = 'user123'` (10 rows) | 1,000,000 posts | 0.03-0.04 ms |
 | Forum page: `WHERE thread_id = x ORDER BY created_at DESC LIMIT 20` | 1,000,000 posts | 0.05-0.06 ms |
 | Keyset page: `... AND (created_at, id) < (?, ?) ORDER BY created_at DESC, id DESC LIMIT 20` | 1,000,000 posts | 0.06-0.07 ms |
 | `INSERT` of one post (two indexes kept up to date, log saved to disk) | 1,000,000 posts | 0.3-1.8 ms (mostly the disk) |
 | `CREATE FULLTEXT INDEX news_text ON news (title, body)` | 200,000 articles, 216 MB of text | 1.0-1.1 s |
-| Build of that index when the database opens (`kdb sql`: by the first search) | 200,000 articles | 1.6 s, once |
+| Build of that index when the database opens (`kareladb sql`: by the first search) | 200,000 articles | 1.6 s, once |
 | Top 20 by `search_rank` for common words | 200,000 articles (23,000 to 199,000 matches) | 6-15 ms |
 | `UPDATE` of one article (full-text index kept up to date) | 200,000 articles | 0.4-2 ms |
 | Memory: `posts_thread` / `posts_author` / `news_text` | | 50 MB / 35 MB / 102 MB |
@@ -577,7 +577,7 @@ Run it yourself: `.\build\bin\kdb_bench_indexes.exe 1000000 200000`.
 
 ## What you learned
 
-- An index is a sorted list of columns that points to rows. It lives in memory. `kdb serve` builds it from the rows right after the database opens; `kdb sql` builds it when first needed.
+- An index is a sorted list of columns that points to rows. It lives in memory. `kareladb serve` builds it from the rows right after the database opens; `kareladb sql` builds it when first needed.
 - `CREATE INDEX` makes `=`, `IN`, ranges and `ORDER BY ... LIMIT` fast. `EXPLAIN` shows `use index`.
 - Keyset pagination with a row comparison `(created_at, id) < (?, ?)` keeps every page fast.
 - `CREATE UNIQUE INDEX` refuses duplicates.

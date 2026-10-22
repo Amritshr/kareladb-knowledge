@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GROUP BY and HAVING - KDB (KARELA DataBase) docs</title>
+<title>GROUP BY and HAVING - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Make one row per group (per symbol, per broker, per account) with totals like count, sum and max, and filter the groups with HAVING.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/group-by.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/group-by.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/group-by.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/group-by.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="group-by-and-having">GROUP BY and HAVING</h1>
 <blockquote><p>Make one row per group (per symbol, per broker, per account) with totals like count, sum and max, and filter the groups with HAVING.</p></blockquote>
@@ -209,15 +209,15 @@ ORDER BY GROUPING(symbol), shares DESC;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 25: GROUPING(buyer): the argument must be one of the GROUP BY expressions</code></p>
 <h2 id="big-group-by">Big GROUP BY: many groups and memory</h2>
-<p>A <code>GROUP BY</code> can make millions of groups, for example one per day, symbol and broker. KDB keeps it fast and keeps the server safe.</p>
+<p>A <code>GROUP BY</code> can make millions of groups, for example one per day, symbol and broker. KarelaDB keeps it fast and keeps the server safe.</p>
 <div class="table-wrap"><table><thead><tr><th>Situation</th><th>What happens</th></tr></thead><tbody><tr><td>Up to 5 keys, each a <code>SYMBOL</code>, a whole number, a <code>DATE</code> or a <code>TIMESTAMP</code> (also <code>date_trunc</code> or <code>to_char</code> of a time)</td><td>The groups are added up a block of rows at a time, on all threads. 30 days of one row per symbol and broker (31,500 groups) take about 16 ms. Two keys that are each a <code>SYMBOL</code> or an <code>INT</code> (<code>GROUP BY symbol, buyer</code>) are kept as one number per group, which is 5-15% faster again. What else keeps a query on this fast path: <a href="performance-tips.html#many-groups">GROUP BY with many groups</a>.</td></tr><tr><td>A <code>STRING</code> or <code>DOUBLE</code> key, or 5 keys and more</td><td>The same result, but the rows are grouped one by one, which is slower.</td></tr><tr><td>The groups need more than <strong>half of <code>--max-result-memory</code></strong> (1 GB by default), or more than <code>SET work_mem</code></td><td>Row by row: the rows of the groups that do not fit yet are written to sorted temporary files in the database folder (<code>_tmp/</code>) and added up after the scan, one group at a time. On the fast path (since 2026-10-02): the groups themselves, with their totals so far, go to 64 temporary files chosen by the key, and each file is finished on its own after the scan; about twice the time of the same query in memory, instead of many times. <strong>The result is the same, only slower</strong> (a sum of <code>DOUBLE</code> values may differ in its last digit). The files are removed when the query ends.</td></tr><tr><td>The temporary files would pass <strong>16 GB</strong> for one query</td><td>The query stops: <code>the GROUP BY needs more than 16384 MB of temporary files (max_spill_bytes)</code>.</td></tr><tr><td>More than <code>--max-groups</code> groups (5,000,000 by default)</td><td>The query stops: <code>the query makes more than N groups (max_groups)</code>.</td></tr></tbody></table></div>
 <ul><li><strong>Notes:</strong> <code>SAMPLE BY</code> and a read-only database never write temporary files: they keep every group in memory, and only <code>--max-groups</code> stops them.</li><li><code>ORDER BY ... LIMIT</code> over hundreds of thousands of groups still turns every group into a row before the sort, so it is slower than the same query without <code>ORDER BY</code>.</li><li>The limits are server settings: see <a href="protection.html">protection</a> and <a href="limits.html">limits</a>.</li><li>To make fewer groups: add a <code>WHERE</code> on time, group by fewer columns, or use a longer <a href="sample-by.html">SAMPLE BY</a> interval.</li></ul>
 <h2 id="implicit-group-by">Implicit GROUP BY</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">SELECT key, ..., aggregate(...), ... FROM ... [WHERE ...]</code></pre>
-<p>Like QuestDB, KDB does not need the words <code>GROUP BY</code>. When the select list has an aggregate and there is no <code>GROUP BY</code>, <strong>every select item that is not an aggregate becomes a group key</strong>.</p>
+<p>Like QuestDB, KarelaDB does not need the words <code>GROUP BY</code>. When the select list has an aggregate and there is no <code>GROUP BY</code>, <strong>every select item that is not an aggregate becomes a group key</strong>.</p>
 <div class="table-wrap"><table><thead><tr><th>Select list</th><th>Groups by</th></tr></thead><tbody><tr><td><code>symbol, max(high)</code></td><td><code>symbol</code></td></tr><tr><td><code>symbol, buyer, sum(quantity)</code></td><td><code>symbol, buyer</code></td></tr><tr><td><code>upper(symbol) AS s, count(*)</code></td><td><code>upper(symbol)</code></td></tr><tr><td><code>count(*), sum(volume)</code></td><td>nothing: one row for all rows</td></tr><tr><td><code>&#39;orders&#39; AS t, count(*)</code></td><td>nothing: a fixed value is not a key, so there is one row even when no row matches (as in PostgreSQL)</td></tr><tr><td><code>time, symbol, last(close) ... SAMPLE BY 1d</code></td><td><code>symbol</code> (the time column is the bucket)</td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> the same as the query with <code>GROUP BY</code> of those items.</li><li><strong>Notes:</strong> in PostgreSQL this is an error. In KDB it is allowed, but <strong>every extra column adds a key</strong>: adding <code>close</code> to <code>SELECT symbol, count(*)</code> splits the groups by close price. Writing <code>GROUP BY</code> makes the query clearer for readers.</li></ul>
+<ul><li><strong>Returns:</strong> the same as the query with <code>GROUP BY</code> of those items.</li><li><strong>Notes:</strong> in PostgreSQL this is an error. In KarelaDB it is allowed, but <strong>every extra column adds a key</strong>: adding <code>close</code> to <code>SELECT symbol, count(*)</code> splits the groups by close price. Writing <code>GROUP BY</code> makes the query clearer for readers.</li></ul>
 <p><strong>Example: No GROUP BY: symbol is not an aggregate, so it is the key</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT symbol, max(high) AS highest FROM ochl_day WHERE time IN &#39;2026-09&#39;;</code></pre>
 <p>Result:</p>
@@ -293,9 +293,9 @@ HAVING count(*) &gt;= 2;</code></pre>
 <h2 id="not-grouped">Columns that are not grouped</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">SELECT key, other_column, aggregate(...) FROM ... GROUP BY key</code></pre>
-<p>In PostgreSQL, a column in the select list that is neither a <code>GROUP BY</code> key nor inside an aggregate is an error. <strong>KDB gives no error.</strong> It shows the value of <strong>one row of the group</strong> (the first row it read), which is usually not the value you want.</p>
+<p>In PostgreSQL, a column in the select list that is neither a <code>GROUP BY</code> key nor inside an aggregate is an error. <strong>KarelaDB gives no error.</strong> It shows the value of <strong>one row of the group</strong> (the first row it read), which is usually not the value you want.</p>
 <ul><li><strong>Notes:</strong> do not use this. Put the column in <code>GROUP BY</code>, or use an aggregate that says which value you want: <code>first(x)</code>, <code>last(x)</code> (by time), <code>min(x)</code>, <code>max(x)</code>.</li><li>Without <code>GROUP BY</code>, the same column becomes a key instead (see <a href="group-by.html#implicit-group-by">implicit GROUP BY</a>).</li></ul>
-<p><strong>Example: time is not grouped: KDB shows the time of one row (2025-12-28), not of the highest price</strong> (sample data: sample)</p>
+<p><strong>Example: time is not grouped: KarelaDB shows the time of one row (2025-12-28), not of the highest price</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT symbol, time, max(high) AS highest FROM ochl_day GROUP BY symbol;</code></pre>
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>highest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2025-12-28T00:00:00.000Z</td><td>546.2</td></tr><tr><td>COAST</td><td>2025-12-28T00:00:00.000Z</td><td>429.9</td></tr><tr><td>VOLT</td><td>2025-12-28T00:00:00.000Z</td><td>199.7</td></tr></tbody></table></div>
@@ -315,6 +315,6 @@ GROUP BY symbol;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>latest_close (DOUBLE)</th><th>first_close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>542.2</td></tr><tr><td>COAST</td><td>376.1</td><td>424.8</td></tr><tr><td>VOLT</td><td>191.2</td><td>191.7</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/group-by.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/group-by.md">This page as markdown</a>.</footer>
 </body>
 </html>

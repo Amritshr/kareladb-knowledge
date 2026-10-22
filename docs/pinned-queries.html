@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pinned queries - KDB (KARELA DataBase) docs</title>
+<title>Pinned queries - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Pin a SELECT so its result is always ready in the result cache - computed when the database opens, never pushed out, computed again after a write.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/pinned-queries.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/pinned-queries.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/pinned-queries.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/pinned-queries.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="pinned-queries">Pinned queries</h1>
 <blockquote><p>Pin a SELECT so its result is always ready in the result cache - computed when the database opens, never pushed out, computed again after a write.</p></blockquote>
 <ul><li>Category: HTTP API</li><li>Keywords: pin, pinned query, pinned statement, pins, keep a result ready, warm cache, preload, dashboard slow query, GET /api/pins, POST /api/pins, DELETE /api/pins, _pinned_queries, cache_pinned</li><li>See also: <a href="performance-tips.html#result-cache">Performance tips (result-cache)</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="timers.html">Timers</a>, <a href="indexes.html#warm">Indexes (warm)</a>, <a href="console-monitor.html">Monitor panel (memory, processor, caches)</a></li></ul>
 <p>A <strong>pinned query</strong> is a <code>SELECT</code> the server keeps ready. Pin the slow question a dashboard asks on every load, and from then on every request for it is answered from the <a href="performance-tips.html#result-cache">result cache</a>:</p>
-<ul><li>It is computed <strong>when the database opens</strong>, right after the indexes are <a href="indexes.html#warm">built at open</a>, before anyone asks.</li><li>It is <strong>never pushed out</strong> of the result cache by other results, and it may take up to <strong>three quarters</strong> of the cache (an ordinary result is kept only up to a quarter).</li><li>After a <strong>write</strong> to a table it reads, the server computes it again by itself once the database has been quiet for half a second, so the next request finds it fresh. On a database that is written all the time and is never quiet, it does so at the latest two seconds after the first write that made the result old. A request that comes before that computes it, as any query would.</li><li>Pins are saved in the table <code>_pinned_queries</code> of the hidden <code>_system</code> database (like <a href="timers.html">timers</a>), or of the served database when <code>kdb serve</code> runs on one folder, so they survive restarts and are part of every backup.</li></ul>
+<ul><li>It is computed <strong>when the database opens</strong>, right after the indexes are <a href="indexes.html#warm">built at open</a>, before anyone asks.</li><li>It is <strong>never pushed out</strong> of the result cache by other results, and it may take up to <strong>three quarters</strong> of the cache (an ordinary result is kept only up to a quarter).</li><li>After a <strong>write</strong> to a table it reads, the server computes it again by itself once the database has been quiet for half a second, so the next request finds it fresh. On a database that is written all the time and is never quiet, it does so at the latest two seconds after the first write that made the result old. A request that comes before that computes it, as any query would.</li><li>Pins are saved in the table <code>_pinned_queries</code> of the hidden <code>_system</code> database (like <a href="timers.html">timers</a>), or of the served database when <code>kareladb serve</code> runs on one folder, so they survive restarts and are part of every backup.</li></ul>
 <p>The rules of the cache still apply: the statement must be one cacheable <code>SELECT</code> of this database (no <code>now()</code>, no random functions, no other database), and the <strong>row limit is part of the key</strong>: pin it with the <code>max_rows</code> the requests use (<code>/exec</code> sends 10,000 unless <code>limit=</code> says otherwise; the console sends 10,000).</p>
 <p>A pin is saved code that later runs by itself, without a rights check: only a server <strong>admin</strong> can pin or unpin, and every change is written to the <a href="audit-log.html">audit log</a> (event <code>pin</code>).</p>
-<p>Pins are a feature of <code>kdb serve</code>. A server started without them answers <code>/api/pins</code> with 404.</p>
+<p>Pins are a feature of <code>kareladb serve</code>. A server started without them answers <code>/api/pins</code> with 404.</p>
 <h2 id="get-api-pins">GET /api/pins</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">GET /api/pins[?db=&lt;name&gt;]</code></pre>
@@ -53,12 +53,12 @@ GET /api/pins</code></pre>
   &quot;sql&quot;: &quot;SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol&quot;,
   &quot;max_rows&quot;: 10000,
   &quot;enabled&quot;: true,
-  &quot;created_ms&quot;: 1792647859769,
+  &quot;created_ms&quot;: 1792662978203,
   &quot;created_by&quot;: &quot;&quot;,
   &quot;open&quot;: true,
   &quot;cached&quot;: false,
   &quot;cached_bytes&quot;: 0,
-  &quot;last_run_ms&quot;: 1792647859769,
+  &quot;last_run_ms&quot;: 1792662978231,
   &quot;last_ok&quot;: true,
   &quot;last_error&quot;: &quot;&quot;,
   &quot;error&quot;: &quot;&quot;
@@ -66,19 +66,19 @@ GET /api/pins</code></pre>
 <p><code>GET /api/pins</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;now_ms&quot;: 1792647859811,
+  &quot;now_ms&quot;: 1792662978382,
   &quot;pins&quot;: [
     {
       &quot;database&quot;: &quot;demo&quot;,
       &quot;sql&quot;: &quot;SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol&quot;,
       &quot;max_rows&quot;: 10000,
       &quot;enabled&quot;: true,
-      &quot;created_ms&quot;: 1792647859769,
+      &quot;created_ms&quot;: 1792662978203,
       &quot;created_by&quot;: &quot;&quot;,
       &quot;open&quot;: true,
       &quot;cached&quot;: false,
       &quot;cached_bytes&quot;: 0,
-      &quot;last_run_ms&quot;: 1792647859769,
+      &quot;last_run_ms&quot;: 1792662978231,
       &quot;last_ok&quot;: true,
       &quot;last_error&quot;: &quot;&quot;,
       &quot;error&quot;: &quot;&quot;
@@ -120,12 +120,12 @@ Content-Type: application/json
   &quot;sql&quot;: &quot;SELECT symbol, sum(qty) FROM trades GROUP BY symbol&quot;,
   &quot;max_rows&quot;: 10000,
   &quot;enabled&quot;: true,
-  &quot;created_ms&quot;: 1792647859798,
+  &quot;created_ms&quot;: 1792662978231,
   &quot;created_by&quot;: &quot;&quot;,
   &quot;open&quot;: true,
   &quot;cached&quot;: false,
   &quot;cached_bytes&quot;: 0,
-  &quot;last_run_ms&quot;: 1792647859799,
+  &quot;last_run_ms&quot;: 1792662978232,
   &quot;last_ok&quot;: true,
   &quot;last_error&quot;: &quot;&quot;,
   &quot;error&quot;: &quot;&quot;
@@ -134,6 +134,6 @@ Content-Type: application/json
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{&quot;deleted&quot;: true}</code></pre>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/pinned-queries.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/pinned-queries.md">This page as markdown</a>.</footer>
 </body>
 </html>

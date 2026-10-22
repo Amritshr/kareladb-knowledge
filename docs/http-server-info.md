@@ -3,14 +3,14 @@
 > Check that the server is alive, read the tables, disk use and health of a database, look for damage, make and list backups, watch deferred trigger queues, and read the server's memory, processor and settings.
 
 - Category: HTTP API
-- Keywords: health, /health, monitoring, uptime, api/info, table list, recovery\_summary, damaged, last\_lsn, api/check, scrub, damage, api/backup, api/backups, api/restore, restore while running, point\_in\_time, api/databases/swap, swap databases, backup\_command, backup folder, --backups, last\_backup, server\_time\_ms, auth\_required, api/disk, disk usage, trash\_bytes, wal\_archive\_bytes, api/trigger-queue, trigger queue, deferred trigger, oldest\_pending\_age\_ms, zone\_partition\_skips, zone\_block\_skips, slice\_reads, slice\_cache\_hits, slice\_cache\_bytes, KDB\_SLICE\_CACHE\_MB, kdb\_slice\_reads\_total, cache\_pinned, cache\_verify\_checks, cache\_verify\_mismatches, rev\_values, wal\_archive\_mb, web\_dir, help\_dir, skill\_dir, metrics, /metrics, Prometheus, Grafana, slow queries, slow-query log, api/slow-queries, --slow-query-ms, KDB\_SLOW\_QUERY\_MS, trash\_purged\_bytes
-- See also: [HTTP API overview](http-overview.md), [Backup, check, repair and restore](backup-and-safety.md), [kdb info, check, repair, dump-file](cli-maintenance.md), [Web console (health-box)](web-console.md#health-box)
+- Keywords: health, /health, monitoring, uptime, api/info, table list, recovery\_summary, damaged, last\_lsn, api/check, scrub, damage, api/backup, api/backups, api/restore, restore while running, point\_in\_time, api/databases/swap, swap databases, backup\_command, backup folder, --backups, last\_backup, server\_time\_ms, auth\_required, api/disk, disk usage, trash\_bytes, wal\_archive\_bytes, api/trigger-queue, trigger queue, deferred trigger, oldest\_pending\_age\_ms, zone\_partition\_skips, zone\_block\_skips, slice\_reads, slice\_cache\_hits, slice\_cache\_bytes, KARELADB\_SLICE\_CACHE\_MB, kdb\_slice\_reads\_total, cache\_pinned, cache\_verify\_checks, cache\_verify\_mismatches, rev\_values, wal\_archive\_mb, web\_dir, help\_dir, skill\_dir, metrics, /metrics, Prometheus, Grafana, slow queries, slow-query log, api/slow-queries, --slow-query-ms, KARELADB\_SLOW\_QUERY\_MS, trash\_purged\_bytes
+- See also: [HTTP API overview](http-overview.md), [Backup, check, repair and restore](backup-and-safety.md), [kareladb info, check, repair, dump-file](cli-maintenance.md), [Web console (health-box)](web-console.md#health-box), [Grafana and Prometheus](grafana.md)
 
 These routes tell you how the server and a database are doing. The [web console](web-console.md#health-box) uses them for its table list and health box.
 
 - `GET /health` is for monitoring: it needs no login and never touches data.
 - The other routes work on one database: `db=<name>` or the header `X-KDB-Database` ([choosing the database](http-overview.md#database)).
-- Backups go to the backup folder: `_backups` in the data folder unless `--backups <folder>` (or `KDB_BACKUP_DIR`, `backup_dir` in `kdb.conf`) names another ([where the settings come from](backup-schedule.md#backup-settings)).
+- Backups go to the backup folder: `_backups` in the data folder unless `--backups <folder>` (or `KARELADB_BACKUP_DIR`, `backup_dir` in `kareladb.conf`) names another ([where the settings come from](backup-schedule.md#backup-settings)).
 
 ## GET /health
 
@@ -20,7 +20,7 @@ Syntax:
 GET /health
 ```
 
-Answers when the server is running. Use it to check that KDB is up (a monitoring script, a load balancer, a start script that waits for the server).
+Answers when the server is running. Use it to check that KarelaDB is up (a monitoring script, a load balancer, a start script that waits for the server).
 
 | Parameter | Where | Meaning | Default |
 |---|---|---|---|
@@ -31,7 +31,7 @@ Answers when the server is running. Use it to check that KDB is up (a monitoring
 | `status` | always `"ok"`: the server is running |
 | `ready` | `false` while the server still opens the default database after a start (a long log replay after a crash, a slow disk); `true` after that. Requests for that database wait until it is open; other databases answer at once |
 | `starting` | only while `ready` is `false`: what it is doing, like `opening the default database 'default': replaying the log, 12 s so far` |
-| `version` | the KDB version |
+| `version` | the KarelaDB version |
 | `server_time_ms` | the server clock: milliseconds since 1970-01-01 UTC |
 | `auth_required` | `true` when other requests need a token or a login |
 | `login` | `true` when the data folder has users (the console then shows a login form instead of a token box) |
@@ -54,7 +54,8 @@ HTTP 200 (application/json)
 {
   "status": "ok",
   "version": "0.2.0-dev",
-  "server_time_ms": 1792647852082,
+  "product": "KarelaDB",
+  "server_time_ms": 1792662966061,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -70,7 +71,7 @@ curl -s http://127.0.0.1:9900/health
 ```powershell
 # Wait until a server that is starting answers (at most 10 seconds).
 foreach ($i in 1..50) {
-  try { $h = Invoke-RestMethod http://127.0.0.1:9900/health; "KDB $($h.version) is up"; break }
+  try { $h = Invoke-RestMethod http://127.0.0.1:9900/health; "KarelaDB $($h.version) is up"; break }
   catch { Start-Sleep -Milliseconds 200 }
 }
 ```
@@ -82,7 +83,7 @@ try:
     h = requests.get("http://127.0.0.1:9900/health", timeout=3).json()
     print("up, version", h["version"])
 except requests.RequestException:
-    print("KDB is down")
+    print("KarelaDB is down")
 ```
 
 ## GET /api/info
@@ -103,15 +104,15 @@ Everything about one database: its tables and columns, sizes, damage, what happe
 |---|---|
 | `database` | The database name |
 | `dir` | Its folder |
-| `version` | The KDB version |
+| `version` | The KarelaDB version |
 | `opened_ms` | When the server opened the database (ms since 1970, UTC) |
 | `server_time_ms` | The server clock |
 | `last_lsn` | The number of the last change in the log (the **LSN**, log sequence number). It grows with every change. |
 | `data_files`, `data_bytes` | Count and size of the data files |
 | `tables[]` | One object per table: `name`, `kind` (`timeseries` or `relational`), `partition` (`NONE`, `DAY`, `MONTH`, `YEAR`), `timestamp_column`, `rows`, `bytes`, `columns[]`, `create_sql` |
 | `tables[].columns[]` | `name`, `type`, `primary_key`, `not_null`, `computed` (a column made from others), `references` (the table and column it points to, or empty) |
-| `damaged[]` | Damaged files KDB knows about; empty when all is well |
-| `recovery_summary` | What KDB did when it opened the database (for example after a crash) |
+| `damaged[]` | Damaged files KarelaDB knows about; empty when all is well |
+| `recovery_summary` | What KarelaDB did when it opened the database (for example after a crash) |
 | `warning` | A warning when the data is far bigger than `--memory`; `""` when all is well |
 | `backup_dir` | The backup folder of this database (empty when backups are off) |
 | `last_backup` | The newest backup (same fields as [POST /api/backup](http-server-info.md#post-api-backup)), or `null` |
@@ -147,8 +148,9 @@ HTTP 200 (application/json)
   "database": "demo",
   "dir": "kdb-data/demo",
   "version": "0.2.0-dev",
-  "opened_ms": 1792647852097,
-  "server_time_ms": 1792647852145,
+  "product": "KarelaDB",
+  "opened_ms": 1792662966072,
+  "server_time_ms": 1792662966115,
   "last_lsn": 4,
   "data_files": 1,
   "data_bytes": 231,
@@ -182,7 +184,7 @@ HTTP 200 (application/json)
     }
   ],
   "damaged": [],
-  "recovery_summary": "manifest copy: -, last shutdown: clean\nreplayed 0 transactions after LSN 0, last LSN 0\nopened in 1 ms: manifest 1 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms",
+  "recovery_summary": "manifest copy: -, last shutdown: clean\nreplayed 0 transactions after LSN 0, last LSN 0\nopened in 1 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms",
   "warning": "",
   "backup_dir": "./backups/demo",
   "last_backup": null,
@@ -405,7 +407,7 @@ Reads every block of every data file and of the log, and checks each against its
 | `elapsed_us` | Time it took, in microseconds |
 
 - **Status codes:** 200 (also when damage is found: then `ok` is `false`); 401/403 login or role (needs `admin` on the database); 404 unknown database; 405 for `GET`.
-- **Notes:** a big database takes time, because every file is read. When `ok` is `false`: stop the server and run `kdb repair` ([check, repair, restore](cli-maintenance.md)). `CHECK TABLE name` in SQL checks one table.
+- **Notes:** a big database takes time, because every file is read. When `ok` is `false`: stop the server and run `kareladb repair` ([check, repair, restore](cli-maintenance.md)). `CHECK TABLE name` in SQL checks one table.
 
 **HTTP: Check the sample database** (sample data: sample)
 
@@ -424,7 +426,7 @@ HTTP 200 (application/json)
   "bytes_checked": 77929,
   "wal_segments_checked": 1,
   "problems": [],
-  "elapsed_us": 650
+  "elapsed_us": 761
 }
 ```
 
@@ -484,10 +486,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261022-054412-215",
-  "dir": "./backups/demo/20261022-054412-215",
-  "created_ms": 1792647852215,
-  "created": "2026-10-22T05:44:12.215Z",
+  "name": "20261022-095606-205",
+  "dir": "./backups/demo/20261022-095606-205",
+  "created_ms": 1792662966205,
+  "created": "2026-10-22T09:56:06.205Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -503,10 +505,10 @@ HTTP 200 (application/json)
 {
   "backups": [
     {
-      "name": "20261022-054412-215",
-      "dir": "./backups/demo/20261022-054412-215",
-      "created_ms": 1792647852215,
-      "created": "2026-10-22T05:44:12.215Z",
+      "name": "20261022-095606-205",
+      "dir": "./backups/demo/20261022-095606-205",
+      "created_ms": 1792662966205,
+      "created": "2026-10-22T09:56:06.205Z",
       "end_lsn": 30,
       "checkpoint_lsn": 30,
       "files": 9,
@@ -516,9 +518,9 @@ HTTP 200 (application/json)
   "backup_dir": "./backups/demo",
   "point_in_time": {
     "possible": true,
-    "from_ms": 1792647852215,
-    "from": "2026-10-22T05:44:12.215Z",
-    "from_backup": "20261022-054412-215",
+    "from_ms": 1792662966205,
+    "from": "2026-10-22T09:56:06.205Z",
+    "from_backup": "20261022-095606-205",
     "log_first_lsn": 1,
     "why": "",
     "wal_archive_max_bytes": 1073741824
@@ -657,10 +659,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261022-054412-388",
-  "dir": "./backups/demo/20261022-054412-388",
-  "created_ms": 1792647852388,
-  "created": "2026-10-22T05:44:12.388Z",
+  "name": "20261022-095606-375",
+  "dir": "./backups/demo/20261022-095606-375",
+  "created_ms": 1792662966375,
+  "created": "2026-10-22T09:56:06.375Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -677,10 +679,10 @@ HTTP 200 (application/json)
   "database": "demo_restored",
   "source": "demo",
   "backup": {
-    "name": "20261022-054412-388",
-    "dir": "./backups/demo/20261022-054412-388",
-    "created_ms": 1792647852388,
-    "created": "2026-10-22T05:44:12.388Z",
+    "name": "20261022-095606-375",
+    "dir": "./backups/demo/20261022-095606-375",
+    "created_ms": 1792662966375,
+    "created": "2026-10-22T09:56:06.375Z",
     "end_lsn": 30,
     "checkpoint_lsn": 30,
     "files": 9,
@@ -691,9 +693,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 9 data files from ./backups/demo/20261022-054412-388; the log (up to LSN 30) is replayed on first open"
+    "restored 9 data files from ./backups/demo/20261022-095606-375; the log (up to LSN 30) is replayed on first open"
   ],
-  "took_ms": 98,
+  "took_ms": 72,
   "next": "check 'demo_restored', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_restored\"} to put it in place, or DROP DATABASE demo_restored"
 }
 ```
@@ -706,7 +708,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_restored",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792647852627-demo_restored"
+  "moved_to": "kdb-data/_trash/1792662966569-demo_restored"
 }
 ```
 
@@ -734,10 +736,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261022-054412-423",
-  "dir": "./backups/demo/20261022-054412-423",
-  "created_ms": 1792647852423,
-  "created": "2026-10-22T05:44:12.423Z",
+  "name": "20261022-095606-391",
+  "dir": "./backups/demo/20261022-095606-391",
+  "created_ms": 1792662966391,
+  "created": "2026-10-22T09:56:06.391Z",
   "end_lsn": 0,
   "checkpoint_lsn": 0,
   "files": 0,
@@ -754,10 +756,10 @@ HTTP 200 (application/json)
   "database": "demo_twice",
   "source": "demo",
   "backup": {
-    "name": "20261022-054412-423",
-    "dir": "./backups/demo/20261022-054412-423",
-    "created_ms": 1792647852423,
-    "created": "2026-10-22T05:44:12.423Z",
+    "name": "20261022-095606-391",
+    "dir": "./backups/demo/20261022-095606-391",
+    "created_ms": 1792662966391,
+    "created": "2026-10-22T09:56:06.391Z",
     "end_lsn": 0,
     "checkpoint_lsn": 0,
     "files": 0,
@@ -768,9 +770,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 0 data files from ./backups/demo/20261022-054412-423; the log (up to LSN 0) is replayed on first open"
+    "restored 0 data files from ./backups/demo/20261022-095606-391; the log (up to LSN 0) is replayed on first open"
   ],
-  "took_ms": 44,
+  "took_ms": 35,
   "next": "check 'demo_twice', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_twice\"} to put it in place, or DROP DATABASE demo_twice"
 }
 ```
@@ -794,7 +796,7 @@ POST /api/databases/swap[?db=<name>]
 body: {"database": "<name>", "with": "<other name>"}
 ```
 
-The two databases trade their data, by renaming their folders. Everything KDB keeps by **name** stays with the name: users' rights, `READ ONLY`, the dialect, `WAL_ARCHIVE`, timers and pins. So after a restore into `market_check`, a swap of `market` with `market_check` puts the restored data under `market` for everyone who uses it, and the old data is in `market_check`.
+The two databases trade their data, by renaming their folders. Everything KarelaDB keeps by **name** stays with the name: users' rights, `READ ONLY`, the dialect, `WAL_ARCHIVE`, timers and pins. So after a restore into `market_check`, a swap of `market` with `market_check` puts the restored data under `market` for everyone who uses it, and the old data is in `market_check`.
 
 - **Needs:** the user's own `ROLE` `admin`.
 - **Status codes:** 200 `{"swapped": true, "database", "with"}`; 400 `with` missing, the same database twice, or a database served by its path; 401; 403; 404 no such database; 409 one of them is in use (an open PostgreSQL connection, a session, a running request), being opened, or dropped.
@@ -856,7 +858,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 't' created",
-      "timings": {"parse_us": 20, "execute_us": 20219}
+      "timings": {"parse_us": 24, "execute_us": 16743}
     },
     {
       "statement": "INSERT INTO t VALUES (1)",
@@ -866,13 +868,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 20, "execute_us": 3141}
+      "timings": {"parse_us": 24, "execute_us": 1956}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 40, "execute_us": 23360}
+  "timings": {"parse_us": 48, "execute_us": 18699}
 }
 ```
 
@@ -882,10 +884,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261022-054412-514",
-  "dir": "./backups/demo/20261022-054412-514",
-  "created_ms": 1792647852514,
-  "created": "2026-10-22T05:44:12.514Z",
+  "name": "20261022-095606-468",
+  "dir": "./backups/demo/20261022-095606-468",
+  "created_ms": 1792662966468,
+  "created": "2026-10-22T09:56:06.468Z",
   "end_lsn": 4,
   "checkpoint_lsn": 4,
   "files": 2,
@@ -909,13 +911,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 19, "execute_us": 26}
+      "timings": {"parse_us": 9, "execute_us": 12}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 19, "execute_us": 26}
+  "timings": {"parse_us": 9, "execute_us": 12}
 }
 ```
 
@@ -928,10 +930,10 @@ HTTP 200 (application/json)
   "database": "demo_old",
   "source": "demo",
   "backup": {
-    "name": "20261022-054412-514",
-    "dir": "./backups/demo/20261022-054412-514",
-    "created_ms": 1792647852514,
-    "created": "2026-10-22T05:44:12.514Z",
+    "name": "20261022-095606-468",
+    "dir": "./backups/demo/20261022-095606-468",
+    "created_ms": 1792662966468,
+    "created": "2026-10-22T09:56:06.468Z",
     "end_lsn": 4,
     "checkpoint_lsn": 4,
     "files": 2,
@@ -942,9 +944,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 2 data files from ./backups/demo/20261022-054412-514; the log (up to LSN 4) is replayed on first open"
+    "restored 2 data files from ./backups/demo/20261022-095606-468; the log (up to LSN 4) is replayed on first open"
   ],
-  "took_ms": 64,
+  "took_ms": 38,
   "next": "check 'demo_old', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_old\"} to put it in place, or DROP DATABASE demo_old"
 }
 ```
@@ -977,7 +979,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 144}
+      "timings": {"parse_us": 25, "execute_us": 138}
     }
   ],
   "columns": [
@@ -987,7 +989,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 27, "execute_us": 144}
+  "timings": {"parse_us": 25, "execute_us": 138}
 }
 ```
 
@@ -1007,7 +1009,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_old",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792647852777-demo_old"
+  "moved_to": "kdb-data/_trash/1792662966704-demo_old"
 }
 ```
 
@@ -1025,7 +1027,7 @@ What the server is doing right now: the memory and processor of the process, the
 
 | Answer field | Meaning |
 |---|---|
-| `version` | the KDB version |
+| `version` | the KarelaDB version |
 | `server_time_ms` | the server's clock (ms since 1970, UTC) |
 | `process` | see the table below |
 | `running` | one object per statement running now (HTTP and the PostgreSQL port together) |
@@ -1034,7 +1036,7 @@ What the server is doing right now: the memory and processor of the process, the
 | `zone_partition_skips`, `zone_block_skips` | since the process started: partitions not read and blocks not scanned because their saved column statistics (min and max) ruled the `WHERE` out |
 | `slice_reads` | since the process started: partitions not in memory of which a one-symbol query read only that symbol's rows from the file (see [slice reads](performance-tips.md#slice-reads)) |
 | `slice_cache_hits` | of those, slices found in the slice cache instead of the file |
-| `slice_cache_bytes` | what the slice cache holds now (at most `KDB_SLICE_CACHE_MB`) |
+| `slice_cache_bytes` | what the slice cache holds now (at most `KARELADB_SLICE_CACHE_MB`) |
 | `search` | since the process started, all databases: `bm25_evaluations` (full-text ranks worked out), `top_k_searches` (`ORDER BY search_rank(...) DESC LIMIT n` answered from the index), `skipped_blocks` and `skipped_docs` (rows those searches skipped because they could not make the top n; see [search_rank](full-text-search.md#search-rank)); `segments_written`, `segment_extensions`, `segments_merged`, `segments_loaded`, `segment_rows_loaded`, `segments_damaged`, `segments_stale` and `rows_indexed` ([segments on disk](full-text-search.md#segments)) |
 | `opening_databases` | one object per database a request is opening right now |
 | `databases` | one object per **open** database; a database opens the first time it is used |
@@ -1051,25 +1053,25 @@ What the server is doing right now: the memory and processor of the process, the
 | `uptime_ms` | how long the process has been up |
 | `threads`, `open_files` | threads and open handles now |
 | `cpu_count` | processors the process may use: inside `docker --cpus=2` this is 2, not the host's count ([self-tuning](cli-serve.md#self-tuning)) |
-| `heap_bytes`, `heap_objects` | what KDB's own objects hold now |
+| `heap_bytes`, `heap_objects` | what KarelaDB's own objects hold now |
 | `allocator` | the C library's allocator: `glibc` (the Docker image), `windows` or `other` |
-| `allocator_retained_bytes` | `resident_bytes - heap_bytes`: memory that was freed but is still kept by the allocator, plus the program and its thread stacks (tens of MB). On glibc KDB gives freed memory back in the background, so after work this falls back near that. |
-| `allocator_arena_max` | how many glibc malloc arenas KDB allows (`0` = the C library decides; `GLIBC_TUNABLES=glibc.malloc.arena_max=N` overrides) |
-| `allocator_mmap_threshold` | blocks of this many bytes or more get memory of their own from the system. `0` = the C library moves the line itself. A `GLIBC_TUNABLES` with `trim_threshold` (as in the Docker example) stops glibc from moving it, so KDB sets it to 32 MB; `glibc.malloc.mmap_threshold=N` overrides |
+| `allocator_retained_bytes` | `resident_bytes - heap_bytes`: memory that was freed but is still kept by the allocator, plus the program and its thread stacks (tens of MB). On glibc KarelaDB gives freed memory back in the background, so after work this falls back near that. |
+| `allocator_arena_max` | how many glibc malloc arenas KarelaDB allows (`0` = the C library decides; `GLIBC_TUNABLES=glibc.malloc.arena_max=N` overrides) |
+| `allocator_mmap_threshold` | blocks of this many bytes or more get memory of their own from the system. `0` = the C library moves the line itself. A `GLIBC_TUNABLES` with `trim_threshold` (as in the Docker example) stops glibc from moving it, so KarelaDB sets it to 32 MB; `glibc.malloc.mmap_threshold=N` overrides |
 | `allocator_trims`, `allocator_trim_released_bytes`, `allocator_last_trim_ms_ago` | how often freed memory was given back, how much in total, and how long ago the last time was (`0` = never) |
 | `allocator_purge_delay_ms` | the program built with mimalloc (the Docker image): how long memory a thread freed stays with it before it goes back to the system, 1000 unless `MIMALLOC_PURGE_DELAY` says otherwise. A query that comes within that time on the same thread reuses the pages instead of faulting them in again. `0` with another allocator |
 | `allocator_longest_trim_ms` | the longest one give-back took, in milliseconds. Threads that need memory wait for it, so a long one is a pause of the whole server (HTTP and PostgreSQL port at once). One of 1 s or more is also written to the server log |
 | `system_memory_bytes`, `system_memory_free_bytes` | RAM in the computer, and what is still free. Inside a container these are the container's limit and use, not the host's. |
 
-`limits` - the CPU and memory the process may really use, and what KDB sized from them ([self-tuning](cli-serve.md#self-tuning)):
+`limits` - the CPU and memory the process may really use, and what KarelaDB sized from them ([self-tuning](cli-serve.md#self-tuning)):
 
 | Field | Meaning |
 |---|---|
-| `cpus` | CPUs KDB sizes its threads by: the smaller of the CPUs it may run on and the CPU quota, rounded up |
+| `cpus` | CPUs KarelaDB sizes its threads by: the smaller of the CPUs it may run on and the CPU quota, rounded up |
 | `host_cpus`, `affinity_cpus` | the machine's processors, and those the process may run on (`0` = not known) |
 | `cpu_quota` | the container's or job's CPU quota in CPUs (`1.5` for `--cpus=1.5`); `0` = none |
 | `cpu_source` | what decided `cpus`: `machine`, `affinity`, `cgroup v2 cpu.max`, `cgroup v1 cpu.cfs_quota_us` or `job object CPU rate` |
-| `pinned_cpus` | the CPUs KDB's threads are pinned to, like `"0-3"` ([`--pin-threads`](cli-serve.md#pin-threads): `on`, or `auto` inside a CPU quota); `""` when not pinned |
+| `pinned_cpus` | the CPUs KarelaDB's threads are pinned to, like `"0-3"` ([`--pin-threads`](cli-serve.md#pin-threads): `on`, or `auto` inside a CPU quota); `""` when not pinned |
 | `pinned_threads` | `on`: threads that pinned themselves since the start; `auto`: the threads pinned now (`0` when not pinned) |
 | `memory_limit_bytes`, `memory_source` | the container's or job's memory limit (`0` = none) and where it was read |
 | `machine_memory_bytes` | RAM in the machine |
@@ -1084,8 +1086,8 @@ What the server is doing right now: the memory and processor of the process, the
 | `limit_bytes` | the limit; `0` = none |
 | `level` | `green` (under 80%), `yellow` (80-95%: memory is being given back), `red` (95% and over: quick statements run in the reserve, others wait, then get `memory full`) |
 | `in_use_bytes` | the number the limit is checked against: `heap_bytes`, or the resident size when that is more. Over by the resident size alone (heap under 80%) the level stops at `yellow` |
-| `level_from` | `in_use`, or `heap` with `KDB_LEVEL_FROM_HEAP=1` (the level from the heap alone) |
-| `heap_bytes` | what KDB's objects hold now |
+| `level_from` | `in_use`, or `heap` with `KARELADB_LEVEL_FROM_HEAP=1` (the level from the heap alone) |
+| `heap_bytes` | what KarelaDB's objects hold now |
 | `table_data_bytes`, `key_map_bytes`, `view_bytes` | loaded table data of all databases, split as in `memory` below |
 | `pending_bytes` | changes not yet written to partition files, all databases |
 | `index_bytes` | `CREATE INDEX` indexes, all databases |
@@ -1115,7 +1117,7 @@ Each `opening_databases` object says how far the open got. Opening a big databas
 | `log_bytes_replayed`, `log_bytes_total` | how much of the log has been applied again. The log is read once to check it (`checking log`), then applied (`replaying log`) |
 | `transactions_replayed` | transactions applied so far |
 
-Each `databases` object: `name`, `busy` and `memory_warning` (only when set, see below), `checkpoint` (below), `opened_ms`, `last_lsn`, `loaded_bytes` and `memory_budget_bytes` (table data in memory, against `--memory`), `pending_bytes` (changes not yet written to partition files), `cache_bytes`, `cache_budget_bytes`, `cache_entries`, `cache_hits`, `cache_misses` (`--cache-mb`), `cache_verify_checks` and `cache_verify_mismatches` (hits computed again and compared, with `KDB_CACHE_VERIFY=1`; see [result cache](performance-tips.md#result-cache)), `rev_values` (values of rev columns that keep their own [revision](revisions.md#rev-column), all tables), `cache_pinned` (pinned statements whose result is in the cache now, see [pinned queries](pinned-queries.md)), `memory` (below), `open_cursors`, `read_only`, `tables` - one object per table with `name`, `rows`, `partitions`, `loaded_partitions`, `loaded_bytes` and `pending_rows` - and `materialized_views`.
+Each `databases` object: `name`, `busy` and `memory_warning` (only when set, see below), `checkpoint` (below), `opened_ms`, `last_lsn`, `loaded_bytes` and `memory_budget_bytes` (table data in memory, against `--memory`), `pending_bytes` (changes not yet written to partition files), `cache_bytes`, `cache_budget_bytes`, `cache_entries`, `cache_hits`, `cache_misses` (`--cache-mb`), `cache_verify_checks` and `cache_verify_mismatches` (hits computed again and compared, with `KARELADB_CACHE_VERIFY=1`; see [result cache](performance-tips.md#result-cache)), `rev_values` (values of rev columns that keep their own [revision](revisions.md#rev-column), all tables), `cache_pinned` (pinned statements whose result is in the cache now, see [pinned queries](pinned-queries.md)), `memory` (below), `open_cursors`, `read_only`, `tables` - one object per table with `name`, `rows`, `partitions`, `loaded_partitions`, `loaded_bytes` and `pending_rows` - and `materialized_views`.
 
 `/api/stats` never waits for a database. When a write or a checkpoint holds one, its object says `"busy": true`: the memory and cache numbers are live, and `tables`, the trigger queues, `last_lsn` and `pending_bytes` are from the last reading that got in. With [snapshot reads](transactions.md#snapshot-reads) on (since 2026-10-02), a long `CALL` or an open transaction no longer makes a database busy here: the `rows` of the tables it changes are counted on a snapshot, so they are the committed rows, fresh, and the open transaction is left alone. Only a checkpoint or a schema change still gives `"busy": true`. `memory_warning` is the [memory warning](cli-serve.md#memory-warning) of a database far bigger than `--memory`.
 
@@ -1141,7 +1143,7 @@ Each `materialized_views` object says how far a [materialized view](views.md#mat
 
 `disk` - what the database takes on disk, by kind, as it last measured it. Each open database measures once a minute, when it empties its old trash, so this costs the reply nothing: `measured_ms` (when; `0` = not yet), `data_bytes`, `tail_files`, `tail_bytes`, `delta_files`, `delta_bytes` (both part of `data_bytes`), `previous_bytes`, `trash_bytes`, `trash_folders`, `wal_bytes`, `wal_archive_bytes`, `total_bytes`, `trash_purged_bytes` (the fields of [GET /api/disk](#api-disk)).
 
-`memory` - what this database holds, by kind. The sizes are estimates of the bytes KDB asked for.
+`memory` - what this database holds, by kind. The sizes are estimates of the bytes KarelaDB asked for.
 
 | Field | Meaning |
 |---|---|
@@ -1168,7 +1170,7 @@ Each `materialized_views` object says how far a [materialized view](views.md#mat
 - **Status codes:** 200; 401 without a login.
 
 ```bash
-curl -s -H "Authorization: Bearer $KDB_TOKEN" http://127.0.0.1:9900/api/stats
+curl -s -H "Authorization: Bearer $KARELADB_TOKEN" http://127.0.0.1:9900/api/stats
 ```
 
 <a id="metrics"></a>
@@ -1212,16 +1214,17 @@ The server's counters in the Prometheus text format, for Prometheus, Grafana Age
 
 - **Needs:** `read`. A user sees the per-database lines of the databases they may read. Send the token as for any route: `Authorization: Bearer <token>`.
 - **Notes:** counters start at 0 when the server starts. Only **open** databases have per-database lines.
+- **Grafana:** a ready server dashboard, the scrape setup and `kdb_snapshot_reads_total{database}` (snapshot reads per open database): [Grafana and Prometheus](grafana.md#prometheus).
 
 ```bash
-curl -s -H "Authorization: Bearer $KDB_TOKEN" http://127.0.0.1:9900/metrics
+curl -s -H "Authorization: Bearer $KARELADB_TOKEN" http://127.0.0.1:9900/metrics
 ```
 
 A Prometheus scrape job:
 
 ```yaml
 scrape_configs:
-  - job_name: kdb
+  - job_name: kareladb
     authorization: { credentials: "<the token>" }
     static_configs: [{ targets: ["127.0.0.1:9900"] }]
 ```
@@ -1240,7 +1243,7 @@ Statements that took at least the slow-query threshold, newest first. They are k
 
 | Setting | Where | Default |
 |---|---|---|
-| the threshold in milliseconds, `0` = off | `kdb serve --slow-query-ms N`, then `slow_query_ms` in `kdb.conf`, then `KDB_SLOW_QUERY_MS` | 1000 |
+| the threshold in milliseconds, `0` = off | `kareladb serve --slow-query-ms N`, then `slow_query_ms` in `kareladb.conf`, then `KARELADB_SLOW_QUERY_MS` | 1000 |
 
 | Answer field | Meaning |
 |---|---|
@@ -1252,7 +1255,7 @@ Statements that took at least the slow-query threshold, newest first. They are k
 - **Notes:** the statement text is masked like the activity log's (a password or token literal becomes `'***'`) and cut to 4,000 characters. Statements over HTTP and the PostgreSQL port both count.
 
 ```bash
-curl -s -H "Authorization: Bearer $KDB_TOKEN" "http://127.0.0.1:9900/api/slow-queries?limit=10"
+curl -s -H "Authorization: Bearer $KARELADB_TOKEN" "http://127.0.0.1:9900/api/slow-queries?limit=10"
 ```
 
 <a id="api-settings"></a>
@@ -1270,15 +1273,15 @@ Where the server keeps its data, and whether that can be changed from here. The 
 | Answer field | Meaning |
 |---|---|
 | `data_dir` | the data folder in use |
-| `data_dir_source` | where that came from: `--data-dir`, `kdb.conf`, `KDB_DATA_DIR` or `program folder` |
-| `saved_data_dir` | what `kdb.conf` holds, which may differ from `data_dir` |
-| `config_path` | the settings file (`--config`, else `kdb.conf` next to the program); `""` = settings cannot be saved |
+| `data_dir_source` | where that came from: `--data-dir`, `kareladb.conf`, `KARELADB_DATA_DIR` or `program folder` |
+| `saved_data_dir` | what `kareladb.conf` holds, which may differ from `data_dir` |
+| `config_path` | the settings file (`--config`, else `kareladb.conf` next to the program); `""` = settings cannot be saved |
 | `config_error` | why the settings file could not be read, if it could not |
 | `command_line` | the command line the server was started with |
-| `wal_archive_mb`, `wal_archive_mb_source` | old log each database keeps for repairs, in MB, and where that came from: `kdb.conf`, `KDB_WAL_ARCHIVE_MB` or `default` |
-| `backups` | the [backup settings](backup-schedule.md#backup-settings) in use since the start: `dir`, `schedule`, `keep_daily`, `keep_weekly`, `command`, each with a `..._source` (`--backups`, `kdb.conf`, `KDB_BACKUP_DIR`, `default`, ...), and what `kdb.conf` holds now: `saved_dir`, `saved_schedule`, `saved_keep_daily`, `saved_keep_weekly` (`""` / `-1` = not set) |
+| `wal_archive_mb`, `wal_archive_mb_source` | old log each database keeps for repairs, in MB, and where that came from: `kareladb.conf`, `KARELADB_WAL_ARCHIVE_MB` or `default` |
+| `backups` | the [backup settings](backup-schedule.md#backup-settings) in use since the start: `dir`, `schedule`, `keep_daily`, `keep_weekly`, `command`, each with a `..._source` (`--backups`, `kareladb.conf`, `KARELADB_BACKUP_DIR`, `default`, ...), and what `kareladb.conf` holds now: `saved_dir`, `saved_schedule`, `saved_keep_daily`, `saved_keep_weekly` (`""` / `-1` = not set) |
 | `web_dir`, `help_dir`, `skill_dir` | the folders the console, the help and the Claude skill are read from (`""` = not found) |
-| `web_dir_source`, `help_dir_source`, `skill_dir_source` | what chose each folder: `kdb.conf`, `KDB_WEB_DIR` (and so on), `program folder`, `share folder`, `source checkout` or `not found` ([folders](install-packages.md#folders)) |
+| `web_dir_source`, `help_dir_source`, `skill_dir_source` | what chose each folder: `kareladb.conf`, `KARELADB_WEB_DIR` (and so on), `program folder`, `share folder`, `source checkout` or `not found` ([folders](install-packages.md#folders)) |
 | `can_save` | `true` when the settings file can be written |
 | `cannot_save_reason` | why not, when `can_save` is `false` |
 | `can_restart` | `true` when `POST /api/restart` works on this server |
@@ -1303,14 +1306,14 @@ body: {"wal_archive_mb": 100}       (or both in one body)
 body: {"backup_schedule": "daily 02:00", "backup_keep_daily": 14, "backup_keep_weekly": 8, "backup_dir": "E:/kdb_backups"}
 ```
 
-Checks a folder and writes it to the settings file. A new folder takes effect at the **next start**, not at once, and nothing is moved: the databases in the old folder stay where they are. `wal_archive_mb` (0 = keep no old log) takes effect at once, for every database without its own `ALTER DATABASE ... SET WAL_ARCHIVE`. The backup settings take effect at the next start (`backup_dir`: a folder, `off`, or `default` for `_backups` in the data folder). `backup_command` is refused with 403: it runs a program on the server, so it is set in `kdb.conf` by hand, with `--backup-command` or `KDB_BACKUP_COMMAND`.
+Checks a folder and writes it to the settings file. A new folder takes effect at the **next start**, not at once, and nothing is moved: the databases in the old folder stay where they are. `wal_archive_mb` (0 = keep no old log) takes effect at once, for every database without its own `ALTER DATABASE ... SET WAL_ARCHIVE`. The backup settings take effect at the next start (`backup_dir`: a folder, `off`, or `default` for `_backups` in the data folder). `backup_command` is refused with 403: it runs a program on the server, so it is set in `kareladb.conf` by hand, with `--backup-command` or `KARELADB_BACKUP_COMMAND`.
 
 Before writing anything the server makes the folder if it is missing, writes and removes a probe file in it, and refuses a folder that is itself one database (it holds a `_manifest.a`) - the data folder is the one **above** those. A folder that fails any of these is a 400 with the reason, and the settings file is not touched.
 
 | Answer field | Meaning |
 |---|---|
 | `saved` | always `true` |
-| `data_dir` | the folder as KDB spells it (`/` separators, no trailing separator) |
+| `data_dir` | the folder as KarelaDB spells it (`/` separators, no trailing separator) |
 | `wal_archive_mb` | the old log kept per database now, in MB |
 | `config_path` | the file it was written to |
 | `restart_required` | `true` when this is not the folder in use now, or a backup setting changed |
@@ -1333,7 +1336,7 @@ Closes every database cleanly, then starts the server again **in the same proces
 
 The reply is sent before the server stops listening, so the caller always gets an answer. Statements that are running are stopped and open transactions rolled back, as at a normal shutdown. The server prints `restarting...`, then `databases closed cleanly`, then its usual banner; the restart is written to the [audit log](audit-log.md).
 
-A folder saved in `kdb.conf` that cannot be used when the server comes back does **not** stop it: the server prints a warning and starts on the usual folder instead.
+A folder saved in `kareladb.conf` that cannot be used when the server comes back does **not** stop it: the server prints a warning and starts on the usual folder instead.
 
 | Answer field | Meaning |
 |---|---|

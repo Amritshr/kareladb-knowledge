@@ -4,7 +4,7 @@
 
 ## What you will learn
 
-- How to store company data, quarterly numbers, financial reports, news and forum posts in KDB.
+- How to store company data, quarterly numbers, financial reports, news and forum posts in KarelaDB.
 - The `JSON` type: store flexible data, read one value, change one value.
 - The `BYTES` type: store hashes and small files.
 - Text functions that work with text in any language (the examples use Nepali).
@@ -258,7 +258,7 @@ error: row 2: column 'extra' (JSON): not valid JSON: a JSON object cannot end wi
 
 The message says the row, the column and the character. Nothing was saved (also not row 1).
 
-How KDB keeps JSON:
+How KarelaDB keeps JSON:
 
 - It checks the text is valid JSON (RFC 8259). Keys need double quotes. `true`, `false` and `null` are lower case.
 - It removes spaces between the parts. `{ "a" : 1 }` is saved as `{"a":1}`.
@@ -268,7 +268,7 @@ How KDB keeps JSON:
 
 ## Step 4: reports, and BYTES
 
-A report has statements (balance sheet, income statement). Put them in a `JSON` column. The **PDF file stays outside the database** (see [Big files](#big-files-keep-them-outside)). KDB keeps its address and its SHA-256 hash.
+A report has statements (balance sheet, income statement). Put them in a `JSON` column. The **PDF file stays outside the database** (see [Big files](#big-files-keep-them-outside)). KarelaDB keeps its address and its SHA-256 hash.
 
 05-reports.sql:
 
@@ -315,7 +315,7 @@ About `BYTES`:
 
 - `BYTES` holds any bytes, also zero bytes. Good for hashes, keys, small images and signatures.
 - Write bytes as `X'0A0B'` or as text `'\x0a0b'`. Other text is saved as its UTF-8 bytes.
-- KDB **shows** bytes as `\x` and hex (`\x00ff10`), in the shell, in CSV and in the HTTP API. This is the same as PostgreSQL. `'\x...'` reads back as the same bytes.
+- KarelaDB **shows** bytes as `\x` and hex (`\x00ff10`), in the shell, in CSV and in the HTTP API. This is the same as PostgreSQL. `'\x...'` reads back as the same bytes.
 - On `BYTES`, `length()` and `substring()` count bytes.
 - Functions: `hex()`, `unhex()`, `to_base64()`, `from_base64()`, `encode(b, 'hex' | 'base64')`, `decode(t, 'hex' | 'base64')`, and `||` to join.
 
@@ -395,7 +395,7 @@ Notes:
 - `ILIKE` is `LIKE` that ignores upper and lower case of English letters. In `LIKE`, `%` is any text and `_` is one letter (also one Nepali letter). Write `\%` to find a real `%`.
 - `LIKE '%word%'`, `ILIKE` and `regexp_like` read **every row**. That is fine for thousands of rows. For big tables, use **full-text search with an index**: [chapter 17](17-indexes-and-search.md).
 - `to_char(time, format, zone)` makes text from a time. Use it to group reports by month, quarter (`Q`) or year in a local time, such as Nepal (`'+05:45'` or `'Asia/Kathmandu'`) or New York in summer (`'-04:00'`).
-- Regular expressions support `\d`, `\w` (also Nepali letters), `\s`, `[...]`, `(...)`, `|`, `*`, `+`, `?`, `{n,m}`. KDB never backtracks, so a bad pattern cannot hang the server.
+- Regular expressions support `\d`, `\w` (also Nepali letters), `\s`, `[...]`, `(...)`, `|`, `*`, `+`, `?`, `{n,m}`. KarelaDB never backtracks, so a bad pattern cannot hang the server.
 
 ### Text functions
 
@@ -673,7 +673,7 @@ In JSON, a backslash is written twice, so `"\\x9f86..."` is the text `\x9f86...`
 
 Other ways in and out:
 
-- `kdb sql market "..." --format json` also writes JSON columns as objects.
+- `kareladb sql market "..." --format json` also writes JSON columns as objects.
 - The PostgreSQL protocol (chapter 14) sends `JSON` as type `json` and `BYTES` as type `bytea`.
 - The line protocol (`POST /write`) can fill `JSON` and `BYTES` columns from text fields: `news_feed,symbol=CITY payload="{\"price\": 512.5}"`. Bad JSON is refused with the line number.
 
@@ -690,10 +690,10 @@ Values of 1 MB work well: through INSERT, UPDATE, SELECT, the log, checkpoints, 
 For PDF files, images and videos, the best plan is:
 
 1. Save the file in a folder or an object store (for example S3-compatible storage).
-2. In KDB, store the path or URL (`pdf_url STRING`) and the hash (`pdf_sha256 BYTES`).
+2. In KarelaDB, store the path or URL (`pdf_url STRING`) and the hash (`pdf_sha256 BYTES`).
 3. When you read the file, check the hash.
 
-Why: every change in KDB is written to the log and later to table files, and backups copy everything. Big files make the log, backups and restarts slow. Small things (hashes, thumbnails of a few KB, signatures) are fine in `BYTES`.
+Why: every change in KarelaDB is written to the log and later to table files, and backups copy everything. Big files make the log, backups and restarts slow. Small things (hashes, thumbnails of a few KB, signatures) are fine in `BYTES`.
 
 Other limits:
 
@@ -717,7 +717,7 @@ Other limits:
 | Search in big tables | full-text index, [chapter 17](17-indexes-and-search.md) |
 | Counters (posts, votes) | triggers |
 | One vote per user | `CREATE UNIQUE INDEX ... (user_id, post_id)` |
-| Big files | outside KDB; store the URL and a hash |
+| Big files | outside KarelaDB; store the URL and a hash |
 
 ## Try it yourself
 

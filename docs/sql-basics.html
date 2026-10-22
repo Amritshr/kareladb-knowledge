@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SQL basics - KDB (KARELA DataBase) docs</title>
-<meta name="description" content="How KDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/sql-basics.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sql-basics.md">
+<title>SQL basics - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="How KarelaDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/sql-basics.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/sql-basics.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="sql-basics">SQL basics</h1>
-<blockquote><p>How KDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.</p></blockquote>
+<blockquote><p>How KarelaDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.</p></blockquote>
 <ul><li>Category: Getting started</li><li>Keywords: syntax, statement, semicolon, ;, case, upper case, lower case, identifier, name, quoted name, double quotes, string, text, single quote, escape quote, number, integer, float, scientific notation, boolean, constant, comment, --, /*, error message, line and column, syntax error, reserved word, keyword, three-valued logic, IS NULL, IS NOT NULL, unknown, alias</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="operators.html">Operators</a>, <a href="functions-conditional.html">Conditional and NULL functions</a>, <a href="column-types.html">Column types</a>, <a href="select.html">SELECT</a>, <a href="where.html">WHERE</a></li></ul>
-<p><strong>SQL</strong> is the language you use to talk to KDB. A <strong>statement</strong> is one command, like <code>SELECT</code> or <code>INSERT</code>. This page shows the small rules that every statement follows.</p>
+<p><strong>SQL</strong> is the language you use to talk to KarelaDB. A <strong>statement</strong> is one command, like <code>SELECT</code> or <code>INSERT</code>. This page shows the small rules that every statement follows.</p>
 <p><strong>Example: Names, text, numbers, NULL and a comment in one query</strong></p>
 <pre><code class="language-sql">-- the price of one CITY share, and a note
 SELECT &#39;CITY&#39; AS symbol,
@@ -31,7 +31,7 @@ SELECT &#39;CITY&#39; AS symbol,
 <p>Syntax:</p>
 <pre><code class="language-sql">statement ; statement ; ...</code></pre>
 <p>A text can hold many statements. Put <code>;</code> between them. The <code>;</code> after the last statement is optional. Extra <code>;</code> are ignored.</p>
-<ul><li>When you send a text (with <code>kdb sql</code>, a file, or HTTP <code>/exec</code>), KDB first checks the <strong>grammar</strong> of the whole text. If one statement has a syntax error, <strong>no</strong> statement runs. (<code>kdb shell</code> runs what you typed each time a line ends with <code>;</code>.)</li><li>Then the statements run one by one. Each one is saved on its own.</li><li>At the first error while running, KDB <strong>stops</strong>. The statements before it stay saved. The statements after it do not run.</li><li>One statement is all or nothing: an <code>INSERT</code> of 5000 rows with one bad row saves no row.</li><li><strong>Notes:</strong> to make many statements succeed or fail together, use <a href="transactions.html">BEGIN ... COMMIT</a>.</li></ul>
+<ul><li>When you send a text (with <code>kareladb sql</code>, a file, or HTTP <code>/exec</code>), KarelaDB first checks the <strong>grammar</strong> of the whole text. If one statement has a syntax error, <strong>no</strong> statement runs. (<code>kareladb shell</code> runs what you typed each time a line ends with <code>;</code>.)</li><li>Then the statements run one by one. Each one is saved on its own.</li><li>At the first error while running, KarelaDB <strong>stops</strong>. The statements before it stay saved. The statements after it do not run.</li><li>One statement is all or nothing: an <code>INSERT</code> of 5000 rows with one bad row saves no row.</li><li><strong>Notes:</strong> to make many statements succeed or fail together, use <a href="transactions.html">BEGIN ... COMMIT</a>.</li></ul>
 <p><strong>Example: Three statements, one result each</strong></p>
 <pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
 INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;);;
@@ -64,7 +64,7 @@ SELEC * FROM notes;</code></pre>
 ochl_day = OCHL_DAY = Ochl_Day
 &#39;CITY&#39; &lt;&gt; &#39;city&#39;</code></pre>
 <p>Keywords, table names, column names and function names do not care about case. <strong>Text values do</strong>: <code>&#39;CITY&#39;</code> is not <code>&#39;city&#39;</code>.</p>
-<ul><li>A table or column keeps the spelling you used in <code>CREATE TABLE</code>. <code>SHOW TABLES</code> shows that spelling.</li><li>A column name in the result keeps the spelling of the alias you wrote.</li><li><strong>Notes:</strong> in PostgreSQL, a name in double quotes is case sensitive. In KDB it is not: <code>&quot;Total&quot;</code> and <code>&quot;total&quot;</code> are the same name.</li></ul>
+<ul><li>A table or column keeps the spelling you used in <code>CREATE TABLE</code>. <code>SHOW TABLES</code> shows that spelling.</li><li>A column name in the result keeps the spelling of the alias you wrote.</li><li><strong>Notes:</strong> in PostgreSQL, a name in double quotes is case sensitive. In KarelaDB it is not: <code>&quot;Total&quot;</code> and <code>&quot;total&quot;</code> are the same name.</li></ul>
 <p><strong>Example: Any case works for names; text compares exactly</strong></p>
 <pre><code class="language-sql">CREATE TABLE Brokers (Id INT PRIMARY KEY, Name STRING);
 INSERT INTO BROKERS (ID, NAME) VALUES (58, &#39;Northgate Securities&#39;);
@@ -184,7 +184,7 @@ SELECT id, email, verified, phone, phone IS NULL AS no_phone FROM users;</code><
 <p>Syntax:</p>
 <pre><code class="language-sql">-- to the end of the line
 /* between these marks, also over many lines */</code></pre>
-<p>KDB skips comments. Use them to explain a script.</p>
+<p>KarelaDB skips comments. Use them to explain a script.</p>
 <ul><li><code>/* ... */</code> comments do not nest: the first <code>*/</code> ends the comment.</li><li>A <code>/*</code> without <code>*/</code> is an error that shows where the comment starts.</li></ul>
 <p><strong>Example: Both kinds of comments in a report query</strong></p>
 <p>Setup:</p>
@@ -208,9 +208,9 @@ ORDER BY account;</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">error: line L, column C: expected ... but found ...
 error: &lt;what is wrong&gt;</code></pre>
-<p>When KDB cannot run a statement, it prints <code>error:</code> and a message. Messages about the SQL text say <strong>where</strong>: <code>line 3, column 8</code> is the place in the text you sent (in a file: the line of the file). They also say what KDB expected there.</p>
+<p>When KarelaDB cannot run a statement, it prints <code>error:</code> and a message. Messages about the SQL text say <strong>where</strong>: <code>line 3, column 8</code> is the place in the text you sent (in a file: the line of the file). They also say what KarelaDB expected there.</p>
 <div class="table-wrap"><table><thead><tr><th>Message starts with</th><th>Meaning</th></tr></thead><tbody><tr><td><code>expected ... but found ...</code></td><td>the grammar is wrong at that place</td></tr><tr><td><code>unknown column &#39;x&#39; (table &#39;t&#39; has: ...)</code></td><td>a typing mistake; the message lists the real columns</td></tr><tr><td><code>table or view &#39;x&#39; does not exist</code></td><td>wrong table name, or the wrong database</td></tr><tr><td><code>a row with ... already exists</code></td><td>a duplicate key; see <a href="insert.html#duplicates">INSERT</a></td></tr><tr><td><code>column &#39;x&#39; (TYPE): ...</code></td><td>a value does not fit the column; see <a href="column-types.html">column types</a></td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> exit code <code>1</code> from <code>kdb sql</code>; HTTP status 400 from the HTTP API.</li><li><strong>Notes:</strong> a missing comma is not an error: <code>SELECT symbol close</code> means &quot;column <code>symbol</code>, named <code>close</code>&quot;. <a href="../tutorial/12-troubleshooting.html">Chapter 12</a> lists many messages and their fixes.</li></ul>
+<ul><li><strong>Returns:</strong> exit code <code>1</code> from <code>kareladb sql</code>; HTTP status 400 from the HTTP API.</li><li><strong>Notes:</strong> a missing comma is not an error: <code>SELECT symbol close</code> means &quot;column <code>symbol</code>, named <code>close</code>&quot;. <a href="../tutorial/12-troubleshooting.html">Chapter 12</a> lists many messages and their fixes.</li></ul>
 <p><strong>Example: The message points to line 3, column 8</strong> (shows an error)</p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time);</code></pre>
@@ -232,7 +232,7 @@ FROM ochl_day;</code></pre>
 FALSE FROM GROUP IN INSERT INTO IS JOIN LIKE LIMIT NOT NULL ON OR ORDER
 PRIMARY REFERENCES SELECT SET TABLE THEN TO TRUE UNIQUE UPDATE VALUES WHEN WHERE</code></pre>
 <p>These 40 words have a fixed meaning. They cannot be a table, column or alias name, unless you write them in double quotes: <code>&quot;order&quot;</code>, <code>&quot;from&quot;</code>.</p>
-<ul><li>All other words are normal names, also words like <code>CHECK</code>, <code>INDEX</code>, <code>BEGIN</code>, <code>KEY</code>, <code>USER</code>, <code>DATE</code>, <code>TIME</code>, <code>OPEN</code> and <code>CLOSE</code>: KDB knows them from their place in the statement.</li><li><strong>Notes:</strong> PostgreSQL reserves more words. A name that works in KDB may need quotes in PostgreSQL.</li></ul>
+<ul><li>All other words are normal names, also words like <code>CHECK</code>, <code>INDEX</code>, <code>BEGIN</code>, <code>KEY</code>, <code>USER</code>, <code>DATE</code>, <code>TIME</code>, <code>OPEN</code> and <code>CLOSE</code>: KarelaDB knows them from their place in the statement.</li><li><strong>Notes:</strong> PostgreSQL reserves more words. A name that works in KarelaDB may need quotes in PostgreSQL.</li></ul>
 <p><strong>Example: Columns called time, date, open, close, key and value need no quotes</strong></p>
 <pre><code class="language-sql">CREATE TABLE prices (time TIMESTAMP, date DATE, open DOUBLE, close DOUBLE, key STRING, value DOUBLE) TIMESERIES(time);
 INSERT INTO prices VALUES (&#39;2026-09-10&#39;, &#39;2026-09-10&#39;, 504.6, 504.9, &#39;CITY&#39;, 1);
@@ -316,6 +316,6 @@ SELECT count(*) AS users, count(phone) AS with_phone FROM users;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>users (LONG)</th><th>with_phone (LONG)</th></tr></thead><tbody><tr><td>3</td><td>1</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sql-basics.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/sql-basics.md">This page as markdown</a>.</footer>
 </body>
 </html>

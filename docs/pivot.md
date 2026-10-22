@@ -13,12 +13,12 @@ A **pivot table** turns rows into columns. `GROUP BY symbol, date` gives one row
 | CITY | 777400 | 469830 |
 | COAST | 88170 | 1139340 |
 
-There are two ways to get it in KDB:
+There are two ways to get it in KarelaDB:
 
 1. **The manual way (works today):** one aggregate per column, each with its own condition: `sum_if(amount, date = '2026-09-09') AS sep_09` ([sum_if](functions-aggregate.md#sum_if), [count_if](functions-aggregate.md#count_if)), or `sum(CASE WHEN date = '2026-09-09' THEN amount END)`.
 2. **The PIVOT clause:** write the aggregate once and list the values: `PIVOT (sum(amount) FOR date IN ('2026-09-09' AS sep_09, '2026-09-10' AS sep_10))`.
 
-**Coming soon:** the kdb program this page was built with reads the `PIVOT` clause and checks its spelling, but does not apply it yet: a query with `PIVOT` returns the rows **as if PIVOT were not there**. Until the next build, use the manual way. The PIVOT examples below show their results after that build.
+**Coming soon:** the kareladb program this page was built with reads the `PIVOT` clause and checks its spelling, but does not apply it yet: a query with `PIVOT` returns the rows **as if PIVOT were not there**. Until the next build, use the manual way. The PIVOT examples below show their results after that build.
 
 **Example: The manual way: turnover per symbol, one column per day** (sample data: sample)
 

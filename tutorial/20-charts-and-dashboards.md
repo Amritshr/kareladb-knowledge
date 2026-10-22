@@ -5,19 +5,19 @@
 ### What you will learn
 
 - How to see any query result as a chart: candles, lines, bars, pie, treemap, heatmaps, numbers and more.
-- How KDB picks a chart for you, and how to change it with one click.
+- How KarelaDB picks a chart for you, and how to change it with one click.
 - How to add indicators (SMA, EMA, Bollinger, RSI, MACD, stochastic) to candles.
 - How to zoom, pan and read values with the mouse, a touch screen or the keyboard.
 - How to build **dashboards**: many charts on one page, with pickers like `$symbol`, auto refresh, save, share and import.
 
-Everything runs in the web console (chapter 6). No internet is needed. The charts are drawn by KDB's own code: plain JavaScript files in the console folder (`web/charts` next to `kdb`, `web/console/charts` in the source). No chart library is loaded from the internet.
+Everything runs in the web console (chapter 6). No internet is needed. The charts are drawn by KarelaDB's own code: plain JavaScript files in the console folder (`web/charts` next to `kareladb`, `web/console/charts` in the source). No chart library is loaded from the internet.
 
 ### Before you start
 
 Load the sample data (see the quick start) and start the server:
 
 ```powershell
-kdb serve demo
+kareladb serve demo
 ```
 
 Open <http://127.0.0.1:9900>. The examples in this chapter use the tables `ochl_day`, `ochl_minutes`, `live_data` and `securities` of the sample data.
@@ -61,11 +61,11 @@ Above the chart there is a **toolbar**:
 
 The console remembers the chart type and the columns for each query. Run the same query again and you get the same chart.
 
-### How KDB picks the chart
+### How KarelaDB picks the chart
 
-KDB looks at the columns of the result and picks a chart. You can always change it.
+KarelaDB looks at the columns of the result and picks a chart. You can always change it.
 
-| The result has | KDB shows | Example query |
+| The result has | KarelaDB shows | Example query |
 |---|---|---|
 | a time column and `open`, `high`, `low`, `close` | **Candlestick** (volume bars when there is a `volume` column) | `SELECT time, open, high, low, close, volume FROM ochl_day WHERE symbol = 'CITY'` |
 | a time column and numbers | **Line** | `SELECT time, close FROM ochl_day WHERE symbol = 'CITY'` |
@@ -169,7 +169,7 @@ A name without `AS` works too, for example the column `sma(close, 20)`.
 
 #### Big data: 100,000 candles
 
-The chart stays fast with many rows. When you zoom out so far that several candles fall on one pixel, KDB joins them: one candle then stands for 2, 4, 8, ... rows (first open, highest high, lowest low, last close, total volume). The top line then shows the time range, for example `2026-01-04 - 2026-02-11  O 505  H 530  L 498  C 521`. Zoom in and you see every candle again.
+The chart stays fast with many rows. When you zoom out so far that several candles fall on one pixel, KarelaDB joins them: one candle then stands for 2, 4, 8, ... rows (first open, highest high, lowest low, last close, total volume). The top line then shows the time range, for example `2026-01-04 - 2026-02-11  O 505  H 530  L 498  C 521`. Zoom in and you see every candle again.
 
 For more than 100,000 rows, raise **Rows** at the top of the editor. The most is 1,000,000 rows per query.
 
@@ -228,7 +228,7 @@ The table shows at most 2,000 rows. The **Grid** view shows all rows.
 
 ### Examples for each chart type
 
-All examples use the sample data. Run the query, click **Chart**, and choose the type when KDB picks another one.
+All examples use the sample data. Run the query, click **Chart**, and choose the type when KarelaDB picks another one.
 
 #### Line, step line, area
 
@@ -257,7 +257,7 @@ SELECT symbol, sum(volume) AS volume FROM ochl_day GROUP BY symbol ORDER BY volu
 
 > **Picture:** three blue bars with rounded tops, one per symbol, with the value on top of each bar.
 
-For long names KDB turns the bars sideways:
+For long names KarelaDB turns the bars sideways:
 
 ```sql
 SELECT s.name, sum(o.volume) AS volume FROM ochl_day o JOIN securities s ON s.symbol = o.symbol GROUP BY s.name;
@@ -344,7 +344,7 @@ FROM ochl_day a JOIN ochl_day b ON a.time = b.time
 GROUP BY a.symbol, b.symbol;
 ```
 
-KDB picks the matrix by itself. Values from -1 to 1 get red (-1), grey (0) and green (1), and each cell shows its number when there is room.
+KarelaDB picks the matrix by itself. Values from -1 to 1 get red (-1), grey (0) and green (1), and each cell shows its number when there is room.
 
 #### KPI number and gauge
 
@@ -481,7 +481,7 @@ The **Auto refresh** list has **Off**, **5 s**, **10 s**, **30 s**, **1 min**, *
 - Auto refresh pauses while the browser tab is hidden and while a dialog is open.
 - When you zoomed a chart, the zoom stays after a refresh. When the view showed the newest rows, it follows the new rows.
 - The refresh interval is saved with the dashboard. **Refresh** runs all panels at once.
-- The server keeps a result cache (`kdb serve --cache-mb`, default 64 MB). A panel that asks the same question again, while the tables did not change, gets its answer from memory. So auto refresh is cheap.
+- The server keeps a result cache (`kareladb serve --cache-mb`, default 64 MB). A panel that asks the same question again, while the tables did not change, gets its answer from memory. So auto refresh is cheap.
 
 ### Save, share, export and import
 
@@ -542,7 +542,7 @@ A dashboard file looks like this (shortened):
 
 - `x`, `y`, `w`, `h`: place and size in grid units (12 columns; one row is 60 pixels).
 - `chart`: the chart type and the columns, like in the **Columns** box.
-- When a file is imported, KDB checks it: unknown fields are dropped, wrong values are fixed, and panels never overlap.
+- When a file is imported, KarelaDB checks it: unknown fields are dropped, wrong values are fixed, and panels never overlap.
 
 ### Who can do what
 
@@ -594,7 +594,7 @@ Panels run with the role of the person who looks at the dashboard. A `read` user
    ```sql
    SELECT time, symbol, close FROM ochl_day WHERE symbol IN ($a, $b) ORDER BY time
    ```
-   KDB draws one line per symbol. **Save**.
+   KarelaDB draws one line per symbol. **Save**.
 4. **More** > **Import JSON**, choose the file, **Open**. Check the SQL of the panels, then **Save**. An import always gets a new id, so it never replaces a saved dashboard.
 
 </details>

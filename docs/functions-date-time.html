@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Date and time functions - KDB (KARELA DataBase) docs</title>
+<title>Date and time functions - KarelaDB (KARELA DataBase) docs</title>
 <meta name="description" content="Take a time apart, find the weekday, quarter and week, cut, add and build times, count days or months between times, fiscal years (also Nepal&#39;s), and write a time as text.">
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-date-time.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-date-time.md">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/functions-date-time.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-date-time.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="date-and-time-functions">Date and time functions</h1>
 <blockquote><p>Take a time apart, find the weekday, quarter and week, cut, add and build times, count days or months between times, fiscal years (also Nepal&#39;s), and write a time as text.</p></blockquote>
 <ul><li>Category: Functions — date and time</li><li>Keywords: date, time, timestamp, UTC, milliseconds, weekday, weekday, trading day, holiday, truncate time, timestamp_floor, timestamp floor, local midnight, start of month, start of week, add days, add months, date_add, timestampadd, interval, month end, difference between dates, age, date_diff, timestampdiff, format date, strftime, date_format, format, time zone, timezone, Nepal time, NPT, Asia/Kathmandu, +05:45, 20700000, current_timestamp, getdate, EXTRACT, datepart, date part, epoch, ISO week, week number, weekofyear, dayofyear, day of year, quarter of the year, end of month, EOMONTH, last day of month, build a date, date from parts, datefromparts, how old, time between, financial year, FY, fiscal year, Nepal fiscal year, Nepali fiscal year, Shrawan, Bikram Sambat, BS year, arthik barsa, to_timezone, to_utc, AT TIME ZONE, timestamp_ceil, round up time, timestamp_floor_utc, today, yesterday, tomorrow, interval_start, interval_end, days_in_month, is_leap_year, leap year, is_end_of_month, day_of_week_sunday_first, millis, to_pg_date, sysdate, timestamp_sequence, timestamp_shuffle, QuestDB</li><li>See also: <a href="functions-conversion.html#to_timestamp">Conversion functions (to_timestamp)</a>, <a href="functions-conversion.html#cast">Conversion functions (cast)</a>, <a href="time-and-time-zones.html">Time and time zones</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="sample-by.html#time-zone">SAMPLE BY (time-zone)</a>, <a href="where.html#in-interval">WHERE (in-interval)</a>, <a href="functions-aggregate.html">Aggregate functions</a>, <a href="functions-finance.html">Finance and price functions</a></li></ul>
-<p>KDB keeps a <code>TIMESTAMP</code> as the number of <strong>milliseconds</strong> (1/1000 of a second) since 1970-01-01, in <strong>UTC</strong>. UTC is the world clock time with no time zone. A local time is UTC plus its zone offset: Nepal is <code>+05:45</code> (11:00 in Kathmandu is 05:15 UTC), New York is <code>-04:00</code> in summer (07:00 there is 11:00 UTC).</p>
+<p>KarelaDB keeps a <code>TIMESTAMP</code> as the number of <strong>milliseconds</strong> (1/1000 of a second) since 1970-01-01, in <strong>UTC</strong>. UTC is the world clock time with no time zone. A local time is UTC plus its zone offset: Nepal is <code>+05:45</code> (11:00 in Kathmandu is 05:15 UTC), New York is <code>-04:00</code> in summer (07:00 there is 11:00 UTC).</p>
 <ul><li>Every function here works on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s time zone</a>, which is <strong>UTC</strong> unless the session ran <code>SET TIME ZONE</code> or the server has <code>--timezone</code>. A time zone given in the call wins: <a href="#date_trunc">date_trunc</a><code>(unit, t, zone)</code>, <a href="#timestamp_floor">timestamp_floor</a>, <a href="#to_timezone">to_timezone and to_utc</a>, <a href="#to_char">to_char</a><code>(t, format, zone)</code>. <code>hour()</code> of 11:00 local time in Nepal is <code>5</code>. See <a href="#nepal-time">Local time</a>.</li><li>A time argument can be a <code>TIMESTAMP</code>, a <code>DATE</code>, time text like <code>&#39;2026-09-10T11:00:00+05:45&#39;</code>, or a whole number (milliseconds since 1970).</li><li>A <code>NULL</code> argument gives <code>NULL</code>.</li><li>Text that is not a time is an error: <code>year(&#39;hello&#39;)</code>.</li><li><code>to_timestamp</code> and <code>to_date</code> change a value into a time: see <a href="functions-conversion.html#to_timestamp">conversion functions</a>.</li><li>For reports: <a href="#date_part">date_part</a> takes any part of a time, <a href="#quarter">quarter</a> and <a href="#week_of_year">week_of_year</a> group by quarter and week, <a href="#last_day">last_day</a> finds the month end, and <a href="#fiscal_year">fiscal_year</a> and <a href="#nepal_fiscal_year">nepal_fiscal_year</a> group by financial year.</li></ul>
 <p><strong>Example: CITY volume per Nepal clock hour</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT hour(time + 20700000) AS nepal_hour,
@@ -52,7 +52,7 @@ INSERT INTO logins (user_id) VALUES (7);</code></pre>
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>same_1 (BOOL)</th><th>same_2 (BOOL)</th><th>same_3 (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td></tr></tbody></table></div>
 <p>(1 row)</p>
-<p><strong>Example: getdate is not KDB SQL</strong> (shows an error)</p>
+<p><strong>Example: getdate is not KarelaDB SQL</strong> (shows an error)</p>
 <pre><code class="language-sql">SELECT getdate();</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: unknown function &#39;getdate&#39;</code></p>
@@ -380,7 +380,7 @@ timestamp_floor(unit, t, origin)</code></pre>
 <p>The QuestDB function: cuts the time down to a whole number of units. <code>timestamp_floor(&#39;15m&#39;, &#39;2026-09-10T05:22:10Z&#39;)</code> is <code>2026-09-10T05:15:00.000Z</code>.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>unit</code></td><td>text</td><td>an optional count and one letter: <code>T</code> millisecond, <code>s</code> second, <code>m</code> minute, <code>h</code> hour, <code>d</code> day, <code>w</code> week, <code>M</code> month, <code>y</code> year. <code>&#39;15m&#39;</code>, <code>&#39;4h&#39;</code>, <code>&#39;1d&#39;</code>, <code>&#39;M&#39;</code>. Upper and lower case matter (<code>m</code> minute, <code>M</code> month).</td></tr><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr><tr><td><code>time_zone</code></td><td>text</td><td>optional: cut on this zone&#39;s clock, like <code>&#39;Asia/Kathmandu&#39;</code> or <code>&#39;+05:45&#39;</code></td></tr><tr><td><code>origin</code></td><td>a time</td><td>optional instead of a zone: count the units from this time, not from 1970-01-01</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>, in UTC. With a zone it is the start on that clock: <code>timestamp_floor(&#39;1d&#39;, t, &#39;Asia/Kathmandu&#39;)</code> is Nepal midnight, shown as 18:15 UTC the day before.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
-<ul><li>Counts start at 1970-01-01 00:00 (on the zone&#39;s clock when one is given): <code>&#39;2d&#39;</code> gives days 0, 2, 4, ... from then, <code>&#39;3M&#39;</code> gives January, April, July and October. Weeks start on <strong>Monday</strong>; for Sunday weeks use <a href="#date_trunc">date_trunc</a><code>(&#39;week&#39;, t)</code> or <a href="sample-by.html#week-start">SAMPLE BY ... WEEK START SUNDAY</a>.</li><li><code>U</code> (microseconds) is not a unit: KDB keeps milliseconds.</li><li>For candles, <a href="sample-by.html">SAMPLE BY</a> does the same cut and the aggregates in one step.</li></ul></li></ul>
+<ul><li>Counts start at 1970-01-01 00:00 (on the zone&#39;s clock when one is given): <code>&#39;2d&#39;</code> gives days 0, 2, 4, ... from then, <code>&#39;3M&#39;</code> gives January, April, July and October. Weeks start on <strong>Monday</strong>; for Sunday weeks use <a href="#date_trunc">date_trunc</a><code>(&#39;week&#39;, t)</code> or <a href="sample-by.html#week-start">SAMPLE BY ... WEEK START SUNDAY</a>.</li><li><code>U</code> (microseconds) is not a unit: KarelaDB keeps milliseconds.</li><li>For candles, <a href="sample-by.html">SAMPLE BY</a> does the same cut and the aggregates in one step.</li></ul></li></ul>
 <p><strong>Example: Cut one moment by several units</strong></p>
 <pre><code class="language-sql">SELECT timestamp_floor(&#39;15m&#39;, &#39;2026-09-10T05:22:10Z&#39;) AS quarter_hour,
        timestamp_floor(&#39;1d&#39;, &#39;2026-09-09T20:00:00Z&#39;) AS utc_day,
@@ -404,7 +404,7 @@ ORDER BY hour;</code></pre>
 <pre><code class="language-sql">SELECT timestamp_floor(&#39;1x&#39;, &#39;2026-09-10&#39;);</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: timestamp_floor: unit must be T, s, m, h, d, w, M or y with an optional count, like &#39;15m&#39; or &#39;1d&#39;; got &#39;1x&#39;</code></p>
-<p><code>timestamp_floor_utc(unit, t [, zone])</code> is QuestDB&#39;s name for the same function: its answer is in UTC, and KDB&#39;s always is.</p>
+<p><code>timestamp_floor_utc(unit, t [, zone])</code> is QuestDB&#39;s name for the same function: its answer is in UTC, and KarelaDB&#39;s always is.</p>
 <h2 id="timestamp_ceil">timestamp_ceil</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">timestamp_ceil(unit, t)
@@ -472,7 +472,7 @@ millis(t)
 to_pg_date(t)</code></pre>
 <p>Small QuestDB calendar functions.</p>
 <div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th></tr></thead><tbody><tr><td><code>days_in_month(t)</code></td><td>the days in the month of <code>t</code>: 28 to 31</td></tr><tr><td><code>is_leap_year(t)</code></td><td><code>true</code> when the year of <code>t</code> (or the year number) has 29 February</td></tr><tr><td><code>is_end_of_month(t)</code></td><td><code>true</code> on the last day of the month</td></tr><tr><td><code>day_of_week_sunday_first(t)</code></td><td>1 Sunday, 2 Monday, ... 7 Saturday</td></tr><tr><td><code>millis(t)</code></td><td>the milliseconds of the second: 0 to 999</td></tr><tr><td><code>to_pg_date(t)</code></td><td>the day of <code>t</code> as a <code>DATE</code></td></tr></tbody></table></div>
-<ul><li><strong>NULL:</strong> <code>NULL</code> for a <code>NULL</code> argument.</li><li><strong>Notes:</strong> the day is taken on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s time zone</a>, as for <a href="#day_of_week">day_of_week</a>. KDB&#39;s own <code>day_of_week</code> is 0 Sunday to 6 Saturday; a database set to the QuestDB dialect numbers it as QuestDB does, 1 Monday to 7 Sunday.</li></ul>
+<ul><li><strong>NULL:</strong> <code>NULL</code> for a <code>NULL</code> argument.</li><li><strong>Notes:</strong> the day is taken on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s time zone</a>, as for <a href="#day_of_week">day_of_week</a>. KarelaDB&#39;s own <code>day_of_week</code> is 0 Sunday to 6 Saturday; a database set to the QuestDB dialect numbers it as QuestDB does, 1 Monday to 7 Sunday.</li></ul>
 <p><strong>Example: Facts about a date</strong></p>
 <pre><code class="language-sql">SELECT days_in_month(&#39;2028-02-10&#39;) AS feb_2028_days,
        is_leap_year(&#39;2028-02-10&#39;) AS leap_2028,
@@ -488,7 +488,7 @@ to_pg_date(t)</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">sysdate()</code></pre>
 <p>QuestDB&#39;s clock: the time now, the same as <a href="#now">now</a><code>()</code>.</p>
-<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code> (KDB keeps milliseconds, which is what QuestDB&#39;s <code>DATE</code> holds).</li></ul>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code> (KarelaDB keeps milliseconds, which is what QuestDB&#39;s <code>DATE</code> holds).</li></ul>
 <p><strong>Example: sysdate is now</strong></p>
 <pre><code class="language-sql">SELECT sysdate() = now() AS same;</code></pre>
 <p>Result:</p>
@@ -499,7 +499,7 @@ to_pg_date(t)</code></pre>
 <pre><code class="language-sql">timestamp_sequence(start, step_microseconds)
 timestamp_shuffle(from, to)</code></pre>
 <p>QuestDB&#39;s test-data helpers. <code>timestamp_sequence</code> gives <code>start</code> on the first row, <code>start + step</code> on the next, and so on. <code>timestamp_shuffle</code> gives a random time from <code>from</code> to <code>to</code>.</p>
-<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>start</code></td><td>a time</td><td>the first time</td></tr><tr><td><code>step_microseconds</code></td><td>whole number</td><td>the step, in <strong>microseconds</strong> as in QuestDB (<code>60000000</code> is one minute); KDB keeps milliseconds, so the time is cut to the millisecond</td></tr><tr><td><code>from</code>, <code>to</code></td><td>a time</td><td>the range for a random time, both ends included</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>start</code></td><td>a time</td><td>the first time</td></tr><tr><td><code>step_microseconds</code></td><td>whole number</td><td>the step, in <strong>microseconds</strong> as in QuestDB (<code>60000000</code> is one minute); KarelaDB keeps milliseconds, so the time is cut to the millisecond</td></tr><tr><td><code>from</code>, <code>to</code></td><td>a time</td><td>the range for a random time, both ends included</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>Notes:</strong> each use of <code>timestamp_sequence</code> in a query counts its own rows.</li></ul>
 <p><strong>Example: One row a minute, with long_sequence</strong></p>
 <pre><code class="language-sql">SELECT x, timestamp_sequence(&#39;2026-09-10T05:15:00Z&#39;, 60000000) AS time
@@ -813,7 +813,7 @@ ORDER BY fiscal_year, quarter;</code></pre>
 <p>The name of <strong>Nepal&#39;s fiscal year</strong> of a date, as Nepal writes it in the Bikram Sambat (BS) calendar: <code>&#39;2083/84&#39;</code>. Nepal&#39;s fiscal year (arthik barsa) starts on <strong>Shrawan 1</strong>, which is about 16 or 17 July, and ends at the end of Ashadh the next year. Companies, banks and the tax office in Nepal use it for their reports.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the date</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>STRING</code> like <code>&#39;2082/83&#39;</code>: the BS year in which the fiscal year starts, a slash, and the last two digits of the next BS year.</li><li><strong>NULL:</strong> <code>nepal_fiscal_year(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong>
-<ul><li>KDB does <strong>not</strong> convert dates to the BS calendar. It uses a fixed start of <strong>17 July</strong> every year and adds 57 years. Shrawan 1 moves by a day between years, so a date on 16 or 17 July can be in the wrong year; check those days with the official calendar when it matters.</li><li>The same as <code>fiscal_year(t)</code> plus 57, written as a text. The date is the UTC date.</li></ul></li></ul>
+<ul><li>KarelaDB does <strong>not</strong> convert dates to the BS calendar. It uses a fixed start of <strong>17 July</strong> every year and adds 57 years. Shrawan 1 moves by a day between years, so a date on 16 or 17 July can be in the wrong year; check those days with the official calendar when it matters.</li><li>The same as <code>fiscal_year(t)</code> plus 57, written as a text. The date is the UTC date.</li></ul></li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT nepal_fiscal_year(&#39;2026-07-16&#39;) AS before_shrawan, nepal_fiscal_year(&#39;2026-07-17&#39;) AS shrawan_1,
        nepal_fiscal_year(&#39;2026-09-10&#39;) AS today, nepal_fiscal_year(CAST(&#39;2000-01-01&#39; AS DATE)) AS year_2000;</code></pre>
@@ -847,8 +847,8 @@ to_char(time, format, &#39;Asia/Kathmandu&#39;)
 time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;
 date_trunc(&#39;day&#39;, time, &#39;Asia/Kathmandu&#39;)
 SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code></pre>
-<p>KDB stores and shows every time in UTC. These tips use Nepal time as the example local zone: UTC + 5 hours 45 minutes, all year (Nepal has no summer time). For another zone change the offset and the milliseconds, for example <code>-05:00</code> and <code>- 18000000</code> for New York in winter. In a zone with summer time the fixed number is right for only part of the year.</p>
-<div class="table-wrap"><table><thead><tr><th>Task</th><th>Write</th></tr></thead><tbody><tr><td>Put a Nepal time into KDB</td><td><code>&#39;2026-09-10T11:00:00+05:45&#39;</code> (without <code>+05:45</code> the text is read as UTC)</td></tr><tr><td>Nepal hour, minute, day, weekday</td><td><code>hour(to_timezone(time, &#39;Asia/Kathmandu&#39;))</code>, or add 20700000 ms: <code>day_of_week(time + 20700000)</code></td></tr><tr><td>Show a time in Nepal time</td><td><code>to_char(time, &#39;YYYY-MM-DD HH24:MI&#39;, &#39;Asia/Kathmandu&#39;)</code></td></tr><tr><td>Rows of one Nepal day</td><td><code>WHERE time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="where.html#in-interval">time IN</a>)</td></tr><tr><td>Nepal midnight of a time</td><td><code>date_trunc(&#39;day&#39;, time, &#39;Asia/Kathmandu&#39;)</code> or <code>timestamp_floor(&#39;1d&#39;, time, &#39;Asia/Kathmandu&#39;)</code></td></tr><tr><td>Store daily bars at Nepal midnight</td><td>a column <code>time TIMESTAMP ROUND 1d TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="sample-by.html#time-zone">TIME ZONE</a>)</td></tr><tr><td>Candles by Nepal hours or days</td><td><code>SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="sample-by.html#time-zone">TIME ZONE</a>)</td></tr><tr><td>QuestDB <code>to_timezone(time, &#39;Asia/Kathmandu&#39;)</code> (UTC to the local clock)</td><td>the same: <a href="#to_timezone">to_timezone</a></td></tr><tr><td>QuestDB <code>to_utc(time, &#39;Asia/Kathmandu&#39;)</code> (a local clock to UTC)</td><td>the same: <a href="#to_timezone">to_utc</a>, or <code>time AT TIME ZONE &#39;Asia/Kathmandu&#39;</code></td></tr></tbody></table></div>
+<p>KarelaDB stores and shows every time in UTC. These tips use Nepal time as the example local zone: UTC + 5 hours 45 minutes, all year (Nepal has no summer time). For another zone change the offset and the milliseconds, for example <code>-05:00</code> and <code>- 18000000</code> for New York in winter. In a zone with summer time the fixed number is right for only part of the year.</p>
+<div class="table-wrap"><table><thead><tr><th>Task</th><th>Write</th></tr></thead><tbody><tr><td>Put a Nepal time into KarelaDB</td><td><code>&#39;2026-09-10T11:00:00+05:45&#39;</code> (without <code>+05:45</code> the text is read as UTC)</td></tr><tr><td>Nepal hour, minute, day, weekday</td><td><code>hour(to_timezone(time, &#39;Asia/Kathmandu&#39;))</code>, or add 20700000 ms: <code>day_of_week(time + 20700000)</code></td></tr><tr><td>Show a time in Nepal time</td><td><code>to_char(time, &#39;YYYY-MM-DD HH24:MI&#39;, &#39;Asia/Kathmandu&#39;)</code></td></tr><tr><td>Rows of one Nepal day</td><td><code>WHERE time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="where.html#in-interval">time IN</a>)</td></tr><tr><td>Nepal midnight of a time</td><td><code>date_trunc(&#39;day&#39;, time, &#39;Asia/Kathmandu&#39;)</code> or <code>timestamp_floor(&#39;1d&#39;, time, &#39;Asia/Kathmandu&#39;)</code></td></tr><tr><td>Store daily bars at Nepal midnight</td><td>a column <code>time TIMESTAMP ROUND 1d TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="sample-by.html#time-zone">TIME ZONE</a>)</td></tr><tr><td>Candles by Nepal hours or days</td><td><code>SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="sample-by.html#time-zone">TIME ZONE</a>)</td></tr><tr><td>QuestDB <code>to_timezone(time, &#39;Asia/Kathmandu&#39;)</code> (UTC to the local clock)</td><td>the same: <a href="#to_timezone">to_timezone</a></td></tr><tr><td>QuestDB <code>to_utc(time, &#39;Asia/Kathmandu&#39;)</code> (a local clock to UTC)</td><td>the same: <a href="#to_timezone">to_utc</a>, or <code>time AT TIME ZONE &#39;Asia/Kathmandu&#39;</code></td></tr></tbody></table></div>
 <ul><li><strong>Notes:</strong> <code>to_timezone(...)</code> and <code>+ 20700000</code> give a <code>TIMESTAMP</code> that is shown with <code>Z</code> but holds the Nepal clock time. Use them inside <code>hour()</code>, <code>day()</code> and so on, not to store. <code>NPT</code> and <code>Asia/Kathmandu</code> are the same zone. More in <a href="time-and-time-zones.html">time and time zones</a>.</li></ul>
 <p><strong>Example: QuestDB to_timezone and to_utc, and the older ways</strong></p>
 <pre><code class="language-sql">SELECT to_timezone(&#39;2026-09-10T05:15:00Z&#39;, &#39;Asia/Kathmandu&#39;) AS to_timezone,
@@ -884,7 +884,7 @@ SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;;</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">current_date
 current_date()</code></pre>
-<p>Today&#39;s date on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a> (UTC unless <code>SET TIME ZONE</code> names a zone). The PostgreSQL name; KDB gives the same as <code>CAST(now() AS DATE)</code>.</p>
+<p>Today&#39;s date on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a> (UTC unless <code>SET TIME ZONE</code> names a zone). The PostgreSQL name; KarelaDB gives the same as <code>CAST(now() AS DATE)</code>.</p>
 <ul><li><strong>Returns:</strong> <code>DATE</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> UTC, not Nepal time. After 18:15 Nepal time it is already the next UTC day, so for a Nepal day use <code>CAST(now() + 20700000 AS DATE)</code> (see <a href="#nepal-time">Nepal time</a>). It may be written with or without <code>()</code>.</li></ul>
 <p><strong>Example: Save the day a user logged in</strong></p>
 <p>Setup:</p>
@@ -908,13 +908,13 @@ current_time()
 localtime
 localtime()</code></pre>
 <p>The clock time of day now, on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a> (UTC unless set), as text: <code>HH:MM:SS.mmm</code>. <code>localtime</code> is the same function.</p>
-<ul><li><strong>Returns:</strong> <code>STRING</code>, 12 characters, like <code>05:15:00.000</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> KDB has no <code>TIME</code> type, so this is text. To compare times of day, compare the text (<code>current_time &lt; &#39;09:00:00.000&#39;</code>) or use <code>hour(now())</code>. For a Nepal clock time use <code>to_str(now() + 20700000, &#39;HH:mm:ss&#39;)</code>.</li></ul>
+<ul><li><strong>Returns:</strong> <code>STRING</code>, 12 characters, like <code>05:15:00.000</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> KarelaDB has no <code>TIME</code> type, so this is text. To compare times of day, compare the text (<code>current_time &lt; &#39;09:00:00.000&#39;</code>) or use <code>hour(now())</code>. For a Nepal clock time use <code>to_str(now() + 20700000, &#39;HH:mm:ss&#39;)</code>.</li></ul>
 <p><strong>Example: Is the market session open right now (Nepal clock)?</strong></p>
 <pre><code class="language-sql">SELECT current_time AS utc_time_of_day,
        to_str(now() + 20700000, &#39;HH:mm&#39;) AS nepal_clock,
        localtime = current_time AS localtime_is_the_same;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>utc_time_of_day (STRING)</th><th>nepal_clock (STRING)</th><th>localtime_is_the_same (BOOL)</th></tr></thead><tbody><tr><td>05:43:50.533</td><td>11:28</td><td>true</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>utc_time_of_day (STRING)</th><th>nepal_clock (STRING)</th><th>localtime_is_the_same (BOOL)</th></tr></thead><tbody><tr><td>09:55:32.212</td><td>15:40</td><td>true</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="localtimestamp">localtimestamp</h2>
 <p>Syntax:</p>
@@ -922,7 +922,7 @@ localtime()</code></pre>
 localtimestamp()
 localtimestamp(digits)</code></pre>
 <p>The time now on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a>, the PostgreSQL name for a time without a zone. In a UTC session it is the same as <code>now()</code>; after <code>SET TIME ZONE &#39;Asia/Kathmandu&#39;</code> it is 5 h 45 min later (the Nepal wall clock, still shown with <code>Z</code>).</p>
-<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>digits</code></td><td><code>INT</code></td><td>how many digits after the second PostgreSQL would keep; KDB always keeps milliseconds, so it changes nothing</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>digits</code></td><td><code>INT</code></td><td>how many digits after the second PostgreSQL would keep; KarelaDB always keeps milliseconds, so it changes nothing</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> the same value for the whole statement, like <code>now()</code>.</li></ul>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT localtimestamp = now() AS same_as_now, year(localtimestamp) &gt;= 2026 AS year_ok;</code></pre>
@@ -934,8 +934,8 @@ localtimestamp(digits)</code></pre>
 <pre><code class="language-sql">transaction_timestamp()
 statement_timestamp()
 clock_timestamp()</code></pre>
-<p>Three PostgreSQL names for the time now. In PostgreSQL they differ (start of the transaction, start of the statement, the clock right now). KDB gives the same time for all three: the time the statement started.</p>
-<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> <code>clock_timestamp()</code> in PostgreSQL moves on inside one statement; in KDB it does not, so you cannot use it to time a loop. Use it only for app code that came from PostgreSQL.</li></ul>
+<p>Three PostgreSQL names for the time now. In PostgreSQL they differ (start of the transaction, start of the statement, the clock right now). KarelaDB gives the same time for all three: the time the statement started.</p>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> <code>clock_timestamp()</code> in PostgreSQL moves on inside one statement; in KarelaDB it does not, so you cannot use it to time a loop. Use it only for app code that came from PostgreSQL.</li></ul>
 <p><strong>Example: All three are the time this statement started</strong></p>
 <pre><code class="language-sql">SELECT transaction_timestamp() = statement_timestamp() AS same_1,
        statement_timestamp() = clock_timestamp() AS same_2,
@@ -987,6 +987,6 @@ justify_interval(interval)</code></pre>
 <div class="table-wrap"><table><thead><tr><th>book_closure_length (INTERVAL)</th></tr></thead><tbody><tr><td>1 mon 11 days 06:00:00</td></tr></tbody></table></div>
 <p>(1 row)</p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-date-time.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-date-time.md">This page as markdown</a>.</footer>
 </body>
 </html>

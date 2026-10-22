@@ -3,62 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>1. Install KDB - KDB (KARELA DataBase) docs</title>
-<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/01-install.html">
-<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/01-install.md">
+<title>1. Install KarelaDB - KarelaDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/tutorial/01-install.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/01-install.md">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
-<h1 id="1-install-kdb">1. Install KDB</h1>
+<h1 id="1-install-kareladb"><span class="old-id" id="1-install-kdb"></span>1. Install KarelaDB</h1>
 <ul><li>Category: Tutorial</li></ul>
 <h2 id="what-you-will-learn">What you will learn</h2>
-<ul><li>Three ways to get KDB: an install package, the Docker image, or a build from the source.</li><li>How to build KDB on Windows, Linux and macOS.</li><li>Where KDB keeps your databases: the data folder and <code>KDB_DATA_DIR</code>.</li><li>Where the web console, the help and the Claude skill come from: the folders <code>web/</code>, <code>help/</code> and <code>skill/</code>.</li><li>What each program in <code>build/bin</code> does.</li><li>How to run the tests.</li></ul>
-<h2 id="three-ways-to-get-kdb">Three ways to get KDB</h2>
-<div class="table-wrap"><table><thead><tr><th>Way</th><th>Good for</th><th>Section</th></tr></thead><tbody><tr><td>An install package (<code>.zip</code> for Windows, <code>.tar.gz</code> for Linux)</td><td>a PC or a server that only runs KDB</td><td><a href="#install-a-package">Install a package</a></td></tr><tr><td>The Docker image</td><td>a server that already runs Docker</td><td><a href="#run-kdb-in-docker">Run KDB in Docker</a></td></tr><tr><td>Build from the source</td><td>working on KDB itself, and this tutorial</td><td><a href="#build-on-windows-msys2">Build on Windows</a></td></tr></tbody></table></div>
+<ul><li>Three ways to get KarelaDB: an install package, the Docker image, or a build from the source.</li><li>How to build KarelaDB on Windows, Linux and macOS.</li><li>Where KarelaDB keeps your databases: the data folder and <code>KARELADB_DATA_DIR</code>.</li><li>Where the web console, the help and the Claude skill come from: the folders <code>web/</code>, <code>help/</code> and <code>skill/</code>.</li><li>What each program in <code>build/bin</code> does.</li><li>How to run the tests.</li></ul>
+<h2 id="three-ways-to-get-kareladb"><span class="old-id" id="three-ways-to-get-kdb"></span>Three ways to get KarelaDB</h2>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>Good for</th><th>Section</th></tr></thead><tbody><tr><td>An install package (<code>.zip</code> for Windows, <code>.tar.gz</code> for Linux)</td><td>a PC or a server that only runs KarelaDB</td><td><a href="#install-a-package">Install a package</a></td></tr><tr><td>The Docker image</td><td>a server that already runs Docker</td><td><a href="#run-kareladb-in-docker">Run KarelaDB in Docker</a></td></tr><tr><td>Build from the source</td><td>working on KarelaDB itself, and this tutorial</td><td><a href="#build-on-windows-msys2">Build on Windows</a></td></tr></tbody></table></div>
 <h2 id="the-program-and-its-folders">The program and its folders</h2>
-<p>KDB is one program, <code>kdb</code> (<code>kdb.exe</code> on Windows). Nothing else is put inside it. The web console, the help pages and the Claude skill are plain files in folders <strong>next to the program</strong>:</p>
-<pre><code class="language-text">kdb.exe          the program
-kdb.conf         settings (optional); the console&#39;s Settings page writes it
+<p>KarelaDB is one program, <code>kareladb</code> (<code>kareladb.exe</code> on Windows). Nothing else is put inside it. The web console, the help pages and the Claude skill are plain files in folders <strong>next to the program</strong>:</p>
+<pre><code class="language-text">kareladb.exe          the program
+kareladb.conf         settings (optional); the console&#39;s Settings page writes it
 web\             the web console
 help\            the help pages
-skill\skill.md   the Claude skill: teaches an AI assistant in another project how to use KDB</code></pre>
-<p>So a new console or a new help needs only the files copied, not a new program. <code>kdb</code> looks for each folder in this order. The first one that has the folder&#39;s files wins:</p>
-<div class="table-wrap"><table><thead><tr><th>#</th><th>Where</th><th>Example</th></tr></thead><tbody><tr><td>1</td><td><code>web_dir</code>, <code>help_dir</code>, <code>skill_dir</code> in <code>kdb.conf</code></td><td><code>&quot;help_dir&quot;: &quot;D:/kdb/help&quot;</code></td></tr><tr><td>2</td><td>The environment variables <code>KDB_WEB_DIR</code>, <code>KDB_HELP_DIR</code>, <code>KDB_SKILL_DIR</code></td><td><code>$env:KDB_HELP_DIR = &quot;D:\kdb\help&quot;</code></td></tr><tr><td>3</td><td><code>web</code>, <code>help</code>, <code>skill</code> next to the program</td><td><code>C:\kdb\web</code></td></tr><tr><td>4</td><td><code>../share/kdb/web</code>, <code>help</code>, <code>skill</code> (Linux: <code>/usr/local/bin</code> and <code>/usr/local/share/kdb</code>)</td><td><code>/usr/local/share/kdb/web</code></td></tr><tr><td>5</td><td>The source folders, when you run <code>build\bin\kdb.exe</code> in a source checkout: <code>web\console</code>, <code>docs\help\site</code>, <code>.claude\skills\kdb</code></td><td><code>D:\KDB\web\console</code></td></tr></tbody></table></div>
-<p>A missing folder is not an error. The server still runs; the page says the console (or the help) is not installed, and where KDB looked. The console&#39;s <strong>Settings</strong> page shows the folders in use.</p>
+skill\skill.md   the Claude skill: teaches an AI assistant in another project how to use KarelaDB</code></pre>
+<p>So a new console or a new help needs only the files copied, not a new program. <code>kareladb</code> looks for each folder in this order. The first one that has the folder&#39;s files wins:</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Where</th><th>Example</th></tr></thead><tbody><tr><td>1</td><td><code>web_dir</code>, <code>help_dir</code>, <code>skill_dir</code> in <code>kareladb.conf</code></td><td><code>&quot;help_dir&quot;: &quot;D:/kdb/help&quot;</code></td></tr><tr><td>2</td><td>The environment variables <code>KARELADB_WEB_DIR</code>, <code>KARELADB_HELP_DIR</code>, <code>KARELADB_SKILL_DIR</code></td><td><code>$env:KARELADB_HELP_DIR = &quot;D:\kdb\help&quot;</code></td></tr><tr><td>3</td><td><code>web</code>, <code>help</code>, <code>skill</code> next to the program</td><td><code>C:\kdb\web</code></td></tr><tr><td>4</td><td><code>../share/kareladb/web</code>, <code>help</code>, <code>skill</code> (Linux: <code>/usr/local/bin</code> and <code>/usr/local/share/kareladb</code>)</td><td><code>/usr/local/share/kareladb/web</code></td></tr><tr><td>5</td><td>The source folders, when you run <code>build\bin\kareladb.exe</code> in a source checkout: <code>web\console</code>, <code>docs\help\site</code>, <code>.claude\skills\kareladb</code></td><td><code>D:\KarelaDB\web\console</code></td></tr></tbody></table></div>
+<p>A missing folder is not an error. The server still runs; the page says the console (or the help) is not installed, and where KarelaDB looked. The console&#39;s <strong>Settings</strong> page shows the folders in use.</p>
 <h2 id="install-a-package">Install a package</h2>
-<p>A package holds the program, the <code>web</code>, <code>help</code> and <code>skill</code> folders, an installer and <code>kdb.conf.example</code>. No source and no tests.</p>
-<p><strong>Windows</strong> (<code>kdb-&lt;version&gt;-windows-x64.zip</code>): unpack it, open PowerShell in the folder and run:</p>
+<p>A package holds the program, the <code>web</code>, <code>help</code> and <code>skill</code> folders, an installer and <code>kareladb.conf.example</code>. No source and no tests.</p>
+<p><strong>Windows</strong> (<code>kareladb-&lt;version&gt;-windows-x64.zip</code>): unpack it, open PowerShell in the folder and run:</p>
 <pre><code class="language-powershell">powershell -ExecutionPolicy Bypass -File .\install.ps1</code></pre>
-<p>It copies <code>kdb.exe</code> with its folders to <code>%LOCALAPPDATA%\Programs\kdb</code>, puts it on your <code>PATH</code> and writes the Claude skill. To remove KDB, delete that folder.</p>
-<p><strong>Linux</strong> (<code>kdb-&lt;version&gt;-linux-x64.tar.gz</code>, a static program that runs on any distribution):</p>
-<pre><code class="language-sh">./install.sh                   # just for you: ~/.local/bin and ~/.local/share/kdb
-sudo ./install.sh --system     # for everyone: /usr/local/bin and /usr/local/share/kdb
+<p>It copies <code>kareladb.exe</code> with its folders to <code>%LOCALAPPDATA%\Programs\kdb</code>, puts it on your <code>PATH</code> and writes the Claude skill. To remove KarelaDB, delete that folder.</p>
+<p><strong>Linux</strong> (<code>kareladb-&lt;version&gt;-linux-x64.tar.gz</code>, a static program that runs on any distribution):</p>
+<pre><code class="language-sh">./install.sh                   # just for you: ~/.local/bin and ~/.local/share/kareladb
+sudo ./install.sh --system     # for everyone: /usr/local/bin and /usr/local/share/kareladb
 sudo ./install.sh --system --service --token &lt;your-token&gt;   # and start it at boot (systemd)</code></pre>
 <p>To make the packages yourself from the source, see <code>packaging/README.md</code>.</p>
-<h2 id="run-kdb-in-docker">Run KDB in Docker</h2>
-<p>The image is built from the source folder. It puts the program in <code>/usr/local/bin</code> and copies the <code>web</code>, <code>help</code> and <code>skill</code> folders into <code>/usr/local/share/kdb/</code>. The help pages are copied only when they were built first (<code>node tools/help/build_help.mjs</code>, see the README of this tutorial); without them <code>/help</code> says the help is not installed.</p>
-<pre><code class="language-sh">docker build -t kdb -f docker/Dockerfile .
-docker run -d --name kdb --restart unless-stopped --stop-timeout 60 \
+<h2 id="run-kareladb-in-docker"><span class="old-id" id="run-kdb-in-docker"></span>Run KarelaDB in Docker</h2>
+<p>The image is built from the source folder. It puts the program in <code>/usr/local/bin</code> and copies the <code>web</code>, <code>help</code> and <code>skill</code> folders into <code>/usr/local/share/kareladb/</code>. The help pages are copied only when they were built first (<code>node tools/help/build_help.mjs</code>, see the README of this tutorial); without them <code>/help</code> says the help is not installed.</p>
+<pre><code class="language-sh">docker build -t kareladb -f docker/Dockerfile .
+docker run -d --name kareladb --restart unless-stopped --stop-timeout 60 \
   -p 9900:9900 -p 8832:8832 \
-  -e KDB_TOKEN=&lt;your-token&gt; -e KDB_MEMORY=1536 \
-  -v kdb-data:/data kdb</code></pre>
-<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Meaning</th></tr></thead><tbody><tr><td><code>-p 9900:9900</code></td><td>the HTTP API and the web console</td></tr><tr><td><code>-p 8832:8832</code></td><td>the PostgreSQL protocol (chapter 14)</td></tr><tr><td><code>KDB_TOKEN</code></td><td>the access token; send it as <code>Authorization: Bearer &lt;token&gt;</code>. <strong>Required</strong>: the container listens on all addresses, and KDB never does that without a secret, so it stops at once when <code>KDB_TOKEN</code> is not set.</td></tr><tr><td><code>KDB_MEMORY</code></td><td>memory in MB for table data (<code>--memory</code>; 256 when not set)</td></tr><tr><td><code>-v kdb-data:/data</code></td><td>the data folder. It lives outside the container, so a new image does not lose it. <code>kdb.conf</code> is kept there too.</td></tr><tr><td><code>--stop-timeout 60</code></td><td>lets KDB stop cleanly. Without it, Docker may kill KDB after a few seconds, and the next start replays the log.</td></tr><tr><td><code>--restart unless-stopped</code></td><td>starts KDB again after a restart of Docker or the computer</td></tr></tbody></table></div>
-<p>To update: build the image again, then <code>docker stop kdb</code>, <code>docker rm kdb</code> and the same <code>docker run</code>. The data stays in the volume. Stop the container before you remove it: <code>docker rm -f</code> kills KDB at once.</p>
-<p><code>docker exec kdb kdb skill &gt; SKILL.md</code> saves the Claude skill from the running container.</p>
+  -e KARELADB_TOKEN=&lt;your-token&gt; -e KARELADB_MEMORY=1536 \
+  -v kdb-data:/data kareladb</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Meaning</th></tr></thead><tbody><tr><td><code>-p 9900:9900</code></td><td>the HTTP API and the web console</td></tr><tr><td><code>-p 8832:8832</code></td><td>the PostgreSQL protocol (chapter 14)</td></tr><tr><td><code>KARELADB_TOKEN</code></td><td>the access token; send it as <code>Authorization: Bearer &lt;token&gt;</code>. <strong>Required</strong>: the container listens on all addresses, and KarelaDB never does that without a secret, so it stops at once when <code>KARELADB_TOKEN</code> is not set.</td></tr><tr><td><code>KARELADB_MEMORY</code></td><td>memory in MB for table data (<code>--memory</code>; 256 when not set)</td></tr><tr><td><code>-v kdb-data:/data</code></td><td>the data folder. It lives outside the container, so a new image does not lose it. <code>kareladb.conf</code> is kept there too.</td></tr><tr><td><code>--stop-timeout 60</code></td><td>lets KarelaDB stop cleanly. Without it, Docker may kill KarelaDB after a few seconds, and the next start replays the log.</td></tr><tr><td><code>--restart unless-stopped</code></td><td>starts KarelaDB again after a restart of Docker or the computer</td></tr></tbody></table></div>
+<p>To update: build the image again, then <code>docker stop kareladb</code>, <code>docker rm kareladb</code> and the same <code>docker run</code>. The data stays in the volume. Stop the container before you remove it: <code>docker rm -f</code> kills KarelaDB at once.</p>
+<p><code>docker exec kareladb kareladb skill &gt; SKILL.md</code> saves the Claude skill from the running container.</p>
 <h2 id="build-from-the-source">Build from the source</h2>
 <h3 id="what-you-need">What you need</h3>
-<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Version</th><th>Why</th></tr></thead><tbody><tr><td>CMake</td><td>3.16 or newer</td><td>Makes the build files</td></tr><tr><td>Ninja</td><td>any</td><td>Runs the build fast</td></tr><tr><td>C++ compiler</td><td>C++17 (GCC, Clang or MSVC)</td><td>Compiles KDB</td></tr></tbody></table></div>
-<p>KDB needs <strong>no other libraries</strong>. The build makes only the program. The console, the help and the skill stay as files in the source folder, and <code>build\bin\kdb.exe</code> finds them there (row 5 of the table above).</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Version</th><th>Why</th></tr></thead><tbody><tr><td>CMake</td><td>3.16 or newer</td><td>Makes the build files</td></tr><tr><td>Ninja</td><td>any</td><td>Runs the build fast</td></tr><tr><td>C++ compiler</td><td>C++17 (GCC, Clang or MSVC)</td><td>Compiles KarelaDB</td></tr></tbody></table></div>
+<p>KarelaDB needs <strong>no other libraries</strong>. The build makes only the program. The console, the help and the skill stay as files in the source folder, and <code>build\bin\kareladb.exe</code> finds them there (row 5 of the table above).</p>
 <h2 id="build-on-windows-msys2">Build on Windows (MSYS2)</h2>
 <ol><li><p>Install MSYS2 from <a href="https://www.msys2.org/" target="_blank" rel="noopener">https://www.msys2.org/</a>.</p></li><li><p>Open the <strong>MSYS2 UCRT64</strong> terminal. Install the tools:</p>
-<pre><code class="language-sh">pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja</code></pre></li><li><p>Add <code>C:\msys64\ucrt64\bin</code> to your Windows <code>PATH</code>. Then the tools work in PowerShell too.</p></li><li><p>Open PowerShell in the KDB folder and build:</p>
+<pre><code class="language-sh">pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja</code></pre></li><li><p>Add <code>C:\msys64\ucrt64\bin</code> to your Windows <code>PATH</code>. Then the tools work in PowerShell too.</p></li><li><p>Open PowerShell in the KarelaDB folder and build:</p>
 <pre><code class="language-powershell">cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build</code></pre></li></ol>
-<p>The programs are in <code>build\bin\</code>. They are linked statically. You can copy <code>kdb.exe</code> to another Windows PC. It needs no DLL files. For the web console and the help on that PC, copy the folders too (<code>web\console</code> as <code>web</code>, <code>docs\help\site</code> as <code>help</code>, <code>.claude\skills\kdb</code> as <code>skill</code>), or make a package (<code>packaging/README.md</code>), which does this for you.</p>
-<p>To build only the <code>kdb</code> program (faster):</p>
-<pre><code class="language-powershell">cmake --build build --target kdb</code></pre>
+<p>The programs are in <code>build\bin\</code>. They are linked statically. You can copy <code>kareladb.exe</code> to another Windows PC. It needs no DLL files. For the web console and the help on that PC, copy the folders too (<code>web\console</code> as <code>web</code>, <code>docs\help\site</code> as <code>help</code>, <code>.claude\skills\kareladb</code> as <code>skill</code>), or make a package (<code>packaging/README.md</code>), which does this for you.</p>
+<p>To build only the <code>kareladb</code> program (faster):</p>
+<pre><code class="language-powershell">cmake --build build --target kareladb</code></pre>
 <h2 id="build-on-linux">Build on Linux</h2>
 <p>Ubuntu or Debian:</p>
 <pre><code class="language-sh">sudo apt install cmake ninja-build g++
@@ -71,8 +71,8 @@ brew install cmake ninja
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build</code></pre>
 <h2 id="check-the-build">Check the build</h2>
-<pre><code class="language-powershell">.\build\bin\kdb.exe version</code></pre>
-<pre><code class="language-text">kdb 0.2.0-dev (crc32c hardware: yes)
+<pre><code class="language-powershell">.\build\bin\kareladb.exe version</code></pre>
+<pre><code class="language-text">kareladb 0.2.0-dev (crc32c hardware: yes)
 
 Stored-format features this build reads (26):
   views                0.2.0-dev (2026-09-10)   CREATE VIEW: the &quot;views&quot; file
@@ -102,68 +102,68 @@ Stored-format features this build reads (26):
   materialized_views   0.2.0-dev (2026-09-13)   CREATE MATERIALIZED VIEW: catalog part &#39;M&#39;, REFRESH MATERIALIZED VIEW log records, mv_dirty.&lt;id&gt; in the manifest
   table_ttl            0.2.0-dev (2026-09-13)   TTL n DAYS on a table: catalog part &#39;L&#39;
 
-A database that uses a feature not in this list needs a newer KDB (kdb check exits with 3).</code></pre>
+A database that uses a feature not in this list needs a newer KarelaDB (kareladb check exits with 3).</code></pre>
 <p><code>crc32c hardware: yes</code> means your CPU can compute checksums fast. <code>no</code> also works, only slower.
 The list under it is the <strong>stored-format feature list</strong>: everything this build can read from disk. Chapter 24 explains it.</p>
-<p>Run <code>kdb</code> with no command to see all commands:</p>
-<pre><code class="language-powershell">kdb
+<p>Run <code>kareladb</code> with no command to see all commands:</p>
+<pre><code class="language-powershell">kareladb
 &quot;exit code: $LASTEXITCODE&quot;</code></pre>
-<pre><code class="language-text">kdb 0.2.0-dev
+<pre><code class="language-text">kareladb 0.2.0-dev
 
 Usage:
-  kdb info    &lt;db&gt;                               show files, versions and log position
-  kdb check   &lt;db&gt;                               read every block and log record, report damage
-  kdb repair  &lt;db&gt; [--backups &lt;dir&gt;] [--accept-log-loss]
+  kareladb info    &lt;db&gt;                               show files, versions and log position
+  kareladb check   &lt;db&gt;                               read every block and log record, report damage
+  kareladb repair  &lt;db&gt; [--backups &lt;dir&gt;] [--accept-log-loss]
                                                  fix damaged files from old versions or backups
-  kdb backup  &lt;db&gt; &lt;backups-dir&gt; [--hard-links] [--keep-daily N] [--keep-weekly N]
-  kdb backups &lt;backups-dir&gt;                      list backups, newest first
-  kdb verify-backup &lt;backup-dir&gt;
-  kdb restore &lt;backup-dir&gt; &lt;new-data-dir&gt; [--logs-from &lt;old-data-dir&gt;] [--until &quot;YYYY-MM-DD HH:MM[:SS]&quot;]
-  kdb dump-file &lt;file.kdb&gt;                       header and block checksums of one file
-  kdb serve   [&lt;db&gt;] [--db &lt;name&gt;] [--port 9900] [--bind 127.0.0.1] [--backups &lt;dir&gt;] [--token &lt;t&gt;] [--memory &lt;MB&gt;]
+  kareladb backup  &lt;db&gt; &lt;backups-dir&gt; [--hard-links] [--keep-daily N] [--keep-weekly N]
+  kareladb backups &lt;backups-dir&gt;                      list backups, newest first
+  kareladb verify-backup &lt;backup-dir&gt;
+  kareladb restore &lt;backup-dir&gt; &lt;new-data-dir&gt; [--logs-from &lt;old-data-dir&gt;] [--until &quot;YYYY-MM-DD HH:MM[:SS]&quot;]
+  kareladb dump-file &lt;file.kdb&gt;                       header and block checksums of one file
+  kareladb serve   [&lt;db&gt;] [--db &lt;name&gt;] [--port 9900] [--bind 127.0.0.1] [--backups &lt;dir&gt;] [--token &lt;t&gt;] [--memory &lt;MB&gt;]
               [--sync-commits always|batch] [--threads N]  HTTP API, line protocol (POST /write) and web console
               [--pg-port 8832] [--pg-timestamptz] PostgreSQL protocol for Postgres drivers and tools (0 = off)
                                                  (Ctrl+C stops). Without &lt;db&gt;: every database in the data folder
-  kdb shell   [&lt;db&gt;] [--backups &lt;dir&gt;] [--memory &lt;MB&gt;]  interactive SQL prompt (end statements with ;)
-  kdb sql     &lt;db&gt; &quot;SQL&quot; [--format table|csv|json] [--max-rows N]
+  kareladb shell   [&lt;db&gt;] [--backups &lt;dir&gt;] [--memory &lt;MB&gt;]  interactive SQL prompt (end statements with ;)
+  kareladb sql     &lt;db&gt; &quot;SQL&quot; [--format table|csv|json] [--max-rows N]
                                                  run SQL and print results (use - to read SQL from stdin)
-  kdb user add &lt;name&gt; [--role admin|write|read]  add a server user; the password is asked for (or read
+  kareladb user add &lt;name&gt; [--role admin|write|read]  add a server user; the password is asked for (or read
                                                  from a pipe), never given on the command line
-  kdb user passwd &lt;name&gt;                         set a new password
-  kdb user role &lt;name&gt; admin|write|read|none     change the role
-  kdb user list                                  users and roles (never passwords)
-  kdb user remove &lt;name&gt;
-  kdb user reset-2fa &lt;name&gt;                      turn two-factor login off (a lost phone)
-                                                 (kdb user works on the data folder while kdb serve is stopped;
+  kareladb user passwd &lt;name&gt;                         set a new password
+  kareladb user role &lt;name&gt; admin|write|read|none     change the role
+  kareladb user list                                  users and roles (never passwords)
+  kareladb user remove &lt;name&gt;
+  kareladb user reset-2fa &lt;name&gt;                      turn two-factor login off (a lost phone)
+                                                 (kareladb user works on the data folder while kareladb serve is stopped;
                                                  while it runs, use CREATE USER ... in its console)
-  kdb version [&lt;db&gt;]                             this build and the stored-format features it reads;
+  kareladb version [&lt;db&gt;]                             this build and the stored-format features it reads;
                                                  with &lt;db&gt;: the features that database uses
-  kdb upgrade &lt;db&gt; [--backups &lt;dir&gt;]             verified backup, then save the database&#39;s feature list, then check
-  kdb help [&lt;topic&gt; | tutorial [&lt;chapter&gt;]]     the help topics (and, in a source checkout, the tutorial)
+  kareladb upgrade &lt;db&gt; [--backups &lt;dir&gt;]             verified backup, then save the database&#39;s feature list, then check
+  kareladb help [&lt;topic&gt; | tutorial [&lt;chapter&gt;]]     the help topics (and, in a source checkout, the tutorial)
                                                  in the terminal; without a topic: the list of topics
-  kdb skill [install] [--dir &lt;d&gt;] [--url &lt;u&gt;] [--token &lt;t&gt;] [--home &lt;checkout&gt;]
-                                                 print, or install into ~/.claude/skills/kdb, the file that
-                                                 teaches an AI assistant in another project how to use KDB
+  kareladb skill [install] [--dir &lt;d&gt;] [--url &lt;u&gt;] [--token &lt;t&gt;] [--home &lt;checkout&gt;]
+                                                 print, or install into ~/.claude/skills/kareladb, the file that
+                                                 teaches an AI assistant in another project how to use KarelaDB
 
 &lt;db&gt;: a database name in the data folder (market), or the path of a database folder (D:\kdb\market, ./market).
-Data folder: --data-dir &lt;folder&gt;, else kdb.conf, else the KDB_DATA_DIR environment variable,
-  else &quot;data&quot; next to kdb.
---config &lt;file&gt;: settings the console&#39;s Settings page may change (default: kdb.conf next to kdb).
+Data folder: --data-dir &lt;folder&gt;, else kareladb.conf, else the KARELADB_DATA_DIR environment variable,
+  else &quot;data&quot; next to kareladb.
+--config &lt;file&gt;: settings the console&#39;s Settings page may change (default: kareladb.conf next to kareladb).
   It holds data_dir and wal_archive_mb; a --data-dir on the command line always wins over it. It may also
   name web_dir, help_dir and skill_dir: the folders of the console, the help and the Claude skill
-  (else KDB_WEB_DIR, KDB_HELP_DIR, KDB_SKILL_DIR, else web/, help/ and skill/ next to kdb).
+  (else KARELADB_WEB_DIR, KARELADB_HELP_DIR, KARELADB_SKILL_DIR, else web/, help/ and skill/ next to kareladb).
 --memory &lt;MB&gt;: memory for table data kept loaded (default 512). More is faster on big tables.
 --threads &lt;N&gt;: threads for big queries and writes (default and most: half of the CPU threads).
 --cache-mb &lt;MB&gt;: memory for results of repeated queries (default 64, 0 = off). A result is used
   again only while no table it read has changed; queries with now() or random() are never kept.
 --reader-yield on|off: readers do not wait for a long trigger or CALL; they read the last
-  committed rows (default off; env KDB_READER_YIELD).
+  committed rows (default off; env KARELADB_READER_YIELD).
 --warm-indexes on|off: build every index right after a database opens, on a background thread,
-  so the first query finds them ready (default on; env KDB_WARM_INDEXES). Off: on first use.
+  so the first query finds them ready (default on; env KARELADB_WARM_INDEXES). Off: on first use.
 --sync-commits always: every write is on disk before it is confirmed (default).
 --sync-commits batch: writes are confirmed at once and put on disk every 10 ms. Much faster for
   many small writes; a power cut can lose the last confirmed writes, but never damages the data.
-Protection of kdb serve (docs/tutorial/21-protection.md):
+Protection of kareladb serve (docs/tutorial/21-protection.md):
   --statement-timeout 60s      stop statements that run longer (default 60s, 0 = no limit)
   --max-result-memory 1GB      rows one query may keep in memory (default 1GB, 0 = no limit)
   --max-groups N               GROUP BY groups of one query (default 5000000, 0 = no limit)
@@ -179,30 +179,30 @@ Protection of kdb serve (docs/tutorial/21-protection.md):
   --backup-copy &lt;dir&gt;          a second, checked copy of each scheduled backup (another disk)
   --backup-warn-hours N        warn in the log when the last good backup is older (default 26)
   --keep-daily N --keep-weekly N   backups kept (default 7 and 4)
-Exit codes: 0 OK, 1 error, 2 damage found, 3 the database needs a newer KDB (nothing was changed).
+Exit codes: 0 OK, 1 error, 2 damage found, 3 the database needs a newer KarelaDB (nothing was changed).
 exit code: 1</code></pre>
 <h2 id="where-your-data-lives">Where your data lives</h2>
-<p>A <strong>database</strong> is a folder. KDB keeps many databases in one <strong>data folder</strong>, one sub-folder for each database:</p>
-<pre><code class="language-text">D:\KDB\build\bin\kdb.exe
-D:\KDB\build\bin\data\              &lt;- the data folder
-D:\KDB\build\bin\data\market\        &lt;- the database &quot;market&quot;
-D:\KDB\build\bin\data\demo\         &lt;- the database &quot;demo&quot;
-D:\KDB\build\bin\data\_trash\       &lt;- dropped databases (KDB never deletes them)</code></pre>
+<p>A <strong>database</strong> is a folder. KarelaDB keeps many databases in one <strong>data folder</strong>, one sub-folder for each database:</p>
+<pre><code class="language-text">D:\KarelaDB\build\bin\kareladb.exe
+D:\KarelaDB\build\bin\data\              &lt;- the data folder
+D:\KarelaDB\build\bin\data\market\        &lt;- the database &quot;market&quot;
+D:\KarelaDB\build\bin\data\demo\         &lt;- the database &quot;demo&quot;
+D:\KarelaDB\build\bin\data\_trash\       &lt;- dropped databases (KarelaDB never deletes them)</code></pre>
 <p>Each database has its own tables, views, triggers and procedures.</p>
-<p>KDB looks for the data folder in this order. The first one that is set wins:</p>
-<div class="table-wrap"><table><thead><tr><th>#</th><th>Where</th><th>Example</th></tr></thead><tbody><tr><td>1</td><td>The option <code>--data-dir &lt;folder&gt;</code></td><td><code>kdb serve --data-dir E:\kdb-data</code></td></tr><tr><td>2</td><td><code>data_dir</code> in <code>kdb.conf</code> (next to the program, or the file named by <code>--config</code>). The console&#39;s <strong>Settings</strong> page writes it.</td><td><code>&quot;data_dir&quot;: &quot;E:/kdb-data&quot;</code></td></tr><tr><td>3</td><td>The environment variable <code>KDB_DATA_DIR</code></td><td><code>$env:KDB_DATA_DIR = &quot;E:\kdb-data&quot;</code></td></tr><tr><td>4</td><td>The folder <code>data</code> next to the <code>kdb</code> program</td><td><code>D:\KDB\build\bin\data</code></td></tr></tbody></table></div>
-<p>KDB creates the folder when it is missing. Use <code>KDB_DATA_DIR</code> when the data must be on another disk, or when <code>kdb.exe</code> is in a folder where you cannot write (like <code>C:\Program Files</code>).</p>
-<p>To set <code>KDB_DATA_DIR</code> for good on Windows (then open a new PowerShell window):</p>
-<pre><code class="language-powershell">[Environment]::SetEnvironmentVariable(&quot;KDB_DATA_DIR&quot;, &quot;E:\kdb-data&quot;, &quot;User&quot;)</code></pre>
-<p>On Linux and macOS, add <code>export KDB_DATA_DIR=/srv/kdb-data</code> to <code>~/.bashrc</code> (or <code>~/.zshrc</code>).</p>
+<p>KarelaDB looks for the data folder in this order. The first one that is set wins:</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Where</th><th>Example</th></tr></thead><tbody><tr><td>1</td><td>The option <code>--data-dir &lt;folder&gt;</code></td><td><code>kareladb serve --data-dir E:\kdb-data</code></td></tr><tr><td>2</td><td><code>data_dir</code> in <code>kareladb.conf</code> (next to the program, or the file named by <code>--config</code>). The console&#39;s <strong>Settings</strong> page writes it.</td><td><code>&quot;data_dir&quot;: &quot;E:/kdb-data&quot;</code></td></tr><tr><td>3</td><td>The environment variable <code>KARELADB_DATA_DIR</code></td><td><code>$env:KARELADB_DATA_DIR = &quot;E:\kdb-data&quot;</code></td></tr><tr><td>4</td><td>The folder <code>data</code> next to the <code>kareladb</code> program</td><td><code>D:\KarelaDB\build\bin\data</code></td></tr></tbody></table></div>
+<p>KarelaDB creates the folder when it is missing. Use <code>KARELADB_DATA_DIR</code> when the data must be on another disk, or when <code>kareladb.exe</code> is in a folder where you cannot write (like <code>C:\Program Files</code>).</p>
+<p>To set <code>KARELADB_DATA_DIR</code> for good on Windows (then open a new PowerShell window):</p>
+<pre><code class="language-powershell">[Environment]::SetEnvironmentVariable(&quot;KARELADB_DATA_DIR&quot;, &quot;E:\kdb-data&quot;, &quot;User&quot;)</code></pre>
+<p>On Linux and macOS, add <code>export KARELADB_DATA_DIR=/srv/kdb-data</code> to <code>~/.bashrc</code> (or <code>~/.zshrc</code>).</p>
 <p>Database names: letters, digits, <code>_</code> and <code>-</code>, 1 to 64 characters. <code>Market</code> and <code>market</code> are the same database.</p>
-<p>An example. Here the data folder is <code>kdb-data</code> in the current folder. <code>kdb shell</code> without a database name opens the database <code>default</code>:</p>
-<pre><code class="language-powershell">$env:KDB_DATA_DIR = &quot;kdb-data&quot;
-&quot;CREATE DATABASE market; CREATE DATABASE demo; SHOW DATABASES;&quot; | kdb shell
+<p>An example. Here the data folder is <code>kdb-data</code> in the current folder. <code>kareladb shell</code> without a database name opens the database <code>default</code>:</p>
+<pre><code class="language-powershell">$env:KARELADB_DATA_DIR = &quot;kdb-data&quot;
+&quot;CREATE DATABASE market; CREATE DATABASE demo; SHOW DATABASES;&quot; | kareladb shell
 Get-ChildItem kdb-data -Name</code></pre>
-<pre><code class="language-text">KDB 0.2.0-dev shell on default (data folder kdb-data)
+<pre><code class="language-text">KarelaDB 0.2.0-dev shell on default (data folder kdb-data)
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
-kdb&gt; database &#39;market&#39; created
+kareladb&gt; database &#39;market&#39; created
 
 database &#39;demo&#39; created
 
@@ -212,13 +212,13 @@ default |      0 |     0 | true
 demo    |      0 |     0 | false
 market  |      0 |     0 | false
 (3 rows, 0.1 ms)
-kdb&gt;
+kareladb&gt;
 default
 demo
 market</code></pre>
-<p>Every command also still takes a <strong>folder path</strong>, like in the rest of this tutorial: <code>kdb sql market &quot;...&quot;</code> uses the folder <code>market</code> in the current folder, as long as the data folder has no database called <code>market</code>. <a href="07-command-line-and-scripts.html#database-names-and-folder-paths">Chapter 7</a> explains names and paths.</p>
+<p>Every command also still takes a <strong>folder path</strong>, like in the rest of this tutorial: <code>kareladb sql market &quot;...&quot;</code> uses the folder <code>market</code> in the current folder, as long as the data folder has no database called <code>market</code>. <a href="07-command-line-and-scripts.html#database-names-and-folder-paths">Chapter 7</a> explains names and paths.</p>
 <h2 id="what-the-programs-are">What the programs are</h2>
-<div class="table-wrap"><table><thead><tr><th>Program</th><th>What it is</th></tr></thead><tbody><tr><td><code>kdb</code></td><td>The main program. It runs SQL, the shell, the server, backups and repairs. You need only this one.</td></tr><tr><td><code>test_env</code>, <code>test_crc32c</code>, <code>test_block_file</code>, <code>test_wal</code>, <code>test_manifest</code>, <code>test_store</code>, <code>test_backup</code>, <code>test_disk_full</code></td><td>Tests for the storage layer. Each tests one part.</td></tr><tr><td><code>test_sql_parser</code>, <code>test_catalog</code>, <code>test_database</code>, <code>test_tables</code>, <code>test_select</code>, <code>test_indexes</code>, <code>test_procedures</code>, <code>test_mviews</code>, ...</td><td>Tests for SQL, tables, queries, indexes, procedures and views.</td></tr><tr><td><code>test_table_locks</code>, <code>test_txn_readers</code>, <code>test_accounting</code></td><td>Tests for many writers and readers at the same time, and for transactions.</td></tr><tr><td><code>test_manager</code>, <code>test_cross_database</code></td><td>Tests for many databases: names, the data folder, CREATE/DROP DATABASE, the trash folder, queries over two databases.</td></tr><tr><td><code>test_server</code>, <code>test_pg</code>, <code>test_pg_dml</code>, <code>test_users</code>, <code>test_protection</code></td><td>Tests for the HTTP server, the PostgreSQL protocol, users and the protection limits.</td></tr><tr><td><code>powercut_test [n]</code></td><td>Cuts the &quot;power&quot; at a random moment, <code>n</code> times (default 300). Every committed change must still be there.</td></tr><tr><td><code>corrupt_test [n]</code></td><td>Damages a random file, <code>n</code> times (default 1000). KDB must repair it or refuse clearly. It must never return wrong data.</td></tr><tr><td><code>crash_test [n]</code></td><td>Kills a real writer process at a random moment, <code>n</code> times (default 200).</td></tr><tr><td><code>fuzz_test</code>, <code>stress_test</code>, <code>test_text_fuzz</code></td><td>Random SQL and random load, to find crashes.</td></tr><tr><td><code>kdb_bench</code></td><td>Speed tests. See <code>bench/README.md</code>.</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Program</th><th>What it is</th></tr></thead><tbody><tr><td><code>kareladb</code></td><td>The main program. It runs SQL, the shell, the server, backups and repairs. You need only this one.</td></tr><tr><td><code>test_env</code>, <code>test_crc32c</code>, <code>test_block_file</code>, <code>test_wal</code>, <code>test_manifest</code>, <code>test_store</code>, <code>test_backup</code>, <code>test_disk_full</code></td><td>Tests for the storage layer. Each tests one part.</td></tr><tr><td><code>test_sql_parser</code>, <code>test_catalog</code>, <code>test_database</code>, <code>test_tables</code>, <code>test_select</code>, <code>test_indexes</code>, <code>test_procedures</code>, <code>test_mviews</code>, ...</td><td>Tests for SQL, tables, queries, indexes, procedures and views.</td></tr><tr><td><code>test_table_locks</code>, <code>test_txn_readers</code>, <code>test_accounting</code></td><td>Tests for many writers and readers at the same time, and for transactions.</td></tr><tr><td><code>test_manager</code>, <code>test_cross_database</code></td><td>Tests for many databases: names, the data folder, CREATE/DROP DATABASE, the trash folder, queries over two databases.</td></tr><tr><td><code>test_server</code>, <code>test_pg</code>, <code>test_pg_dml</code>, <code>test_users</code>, <code>test_protection</code></td><td>Tests for the HTTP server, the PostgreSQL protocol, users and the protection limits.</td></tr><tr><td><code>powercut_test [n]</code></td><td>Cuts the &quot;power&quot; at a random moment, <code>n</code> times (default 300). Every committed change must still be there.</td></tr><tr><td><code>corrupt_test [n]</code></td><td>Damages a random file, <code>n</code> times (default 1000). KarelaDB must repair it or refuse clearly. It must never return wrong data.</td></tr><tr><td><code>crash_test [n]</code></td><td>Kills a real writer process at a random moment, <code>n</code> times (default 200).</td></tr><tr><td><code>fuzz_test</code>, <code>stress_test</code>, <code>test_text_fuzz</code></td><td>Random SQL and random load, to find crashes.</td></tr><tr><td><code>kdb_bench</code></td><td>Speed tests. See <code>bench/README.md</code>.</td></tr></tbody></table></div>
 <h2 id="run-the-tests">Run the tests</h2>
 <p>Each test is a separate program. Exit code <code>0</code> means it passed. Tests write temporary files into the folder in <code>KDB_TEST_TMP</code> (default: <code>.\kdb_test_tmp</code>).</p>
 <pre><code class="language-powershell">$env:KDB_TEST_TMP = &quot;D:\kdb_test_tmp&quot;
@@ -236,11 +236,11 @@ idle checkpoint: written after writes stopped
 runs: 16094 rows after 160 random steps, both engines equal to the model
 row builders: same rows and messages as InsertRows
 PASS test_tables
-warning: D:\kdb_test_tmp/select/db: the table data of this database is 0 MB, 154869 times the memory budget of 0 MB (--memory). Expect queries over much of it, and writes into old partitions, to read files again and again and to take seconds. Give KDB more memory: --memory 0 or more (KDB_MEMORY in Docker)
-warning: D:\kdb_test_tmp/select/db: the table data of this database is 0 MB, 153700 times the memory budget of 0 MB (--memory). Expect queries over much of it, and writes into old partitions, to read files again and again and to take seconds. Give KDB more memory: --memory 0 or more (KDB_MEMORY in Docker)
+warning: D:\kdb_test_tmp/select/db: the table data of this database is 0 MB, 154869 times the memory budget of 0 MB (--memory). Expect queries over much of it, and writes into old partitions, to read files again and again and to take seconds. Give KarelaDB more memory: --memory 0 or more (KARELADB_MEMORY in Docker)
+warning: D:\kdb_test_tmp/select/db: the table data of this database is 0 MB, 153700 times the memory budget of 0 MB (--memory). Expect queries over much of it, and writes into old partitions, to read files again and again and to take seconds. Give KarelaDB more memory: --memory 0 or more (KARELADB_MEMORY in Docker)
 PASS test_select
 exit code: 0</code></pre>
-<p>The two warnings of <code>test_select</code> are on purpose. The test opens a database with a memory budget of 1 byte, to check that queries give the same rows when KDB must read the files again and again. A real server prints the same warning once, when it opens a database whose data is more than 8 times its memory budget (<code>--memory</code>).</p>
+<p>The two warnings of <code>test_select</code> are on purpose. The test opens a database with a memory budget of 1 byte, to check that queries give the same rows when KarelaDB must read the files again and again. A real server prints the same warning once, when it opens a database whose data is more than 8 times its memory budget (<code>--memory</code>).</p>
 <p>To run all tests:</p>
 <pre><code class="language-powershell">ctest --test-dir build --output-on-failure</code></pre>
 <p>There are 56 tests. This takes a long time, because <code>powercut_test</code>, <code>corrupt_test</code>, <code>crash_test</code>, <code>fuzz_test</code> and <code>stress_test</code> repeat many times (<code>corrupt_test</code> alone takes about half an hour). Most others take a few seconds. Run the tests for the part you changed first; run them all before a release. When all pass, the last lines are:</p>
@@ -252,18 +252,18 @@ exit code: 0</code></pre>
 ./build/bin/test_select
 ctest --test-dir build --output-on-failure</code></pre>
 <h2 id="phones-ios-and-android">Phones (iOS and Android)</h2>
-<p>For iOS and Android, CMake turns off the <code>kdb</code> program and the tests. Only the library is built. This tutorial is about the <code>kdb</code> program, so it does not cover phones.</p>
+<p>For iOS and Android, CMake turns off the <code>kareladb</code> program and the tests. Only the library is built. This tutorial is about the <code>kareladb</code> program, so it does not cover phones.</p>
 <h2 id="try-it-yourself">Try it yourself</h2>
-<ol><li>Build only the <code>kdb</code> program again, and check the version it prints.</li><li>Run <code>test_catalog</code> and check the exit code.</li><li>Run <code>crash_test</code> with only 5 rounds.</li></ol>
+<ol><li>Build only the <code>kareladb</code> program again, and check the version it prints.</li><li>Run <code>test_catalog</code> and check the exit code.</li><li>Run <code>crash_test</code> with only 5 rounds.</li></ol>
 <details>
 <summary>Answers</summary>
-<ol><li><pre><code class="language-powershell">cmake --build build --target kdb
-.\build\bin\kdb.exe version</code></pre></li><li><pre><code class="language-powershell">.\build\bin\test_catalog.exe
+<ol><li><pre><code class="language-powershell">cmake --build build --target kareladb
+.\build\bin\kareladb.exe version</code></pre></li><li><pre><code class="language-powershell">.\build\bin\test_catalog.exe
 $LASTEXITCODE    # 0 = passed</code></pre></li><li><pre><code class="language-powershell">.\build\bin\crash_test.exe 5</code></pre></li></ol>
 </details>
 <hr>
 <p>Next: <a href="02-first-database.html">2. Your first database</a></p>
 </main>
-<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/01-install.md">This page as markdown</a>.</footer>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/tutorial/01-install.md">This page as markdown</a>.</footer>
 </body>
 </html>

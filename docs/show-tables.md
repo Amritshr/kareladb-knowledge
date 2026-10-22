@@ -18,7 +18,7 @@ These statements show what is **in** a database: which tables there are, which c
 
 Other `SHOW` statements: `SHOW DATABASES` ([databases](databases.md#show-databases)), `SHOW VIEWS` ([views](views.md)), `SHOW INDEXES` ([indexes](indexes.md)), `SHOW FUNCTIONS` ([saved functions](saved-functions.md)), `SHOW PROCEDURES` ([procedures](procedures.md)), `SHOW TRIGGERS` ([triggers](triggers.md)), `SHOW USERS` ([users and roles](users-and-roles.md)).
 
-- **Notes:** KDB has no `DESCRIBE`. `information_schema` and `pg_catalog` can be read like tables, and psql's `\d` works on the [PostgreSQL port](postgres-protocol.md#catalog). In `kdb shell`, `.tables` is the same as `SHOW TABLES`, and `.schema t` shows `SHOW CREATE TABLE t`.
+- **Notes:** KarelaDB has no `DESCRIBE`. `information_schema` and `pg_catalog` can be read like tables, and psql's `\d` works on the [PostgreSQL port](postgres-protocol.md#catalog). In `kareladb shell`, `.tables` is the same as `SHOW TABLES`, and `.schema t` shows `SHOW CREATE TABLE t`.
 
 **Example: What is in the sample database** (sample data: sample)
 
@@ -78,7 +78,7 @@ Lists the tables of the current database, sorted by name. Views are not in this 
 | `rows` | `LONG` | number of rows now |
 
 - **Returns:** one row per table; `(0 rows)` for an empty database.
-- **Notes:** the result can be used like any query result in scripts: `kdb sql market "SHOW TABLES" --format csv`.
+- **Notes:** the result can be used like any query result in scripts: `kareladb sql market "SHOW TABLES" --format csv`.
 
 **Example: An app database with users, accounts and a ledger**
 
@@ -109,16 +109,16 @@ Result:
 **Command line: The same list from the shell** (sample data: sample)
 
 ```bash
-kdb shell market
+kareladb shell market
 > .tables
 ```
 
 Output:
 
 ```text
-KDB 0.2.0-dev shell on market
+KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
-kdb> name         | kind       | partition | columns | rows
+kareladb> name         | kind       | partition | columns | rows
 -------------+------------+-----------+---------+-----
 brokers      | relational | NONE      |       2 |    5
 live_data    | timeseries | DAY       |      12 |   12
@@ -127,7 +127,7 @@ ochl_minutes | timeseries | MONTH     |       7 |  956
 securities   | relational | NONE      |       3 |    5
 trade_log    | timeseries | DAY       |       8 |   32
 (6 rows, 0.0 ms)
-kdb>
+kareladb>
 ```
 
 <a id="show-columns"></a>
@@ -234,14 +234,14 @@ Syntax:
 SHOW CREATE TABLE table
 ```
 
-Gives the full `CREATE TABLE` statement of a table, with every rule KDB keeps: types, keys, defaults, `ROUND`, computed columns, `REFERENCES`, `CHECK` rules with their names, and the table options with their **default values filled in** (like `PARTITION BY DAY` and `SORT BY (symbol, time)`).
+Gives the full `CREATE TABLE` statement of a table, with every rule KarelaDB keeps: types, keys, defaults, `ROUND`, computed columns, `REFERENCES`, `CHECK` rules with their names, and the table options with their **default values filled in** (like `PARTITION BY DAY` and `SORT BY (symbol, time)`).
 
 | Column | Type | Meaning |
 |---|---|---|
-| `create_sql` | `STRING` | the statement; newer KDB versions add one more row for each index: `CREATE INDEX ...` |
+| `create_sql` | `STRING` | the statement; newer KarelaDB versions add one more row for each index: `CREATE INDEX ...` |
 
 - **Returns:** the text you can run in another database to make the same (empty) table.
-- **Notes:** in `kdb sql` and `kdb shell` table format, long text is cut after 48 characters. Use `--format csv` (or `.format csv` in the shell) to see all of it.
+- **Notes:** in `kareladb sql` and `kareladb shell` table format, long text is cut after 48 characters. Use `--format csv` (or `.format csv` in the shell) to see all of it.
 
 **Example: The daily candles table of the sample data** (sample data: sample)
 
@@ -306,7 +306,7 @@ Result:
 **Command line: See the whole text in CSV format** (sample data: sample)
 
 ```bash
-kdb sql market "SHOW CREATE TABLE trade_log" --format csv
+kareladb sql market "SHOW CREATE TABLE trade_log" --format csv
 ```
 
 Output:
@@ -347,7 +347,7 @@ Lists the partitions of one table, oldest first, with QuestDB's columns. Both fo
 | `numRows` | `LONG` | rows now |
 | `diskSize` | `LONG` | bytes: its file, plus its new rows still in the log |
 | `diskSizeHuman` | `STRING` | the same, like `12.4 KiB` |
-| `readOnly`, `active`, `attached`, `detached`, `attachable` | `BOOL` | `active` is `true` for the newest partition; KDB has no read-only or detached partitions |
+| `readOnly`, `active`, `attached`, `detached`, `attachable` | `BOOL` | `active` is `true` for the newest partition; KarelaDB has no read-only or detached partitions |
 
 - **Notes:** it needs the right to read the table (the row counts and times tell about the rows).
 
@@ -377,7 +377,7 @@ Result:
 
 ## QuestDB's meta functions
 
-Apps written for QuestDB read the schema with functions in `FROM`. KDB has them with QuestDB 9.4.3's column names and types, so that code runs unchanged.
+Apps written for QuestDB read the schema with functions in `FROM`. KarelaDB has them with QuestDB 9.4.3's column names and types, so that code runs unchanged.
 
 | Function | One row per | Columns |
 |---|---|---|
@@ -390,8 +390,8 @@ Apps written for QuestDB read the schema with functions in `FROM`. KDB has them 
 - `designatedTimestamp` is the time column of a `TIMESERIES` table, `NULL` for other tables. `dedup` is `true` when the table has a `DEDUP KEY`, and `upsertKey` marks its columns.
 - `indexed` is `true` for a column with an index of its own (`ALTER TABLE t ALTER COLUMN c ADD INDEX`, or `CREATE INDEX` on that one column).
 - `ttlValue`/`ttlUnit` show a TTL as QuestDB does: `SET TTL 14 DAYS` shows `2` `WEEK`; no TTL shows `0` `HOUR`.
-- `maxUncommittedRows` (500000), `o3MaxLag` (600000000) and the symbol sizes (256) are QuestDB's defaults: KDB has no such setting per table.
-- `wal_tables()`: a KDB commit is applied before it returns, so `writerTxn` always equals `sequencerTxn` and `suspended` is `false`. Code that waits for the two to match goes on at once.
+- `maxUncommittedRows` (500000), `o3MaxLag` (600000000) and the symbol sizes (256) are QuestDB's defaults: KarelaDB has no such setting per table.
+- `wal_tables()`: a KarelaDB commit is applied before it returns, so `writerTxn` always equals `sequencerTxn` and `suspended` is `false`. Code that waits for the two to match goes on at once.
 
 **Example: What a rebuild reads first: time column, partitions, dedup keys**
 

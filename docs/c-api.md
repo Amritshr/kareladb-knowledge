@@ -1,12 +1,12 @@
 # C API (kdb.h)
 
-> Use KDB inside your own program with no server - open a folder, run SQL, read rows as text or native numbers - through the C header include/kdb.h and the kdb_c library.
+> Use KarelaDB inside your own program with no server - open a folder, run SQL, read rows as text or native numbers - through the C header include/kdb.h and the kdb_c library.
 
 - Category: C API
 - Keywords: C API, kdb.h, kdb\_c, kdb.dll, libkdb.so, libkdb.dylib, embedded, embed, library, shared library, cgo, Go, golang, go-embedded, MinGW, database/sql, Rust, Python, ctypes, C#, P/Invoke, Swift, kdb\_open, kdb\_close, kdb\_exec, kdb\_exec\_values, kdb\_append, kdb\_result, kdb\_result\_free, kdb\_errmsg, kdb\_sqlstate, kdb\_last\_error, kdb\_session\_open, SQLSTATE, KDB\_BUILD\_C\_API, thread safety
 - See also: [SQL basics](sql-basics.md), [Transactions](transactions.md), [INSERT](insert.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md)
 
-The C API puts the whole KDB engine inside your own program. There is no server, no port and no token: your program opens a database folder and runs SQL on it directly. The same SQL works as over HTTP or the PostgreSQL port.
+The C API puts the whole KarelaDB engine inside your own program. There is no server, no port and no token: your program opens a database folder and runs SQL on it directly. The same SQL works as over HTTP or the PostgreSQL port.
 
 | Part | Where |
 |---|---|
@@ -20,7 +20,7 @@ Only the `kdb_` functions of the header leave the library. The ABI is stable: fu
 
 ## Build the library
 
-On Windows the library is built with the rest of KDB. On Linux and macOS ask for it, because it needs position-independent code, which costs the server program a little speed:
+On Windows the library is built with the rest of KarelaDB. On Linux and macOS ask for it, because it needs position-independent code, which costs the server program a little speed:
 
 ```text
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DKDB_BUILD_C_API=ON
@@ -57,7 +57,7 @@ int main(void) {
 }
 ```
 
-- `kdb_open` makes the folder when it is not there. One process at a time may open a folder; do not point it at the folder a running `kdb serve` uses.
+- `kdb_open` makes the folder when it is not there. One process at a time may open a folder; do not point it at the folder a running `kareladb serve` uses.
 - `kdb_exec` returns every row (there is no row limit). With several statements separated by `;`, the result is the last one's.
 - Parameters `$1, $2, ...` come as a JSON array, or typed with `kdb_exec_values` and the helpers `kdb_int`, `kdb_double`, `kdb_text`, `kdb_bool`, `kdb_null`. A value never becomes SQL, so it is safe from SQL injection.
 - Pass `NULL` for the result when you do not need it.
@@ -77,7 +77,7 @@ int main(void) {
 | `statement_timeout_ms` | 0 | stop a statement after this long (0 = no limit) |
 | `lock_timeout_ms` | the engine's | how long a writer waits for a busy table |
 | `min_free_mb` | 64 | refuse writes when the disk has less free |
-| `encryption` | false | make a new database encrypted (needs `KDB_MASTER_KEY`) |
+| `encryption` | false | make a new database encrypted (needs `KARELADB_MASTER_KEY`) |
 
 <a id="result"></a>
 

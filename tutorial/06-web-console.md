@@ -11,11 +11,11 @@
 ## Start the server
 
 ```powershell
-kdb serve market --backups backups
+kareladb serve market --backups backups
 ```
 
 ```text
-KDB 0.2.0-dev
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   postgres  127.0.0.1:8832 (PostgreSQL protocol, no TLS; no password on this computer only)
   data      market
@@ -31,14 +31,14 @@ Press Ctrl+C to stop.
 
 Then open <http://127.0.0.1:9900> in Chrome, Edge or Firefox. While the server runs, it prints one line per request, for example `2026-09-11 14:07:33  GET /health 200 0 ms`.
 
-`kdb serve market` serves **one** database folder (here the folder `market`). To serve **every database in the data folder** (chapter 1), start it without a folder:
+`kareladb serve market` serves **one** database folder (here the folder `market`). To serve **every database in the data folder** (chapter 1), start it without a folder:
 
 ```powershell
-kdb serve --backups backups
+kareladb serve --backups backups
 ```
 
 ```text
-KDB 0.2.0-dev
+KarelaDB 0.2.0-dev
   console   http://127.0.0.1:9900
   postgres  127.0.0.1:8832 (PostgreSQL protocol, no TLS; no password on this computer only)
   data      D:/AMP/TechnivsProject/01_NChartPro/KDB/build/bin/data (from program folder; one folder per database)
@@ -57,7 +57,7 @@ Then the console can switch between databases and create new ones (see [Database
 
 | Option | Meaning | Default |
 |---|---|---|
-| `--data-dir FOLDER` | The data folder to serve (without a database folder argument) | `KDB_DATA_DIR`, else `data` next to `kdb.exe` |
+| `--data-dir FOLDER` | The data folder to serve (without a database folder argument) | `KARELADB_DATA_DIR`, else `data` next to `kareladb.exe` |
 | `--db NAME` | The database used when a request names none. In the data folder it is created when first used. | `default` (or the name you gave) |
 | `--port N` | TCP port | `9900` |
 | `--bind ADDRESS` | Which network address to listen on. `127.0.0.1` = this computer only. `0.0.0.0` = all networks. | `127.0.0.1` |
@@ -65,9 +65,9 @@ Then the console can switch between databases and create new ones (see [Database
 | `--token SECRET` | Every request needs this token (see below). | no token |
 | `--memory MB` | Memory for table data kept loaded. Data over this is read from disk again when needed, which is slower. On a PC or VPS with years of market history (about 1.5 GB on disk), `--memory 4096` keeps queries fast. | `512` |
 
-- **Stop the server with Ctrl+C.** KDB then closes the database cleanly (`database closed cleanly`).
+- **Stop the server with Ctrl+C.** KarelaDB then closes the database cleanly (`database closed cleanly`).
 - If the window is closed or the process is killed, nothing committed is lost. The next start replays the log and shows `last shutdown: not clean (crash or kill)`.
-- Only one server (or other `kdb` command) can use a database folder at a time.
+- Only one server (or other `kareladb` command) can use a database folder at a time.
 
 To check from PowerShell that the page is there:
 
@@ -79,16 +79,16 @@ if ($page.Content -match '<title>(.*?)</title>') { "title: $($Matches[1])" }
 
 ```text
 HTTP 200, text/html; charset=utf-8
-title: KDB console
+title: KarelaDB console
 ```
 
-The console needs no internet. Its files are plain files in the folder `web` next to `kdb` (in a source checkout: `web/console`). Chapter 1 lists where KDB looks. A new console needs only the files copied, not a new program. When KDB finds no console files, the page says so and lists the folders it looked in.
+The console needs no internet. Its files are plain files in the folder `web` next to `kareladb` (in a source checkout: `web/console`). Chapter 1 lists where KarelaDB looks. A new console needs only the files copied, not a new program. When KarelaDB finds no console files, the page says so and lists the folders it looked in.
 
 ## The screen
 
 ```text
 +-------------------------------------------------------------------------------------------+
-| KDB [Home v]  Database [market v] New database   market v0.2.0-dev  * Connected  Help      |  <- top bar
+| KarelaDB [Home v]  Database [market v] New database   market v0.2.0-dev  * Connected  Help      |  <- top bar
 +-----------------------+----------------------------------------------------------+--------+
 | OBJECTS       Refresh | [Run Ctrl+Enter] [Run all Ctrl+Shift+Enter] [History]  Rows | Monitor|
 | [Tables 6][Views][Trig]|  1  SELECT time, open, high, low, close, volume          | Health |  <- right side
@@ -115,7 +115,7 @@ The lines between the editor, the results and the terminal can be dragged. The c
 | **Home** menu | The pages: **Home** (this page: editor, grid, chart), **Dashboard** (many charts on one page, chapter 20), **View data** (browse tables and change rows with forms), **Keep data** (how long each table keeps its rows), **Settings** (where the data is kept, and who may log in). The button shows where you are, for example `Home / Dashboard`. |
 | **Database** list | The database everything on the page uses: editor, object lists, health, timers, backups. See [Databases](#databases). |
 | **New database** | Creates a database in the server's data folder. Only shown when the server serves a data folder. |
-| Folder name, version | The folder of the chosen database, and the KDB version |
+| Folder name, version | The folder of the chosen database, and the KarelaDB version |
 | User and **Log out** | Only when the data folder has users (see [Login](#login-users)) |
 | Connection dot | `Connected`, `Offline` (the server does not answer), `Token required` or `Login required` |
 | **Help** | The help pages, the tutorial, keyboard shortcuts. Press **F1** on a word in the editor to open its help page. |
@@ -151,7 +151,7 @@ The **terminal** under the results is a live log of what the server does: every 
 - **Delete** next to a database in the **Databases** panel (right-hand rail) drops it. You type its name to confirm. Only a server admin sees the button. Like `DROP DATABASE`, it moves the folder to `_trash` in the data folder, and it is refused while a request or shell still uses the database.
 - `USE demo;` in the editor also switches the list to `demo`.
 - `CREATE DATABASE x;` and `DROP DATABASE x;` in the editor work too; the list reloads after them. If you drop the chosen database, the console goes back to the default database. `DROP DATABASE` never deletes data: the folder moves to `_trash` in the data folder.
-- With `kdb serve market` (one folder), the list has just that database and there is no **New database** button.
+- With `kareladb serve market` (one folder), the list has just that database and there is no **New database** button.
 
 The list comes from `GET /api/databases`:
 
@@ -229,7 +229,7 @@ The grid shows the rows of a result.
 
 ### Chart
 
-Click **Chart** above the result. The chart button works when the result has a number column. KDB picks the chart from the columns, for example:
+Click **Chart** above the result. The chart button works when the result has a number column. KarelaDB picks the chart from the columns, for example:
 
 - a `TIMESTAMP` or `DATE` column and columns named `open`, `high`, `low`, `close`: **candles**, with bars for a `volume` column;
 - a time column and other numbers: **lines**;
@@ -260,16 +260,16 @@ If the result has a SYMBOL or STRING column with more than one value (for exampl
 
 | Line | Meaning |
 |---|---|
-| `OK - no damaged files` (green) / `DAMAGED (n)` (red) | Damaged files that KDB knows about, with their names |
+| `OK - no damaged files` (green) / `DAMAGED (n)` (red) | Damaged files that KarelaDB knows about, with their names |
 | Last backup | How long ago (`just now`, `3 h ago`), `never`, or `no backup folder` |
 | Data | Size of the data files and how many |
 | Log LSN | Number of the last change in the log. It grows with every change. |
 | Opened | When the server opened the database |
-| Recovery at open | What KDB did when it opened the database. It opens by itself if there was a problem. |
+| Recovery at open | What KarelaDB did when it opened the database. It opens by itself if there was a problem. |
 | **Check now** | Reads every block of every file and the log. Example message: `OK: 11 files (76.1 KB) and 1 log segments read in 1.50 ms. No damage.` |
 | **Backup now** | Makes a verified backup into the `--backups` folder. Example message: `Backup 20260911-083519-806 created and verified: 9 files, 222.3 KB.` The button is off when the server has no backup folder. |
 
-If **Check now** finds damage, stop the server and run `kdb repair` (chapter 9).
+If **Check now** finds damage, stop the server and run `kareladb repair` (chapter 9).
 
 ### Status bar (bottom)
 
@@ -290,7 +290,7 @@ When the data folder has users (chapter 16), the console shows **Log in** instea
 Start the server with a token:
 
 ```powershell
-kdb serve market --token change-me-please
+kareladb serve market --token change-me-please
 ```
 
 - The console asks for the token once (**Access token required**). The browser keeps it (local storage and a cookie for this site only).
@@ -312,13 +312,13 @@ Choose a long random token, for example:
 | Other PCs in the office must connect | `--bind 0.0.0.0 --token <long secret>`. Open the port only in the Windows firewall for your office network. |
 | Access over the internet | Do **not** open port 9900 to the internet. Put a reverse proxy with HTTPS (for example nginx or Caddy) in front, keep `--bind 127.0.0.1`, and use `--token`. |
 
-What KDB does to protect you:
+What KarelaDB does to protect you:
 
-- Without a token, KDB listens on `127.0.0.1` only. If you use `--bind 0.0.0.0` **without** a token, the server prints a big **WARNING**: anyone who can reach the port can read, change and delete all data.
-- The HTTP API refuses requests from other web sites (HTTP 403 `cross-site requests are not allowed`), so a bad web page in your browser cannot use your local KDB.
+- Without a token, KarelaDB listens on `127.0.0.1` only. If you use `--bind 0.0.0.0` **without** a token, the server prints a big **WARNING**: anyone who can reach the port can read, change and delete all data.
+- The HTTP API refuses requests from other web sites (HTTP 403 `cross-site requests are not allowed`), so a bad web page in your browser cannot use your local KarelaDB.
 - Without a token, the server only accepts the host names `localhost` and `127.x.x.x` (HTTP 403 otherwise). This stops "DNS rebinding" attacks. A reverse proxy that changes the `Host` header therefore needs `--token`.
 - `GET /exec` only runs statements that read. Changes must use `POST` (chapter 8).
-- There is **no HTTPS** inside KDB. Use a reverse proxy.
+- There is **no HTTPS** inside KarelaDB. Use a reverse proxy.
 - The token gives full access: everyone with the token can change and delete data. For people and programs that should do less, make **users** with roles instead (chapter 16).
 
 ## Try it yourself
@@ -330,7 +330,7 @@ What KDB does to protect you:
 <details>
 <summary>Answers</summary>
 
-1. `kdb serve market --backups backups`, then **Backup now**. "Last backup" changes to `just now`.
+1. `kareladb serve market --backups backups`, then **Backup now**. "Last backup" changes to `just now`.
 2. ```sql
    SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
    FROM ochl_day WHERE symbol = 'VOLT' SAMPLE BY 1w WEEK START SUNDAY;
