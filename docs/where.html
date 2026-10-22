@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WHERE - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Keep only the rows you want, with comparisons, IN, BETWEEN, LIKE, IS NULL and time ranges.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/where.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/where.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="where">WHERE</h1>
+<blockquote><p>Keep only the rows you want, with comparisons, IN, BETWEEN, LIKE, IS NULL and time ranges.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: filter, condition, rows, AND, OR, NOT, , , !, &lt;&gt;, &lt;, &lt;, &gt;, &gt;, BETWEEN, NOT BETWEEN, IN, NOT IN, time IN, interval, LIKE, NOT LIKE, %, _, escape, ILIKE, NOT ILIKE, IS NULL, IS NOT NULL, NULL, row comparison, tuple IN, (a, b) IN, composite key, IN VALUES, keyset paging, seek paging, fast conditions, column engine, row engine, where, like, ilike, SIMILAR TO, NOT SIMILAR TO, similar to, similar_to_escape, between</li><li>See also: <a href="select.html">SELECT</a>, <a href="operators.html">Operators</a>, <a href="order-by-limit.html#paging">ORDER BY, LIMIT, OFFSET (paging)</a>, <a href="time-and-time-zones.html">Time and time zones</a>, <a href="functions-conditional.html">Conditional and NULL functions</a>, <a href="functions-regex.html">Regular expressions</a></li></ul>
+<p><code>WHERE</code> keeps the rows where the condition is <strong>true</strong>. Rows where it is false or <code>NULL</code> are left out.</p>
+<p>On a time-series table, a condition on the time column (like <code>time IN &#39;2026-09&#39;</code>) also makes the query fast: KDB does not read the other partitions (files). A condition like <code>symbol = &#39;CITY&#39;</code> lets KDB jump straight to that symbol&#39;s rows. Some shapes of condition are much faster than others: see <a href="where.html#fast-conditions">fast conditions</a>.</p>
+<p><strong>Example: CITY and VOLT closes above 190 in September 2026</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_day
+WHERE symbol IN (&#39;CITY&#39;, &#39;VOLT&#39;) AND close &gt; 190 AND time IN &#39;2026-09&#39;
+ORDER BY time, symbol
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>CITY</td><td>502.4</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>CITY</td><td>496.4</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>CITY</td><td>497.9</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>CITY</td><td>499</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>CITY</td><td>498.7</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="where-2">WHERE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM ... WHERE condition
+UPDATE table SET ... WHERE condition
+DELETE FROM table WHERE condition</code></pre>
+<p>The condition is an expression that gives <code>true</code> or <code>false</code>. You can use columns of every table in <code>FROM</code> and <code>JOIN</code>, functions, and <a href="union-subqueries.html">subqueries</a>.</p>
+<ul><li><strong>Returns:</strong> only the rows where the condition is <code>true</code>.</li><li><strong>NULL:</strong> a condition that gives <code>NULL</code> counts as false (see <a href="where.html#null-in-where">NULL in WHERE</a>).</li><li><strong>Notes:</strong> <code>WHERE</code> runs before <code>GROUP BY</code>, <code>SAMPLE BY</code> and window functions. To filter groups, use <a href="group-by.html#having">HAVING</a>.</li><li>A select alias cannot be used in <code>WHERE</code>. Write the expression again.</li><li>The condition must be true or false: <code>WHERE close</code> is an error.</li><li>Aggregates like <code>count(*)</code> cannot be used in <code>WHERE</code>.</li></ul>
+<p><strong>Example: Pro users of the app</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT id, username, city
+FROM app_users
+WHERE plan = &#39;pro&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>username (STRING)</th><th>city (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>Kathmandu</td></tr><tr><td>4</td><td>gita</td><td>Dharan</td></tr><tr><td>7</td><td>suman</td><td>Pokhara</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Ledger lines of the bank account in the first week of September</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT entry_date, debit, credit, memo
+FROM ledger
+WHERE account = 1100 AND entry_date &gt;= &#39;2026-09-01&#39; AND entry_date &lt; &#39;2026-09-08&#39;
+ORDER BY line_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>entry_date (TIMESTAMP)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th><th>memo (STRING)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>500000.00</td><td>NULL</td><td>Owner puts money in the bank</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>NULL</td><td>257500.00</td><td>Pay the broker</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>NULL</td><td>1030.00</td><td>Commission on the CITY buy</td></tr><tr><td>2026-09-04T00:00:00.000Z</td><td>NULL</td><td>30000.00</td><td>Take cash from the bank</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Forum posts written by sita</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, thread_id, body
+FROM posts
+WHERE author = &#39;sita&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>thread_id (LONG)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>2</td><td>1</td><td>I agree, the profit grew 18%.</td></tr><tr><td>6</td><td>1</td><td>सिटी बैंकको नाफा राम्रो छ।</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The condition must be true or false</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol FROM ochl_day WHERE close;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 35: a condition must be true or false, got &#39;542.2&#39;</code></p>
+<p><strong>Example: An alias is not known in WHERE</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol, close - open AS change FROM ochl_day WHERE change &gt; 0;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 59: unknown column &#39;change&#39; (table &#39;ochl_day&#39; has: time symbol open high low close volume)</code></p>
+<h2 id="and-or-not">AND, OR, NOT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">condition AND condition
+condition OR condition
+NOT condition</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Operator</th><th>True when</th></tr></thead><tbody><tr><td><code>a AND b</code></td><td>both are true</td></tr><tr><td><code>a OR b</code></td><td>at least one is true</td></tr><tr><td><code>NOT a</code></td><td><code>a</code> is false</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>true OR NULL</code> is <code>true</code>, <code>false AND NULL</code> is <code>false</code>. Other mixes with <code>NULL</code> give <code>NULL</code> (and the row is left out).</li><li><strong>Notes:</strong> <code>NOT</code> binds tighter than <code>AND</code>, and <code>AND</code> binds tighter than <code>OR</code>. So <code>a OR b AND c</code> means <code>a OR (b AND c)</code>. Use <code>( )</code> whenever you mix <code>AND</code> and <code>OR</code>.</li><li>Both sides must be true or false: <code>1 AND 2</code> is an error.</li></ul>
+<p><strong>Example: Without ( ): the price and the day apply only to COAST, so CITY rows of every day come back</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; OR symbol = &#39;COAST&#39; AND close &gt; 400
+  AND time IN &#39;2026-09-10&#39;
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>CITY</td><td>542.2</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>CITY</td><td>539.7</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>CITY</td><td>539.3</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>CITY</td><td>542.4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The same with ( ): now the time and price apply to both symbols</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_day
+WHERE (symbol = &#39;CITY&#39; OR symbol = &#39;COAST&#39;) AND close &gt; 400
+  AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Trades where broker 58 was the buyer or the seller, but not with broker 1</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol, buyer, seller, quantity
+FROM trade_log
+WHERE (buyer = 58 OR seller = 58) AND NOT (buyer = 1 OR seller = 1);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (INT)</th><th>seller (INT)</th><th>quantity (LONG)</th></tr></thead><tbody><tr><td>100006</td><td>COAST</td><td>58</td><td>45</td><td>200</td></tr><tr><td>100001</td><td>TELCO</td><td>58</td><td>34</td><td>1000</td></tr><tr><td>100030</td><td>CITY</td><td>45</td><td>58</td><td>20</td></tr><tr><td>100019</td><td>COAST</td><td>58</td><td>34</td><td>10</td></tr><tr><td>100031</td><td>COAST</td><td>45</td><td>58</td><td>1000</td></tr><tr><td>100012</td><td>VOLT</td><td>58</td><td>45</td><td>200</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT TRUE AND NULL AS a, FALSE AND NULL AS b, TRUE OR NULL AS c, FALSE OR NULL AS d, NOT NULL AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (BOOL)</th><th>c (BOOL)</th><th>d (STRING)</th><th>e (STRING)</th></tr></thead><tbody><tr><td>NULL</td><td>false</td><td>true</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="comparison">=, ==, !=, &lt;&gt;, &lt;, &lt;=, &gt;, &gt;=</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">a = b     a == b
+a != b    a &lt;&gt; b
+a &lt; b     a &lt;= b     a &gt; b     a &gt;= b</code></pre>
+<p>Compare two values. <code>==</code> is the same as <code>=</code>, and <code>&lt;&gt;</code> is the same as <code>!=</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Left</th><th>Right</th><th>How they are compared</th></tr></thead><tbody><tr><td>number</td><td>number</td><td>by value (<code>5 = 5.0</code> is true)</td></tr><tr><td>text</td><td>text</td><td>letter by letter, by byte: capital letters come before small letters, and case matters</td></tr><tr><td>TIMESTAMP or DATE</td><td>text</td><td>the text is read as a time: <code>time &gt;= &#39;2026-09-01&#39;</code></td></tr><tr><td>number</td><td>text that is a number</td><td>as numbers: <code>id = &#39;34&#39;</code> is true for 34</td></tr><tr><td>text</td><td>text that is not a number, with a number</td><td>error <code>cannot compare</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>.</li><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>. Even <code>NULL = NULL</code> is <code>NULL</code>. Use <a href="where.html#is-null">IS NULL</a>.</li><li><strong>Notes:</strong> a time text without a zone is <strong>UTC</strong>. For a local time add its offset, for example <code>+05:45</code>: <code>time &gt;= &#39;2026-09-10T11:00:00+05:45&#39;</code>. See <a href="time-and-time-zones.html#time-text">time text</a>.</li><li>A time text must be <code>YYYY-MM-DD</code> with two digits: <code>&#39;2026-9-1&#39;</code> is an error.</li></ul>
+<p><strong>Example: The first 5 minutes after the market opened (11:00 Nepal time)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39;
+  AND time &gt;= &#39;2026-09-10T11:00:00+05:45&#39;
+  AND time &lt;  &#39;2026-09-10T11:05:00+05:45&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>504.4</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>CITY</td><td>504.6</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>CITY</td><td>504.2</td></tr><tr><td>2026-09-10T05:18:00.000Z</td><td>CITY</td><td>504.4</td></tr><tr><td>2026-09-10T05:19:00.000Z</td><td>CITY</td><td>504.5</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Big trades: 1000 shares or more</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol, quantity, rate FROM trade_log WHERE quantity &gt;= 1000;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th></tr></thead><tbody><tr><td>100001</td><td>TELCO</td><td>1000</td><td>881</td></tr><tr><td>100007</td><td>TELCO</td><td>1000</td><td>879</td></tr><tr><td>100015</td><td>COAST</td><td>1000</td><td>398</td></tr><tr><td>100031</td><td>COAST</td><td>1000</td><td>402</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT 5 = 5.0 AS a, 5 == 5 AS b, &#39;CITY&#39; &lt;&gt; &#39;city&#39; AS c, &#39;B&#39; &lt; &#39;a&#39; AS d, 34 = &#39;34&#39; AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th><th>c (BOOL)</th><th>d (BOOL)</th><th>e (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Text that is not a number cannot be compared with a number</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM brokers WHERE name = 58;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 34: cannot compare STRING &#39;Keystone Securities&#39; with LONG &#39;58&#39;</code></p>
+<p><strong>Example: A time must be written YYYY-MM-DD</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT time, close FROM ochl_day WHERE time &gt;= &#39;2026-9-1&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 45: cannot compare TIMESTAMP &#39;2025-12-28T00:00:00.000Z&#39; with STRING &#39;2026-9-1&#39;</code></p>
+<h2 id="between">BETWEEN, NOT BETWEEN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value [NOT] BETWEEN low AND high</code></pre>
+<p><code>x BETWEEN a AND b</code> is the same as <code>x &gt;= a AND x &lt;= b</code>. <strong>Both ends are included.</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>number, text or time</td><td>the value to test</td></tr><tr><td><code>low</code>, <code>high</code></td><td>the same kind</td><td>the smallest and the biggest allowed value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT BETWEEN</code> gives the opposite.</li><li><strong>NULL:</strong> <code>NULL</code> when any of the three values is <code>NULL</code>.</li><li><strong>Notes:</strong> for times, <code>BETWEEN &#39;2026-09-07&#39; AND &#39;2026-09-09&#39;</code> stops at <code>2026-09-09T00:00:00</code>: the rest of 9 September is <strong>not</strong> included. For whole days use <code>time &gt;= &#39;2026-09-07&#39; AND time &lt; &#39;2026-09-10&#39;</code>, or <a href="where.html#in-interval">time IN</a>.</li></ul>
+<p><strong>Example: Days when COAST closed between 375 and 380</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND close BETWEEN 375 AND 380;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-25T00:00:00.000Z</td><td>379.8</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: BETWEEN with times: the end is the start of the last day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time BETWEEN &#39;2026-09-07&#39; AND &#39;2026-09-09&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-07T00:00:00.000Z</td><td>VOLT</td><td>176.9</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Minutes where CITY was outside its normal band</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39; AND close NOT BETWEEN 501 AND 507;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T06:57:00.000Z</td><td>500.9</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="in-list">IN (list), NOT IN (list)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value [NOT] IN (value, value, ...)
+value [NOT] IN (SELECT ...)</code></pre>
+<p>True when the value is equal to one of the values in the list. For a list from a query, see <a href="union-subqueries.html#in-subquery">IN (SELECT ...)</a>.</p>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when the value is <code>NULL</code>. When the value is not found and the list has a <code>NULL</code>, the result is <code>NULL</code>, not <code>false</code>. So <code>x NOT IN (1, NULL)</code> is never true: keep <code>NULL</code> out of <code>NOT IN</code> lists.</li><li><strong>Notes:</strong> <code>symbol IN (&#39;CITY&#39;, &#39;COAST&#39;)</code> on a time-series table reads only those symbols&#39; rows (fast).</li><li><code>IN &#39;text&#39;</code> without <code>( )</code> is a <a href="where.html#in-interval">time range</a>, not a list.</li></ul>
+<p><strong>Example: Banks only</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name FROM securities WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Journal lines that are not income or expense</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT line_id, account, debit, credit FROM ledger
+WHERE account NOT IN (4000, 4100, 5000, 5100) AND entry_id &gt;= 7;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line_id (INT)</th><th>account (INT)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th></tr></thead><tbody><tr><td>13</td><td>1100</td><td>6250.00</td><td>NULL</td></tr><tr><td>15</td><td>1100</td><td>12600.00</td><td>NULL</td></tr><tr><td>16</td><td>1200</td><td>NULL</td><td>10300.00</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: NULL in the list</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT 1 IN (1, NULL) AS found, 2 IN (1, NULL) AS not_found, 2 NOT IN (1, NULL) AS not_in;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>found (BOOL)</th><th>not_found (STRING)</th><th>not_in (STRING)</th></tr></thead><tbody><tr><td>true</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A list needs ( )</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM securities WHERE symbol IN &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 42: expected a time interval string such as &#39;2026-09&#39;, &#39;2026-09-11T10:00&#39; or &#39;2026-09-11;1d&#39; after IN (for a list of values write IN (&#39;a&#39;, &#39;b&#39;)) but found &#39;CITY&#39;</code></p>
+<h2 id="in-interval">time IN &#39;interval&#39;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">time_column [NOT] IN &#39;YYYY&#39;
+time_column [NOT] IN &#39;YYYY-MM&#39;
+time_column [NOT] IN &#39;YYYY-MM-DD&#39;
+time_column [NOT] IN &#39;YYYY-MM-DDTHH[:MM[:SS]]&#39;
+time_column [NOT] IN &#39;text+05:45&#39;
+time_column [NOT] IN &#39;text&#39; TIME ZONE &#39;zone&#39;
+time_column [NOT] IN &#39;text;stretch&#39;
+time_column [NOT] IN &#39;text;stretch;period;count&#39;
+time_column [NOT] IN today() | yesterday() | tomorrow() | interval(from, to)</code></pre>
+<p>A text after <code>IN</code> (without <code>( )</code>) means <strong>the whole period</strong> that the text names: a year, a month, a day, an hour, a minute or a second.</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Rows from</th><th>Up to (not included)</th></tr></thead><tbody><tr><td><code>time IN &#39;2026&#39;</code></td><td>2026-01-01 00:00 UTC</td><td>2027-01-01 00:00 UTC</td></tr><tr><td><code>time IN &#39;2026-09&#39;</code></td><td>2026-09-01 00:00 UTC</td><td>2026-10-01 00:00 UTC</td></tr><tr><td><code>time IN &#39;2026-09-10&#39;</code></td><td>2026-09-10 00:00 UTC</td><td>2026-09-11 00:00 UTC</td></tr><tr><td><code>time IN &#39;2026-09-10T11&#39;</code></td><td>11:00 UTC</td><td>12:00 UTC</td></tr><tr><td><code>time IN &#39;2026-09-10+05:45&#39;</code></td><td>2026-09-10 00:00 Nepal time (09-09 18:15 UTC)</td><td>2026-09-11 00:00 Nepal time</td></tr><tr><td><code>time IN &#39;2026-09-10T11+05:45&#39;</code></td><td>11:00 Nepal time</td><td>12:00 Nepal time</td></tr><tr><td><code>time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;</code></td><td>2026-09-10 00:00 Nepal time</td><td>2026-09-11 00:00 Nepal time</td></tr><tr><td><code>time IN &#39;2026-09&#39; TIME ZONE &#39;Asia/Kathmandu&#39;</code></td><td>1 September 00:00 Nepal time</td><td>1 October 00:00 Nepal time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT IN</code> gives the opposite.</li><li><strong>NULL:</strong> a <code>NULL</code> time gives <code>NULL</code>.</li><li><strong>Notes:</strong> without a zone, the period is in <strong>UTC</strong>. The whole trading day of the sample data (05:15 to 09:15 UTC) is inside one UTC day, so <code>time IN &#39;2026-09-10&#39;</code> is fine for market data. For a Nepal calendar day (daily bars stored at Nepal midnight) add <code>TIME ZONE &#39;Asia/Kathmandu&#39;</code>, or <code>+05:45</code> in the text. Not both: text with its own offset and TIME ZONE is an error.</li><li><code>TIME ZONE</code> takes the same <a href="time-and-time-zones.html#time-zone-names">zone names</a> as SAMPLE BY. On a <code>DATE</code> column it changes nothing: a date is already a calendar day.</li><li>On the time column of a time-series table, KDB reads only the partitions of that period.</li><li>The left side must be a <code>TIMESTAMP</code> or <code>DATE</code>.</li><li>QuestDB&#39;s longer forms with <code>;</code> and <code>today()</code> work too: see <a href="where.html#interval-lists">interval lists</a>.</li><li>More: <a href="time-and-time-zones.html#in-interval">times and time zones</a>.</li></ul>
+<p><strong>Example: All daily candles of September 2026, per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS days, min(low) AS lowest, max(high) AS highest
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>lowest (DOUBLE)</th><th>highest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>8</td><td>494.1</td><td>512.4</td></tr><tr><td>COAST</td><td>8</td><td>364.1</td><td>398.8</td></tr><tr><td>VOLT</td><td>8</td><td>167.3</td><td>192.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The 12:00 Nepal hour of CITY on 2026-09-10</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS minutes, min(time) AS first_minute, max(time) AS last_minute
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10T12+05:45&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>minutes (LONG)</th><th>first_minute (TIMESTAMP)</th><th>last_minute (TIMESTAMP)</th></tr></thead><tbody><tr><td>60</td><td>2026-09-10T06:15:00.000Z</td><td>2026-09-10T07:14:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Users who joined in September by Nepal date</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, created_at
+FROM app_users
+WHERE created_at IN &#39;2026-09+05:45&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>test_user</td><td>2026-08-31T18:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Everything except 2026</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS old_rows FROM ochl_day WHERE time NOT IN &#39;2026&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>old_rows (LONG)</th></tr></thead><tbody><tr><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Only times can be IN a period</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM ochl_day WHERE symbol IN &#39;2026&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 37: IN &#39;...&#39; needs a time or date on the left</code></p>
+<h2 id="interval-lists">Interval lists, today() and DECLARE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">time_column IN &#39;text;stretch&#39;
+time_column IN &#39;text;stretch;period;count&#39;
+time_column IN today() | yesterday() | tomorrow() | interval(from, to)
+DECLARE @name := value [, @name := value ...] SELECT ... @name ...</code></pre>
+<p>The QuestDB forms of a time filter. Each part after a <code>;</code> is a count and a unit: <code>T</code> millisecond, <code>s</code> second, <code>m</code> minute, <code>h</code> hour, <code>d</code> day, <code>w</code> week, <code>M</code> month, <code>y</code> year.</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Rows</th></tr></thead><tbody><tr><td><code>time IN &#39;2026-09-10;1d&#39;</code></td><td>the day 2026-09-10 and one more day: to the end of 2026-09-11</td></tr><tr><td><code>time IN &#39;2026-09-10T05:15;30m&#39;</code></td><td>05:15 to the end of 05:45</td></tr><tr><td><code>time IN &#39;2026-09-07T05:15;1h;1d;5&#39;</code></td><td>05:15 to the end of 06:15, on five days in a row</td></tr><tr><td><code>time IN &#39;2026-09-01;1d;1w;4&#39;</code></td><td>two days at the start of four weeks in a row</td></tr><tr><td><code>time IN today()</code></td><td>today, 00:00 to 23:59:59.999 UTC</td></tr><tr><td><code>time IN yesterday(&#39;Asia/Kathmandu&#39;)</code></td><td>yesterday on the Nepal clock</td></tr><tr><td><code>time IN interval(&#39;2026-09-10T05:15&#39;, &#39;2026-09-10T06:00&#39;)</code></td><td>from the first time to the second, both included</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT IN</code> gives the opposite.</li><li><strong>Notes:</strong>
+<ul><li>The stretch moves the <strong>end</strong> later: the first part names a period, the stretch adds to its end.</li><li><code>text;stretch;period;count</code> repeats the window <code>count</code> times, each one <code>period</code> after the one before. The count is at most 100,000.</li><li>On the time column of a time-series table, KDB reads only the partitions that meet one of the windows, and skips the blocks in the gaps between them, as for a plain <code>time IN &#39;2026-09-10&#39;</code>.</li><li><code>today()</code>, <code>yesterday()</code>, <code>tomorrow()</code> and <code>interval()</code> are worked out once, when the query starts. The value after <code>IN</code> must be the same for every row: <code>time IN interval(time, time)</code> is an error.</li><li><code>TIME ZONE</code> goes with a text only. Give <code>today()</code> the zone instead: <code>today(&#39;Asia/Kathmandu&#39;)</code>.</li><li><code>DECLARE @name := value</code> in front of a query sets a name for a value. Each <code>@name</code> in the query stands for that value, as if it were written there. A name holds only for its own statement.</li></ul></li></ul>
+<p><strong>Example: A day and the day after, with ;1d</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS days FROM ochl_day WHERE time IN &#39;2026-09-09;1d&#39; GROUP BY symbol ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>2</td></tr><tr><td>COAST</td><td>2</td></tr><tr><td>VOLT</td><td>2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The first hour of trading on five days (05:15 to 06:15 UTC)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT timestamp_floor(&#39;1d&#39;, time) AS day, count(*) AS minutes, min(time) AS first_minute, max(time) AS last_minute
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-07T05:15;59m;1d;5&#39;
+GROUP BY timestamp_floor(&#39;1d&#39;, time)
+ORDER BY day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (TIMESTAMP)</th><th>minutes (LONG)</th><th>first_minute (TIMESTAMP)</th><th>last_minute (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>60</td><td>2026-09-09T05:15:00.000Z</td><td>2026-09-09T06:14:00.000Z</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>60</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T06:14:00.000Z</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Today&#39;s live prices</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows_today FROM live_data WHERE timestamp IN today();</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows_today (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: interval(from, to): both ends are included</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS minutes FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN interval(&#39;2026-09-10T05:15:00Z&#39;, &#39;2026-09-10T05:19:00Z&#39;);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>minutes (LONG)</th></tr></thead><tbody><tr><td>5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: DECLARE names a value for the query</strong> (sample data: sample)</p>
+<pre><code class="language-sql">DECLARE @day := &#39;2026-09-10&#39;, @sym := &#39;CITY&#39;
+SELECT symbol, close FROM ochl_day WHERE time IN @day AND symbol = @sym;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A count is needed after a period</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT count(*) FROM ochl_day WHERE time IN &#39;2026-09-10;1d;1d&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 42: &#39;2026-09-10;1d;1d&#39; has a period but no count: write time;stretch;period;count, as in &#39;2026-09-11T10:00;30m;1d;5&#39;</code></p>
+<h2 id="like">LIKE, NOT LIKE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">text [NOT] LIKE &#39;pattern&#39;</code></pre>
+<p>Matches text with a simple pattern.</p>
+<div class="table-wrap"><table><thead><tr><th>In the pattern</th><th>Matches</th></tr></thead><tbody><tr><td><code>%</code></td><td>any text, also empty text</td></tr><tr><td><code>_</code></td><td>exactly one character (also one letter of another language, like Nepali)</td></tr><tr><td><code>\%</code>, <code>\_</code>, <code>\\</code></td><td>the character <code>%</code>, <code>_</code> or <code>\</code> itself</td></tr><tr><td>any other character</td><td>itself; <strong>case matters</strong></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT LIKE</code> gives the opposite.</li><li><strong>NULL:</strong> <code>NULL</code> when the text or the pattern is <code>NULL</code>.</li><li><strong>Notes:</strong> the whole text must match: <code>&#39;CITY&#39; LIKE &#39;CIT&#39;</code> is false, <code>&#39;CITY&#39; LIKE &#39;CIT%&#39;</code> is true.</li><li>A number or symbol on the left is compared as its text.</li><li>For patterns that ignore case, use <a href="where.html#ilike">ILIKE</a>. For more power, use <a href="functions-regex.html">regular expressions</a>.</li></ul>
+<p><strong>Example: Securities with Bank in the name</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name FROM securities WHERE name LIKE &#39;%Bank%&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Gmail users (case matters: GITA.RAI@Gmail.com is not found)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, email FROM app_users WHERE email LIKE &#39;%@gmail.com&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>email (STRING)</th></tr></thead><tbody><tr><td>ram</td><td>ram.sharma@gmail.com</td></tr><tr><td>hari_99</td><td>hari99@gmail.com</td></tr><tr><td>suman</td><td>suman.gurung@gmail.com</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Usernames of exactly 4 characters</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username FROM app_users WHERE username LIKE &#39;____&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th></tr></thead><tbody><tr><td>sita</td></tr><tr><td>gita</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Posts that do not say CITY</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, body FROM posts WHERE body NOT LIKE &#39;%CITY%&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>2</td><td>sita</td><td>I agree, the profit grew 18%.</td></tr><tr><td>3</td><td>hari</td><td>Price is high now. Wait for a dip.</td></tr><tr><td>4</td><td>gita</td><td>What about the bonus shares?</td></tr><tr><td>5</td><td>ram</td><td>Bonus is 10% this time.</td></tr><tr><td>6</td><td>sita</td><td>सिटी बैंकको नाफा राम्रो छ।</td></tr><tr><td>7</td><td>hari</td><td>Two hydro IPOs open next week.</td></tr><tr><td>8</td><td>gita</td><td>Which ones?</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<p><strong>Example: Usernames with a real _ in them: write _</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username FROM app_users WHERE username LIKE &#39;%\_%&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th></tr></thead><tbody><tr><td>hari_99</td></tr><tr><td>test_user</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A price of 100% or more in a note: \% is the % sign</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;100% up&#39; LIKE &#39;100\%%&#39; AS a, &#39;1000 up&#39; LIKE &#39;100\%%&#39; AS b;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="ilike">ILIKE, NOT ILIKE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">text [NOT] ILIKE &#39;pattern&#39;</code></pre>
+<p>Like <a href="where.html#like">LIKE</a>, but English letters match in any case: <code>&#39;City&#39; ILIKE &#39;CIT%&#39;</code> is true.</p>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT ILIKE</code> gives the opposite.</li><li><strong>NULL:</strong> <code>NULL</code> when the text or the pattern is <code>NULL</code>.</li><li><strong>Notes:</strong> only the English letters A-Z are changed. Languages without upper and lower case (like Nepali) work the same as with <code>LIKE</code>.</li><li>In PostgreSQL <code>ILIKE</code> works the same way.</li></ul>
+<p><strong>Example: Gmail users in any case</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, email FROM app_users WHERE email ILIKE &#39;%@gmail.com&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>email (STRING)</th></tr></thead><tbody><tr><td>ram</td><td>ram.sharma@gmail.com</td></tr><tr><td>hari_99</td><td>hari99@gmail.com</td></tr><tr><td>gita</td><td>GITA.RAI@Gmail.com</td></tr><tr><td>suman</td><td>suman.gurung@gmail.com</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Search securities by a word the user typed</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name FROM securities WHERE name ILIKE &#39;%hydro%&#39; OR symbol ILIKE &#39;acme&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Acme Investment Company</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;City&#39; ILIKE &#39;CIT%&#39; AS a, &#39;City&#39; NOT ILIKE &#39;cit%&#39; AS b, &#39;City&#39; LIKE &#39;CIT%&#39; AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th><th>c (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="similar-to">SIMILAR TO, NOT SIMILAR TO</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">text [NOT] SIMILAR TO &#39;pattern&#39; [ESCAPE &#39;c&#39;]</code></pre>
+<p>A pattern between <code>LIKE</code> and a <a href="functions-regex.html">regular expression</a>. The <strong>whole</strong> text must match.</p>
+<div class="table-wrap"><table><thead><tr><th>In the pattern</th><th>Means</th></tr></thead><tbody><tr><td><code>%</code></td><td>any text, also none</td></tr><tr><td><code>_</code></td><td>any one character</td></tr><tr><td><code>a|b</code></td><td><code>a</code> or <code>b</code></td></tr><tr><td><code>(...)</code></td><td>a group</td></tr><tr><td><code>*</code> <code>+</code> <code>?</code> <code>{2}</code> <code>{2,4}</code></td><td>repeat the thing before</td></tr><tr><td><code>[abc]</code> <code>[a-z]</code></td><td>one of these characters</td></tr><tr><td><code>.</code> <code>^</code> <code>$</code></td><td>just the character</td></tr><tr><td><code>\%</code></td><td>a real <code>%</code> (<code>\</code> is the escape; <code>ESCAPE &#39;#&#39;</code> picks another one)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT SIMILAR TO</code> gives the opposite.</li><li><strong>NULL:</strong> <code>NULL</code> when the text or the pattern is <code>NULL</code>.</li><li><strong>Notes:</strong> upper and lower case must match. It works like PostgreSQL&#39;s <code>SIMILAR TO</code>: KDB turns the pattern into a regular expression (<code>similar_to_escape(&#39;a%&#39;)</code> shows it) and reads every row.</li></ul>
+<p><strong>Example: Codes that are two letters and then 2 to 4 digits</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT code, code SIMILAR TO &#39;[A-Z]{2}[0-9]{2,4}&#39; AS ok
+FROM (VALUES (&#39;NP123&#39;), (&#39;N1234&#39;), (&#39;AB12&#39;), (&#39;AB12345&#39;)) AS c(code);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>code (STRING)</th><th>ok (BOOL)</th></tr></thead><tbody><tr><td>NP123</td><td>true</td></tr><tr><td>N1234</td><td>false</td></tr><tr><td>AB12</td><td>true</td></tr><tr><td>AB12345</td><td>false</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: One word or another, anywhere in the text</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;hydro power&#39; SIMILAR TO &#39;%(hydro|solar)%&#39; AS a, &#39;wind&#39; NOT SIMILAR TO &#39;%(hydro|solar)%&#39; AS b,
+       &#39;50%&#39; SIMILAR TO &#39;50#%&#39; ESCAPE &#39;#&#39; AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th><th>c (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="is-null">IS NULL, IS NOT NULL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value IS NULL
+value IS NOT NULL</code></pre>
+<p><code>NULL</code> means &quot;no value&quot;. <code>IS NULL</code> is true when there is no value. <code>IS NOT NULL</code> is true when there is one.</p>
+<ul><li><strong>Returns:</strong> always <code>true</code> or <code>false</code>, never <code>NULL</code>.</li><li><strong>Notes:</strong> <code>x = NULL</code> does <strong>not</strong> work: it is always <code>NULL</code>, so no row matches. Use <code>x IS NULL</code>.</li><li>NaN (&quot;not a number&quot;) in a <code>DOUBLE</code> or <code>FLOAT</code> column:
+<ul><li>A NaN made by an expression (<code>CAST(&#39;NaN&#39; AS DOUBLE)</code>, <code>&#39;nan&#39;::double</code>, a driver&#39;s NaN parameter) is stored as <code>NULL</code>, so <code>IS NULL</code> finds it. <code>0 / 0.0</code> is an error (division by zero).</li><li>The text <code>&#39;NaN&#39;</code> written straight into the column is stored as NaN. It is <strong>not</strong> <code>NULL</code>: find it with <a href="functions-math.html#is_nan">is_nan(x)</a>. See <a href="column-types.html#double">DOUBLE</a>.</li></ul></li></ul>
+<p><strong>Example: Users who never logged in</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT id, username, created_at FROM app_users WHERE last_login IS NULL;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>username (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>3</td><td>hari_99</td><td>2026-03-20T13:00:00.000Z</td></tr><tr><td>8</td><td>test_user</td><td>2026-08-31T18:15:00.000Z</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: News about the whole market (no symbol)</strong> (sample data: content-news)</p>
+<pre><code class="language-sql">SELECT id, title FROM news WHERE symbol IS NULL;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>4</td><td>Market index closes at 2,840</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Credit lines of the ledger</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT line_id, account, credit, memo FROM ledger WHERE credit IS NOT NULL AND entry_id &lt;= 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line_id (INT)</th><th>account (INT)</th><th>credit (DECIMAL(2))</th><th>memo (STRING)</th></tr></thead><tbody><tr><td>2</td><td>3000</td><td>500000.00</td><td>Owner puts money in the bank</td></tr><tr><td>4</td><td>2000</td><td>257500.00</td><td>Buy 500 CITY at 515</td></tr><tr><td>6</td><td>1100</td><td>257500.00</td><td>Pay the broker</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: = NULL finds nothing</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT count(*) AS with_equals FROM app_users WHERE last_login = NULL;
+SELECT count(*) AS with_is_null FROM app_users WHERE last_login IS NULL;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS with_equals FROM app_users WHERE last_login = NULL</code></p>
+<div class="table-wrap"><table><thead><tr><th>with_equals (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS with_is_null FROM app_users WHERE last_login IS NULL</code></p>
+<div class="table-wrap"><table><thead><tr><th>with_is_null (LONG)</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="row-comparison">Row comparison: (a, b) &lt; (x, y)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">(a, b, ...) = (x, y, ...)
+(a, b, ...) != (x, y, ...)
+(a, b, ...) &lt; (x, y, ...)       also &lt;=, &gt;, &gt;=</code></pre>
+<p>Compares lists of values in order, like words in a dictionary: first <code>a</code> with <code>x</code>; only when they are equal, <code>b</code> with <code>y</code>, and so on.</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Means</th></tr></thead><tbody><tr><td><code>(a, b) &lt; (x, y)</code></td><td><code>a &lt; x OR (a = x AND b &lt; y)</code></td></tr><tr><td><code>(a, b) &lt;= (x, y)</code></td><td><code>a &lt; x OR (a = x AND b &lt;= y)</code></td></tr><tr><td><code>(a, b) = (x, y)</code></td><td><code>a = x AND b = y</code></td></tr><tr><td><code>(a, b) != (x, y)</code></td><td><code>a != x OR b != y</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code> (or <code>NULL</code>, by the rules of <code>AND</code> and <code>OR</code>).</li><li><strong>Notes:</strong> both lists must have the same number of values. A list can be compared with another list, or looked up with <a href="where.html#row-in">(a, b) IN</a>.</li><li>The main use is <strong>keyset paging</strong> (also called seek paging): to get the next page, ask for the rows <strong>after the last row you showed</strong>, in <code>ORDER BY</code> order. It stays fast on page 1000, unlike <code>OFFSET</code> (see <a href="order-by-limit.html#paging">paging</a>).</li><li>A list cannot hold a subquery or a window function.</li></ul>
+<p><strong>Example: Keyset paging of forum posts, newest first: page 1</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, created_at FROM posts
+ORDER BY created_at DESC, id DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>8</td><td>gita</td><td>2026-09-02T03:25:00.000Z</td></tr><tr><td>7</td><td>hari</td><td>2026-09-02T03:15:00.000Z</td></tr><tr><td>6</td><td>sita</td><td>2026-09-01T06:15:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Page 2: the rows after the last row of page 1 (post 6)</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, created_at FROM posts
+WHERE (created_at, id) &lt; (&#39;2026-09-01T12:00:00+05:45&#39;, 6)
+ORDER BY created_at DESC, id DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>5</td><td>ram</td><td>2026-09-01T05:45:00.000Z</td></tr><tr><td>4</td><td>gita</td><td>2026-09-01T05:15:00.000Z</td></tr><tr><td>3</td><td>hari</td><td>2026-09-01T04:35:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Daily candles after (CITY, 2026-09-08), in symbol and time order</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, time, close FROM ochl_day
+WHERE (symbol, time) &gt; (&#39;CITY&#39;, &#39;2026-09-08&#39;) AND time IN &#39;2026-09&#39;
+ORDER BY symbol, time
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-09-09T00:00:00.000Z</td><td>504.6</td></tr><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>504.9</td></tr><tr><td>COAST</td><td>2026-09-01T00:00:00.000Z</td><td>367.4</td></tr><tr><td>COAST</td><td>2026-09-02T00:00:00.000Z</td><td>369.2</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT (2, 5) &lt; (2, 7) AS a, (1, &#39;b&#39;) &gt;= (1, &#39;a&#39;) AS b, (1, 2) = (1, 2) AS c, (1, NULL) = (1, 2) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th><th>c (BOOL)</th><th>d (STRING)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Both lists need the same number of values</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol FROM ochl_day WHERE (symbol, time) &lt; (&#39;CITY&#39;, &#39;2026-09-08&#39;, 1);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 50: the two lists compared have 2 and 3 values; expected the same number</code></p>
+<h2 id="row-in">(a, b) IN a list of keys</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">(a, b, ...) [NOT] IN ((x1, y1, ...), (x2, y2, ...), ...)
+(a, b, ...) [NOT] IN (VALUES (x1, y1, ...), (x2, y2, ...), ...)
+(a, b, ...) [NOT] IN (SELECT x, y, ... FROM ...)</code></pre>
+<p>True when the values of the row are equal, <strong>all together</strong>, to one of the listed keys. <code>(symbol, time) IN ((&#39;CITY&#39;, &#39;2026-09-10&#39;), (&#39;COAST&#39;, &#39;2026-09-09&#39;))</code> means <code>(symbol = &#39;CITY&#39; AND time = &#39;2026-09-10&#39;) OR (symbol = &#39;COAST&#39; AND time = &#39;2026-09-09&#39;)</code>.</p>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT IN</code> gives the opposite.</li><li><strong>NULL:</strong> a key with a <code>NULL</code> that is not ruled out by another value is unknown: <code>(&#39;CITY&#39;, NULL)</code> never matches, and <code>NOT IN</code> a list holding it is never true for CITY rows.</li><li><strong>Notes:</strong>
+<ul><li>Works in <code>SELECT</code>, <code>UPDATE</code> and <code>DELETE</code>. Every key must have as many values as the list; a subquery must give that many columns.</li><li>Fast for long key lists: when the list covers the table&#39;s first key columns (the <code>PRIMARY KEY</code>, or the <code>SORT BY</code> / <code>DEDUP KEY</code> of a time-series table), KDB reads only those keys, and with the time column it reads only the partitions of those times. Deleting 200 <code>(symbol, time)</code> bars spread over a year reads their own partitions, not the whole year.</li><li>A subquery that uses columns of the outer query is not supported here; write <code>EXISTS (SELECT ... WHERE x = a AND y = b)</code>.</li></ul></li></ul>
+<p><strong>Example: Two daily candles picked by (symbol, day)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, time, close FROM ochl_day
+WHERE (symbol, time) IN ((&#39;CITY&#39;, &#39;2026-09-10&#39;), (&#39;COAST&#39;, &#39;2026-09-09&#39;))
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>504.9</td></tr><tr><td>COAST</td><td>2026-09-09T00:00:00.000Z</td><td>380.1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The same keys from a VALUES list and from a table</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE picks (symbol STRING, day TIMESTAMP);
+INSERT INTO picks VALUES (&#39;CITY&#39;, &#39;2026-09-10&#39;), (&#39;COAST&#39;, &#39;2026-09-09&#39;);</code></pre>
+<pre><code class="language-sql">SELECT symbol, time, close FROM ochl_day WHERE (symbol, time) IN (VALUES (&#39;CITY&#39;, &#39;2026-09-10&#39;), (&#39;COAST&#39;, &#39;2026-09-09&#39;)) ORDER BY symbol;
+SELECT symbol, time, close FROM ochl_day WHERE (symbol, time) IN (SELECT symbol, day FROM picks) ORDER BY symbol;
+EXPLAIN SELECT symbol, time, close FROM ochl_day WHERE (symbol, time) IN ((&#39;CITY&#39;, &#39;2026-09-10&#39;), (&#39;COAST&#39;, &#39;2026-09-09&#39;));</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol, time, close FROM ochl_day WHERE (symbol, time) IN ((&#39;CITY&#39;, &#39;2026-09-10&#39;), (&#39;COAST&#39;, </code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>504.9</td></tr><tr><td>COAST</td><td>2026-09-09T00:00:00.000Z</td><td>380.1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT symbol, time, close FROM ochl_day WHERE (symbol, time) IN (SELECT symbol, day FROM picks) ORD</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>504.9</td></tr><tr><td>COAST</td><td>2026-09-09T00:00:00.000Z</td><td>380.1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>EXPLAIN SELECT symbol, time, close FROM ochl_day WHERE (symbol, time) IN ((&#39;CITY&#39;, &#39;2026-09-10&#39;), (&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 2 key range(s) of each partition</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a lookup of whole keys: a binary search per partition)</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Every key needs as many values as the list</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM ochl_day WHERE (symbol, time) IN ((&#39;CITY&#39;), (&#39;COAST&#39;));</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 50: expected a list of 2 values like (1, &#39;x&#39;) for each item of (a, b) IN (...), got &#39;CITY&#39;</code></p>
+<h2 id="null-in-where">NULL in WHERE</h2>
+<p><code>WHERE</code> keeps a row only when the condition is <code>true</code>. When the condition is <code>NULL</code> (unknown), the row is <strong>left out</strong>, the same as <code>false</code>.</p>
+<p>This surprises people with <code>!=</code> and <code>NOT IN</code>: a row whose value is <code>NULL</code> is not &quot;different from Kathmandu&quot;, it is unknown, so it is not shown.</p>
+<ul><li><strong>Notes:</strong> <code>HAVING</code> and the <code>ON</code> of a join treat <code>NULL</code> the same way.</li><li>To keep <code>NULL</code> rows, say so: <code>city != &#39;Kathmandu&#39; OR city IS NULL</code>, or use <code>coalesce(city, &#39;&#39;) != &#39;Kathmandu&#39;</code> (see <a href="functions-conditional.html">coalesce</a>).</li></ul>
+<p><strong>Example: Users not in Kathmandu: the users without a city are missing</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, city FROM app_users WHERE city != &#39;Kathmandu&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>city (STRING)</th></tr></thead><tbody><tr><td>sita</td><td>Pokhara</td></tr><tr><td>gita</td><td>Dharan</td></tr><tr><td>bikash</td><td>Lalitpur</td></tr><tr><td>suman</td><td>Pokhara</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Keep the NULL cities too</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, city FROM app_users WHERE city != &#39;Kathmandu&#39; OR city IS NULL;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>city (STRING)</th></tr></thead><tbody><tr><td>sita</td><td>Pokhara</td></tr><tr><td>gita</td><td>Dharan</td></tr><tr><td>bikash</td><td>Lalitpur</td></tr><tr><td>anita</td><td>NULL</td></tr><tr><td>suman</td><td>Pokhara</td></tr><tr><td>test_user</td><td>NULL</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: The same with coalesce</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, coalesce(city, &#39;(no city)&#39;) AS city FROM app_users WHERE coalesce(city, &#39;&#39;) &lt;&gt; &#39;Kathmandu&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>city (STRING)</th></tr></thead><tbody><tr><td>sita</td><td>Pokhara</td></tr><tr><td>gita</td><td>Dharan</td></tr><tr><td>bikash</td><td>Lalitpur</td></tr><tr><td>anita</td><td>(no city)</td></tr><tr><td>suman</td><td>Pokhara</td></tr><tr><td>test_user</td><td>(no city)</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="fast-conditions">Fast conditions</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column op value [AND column op value ...]</code></pre>
+<p>KDB runs a query in one of two ways. The <strong>column engine</strong> reads whole columns at a time, on all threads. The <strong>row engine</strong> looks at one row after another. The column engine is many times faster. It takes a query only when <strong>every</strong> part of the <code>WHERE</code> (the parts joined by <code>AND</code>) has one of these shapes:</p>
+<div class="table-wrap"><table><thead><tr><th>Shape</th><th>Example</th></tr></thead><tbody><tr><td>a column against a value: <code>=</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></td><td><code>close &gt; 190</code>, <code>symbol = &#39;CITY&#39;</code>, <code>time &gt;= &#39;2026-09-01&#39;</code></td></tr><tr><td><code>[NOT] BETWEEN</code> two values</td><td><code>close BETWEEN 375 AND 380</code></td></tr><tr><td><code>[NOT] IN</code> a list of values</td><td><code>symbol IN (&#39;CITY&#39;, &#39;COAST&#39;)</code></td></tr><tr><td><code>=</code> or <code>IN</code> on <strong>one</strong> column, joined by <code>OR</code></td><td><code>symbol = &#39;CITY&#39; OR symbol = &#39;COAST&#39;</code> (the same as an <code>IN</code> list)</td></tr><tr><td><code>[NOT] LIKE</code>, <code>[NOT] ILIKE</code> on a <code>SYMBOL</code> or <code>STRING</code> column</td><td><code>name LIKE &#39;%Bank%&#39;</code>, <code>symbol ILIKE &#39;c%&#39;</code></td></tr><tr><td><code>time [NOT] IN &#39;period&#39;</code></td><td><code>time IN &#39;2026-09&#39;</code></td></tr><tr><td><code>IS [NOT] NULL</code></td><td><code>last_login IS NULL</code></td></tr><tr><td>a column against a column of the same kind</td><td><code>close &gt; open</code>, <code>buyer = seller</code></td></tr><tr><td><code>NOT</code>, <code>OR</code> and <code>AND</code> of the shapes above, nested any way</td><td><code>NOT (volume &lt;= 0 AND high = low AND open = close)</code>, <code>buyer = 58 OR seller = 58</code></td></tr><tr><td>one member of a <code>JSON</code> column against text</td><td><code>extra_data-&gt;&gt;&#39;category&#39; = &#39;auth&#39;</code></td></tr></tbody></table></div>
+<p>These send the whole query to the row engine. The result is the same, only slower:</p>
+<div class="table-wrap"><table><thead><tr><th>Shape</th><th>Example</th><th>Faster way</th></tr></thead><tbody><tr><td>a function around the column</td><td><code>upper(symbol) = &#39;CITY&#39;</code>, <code>abs(close) &gt; 1</code></td><td><code>symbol = &#39;CITY&#39;</code></td></tr><tr><td>math on the column</td><td><code>close * 2 &gt; 400</code>, <code>close - open &gt; 5</code></td><td><code>close &gt; 200</code>; keep the column alone on one side</td></tr><tr><td><code>LIKE</code> on a number or time column</td><td><code>quantity LIKE &#39;1%&#39;</code></td><td>a range: <code>quantity &gt;= 100 AND quantity &lt; 200</code></td></tr><tr><td>a <code>STRING</code> column against a number, or a <code>JSON</code> / <code>BYTES</code> column (other than <code>-&gt;&gt;</code> against text)</td><td><code>code = 34</code> on a text column of numbers</td><td>compare text with text: <code>code = &#39;34&#39;</code></td></tr><tr><td>a column against a column of another kind</td><td><code>quantity &gt; rate</code> (<code>LONG</code> and <code>DOUBLE</code>)</td><td></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>A table with <a href="create-table.html">computed columns</a> (<code>amount DOUBLE AS (...)</code>) always uses the row engine.</li><li>The column engine runs <code>GROUP BY</code> and aggregates, <code>LATEST ON</code>, <code>ORDER BY column LIMIT n</code>, and plain lists of columns. What else keeps a <code>GROUP BY</code> in it: see <a href="performance-tips.html#many-groups">GROUP BY with many groups</a>.</li><li><code>LIKE &#39;CITY&#39;</code> without <code>%</code> or <code>_</code> is the same as <code>= &#39;CITY&#39;</code>: it also reads only CITY&#39;s rows.</li><li>Inside <code>NOT</code>, <code>OR</code> and <code>AND</code> a comparison with a <code>NULL</code> is still <code>NULL</code>, as on the row engine: <code>NOT (volume &gt; 10)</code> does not keep a row whose <code>volume</code> is <code>NULL</code>. One shape the column engine cannot read anywhere in the tree (<code>NOT (close * 2 &gt; 400)</code>) sends the query to the row engine.</li><li>Only a plain <code>OR</code> on one column (the same as an <code>IN</code> list) or a lone <code>symbol = ...</code> lets KDB skip other symbols&#39; partitions; an <code>OR</code> across columns reads them all, in the column engine.</li><li><code>EXTRACT(YEAR FROM time) = 2026 AND EXTRACT(MONTH FROM time) = 8</code>, <code>year(time) = 2026</code> and <code>date_trunc(&#39;month&#39;, time) = &#39;2026-08-01&#39;</code> on a <code>TIMESTAMP</code> column are fast too: KDB reads them as the time range they mean (in UTC), so only that month&#39;s partitions are read (EXPLAIN: <code>time range from the calendar condition(s)</code>). <code>EXTRACT(MONTH FROM time) = 8</code> alone, without a year, is not a range and uses the row engine, and so does a month or day that no date has (<code>0</code>, <code>13</code>): it keeps no row.</li><li>A condition on a number, <code>DATE</code> or <code>TIMESTAMP</code> column also lets KDB skip partitions whose values are all outside it (see <a href="explain.html#zone-maps">zone maps</a>).</li></ul></li></ul>
+<p><strong>Example: Fast: every part is a column against a value</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_day
+WHERE (symbol = &#39;CITY&#39; OR symbol = &#39;COAST&#39;) AND close &gt; 400 AND time IN &#39;2026-09&#39;
+ORDER BY time, symbol
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>CITY</td><td>502.4</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>CITY</td><td>496.4</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>CITY</td><td>497.9</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>CITY</td><td>499</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Fast too: a chart that leaves out empty bars with NOT ( ... AND ... )</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, open, high, low, close, volume
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND NOT (volume &lt;= 0 AND high = low AND open = close)
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>504.6</td><td>507</td><td>500.7</td><td>504.9</td><td>183040</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>512</td><td>512.4</td><td>504</td><td>504.6</td><td>182390</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>498.2</td><td>501.1</td><td>497.5</td><td>497.5</td><td>34400</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Slow and fast ways to ask the same thing: the same rows either way</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS slow FROM ochl_day WHERE upper(symbol) = &#39;CITY&#39; AND close * 2 &gt; 1000;
+SELECT count(*) AS fast FROM ochl_day WHERE symbol = &#39;CITY&#39; AND close &gt; 500;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS slow FROM ochl_day WHERE upper(symbol) = &#39;CITY&#39; AND close * 2 &gt; 1000</code></p>
+<div class="table-wrap"><table><thead><tr><th>slow (LONG)</th></tr></thead><tbody><tr><td>14</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS fast FROM ochl_day WHERE symbol = &#39;CITY&#39; AND close &gt; 500</code></p>
+<div class="table-wrap"><table><thead><tr><th>fast (LONG)</th></tr></thead><tbody><tr><td>14</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/where.md">This page as markdown</a>.</footer>
+</body>
+</html>

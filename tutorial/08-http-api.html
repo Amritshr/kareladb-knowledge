@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8. HTTP API - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/08-http-api.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/08-http-api.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="8-http-api">8. HTTP API</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>Every HTTP route of <code>kdb serve</code>, with <code>curl</code> examples and the real JSON answers.</li><li>How one server serves many databases: <code>db=&lt;name&gt;</code> and <code>/api/databases</code>.</li><li>How to call KDB from PowerShell, Python, Node, Go and C#.</li><li>The rules: GET only reads, row limits, errors, access token, users and logins.</li><li>Fast loads with the line protocol (<code>POST /write</code>), all-or-nothing requests (<code>atomic=1</code>), results by column (<code>format=columns</code>) and the <code>ETag</code>.</li></ul>
+<p>Start the server first (with a backup folder, for the backup routes). <code>kdb serve market</code> serves the one database folder <code>market</code>; <a href="#many-databases">Many databases</a> shows a server for a whole data folder.</p>
+<pre><code class="language-powershell">kdb serve market --backups backups</code></pre>
+<p>All examples use <code>http://127.0.0.1:9900</code>. On Windows, write <code>curl.exe</code> (in PowerShell, <code>curl</code> alone is another command).</p>
+<h2 id="routes">Routes</h2>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>Path</th><th>What it does</th><th>Login needed</th></tr></thead><tbody><tr><td>GET</td><td><code>/health</code></td><td>Is the server alive? Version, clock.</td><td>no</td></tr><tr><td>POST</td><td><code>/api/login</code></td><td>Log in with a user name and password: a cookie and a token (chapter 16)</td><td>no</td></tr><tr><td>POST</td><td><code>/api/logout</code></td><td>End the login</td><td>no</td></tr><tr><td>GET</td><td><code>/api/me</code></td><td>The logged-in user and role</td><td>yes</td></tr><tr><td>GET</td><td><code>/exec?query=SQL</code></td><td>Run SQL that <strong>reads</strong>. JSON result.</td><td>yes</td></tr><tr><td>POST</td><td><code>/exec</code></td><td>Run <strong>any</strong> SQL (the body is the SQL). JSON result.</td><td>yes</td></tr><tr><td>DELETE</td><td><code>/exec/&lt;id&gt;</code></td><td>Stop the running request sent with <code>X-KDB-Request-Id: &lt;id&gt;</code> (<a href="#stop-a-slow-request">Stop a slow request</a>)</td><td>yes</td></tr><tr><td>GET or POST</td><td><code>/exp?query=SQL</code></td><td>Run a SELECT and download CSV</td><td>yes</td></tr><tr><td>POST</td><td><code>/imp?name=table</code></td><td>Load a CSV file into a table, as QuestDB does (<a href="#imp-load-csv">/imp</a>)</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/info</code></td><td>Tables, columns, sizes, damage, last backup</td><td>yes</td></tr><tr><td>POST</td><td><code>/api/check</code></td><td>Read every file and the log; report damage</td><td>yes</td></tr><tr><td>POST</td><td><code>/api/backup</code></td><td>Make a verified backup (needs <code>--backups</code>)</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/backups</code></td><td>List backups, newest first</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/audit?limit=N&amp;where=...</code></td><td>The audit log: logins, user changes, DDL, backups (server admins; chapter 21). <code>kind=data</code> reads the data-change rows of the database</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/databases</code></td><td>List the databases: name, folder, tables, bytes</td><td>yes</td></tr><tr><td>POST</td><td><code>/api/databases</code></td><td>Create a database (<code>name=&lt;name&gt;</code> or <code>{&quot;name&quot;:&quot;&lt;name&gt;&quot;}</code>)</td><td>yes</td></tr><tr><td>DELETE</td><td><code>/api/databases/&lt;name&gt;</code></td><td>Drop a database (its folder moves to <code>_trash</code>)</td><td>yes</td></tr><tr><td>POST</td><td><code>/cursor</code></td><td>Run one SELECT and keep its rows (see <a href="#cursors-read-a-big-result-bit-by-bit">Cursors</a>)</td><td>yes</td></tr><tr><td>GET</td><td><code>/cursor/&lt;id&gt;?fetch=N</code></td><td>The next N kept rows</td><td>yes</td></tr><tr><td>DELETE</td><td><code>/cursor/&lt;id&gt;</code></td><td>Close the cursor</td><td>yes</td></tr><tr><td>POST</td><td><code>/session</code>, DELETE <code>/session/&lt;id&gt;</code></td><td>A transaction over many requests: send <code>X-KDB-Session: &lt;id&gt;</code> with each <code>/exec</code> (chapter 15)</td><td>yes</td></tr><tr><td>POST</td><td><code>/write</code> (also <code>/api/v2/write</code>)</td><td>Load rows in the InfluxDB line format, the fast way for feeds and sensors (<a href="#post-write-line-protocol">Line protocol</a>)</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/stats</code></td><td>Memory, processor, running statements, open databases (the console&#39;s <strong>Monitor</strong>)</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/disk</code></td><td>What a database takes on disk, part by part</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/activity</code></td><td>Recent server events (the console&#39;s <strong>Terminal</strong>)</td><td>yes</td></tr><tr><td>GET</td><td><code>/api/trigger-queue</code></td><td>The queues of deferred triggers (chapter 13)</td><td>yes</td></tr><tr><td>GET, POST</td><td><code>/api/timers</code></td><td>SQL that runs on a schedule (admins)</td><td>yes</td></tr><tr><td>GET, POST, DELETE</td><td><code>/api/pins</code></td><td>Statements whose results are kept ready (admins; chapter 17)</td><td>yes</td></tr><tr><td>GET, POST</td><td><code>/api/settings</code>, POST <code>/api/restart</code></td><td>Saved settings in <code>kdb.conf</code> (the console&#39;s <strong>Settings</strong> page); restart in place (admins)</td><td>yes</td></tr><tr><td>GET</td><td><code>/</code></td><td>The web console (chapter 6), from the folder <code>web/</code> next to <code>kdb</code></td><td>no</td></tr><tr><td>GET</td><td><code>/help/</code></td><td>The help pages, from the folder <code>help/</code> next to <code>kdb</code></td><td>no</td></tr><tr><td>GET</td><td><code>/skill.md</code></td><td>The Claude skill file, from the folder <code>skill/</code> next to <code>kdb</code></td><td>no</td></tr></tbody></table></div>
+<p>&quot;Login needed&quot; applies when the server was started with <code>--token</code>, or when its data folder has users (chapter 16). Then each user may only do what their role allows; other requests get HTTP 403.</p>
+<p>Every route that reads or changes data (all except <code>/health</code> and <code>/api/databases</code>) works on <strong>one database</strong>: the one named by the parameter <code>db=&lt;name&gt;</code> or the header <code>X-KDB-Database: &lt;name&gt;</code>. Without them, the server&#39;s default database is used. With <code>kdb serve market</code> the server has only that database, so you can leave <code>db</code> out. See <a href="#many-databases">Many databases</a>.</p>
+<p>Parameters for <code>/exec</code> and <code>/exp</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>db</code></td><td>The database (also for <code>/api/info</code>, <code>/api/check</code>, <code>/api/backup</code>, <code>/api/backups</code>, <code>/write</code>)</td><td>the default database</td></tr><tr><td><code>query</code></td><td>The SQL (for GET, or as a form field in POST)</td><td>-</td></tr><tr><td><code>limit</code></td><td>Most rows per statement. At most 1,000,000. <code>limit=0</code> means 1,000,000. QuestDB style <code>limit=10,500</code> uses the second number.</td><td><code>/exec</code>: 10,000; <code>/exp</code>: 1,000,000</td></tr><tr><td><code>compat</code></td><td><code>compat=0</code> leaves out the QuestDB-style copy of the last result (see below)</td><td><code>1</code></td></tr><tr><td><code>format</code></td><td>(<code>/exec</code> only) <code>columns</code>: each <code>dataset</code> as one list per column (<a href="#format-columns-and-etag">format=columns</a>)</td><td><code>rows</code></td></tr><tr><td><code>atomic</code></td><td>(<code>/exec</code> only) <code>atomic=1</code> (or the header <code>X-KDB-Atomic: 1</code>): all statements of the body are one transaction, all or nothing (<a href="#atomic-1-all-or-nothing">atomic=1</a>)</td><td><code>0</code></td></tr><tr><td><code>cache</code></td><td><code>cache=0</code>: do not use the result cache for this request (for timing tests)</td><td><code>1</code></td></tr><tr><td><code>filename</code></td><td>(<code>/exp</code> only) name of the downloaded file</td><td><code>kdb-export.csv</code></td></tr></tbody></table></div>
+<h2 id="get-health">GET /health</h2>
+<pre><code class="language-powershell">curl.exe -s http://127.0.0.1:9900/health</code></pre>
+<pre><code class="language-json">{&quot;status&quot;:&quot;ok&quot;,&quot;version&quot;:&quot;0.2.0-dev&quot;,&quot;server_time_ms&quot;:1789114666217,&quot;auth_required&quot;:false,&quot;login&quot;:false}</code></pre>
+<p><code>server_time_ms</code> is the server clock in milliseconds since 1970 (UTC). <code>auth_required</code> is <code>true</code> when requests need a token or a login. <code>login</code> is <code>true</code> when the data folder has users (the console then shows a login form). Use <code>/health</code> for monitoring: it never needs a token and never touches the data.</p>
+<h2 id="exec-run-sql">/exec: run SQL</h2>
+<h3 id="get-only-reads">GET only reads</h3>
+<p>Use <code>--data-urlencode</code> so curl makes the URL safe (spaces, quotes, <code>%</code>):</p>
+<pre><code class="language-powershell">curl.exe -s -G http://127.0.0.1:9900/exec --data-urlencode &quot;query=SELECT id, name FROM brokers WHERE id &lt; 40&quot;</code></pre>
+<p>The answer (formatted for reading; the server sends it on one line):</p>
+<pre><code class="language-json">{
+  &quot;query&quot;: &quot;SELECT id, name FROM brokers WHERE id &lt; 40&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, name FROM brokers WHERE id &lt; 40&quot;,
+      &quot;columns&quot;: [ { &quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot; }, { &quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot; } ],
+      &quot;dataset&quot;: [ [1, &quot;Keystone Securities&quot;], [34, &quot;Vision Securities&quot;] ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: { &quot;parse_us&quot;: 7, &quot;execute_us&quot;: 167 }
+    }
+  ],
+  &quot;columns&quot;: [ { &quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot; }, { &quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot; } ],
+  &quot;dataset&quot;: [ [1, &quot;Keystone Securities&quot;], [34, &quot;Vision Securities&quot;] ],
+  &quot;count&quot;: 2,
+  &quot;timings&quot;: { &quot;parse_us&quot;: 7, &quot;execute_us&quot;: 167 }
+}</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>query</code></td><td>The SQL you sent</td></tr><tr><td><code>results</code></td><td>One object per statement</td></tr><tr><td><code>results[].statement</code></td><td>The statement, as KDB understood it</td></tr><tr><td><code>results[].columns</code></td><td>Name and type of each column</td></tr><tr><td><code>results[].dataset</code></td><td>The rows. Each row is a list of values in column order.</td></tr><tr><td><code>results[].count</code></td><td>Number of rows in <code>dataset</code></td></tr><tr><td><code>results[].truncated</code></td><td><code>true</code> if there were more rows than <code>limit</code></td></tr><tr><td><code>results[].rows_affected</code></td><td>Rows changed by INSERT, UPDATE or DELETE</td></tr><tr><td><code>results[].message</code></td><td>For example <code>3 row(s) inserted</code></td></tr><tr><td><code>results[].timings</code></td><td>Microseconds for parsing and running</td></tr><tr><td><code>columns</code>, <code>dataset</code>, <code>count</code> (top level)</td><td>A copy of the <strong>last</strong> result, like QuestDB&#39;s <code>/exec</code>. Left out with <code>compat=0</code>.</td></tr></tbody></table></div>
+<p>Values: numbers are JSON numbers; <code>TIMESTAMP</code> and <code>DATE</code> are UTC text like <code>&quot;2026-09-09T05:15:00.000Z&quot;</code>; <code>DECIMAL</code> is text (<code>&quot;1500.25&quot;</code>), so it stays exact; <code>BOOL</code> is <code>true</code>/<code>false</code>; NULL is <code>null</code>.</p>
+<h3 id="post-runs-anything">POST runs anything</h3>
+<p>Send the SQL as the request body. <code>--data-binary</code> sends it unchanged.</p>
+<pre><code class="language-powershell">curl.exe -s http://127.0.0.1:9900/exec --data-binary &quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol LIMIT 2&quot;</code></pre>
+<pre><code class="language-json">{&quot;query&quot;:&quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol LIMIT 2&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol LIMIT 2&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;SYMBOL&quot;},{&quot;name&quot;:&quot;ltp&quot;,&quot;type&quot;:&quot;DOUBLE&quot;}],&quot;dataset&quot;:[[&quot;CITY&quot;,527.1],[&quot;COAST&quot;,401.9]],&quot;count&quot;:2,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:35,&quot;execute_us&quot;:150}}],&quot;columns&quot;:[{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;SYMBOL&quot;},{&quot;name&quot;:&quot;ltp&quot;,&quot;type&quot;:&quot;DOUBLE&quot;}],&quot;dataset&quot;:[[&quot;CITY&quot;,527.1],[&quot;COAST&quot;,401.9]],&quot;count&quot;:2,&quot;timings&quot;:{&quot;parse_us&quot;:35,&quot;execute_us&quot;:150}}</code></pre>
+<p>The body can also be a form: <code>query=&lt;SQL&gt;</code> with <code>Content-Type: application/x-www-form-urlencoded</code>.</p>
+<p>Many statements in one request, with <code>compat=0</code>:</p>
+<pre><code class="language-powershell">curl.exe -s &quot;http://127.0.0.1:9900/exec?compat=0&quot; --data-binary &quot;INSERT INTO brokers VALUES (21, &#39;Test Broker&#39;); SELECT count(*) AS brokers FROM brokers&quot;</code></pre>
+<pre><code class="language-json">{
+  &quot;query&quot;: &quot;INSERT INTO brokers VALUES (21, &#39;Test Broker&#39;); SELECT count(*) AS brokers FROM brokers&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (21, &#39;Test Broker&#39;)&quot;,
+      &quot;columns&quot;: [], &quot;dataset&quot;: [], &quot;count&quot;: 0, &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1, &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: { &quot;parse_us&quot;: 13, &quot;execute_us&quot;: 3454 }
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS brokers FROM brokers&quot;,
+      &quot;columns&quot;: [ { &quot;name&quot;: &quot;brokers&quot;, &quot;type&quot;: &quot;LONG&quot; } ],
+      &quot;dataset&quot;: [ [6] ], &quot;count&quot;: 1, &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0, &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: { &quot;parse_us&quot;: 13, &quot;execute_us&quot;: 30 }
+    }
+  ],
+  &quot;timings&quot;: { &quot;parse_us&quot;: 26, &quot;execute_us&quot;: 3484 }
+}</code></pre>
+<p>(formatted for reading)</p>
+<h3 id="the-get-rule">The GET rule</h3>
+<p><code>GET /exec</code> only runs statements that <strong>read</strong>: <code>SELECT</code>, <code>SHOW ...</code>, <code>EXPLAIN</code>, <code>CHECK TABLE</code>, <code>USE</code>. Everything that changes data (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>RENAME</code>, <code>CREATE VIEW</code>, <code>DROP VIEW</code>, <code>BACKUP DATABASE</code>, <code>CREATE DATABASE</code>, <code>DROP DATABASE</code>) must use <strong>POST</strong>.</p>
+<p>Why: a link or an image on any web page can make your browser send a GET request. With this rule, such a page cannot change your data.</p>
+<pre><code class="language-powershell"># GET /exec only reads. SQL that changes data must use POST.
+curl.exe -s -w &quot;   (HTTP %{http_code})&quot; -G http://127.0.0.1:9900/exec --data-urlencode &quot;query=DELETE FROM brokers WHERE id = 21&quot;
+&quot;&quot;
+# The same SQL with POST works:
+curl.exe -s &quot;http://127.0.0.1:9900/exec?compat=0&quot; --data-binary &quot;DELETE FROM brokers WHERE id = 21&quot;</code></pre>
+<pre><code class="language-text">{&quot;error&quot;:&quot;this SQL changes data, so it must be sent with POST /exec (GET /exec only reads)&quot;}   (HTTP 405)
+{&quot;query&quot;:&quot;DELETE FROM brokers WHERE id = 21&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;DELETE FROM brokers WHERE id = 21&quot;,&quot;columns&quot;:[],&quot;dataset&quot;:[],&quot;count&quot;:0,&quot;truncated&quot;:false,&quot;rows_affected&quot;:1,&quot;message&quot;:&quot;1 row(s) deleted&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:15,&quot;execute_us&quot;:4637}}],&quot;timings&quot;:{&quot;parse_us&quot;:15,&quot;execute_us&quot;:4637}}</code></pre>
+<p>(<code>-w &quot;(HTTP %{http_code})&quot;</code> makes curl print the HTTP status after the body.)</p>
+<h3 id="errors">Errors</h3>
+<p>A bad statement gets <strong>HTTP 400</strong> and an <code>error</code>. When KDB knows the place, <code>line</code> and <code>column</code> are separate fields:</p>
+<pre><code class="language-powershell">curl.exe -s -w &quot;\nHTTP status: %{http_code}\n&quot; http://127.0.0.1:9900/exec --data-binary &quot;SELECT clsoe FROM ochl_day&quot;</code></pre>
+<pre><code class="language-text">{&quot;query&quot;:&quot;SELECT clsoe FROM ochl_day&quot;,&quot;results&quot;:[],&quot;saved&quot;:0,&quot;rolled_back&quot;:false,&quot;error&quot;:&quot;line 1, column 8: unknown column &#39;clsoe&#39; (table &#39;ochl_day&#39; has: time symbol open high low close volume)&quot;,&quot;line&quot;:1,&quot;column&quot;:8}
+HTTP status: 400</code></pre>
+<div class="table-wrap"><table><thead><tr><th>HTTP status</th><th>Meaning</th></tr></thead><tbody><tr><td>200</td><td>OK</td></tr><tr><td>400</td><td>The SQL or the request is wrong (syntax, duplicate key, missing query, ...)</td></tr><tr><td>401</td><td>Token missing or wrong</td></tr><tr><td>403</td><td>Refused for safety: cross-site request, a host name that is not allowed, missing rights, or a read-only database</td></tr><tr><td>404</td><td>No such route, or no such database (<code>db=</code>)</td></tr><tr><td>409</td><td>The database already exists, or it is in use and cannot be dropped now</td></tr><tr><td>405</td><td>GET /exec with SQL that changes data</td></tr><tr><td>408</td><td>The request did not arrive within 30 seconds, or the statement was stopped: statement timeout, <code>DELETE /exec/&lt;id&gt;</code>, server shutdown</td></tr><tr><td>413</td><td>Request body bigger than 64 MB, or the query keeps too much in memory (<code>--max-result-memory</code>, <code>--max-groups</code>)</td></tr><tr><td>429</td><td>Too many failed logins, or the user already runs <code>--max-queries-per-user</code> statements</td></tr><tr><td>431</td><td>Request headers bigger than 64 KB</td></tr><tr><td>500</td><td>Problem on the server: a damaged file, or the database is locked by another program</td></tr><tr><td>503</td><td>Busy: a table stayed locked by another transaction too long (<code>table &#39;x&#39; is busy</code>), a <code>deadlock</code>, or the server is stopping. Try again a moment later.</td></tr><tr><td>507</td><td>The disk is full. Nothing of the request was saved. It works again once space is freed.</td></tr><tr><td>304</td><td>Not changed: the <code>If-None-Match</code> tag is still the same (<a href="#format-columns-and-etag">ETag</a>). No body.</td></tr></tbody></table></div>
+<p>With many statements, <code>results</code> holds the statements that ran <strong>before</strong> the error. The statements after the error did not run. Two fields say what was kept:</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>saved</code></td><td>How many of the statements in <code>results</code> are saved.</td></tr><tr><td><code>rolled_back</code></td><td><code>true</code> when the error undid an open transaction (or an <code>atomic=1</code> request): then nothing of it is saved, <code>saved</code> is <code>0</code>.</td></tr></tbody></table></div>
+<h3 id="atomic-1-all-or-nothing">atomic=1: all or nothing</h3>
+<p>Normally each statement of a request is saved on its own. With <code>atomic=1</code>, the whole body is <strong>one transaction</strong>: when one statement fails, the ones before it are undone too.</p>
+<pre><code class="language-powershell"># atomic=1: the whole body is one transaction. The second INSERT fails, so the first is undone too.
+curl.exe -s -w &quot;   (HTTP %{http_code})&quot; &quot;http://127.0.0.1:9900/exec?atomic=1&amp;compat=0&quot; --data-binary &quot;INSERT INTO brokers VALUES (22, &#39;New Broker&#39;); INSERT INTO brokers VALUES (1, &#39;Keystone again&#39;)&quot;
+&quot;&quot;
+curl.exe -s -G http://127.0.0.1:9900/exec --data-urlencode &quot;query=SELECT count(*) AS brokers FROM brokers WHERE id = 22&quot; --data-urlencode &quot;compat=0&quot;</code></pre>
+<pre><code class="language-text">{&quot;query&quot;:&quot;INSERT INTO brokers VALUES (22, &#39;New Broker&#39;); INSERT INTO brokers VALUES (1, &#39;Keystone again&#39;)&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;INSERT INTO brokers VALUES (22, &#39;New Broker&#39;)&quot;,&quot;columns&quot;:[],&quot;dataset&quot;:[],&quot;count&quot;:0,&quot;truncated&quot;:false,&quot;rows_affected&quot;:1,&quot;message&quot;:&quot;1 row(s) inserted&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:5,&quot;execute_us&quot;:31}}],&quot;saved&quot;:0,&quot;rolled_back&quot;:true,&quot;error&quot;:&quot;a row with id=&#39;1&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it (the transaction was rolled back)&quot;}   (HTTP 400)
+{&quot;query&quot;:&quot;SELECT count(*) AS brokers FROM brokers WHERE id = 22&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT count(*) AS brokers FROM brokers WHERE id = 22&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;brokers&quot;,&quot;type&quot;:&quot;LONG&quot;}],&quot;dataset&quot;:[[0]],&quot;count&quot;:1,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:9,&quot;execute_us&quot;:63}}],&quot;timings&quot;:{&quot;parse_us&quot;:9,&quot;execute_us&quot;:63}}</code></pre>
+<p>Broker 22 is not there: <code>&quot;saved&quot;:0,&quot;rolled_back&quot;:true</code>. Statements that cannot run in a transaction (<code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>TRUNCATE</code>, <code>BACKUP DATABASE</code>, ...) are refused before anything runs. For a transaction over several requests, use <code>POST /session</code> (chapter 15).</p>
+<h3 id="limit-and-truncated">limit and truncated</h3>
+<pre><code class="language-powershell">curl.exe -s -G &quot;http://127.0.0.1:9900/exec&quot; --data-urlencode &quot;query=SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39;&quot; --data-urlencode &quot;limit=2&quot; --data-urlencode &quot;compat=0&quot;</code></pre>
+<pre><code class="language-json">{&quot;query&quot;:&quot;SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39;&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39;&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;time&quot;,&quot;type&quot;:&quot;TIMESTAMP&quot;},{&quot;name&quot;:&quot;close&quot;,&quot;type&quot;:&quot;DOUBLE&quot;}],&quot;dataset&quot;:[[&quot;2026-09-09T05:15:00.000Z&quot;,512.1],[&quot;2026-09-09T05:16:00.000Z&quot;,511.9]],&quot;count&quot;:2,&quot;truncated&quot;:true,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:46,&quot;execute_us&quot;:347}}],&quot;timings&quot;:{&quot;parse_us&quot;:46,&quot;execute_us&quot;:347}}</code></pre>
+<p><code>&quot;truncated&quot;:true</code> tells you that more rows exist. If you need all rows, use a bigger <code>limit</code>, <code>/exp</code>, or read page by page with <code>ORDER BY time LIMIT 10000 OFFSET ...</code>.</p>
+<h3 id="format-columns-and-etag">format=columns and ETag</h3>
+<p>A chart or a program that works column by column can ask for one list per column. It is also shorter, because the column names are not repeated:</p>
+<pre><code class="language-powershell"># format=columns: one list per column instead of one list per row.
+curl.exe -s -G http://127.0.0.1:9900/exec --data-urlencode &quot;query=SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39;&quot; --data-urlencode &quot;format=columns&quot; --data-urlencode &quot;compat=0&quot;
+&quot;&quot;
+# Every answer with rows has an ETag. curl saves it, then sends it back as If-None-Match:
+# while the rows are the same, the answer is 304 and has no body.
+$url = &quot;http://127.0.0.1:9900/exec?compat=0&amp;query=SELECT%20count(*)%20AS%20brokers%20FROM%20brokers&quot;
+curl.exe -s --etag-save etag.txt $url
+&quot;&quot;
+&quot;saved ETag: $(Get-Content etag.txt)&quot;
+curl.exe -s -w &quot;(HTTP %{http_code})&quot; --etag-compare etag.txt $url</code></pre>
+<pre><code class="language-text">{&quot;query&quot;:&quot;SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39;&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39;&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;SYMBOL&quot;},{&quot;name&quot;:&quot;close&quot;,&quot;type&quot;:&quot;DOUBLE&quot;}],&quot;dataset&quot;:{&quot;symbol&quot;:[&quot;CITY&quot;,&quot;COAST&quot;,&quot;VOLT&quot;],&quot;close&quot;:[504.9,376.1,191.2]},&quot;count&quot;:3,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:15,&quot;execute_us&quot;:203}}],&quot;timings&quot;:{&quot;parse_us&quot;:15,&quot;execute_us&quot;:203}}
+{&quot;query&quot;:&quot;SELECT count(*) AS brokers FROM brokers&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT count(*) AS brokers FROM brokers&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;brokers&quot;,&quot;type&quot;:&quot;LONG&quot;}],&quot;dataset&quot;:[[6]],&quot;count&quot;:1,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:10,&quot;execute_us&quot;:196}}],&quot;timings&quot;:{&quot;parse_us&quot;:10,&quot;execute_us&quot;:196}}
+saved ETag: &quot;08452937-5r&quot;
+(HTTP 304)</code></pre>
+<ul><li>With <code>format=columns</code>, <code>dataset</code> is an object: <code>{&quot;symbol&quot;: [...], &quot;close&quot;: [...]}</code>. The top-level copy (without <code>compat=0</code>) has the same form.</li><li>An <code>/exec</code> answer with rows has an <strong>ETag</strong> header: a short tag made from the rows of the last statement. Send it back as <code>If-None-Match</code>. While the rows are the same, the answer is <strong>304</strong> with no body, so a dashboard that asks every few seconds does not download the same rows again.</li><li><code>curl --etag-save</code> and <code>--etag-compare</code> do this for you. In other programs, keep the <code>ETag</code> header and send it back.</li><li>One case has no ETag: <code>compat=0</code> in the row format, when the result is not kept in the result cache (<code>cache=0</code>, or a query with <code>now()</code> or <code>random()</code>).</li></ul>
+<h2 id="exp-download-csv">/exp: download CSV</h2>
+<pre><code class="language-powershell">curl.exe -s -G http://127.0.0.1:9900/exp --data-urlencode &quot;query=SELECT time, symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39;&quot; -o closes.csv
+Get-Content closes.csv</code></pre>
+<pre><code class="language-text">time,symbol,close
+2026-09-10T00:00:00.000Z,CITY,504.9
+2026-09-10T00:00:00.000Z,COAST,376.1
+2026-09-10T00:00:00.000Z,VOLT,191.2</code></pre>
+<ul><li>Header line, then rows. Lines end with CRLF. Text with commas or quotes is quoted.</li><li>NULL is an empty field. Times are UTC.</li><li>The answer has <code>Content-Disposition: attachment; filename=&quot;kdb-export.csv&quot;</code>, so a browser downloads it. Change the name with <code>&amp;filename=day.csv</code>.</li><li><code>/exp</code> accepts only reading statements. Anything else:</li></ul>
+<pre><code class="language-powershell">curl.exe -s -w &quot;   (HTTP %{http_code})&quot; -G http://127.0.0.1:9900/exp --data-urlencode &quot;query=INSERT INTO brokers VALUES (22, &#39;Export Test&#39;)&quot;</code></pre>
+<pre><code class="language-text">{&quot;error&quot;:&quot;CSV export needs a SELECT, SHOW or EXPLAIN statement&quot;}   (HTTP 400)</code></pre>
+<h2 id="imp-load-csv">/imp: load CSV</h2>
+<p><code>POST /imp</code> loads a CSV file into a table, the way QuestDB&#39;s <code>/imp</code> does. Send the file as a form part named <code>data</code> (or the CSV itself as the body).</p>
+<pre><code class="language-powershell">curl.exe -s -F &quot;data=@day_closes.csv&quot; &quot;http://127.0.0.1:9900/imp?name=day_closes&amp;timestamp=time&amp;partitionBy=YEAR&amp;fmt=json&quot;</code></pre>
+<pre><code class="language-text">{&quot;status&quot;:&quot;OK&quot;,&quot;location&quot;:&quot;day_closes&quot;,&quot;rowsRejected&quot;:0,&quot;rowsImported&quot;:2,&quot;header&quot;:true,&quot;partitionBy&quot;:&quot;YEAR&quot;,&quot;timestamp&quot;:&quot;time&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;time&quot;,&quot;type&quot;:&quot;TIMESTAMP&quot;,&quot;size&quot;:8,&quot;errors&quot;:0},{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;STRING&quot;,&quot;size&quot;:0,&quot;errors&quot;:0},{&quot;name&quot;:&quot;close&quot;,&quot;type&quot;:&quot;DOUBLE&quot;,&quot;size&quot;:8,&quot;errors&quot;:0},{&quot;name&quot;:&quot;volume&quot;,&quot;type&quot;:&quot;LONG&quot;,&quot;size&quot;:8,&quot;errors&quot;:0}]}</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>name</code></td><td>The table. A new name makes a new table.</td><td>the file name without <code>.csv</code></td></tr><tr><td><code>timestamp</code></td><td>New table: its time column (a <code>TIMESERIES</code> table)</td><td>none (a relational table)</td></tr><tr><td><code>partitionBy</code></td><td>New table: <code>NONE</code>, <code>DAY</code>, <code>MONTH</code> or <code>YEAR</code> (needs <code>timestamp</code>)</td><td><code>NONE</code></td></tr><tr><td><code>overwrite</code></td><td><code>true</code>: drop the table and make it again from the file</td><td><code>false</code></td></tr><tr><td><code>atomicity</code></td><td>A value that does not fit its column: <code>skipCol</code> makes it NULL, <code>skipRow</code> leaves the row out, <code>abort</code> loads nothing</td><td><code>skipCol</code></td></tr><tr><td><code>delimiter</code></td><td><code>,</code>, <code>;</code>, <code>\t</code> or <code>|</code></td><td>found from the first line</td></tr><tr><td><code>forceHeader</code></td><td><code>true</code>: the first line is a header</td><td>found from the first line</td></tr><tr><td><code>fmt</code></td><td><code>json</code> for the JSON answer above; otherwise a short text answer</td><td>text</td></tr><tr><td><code>db</code></td><td>The database</td><td>the default database</td></tr></tbody></table></div>
+<ul><li><strong>Header.</strong> The first line is a header when its values match the table&#39;s columns, or when none of them looks like data (a number, <code>true</code>/<code>false</code>, a time). Columns are matched by name, in any order. Without a header, the values go to the table&#39;s columns in order.</li><li><strong>New tables.</strong> Each column&#39;s type comes from its values: <code>BOOLEAN</code>, <code>LONG</code>, <code>DOUBLE</code>, <code>DATE</code>, <code>TIMESTAMP</code>, else <code>STRING</code>. A form part named <code>schema</code> may give types: <code>[{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;SYMBOL&quot;}]</code>. Making (or dropping, with <code>overwrite</code>) a table needs the admin role.</li><li><strong>Values.</strong> An empty field is NULL; <code>&quot;&quot;</code> is an empty text. Quoted values may hold commas, quotes (<code>&quot;&quot;</code>) and line breaks. Times like <code>2026-09-10T00:00:00.000000Z</code> work; a long number in a time column is microseconds since 1970 (QuestDB).</li><li><strong>Keys.</strong> A table with a <code>DEDUP KEY</code> keeps the newest row of each key, as QuestDB&#39;s <code>DEDUP UPSERT KEYS</code> does.</li><li><strong>All or nothing.</strong> Rows the server refuses (a missing time, a <code>NOT NULL</code> column) follow <code>atomicity</code> too. What is loaded is one transaction.</li><li><strong>Speed.</strong> Rows go in the way the line protocol writes them: whole partitions are sorted and written at once.</li></ul>
+<pre><code class="language-powershell">curl.exe -s -w &quot;   (HTTP %{http_code})&quot; -F &quot;data=@bad.csv&quot; &quot;http://127.0.0.1:9900/imp?name=day_closes&amp;atomicity=abort&amp;fmt=json&quot;</code></pre>
+<pre><code class="language-text">{&quot;status&quot;:&quot;line 2, column &#39;close&#39;: &#39;abc&#39; is not a number (atomicity=abort: nothing was imported)&quot;}   (HTTP 400)</code></pre>
+<h2 id="post-write-line-protocol">POST /write: line protocol</h2>
+<p>For live feeds and sensors, the <strong>line protocol</strong> of InfluxDB (also used by QuestDB) is the fastest way to load rows. Each line is one row: <code>table,tag=text field=value,field=value time</code>.</p>
+<pre><code class="language-powershell"># Two new live prices in the line format: table,tag=text field=value,... time
+$lines = &quot;live_data,symbol=CITY ltp=528.5,ltv=120i,volume=45120i 1789031700`nlive_data,symbol=VOLT ltp=192.4,ltv=80i,volume=21000i 1789031700&quot;
+curl.exe -s -w &quot;(HTTP %{http_code})&quot; &quot;http://127.0.0.1:9900/write?precision=s&quot; --data-binary $lines
+&quot;&quot;
+curl.exe -s -G http://127.0.0.1:9900/exec --data-urlencode &quot;query=SELECT timestamp, symbol, ltp, ltv, volume FROM live_data WHERE timestamp = &#39;2026-09-10T15:00:00+05:45&#39;&quot; --data-urlencode &quot;compat=0&quot;</code></pre>
+<pre><code class="language-text">(HTTP 204)
+{&quot;query&quot;:&quot;SELECT timestamp, symbol, ltp, ltv, volume FROM live_data WHERE timestamp = &#39;2026-09-10T15:00:00+05:45&#39;&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT timestamp, symbol, ltp, ltv, volume FROM live_data WHERE timestamp = &#39;2026-09-10T15:00:00+05:45&#39;&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;timestamp&quot;,&quot;type&quot;:&quot;TIMESTAMP&quot;},{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;SYMBOL&quot;},{&quot;name&quot;:&quot;ltp&quot;,&quot;type&quot;:&quot;DOUBLE&quot;},{&quot;name&quot;:&quot;ltv&quot;,&quot;type&quot;:&quot;LONG&quot;},{&quot;name&quot;:&quot;volume&quot;,&quot;type&quot;:&quot;LONG&quot;}],&quot;dataset&quot;:[[&quot;2026-09-10T09:15:00.000Z&quot;,&quot;CITY&quot;,528.5,120,45120],[&quot;2026-09-10T09:15:00.000Z&quot;,&quot;VOLT&quot;,192.4,80,21000]],&quot;count&quot;:2,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:12,&quot;execute_us&quot;:58}}],&quot;timings&quot;:{&quot;parse_us&quot;:12,&quot;execute_us&quot;:58}}</code></pre>
+<ul><li>A good request answers <strong>204</strong> and has no body. All lines of one request are one transaction: all or nothing.</li><li>The table must exist. Tags (before the first space) fill <code>SYMBOL</code> or <code>STRING</code> columns. Whole numbers need an <code>i</code> at the end (<code>120i</code>).</li><li>The time at the end is in nanoseconds, unless you say <code>precision=s</code>, <code>ms</code> or <code>u</code> (microseconds). Without <code>precision=</code>, times that look like seconds or milliseconds are refused with 400, so wrong dates do not get in. Always send <code>precision=</code> when your times are not nanoseconds.</li><li>The help topic <strong>Line protocol</strong> has every rule.</li></ul>
+<h2 id="get-api-info">GET /api/info</h2>
+<p>Everything the console&#39;s sidebar shows.</p>
+<pre><code class="language-powershell">$info = Invoke-RestMethod http://127.0.0.1:9900/api/info
+&quot;version: $($info.version)   log LSN: $($info.last_lsn)   damaged files: $($info.damaged.Count)&quot;
+$info.tables | Select-Object name, kind, partition, timestamp_column, rows | Format-Table -AutoSize</code></pre>
+<pre><code class="language-text">version: 0.2.0-dev   log LSN: 32   damaged files: 0
+
+name         kind       partition timestamp_column rows
+----         ----       --------- ---------------- ----
+brokers      relational NONE                          6
+trade_log    timeseries DAY       date               32
+live_data    timeseries DAY       timestamp          12
+ochl_day     timeseries YEAR      time               57
+ochl_minutes timeseries MONTH     time              956
+securities   relational NONE                          5</code></pre>
+<p>The JSON has these fields (the start of a real answer, cut):</p>
+<pre><code class="language-json">{&quot;dir&quot;:&quot;market&quot;,&quot;version&quot;:&quot;0.2.0-dev&quot;,&quot;opened_ms&quot;:1789113512561,&quot;server_time_ms&quot;:1789113526709,&quot;last_lsn&quot;:1098,&quot;data_files&quot;:10,&quot;data_bytes&quot;:75739,&quot;tables&quot;:[{&quot;name&quot;:&quot;brokers&quot;,&quot;kind&quot;:&quot;relational&quot;,&quot;partition&quot;:&quot;NONE&quot;,&quot;timestamp_column&quot;:&quot;&quot;,&quot;rows&quot;:7,&quot;bytes&quot;:336,&quot;columns&quot;:[{&quot;name&quot;:&quot;id&quot;,&quot;type&quot;:&quot;INT&quot;,&quot;primary_key&quot;:true,&quot;not_null&quot;:false,&quot;computed&quot;:false,&quot;references&quot;:&quot;&quot;},{&quot;name&quot;:&quot;name&quot;,&quot;type&quot;:&quot;STRING&quot;,&quot;primary_key&quot;:false,&quot;not_null&quot;:true,&quot;computed&quot;:false,&quot;references&quot;:&quot;&quot;}],&quot;create_sql&quot;:&quot;CREATE TABLE brokers (\n  id INT PRIMARY KEY,\n  name STRING NOT NULL\n)&quot;}, ...</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>dir</code>, <code>version</code></td><td>Database folder and KDB version</td></tr><tr><td><code>opened_ms</code>, <code>server_time_ms</code></td><td>When the database was opened; the server clock (ms since 1970, UTC)</td></tr><tr><td><code>last_lsn</code></td><td>Number of the last change in the log</td></tr><tr><td><code>data_files</code>, <code>data_bytes</code></td><td>Count and size of the data files</td></tr><tr><td><code>tables[]</code></td><td><code>name</code>, <code>kind</code>, <code>partition</code>, <code>timestamp_column</code>, <code>rows</code>, <code>bytes</code>, <code>columns[]</code>, <code>create_sql</code></td></tr><tr><td><code>damaged[]</code></td><td>Damaged files (empty when all is OK)</td></tr><tr><td><code>recovery_summary</code></td><td>What happened when the database was opened</td></tr><tr><td><code>backup_dir</code>, <code>last_backup</code></td><td>Backup folder and the newest backup (or <code>null</code>)</td></tr><tr><td><code>auth_required</code></td><td>Token mode</td></tr><tr><td><code>read_only</code></td><td>The database (or the whole server) takes no changes</td></tr><tr><td><code>protection</code></td><td>The server&#39;s <code>statement_timeout_ms</code>, <code>max_result_bytes</code>, <code>max_groups</code>, <code>max_queries_per_user</code>, <code>safe_updates</code>, <code>running</code> statements, <code>server_read_only</code>, <code>audit</code></td></tr><tr><td><code>backup_schedule</code></td><td>With <code>--backup-schedule</code>: <code>schedule</code>, <code>copy_to</code>, <code>next_run_ms</code>, <code>last_run_ms</code>, <code>last_run_ok</code>, <code>last_ok_ms</code>, <code>running</code>, <code>warning</code>, and <code>databases[]</code> of the last run (<code>ok</code>, <code>error</code>, <code>dir</code>, <code>files</code>, <code>bytes</code>, <code>copy_ok</code>, <code>copy_error</code>, ...)</td></tr></tbody></table></div>
+<h2 id="post-api-check">POST /api/check</h2>
+<pre><code class="language-powershell">curl.exe -s -X POST http://127.0.0.1:9900/api/check</code></pre>
+<pre><code class="language-json">{&quot;ok&quot;:true,&quot;files_checked&quot;:11,&quot;bytes_checked&quot;:76566,&quot;wal_segments_checked&quot;:1,&quot;problems&quot;:[],&quot;elapsed_us&quot;:11880}</code></pre>
+<p><code>ok</code> is <code>false</code> when there is damage; <code>problems</code> then lists it. For big databases this reads every file, so it can take time.</p>
+<h2 id="post-api-backup-and-get-api-backups">POST /api/backup and GET /api/backups</h2>
+<pre><code class="language-powershell">curl.exe -s -X POST http://127.0.0.1:9900/api/backup</code></pre>
+<pre><code class="language-json">{&quot;name&quot;:&quot;20260923-120933-857&quot;,&quot;dir&quot;:&quot;backups/20260923-120933-857&quot;,&quot;created_ms&quot;:1790165373857,&quot;created&quot;:&quot;2026-09-23T12:09:33.857Z&quot;,&quot;end_lsn&quot;:32,&quot;checkpoint_lsn&quot;:32,&quot;files&quot;:9,&quot;bytes&quot;:194672}</code></pre>
+<pre><code class="language-powershell">curl.exe -s http://127.0.0.1:9900/api/backups</code></pre>
+<pre><code class="language-json">{&quot;backups&quot;:[{&quot;name&quot;:&quot;20260923-120933-857&quot;,&quot;dir&quot;:&quot;backups/20260923-120933-857&quot;,&quot;created_ms&quot;:1790165373857,&quot;created&quot;:&quot;2026-09-23T12:09:33.857Z&quot;,&quot;end_lsn&quot;:32,&quot;checkpoint_lsn&quot;:32,&quot;files&quot;:9,&quot;bytes&quot;:194672}]}</code></pre>
+<ul><li>Without <code>--backups</code>, <code>/api/backup</code> answers HTTP 400 <code>no backup folder is set; start KDB with a backup folder (for example --backups D:/kdb_backups)</code>.</li><li>After each backup the server removes old backups: it keeps the newest of each of the last 7 days and 4 weeks.</li><li><code>BACKUP DATABASE</code> (as SQL, with POST) does the same:</li></ul>
+<pre><code class="language-powershell">curl.exe -s &quot;http://127.0.0.1:9900/exec?compat=0&quot; --data-binary &quot;BACKUP DATABASE&quot;</code></pre>
+<pre><code class="language-json">{&quot;query&quot;:&quot;BACKUP DATABASE&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;BACKUP DATABASE&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;backup&quot;,&quot;type&quot;:&quot;STRING&quot;},{&quot;name&quot;:&quot;files&quot;,&quot;type&quot;:&quot;LONG&quot;},{&quot;name&quot;:&quot;bytes&quot;,&quot;type&quot;:&quot;LONG&quot;},{&quot;name&quot;:&quot;log_lsn&quot;,&quot;type&quot;:&quot;LONG&quot;}],&quot;dataset&quot;:[[&quot;backups/20260923-120934-350&quot;,9,194672,32]],&quot;count&quot;:1,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;backup created and verified&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:8,&quot;execute_us&quot;:51416}}],&quot;timings&quot;:{&quot;parse_us&quot;:8,&quot;execute_us&quot;:51416}}</code></pre>
+<p>A daily backup script for a running server (see chapter 7):</p>
+<pre><code class="language-powershell"># daily-backup-server.ps1
+$r = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/api/backup&quot;
+&quot;backup $($r.name): $($r.files) files, $($r.bytes) bytes&quot;
+$c = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/api/check&quot;
+if (-not $c.ok) { Write-Output &quot;CHECK FOUND A PROBLEM: $($c.problems -join &#39;; &#39;)&quot;; exit 2 }
+&quot;check ok: $($c.files_checked) files&quot;</code></pre>
+<pre><code class="language-text">backup 20260923-121039-826: 9 files, 195468 bytes
+check ok: 14 files</code></pre>
+<h2 id="many-databases">Many databases</h2>
+<p><code>kdb serve</code> without a folder serves <strong>every database in the data folder</strong> (chapter 1). Each request chooses its database:</p>
+<ul><li>the parameter <code>db=&lt;name&gt;</code> (in the URL, or as a form field), or</li><li>the header <code>X-KDB-Database: &lt;name&gt;</code> (handy when a program talks to one database all the time).</li></ul>
+<p><code>db=</code> wins when both are given. Without either, the default database is used (<code>--db &lt;name&gt;</code>, else <code>default</code>, which is created when first used). Names ignore case.</p>
+<p>This example starts a second server on port 9946 for the data folder <code>kdb-data</code>:</p>
+<pre><code class="language-powershell"># A server for a whole data folder: every database in it, chosen per request.
+# --pg-port 0: the first server already has the Postgres port 8832.
+$server = Start-Process kdb -ArgumentList &quot;serve&quot;, &quot;--data-dir&quot;, &quot;kdb-data&quot;, &quot;--port&quot;, &quot;9946&quot;, &quot;--pg-port&quot;, &quot;0&quot; -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 1
+$u = &quot;http://127.0.0.1:9946&quot;
+
+# Create two databases.
+Invoke-RestMethod -Method Post &quot;$u/api/databases?name=market&quot; | ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post &quot;$u/api/databases&quot; -ContentType &quot;application/json&quot; -Body &#39;{&quot;name&quot;:&quot;demo&quot;}&#39; | ConvertTo-Json -Compress
+
+# The same table name in both, with different rows: db=&lt;name&gt; or the X-KDB-Database header picks the database.
+$sql = &quot;CREATE TABLE prices (symbol SYMBOL PRIMARY KEY, close DOUBLE)&quot;
+$null = Invoke-RestMethod -Method Post &quot;$u/exec?db=market&quot; -ContentType &quot;text/plain&quot; -Body &quot;$sql; INSERT INTO prices VALUES (&#39;CITY&#39;, 527.1), (&#39;COAST&#39;, 401.9)&quot;
+$null = Invoke-RestMethod -Method Post &quot;$u/exec&quot; -Headers @{ &quot;X-KDB-Database&quot; = &quot;demo&quot; } -ContentType &quot;text/plain&quot; -Body &quot;$sql; INSERT INTO prices VALUES (&#39;TEST&#39;, 1)&quot;
+curl.exe -s &quot;$u/exp?db=market&amp;query=SELECT%20*%20FROM%20prices&quot;
+curl.exe -s &quot;$u/exp?db=demo&amp;query=SELECT%20*%20FROM%20prices&quot;
+
+# A query in market can read a table of demo: database.table
+curl.exe -s -G &quot;$u/exp&quot; --data-urlencode &quot;db=market&quot; --data-urlencode &quot;query=SELECT symbol, close FROM prices UNION ALL SELECT symbol, close FROM demo.prices&quot;
+
+# Every database, with its table count.
+(Invoke-RestMethod &quot;$u/api/databases&quot;).databases | Select-Object name, tables, default | Format-Table -AutoSize
+
+# A database that does not exist.
+curl.exe -s -w &quot;   (HTTP %{http_code})&quot; &quot;$u/exec?db=nope&amp;query=SELECT%201&quot;
+&quot;&quot;
+
+# Drop one: its folder moves to kdb-data\_trash.
+(Invoke-RestMethod -Method Delete &quot;$u/api/databases/demo&quot;).dropped
+&quot;demo folder: $(Test-Path kdb-data\demo)   folders in _trash: $((Get-ChildItem kdb-data\_trash).Count)&quot;
+
+Stop-Process -Id $server.Id</code></pre>
+<pre><code class="language-text">{&quot;name&quot;:&quot;market&quot;,&quot;created&quot;:true}
+{&quot;name&quot;:&quot;demo&quot;,&quot;created&quot;:true}
+symbol,close
+CITY,527.1
+COAST,401.9
+symbol,close
+TEST,1
+symbol,close
+CITY,527.1
+COAST,401.9
+TEST,1
+
+name   tables default
+----   ------ -------
+demo        1   False
+market      1   False
+
+{&quot;error&quot;:&quot;database &#39;nope&#39; does not exist; create it with CREATE DATABASE nope&quot;}   (HTTP 404)
+True
+demo folder: False   folders in _trash: 1</code></pre>
+<p>A query can also <strong>read</strong> a table of another database on the same server: write <code>database.table</code>, like <code>demo.prices</code> above. It works in <code>SELECT</code>, <code>JOIN</code>, subqueries and <code>INSERT ... SELECT</code>. A statement only <strong>changes</strong> tables of its own database. The user needs the right to read the other database. The help topic <strong>Queries across databases</strong> has more.</p>
+<h3 id="get-api-databases">GET /api/databases</h3>
+<pre><code class="language-json">{&quot;databases&quot;:[{&quot;name&quot;:&quot;demo&quot;,&quot;dir&quot;:&quot;kdb-data/demo&quot;,&quot;default&quot;:false,&quot;open&quot;:true,&quot;tables&quot;:1,&quot;bytes&quot;:235},{&quot;name&quot;:&quot;market&quot;,&quot;dir&quot;:&quot;kdb-data/market&quot;,&quot;default&quot;:false,&quot;open&quot;:true,&quot;tables&quot;:1,&quot;bytes&quot;:235}],&quot;default&quot;:&quot;default&quot;,&quot;data_dir&quot;:&quot;kdb-data&quot;,&quot;can_create&quot;:true}</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>databases[]</code></td><td>Every database, sorted by name: <code>name</code>, <code>dir</code> (its folder), <code>default</code>, <code>open</code>, <code>tables</code>, <code>bytes</code> (data files). When a database cannot be opened (for example another program uses it), <code>tables</code> is <code>null</code> and <code>error</code> says why.</td></tr><tr><td><code>default</code></td><td>The database used when a request has no <code>db=</code></td></tr><tr><td><code>data_dir</code></td><td>The data folder (empty for <code>kdb serve &lt;folder&gt;</code>)</td></tr><tr><td><code>can_create</code></td><td><code>false</code> for <code>kdb serve &lt;folder&gt;</code>: that server has one database and cannot create or drop others</td></tr></tbody></table></div>
+<p>Listing opens every database, so the list can count its tables.</p>
+<h3 id="post-api-databases-and-delete-api-databases-lt-name-gt">POST /api/databases and DELETE /api/databases/&amp;lt;name&amp;gt;</h3>
+<div class="table-wrap"><table><thead><tr><th>Request</th><th>Answer</th></tr></thead><tbody><tr><td><code>POST /api/databases?name=market</code> (or form <code>name=market</code>, or JSON <code>{&quot;name&quot;:&quot;market&quot;}</code>)</td><td><code>200 {&quot;name&quot;:&quot;market&quot;,&quot;created&quot;:true}</code>; <code>409</code> if it exists; <code>400</code> for a bad name</td></tr><tr><td><code>DELETE /api/databases/demo</code></td><td><code>200 {&quot;name&quot;:&quot;demo&quot;,&quot;dropped&quot;:true,&quot;moved_to&quot;:&quot;kdb-data/_trash/1789136015339-demo&quot;}</code>; <code>404</code> if it does not exist; <code>409</code> while a request uses it</td></tr><tr><td><code>GET /api/databases/demo</code></td><td><code>405</code>: changes need POST or DELETE</td></tr></tbody></table></div>
+<p>A dropped database is <strong>not deleted</strong>. Its folder moves to <code>&lt;data folder&gt;/_trash/&lt;time in ms&gt;-&lt;name&gt;</code>. To get it back, stop the server and move the folder back into the data folder.</p>
+<h3 id="database-statements-in-sql">Database statements in SQL</h3>
+<p><code>/exec</code> also runs <code>CREATE DATABASE</code>, <code>DROP DATABASE</code>, <code>SHOW DATABASES</code> and <code>USE</code> (chapter 11). <code>CREATE</code> and <code>DROP DATABASE</code> need POST. <code>USE name</code> changes the database only for the <strong>rest of that request</strong>:</p>
+<pre><code class="language-powershell">curl.exe -s &quot;http://127.0.0.1:9946/exec?compat=0&quot; --data-binary &quot;USE market; SELECT count(*) FROM prices&quot;</code></pre>
+<pre><code class="language-json">{&quot;query&quot;:&quot;USE market; SELECT count(*) FROM prices&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;USE market&quot;,&quot;columns&quot;:[],&quot;dataset&quot;:[],&quot;count&quot;:0,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;using database &#39;market&#39;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:0,&quot;execute_us&quot;:8}},{&quot;statement&quot;:&quot;SELECT count(*) FROM prices&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;count(*)&quot;,&quot;type&quot;:&quot;LONG&quot;}],&quot;dataset&quot;:[[2]],&quot;count&quot;:1,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:22,&quot;execute_us&quot;:91}}],&quot;timings&quot;:{&quot;parse_us&quot;:22,&quot;execute_us&quot;:99}}</code></pre>
+<p>The next request uses <code>db=</code> (or the default database) again.</p>
+<h2 id="cursors-read-a-big-result-bit-by-bit">Cursors: read a big result bit by bit</h2>
+<p><code>/exec</code> returns at most 1,000,000 rows at once, and a big result is a big reply. A <strong>cursor</strong> runs the SELECT once, keeps the rows on the server, and gives them to you a few at a time.</p>
+<div class="table-wrap"><table><thead><tr><th>Request</th><th>Answer</th></tr></thead><tbody><tr><td><code>POST /cursor</code> with one SELECT as the body</td><td><code>{&quot;cursor&quot;:&quot;&lt;id&gt;&quot;,&quot;columns&quot;:[...],&quot;rows&quot;:N}</code></td></tr><tr><td><code>GET /cursor/&lt;id&gt;?fetch=N</code></td><td>the next N rows (default 1,000): <code>{&quot;cursor&quot;,&quot;columns&quot;,&quot;dataset&quot;,&quot;count&quot;,&quot;done&quot;}</code>. <code>done</code> is true when no rows are left.</td></tr><tr><td><code>DELETE /cursor/&lt;id&gt;</code></td><td><code>{&quot;cursor&quot;:&quot;&lt;id&gt;&quot;,&quot;closed&quot;:true}</code></td></tr></tbody></table></div>
+<pre><code class="language-powershell"># A cursor: the server runs the SELECT once and keeps the rows; you read them bit by bit.
+$c = Invoke-RestMethod -Method Post &quot;http://127.0.0.1:9900/cursor&quot; -ContentType &quot;text/plain&quot; `
+  -Body &quot;SELECT time, symbol, close FROM ochl_minutes WHERE time IN &#39;2026-09-10&#39; ORDER BY time, symbol&quot;
+&quot;rows kept: $($c.rows)   columns: $(($c.columns | ForEach-Object { $_.name }) -join &#39;, &#39;)&quot;
+
+# GET only reads the kept rows: 3 at a time.
+foreach ($i in 1..2) {
+  $page = Invoke-RestMethod &quot;http://127.0.0.1:9900/cursor/$($c.cursor)?fetch=3&quot;
+  $page.dataset | ForEach-Object { $_ -join &#39; | &#39; }
+  &quot;count: $($page.count)   done: $($page.done)&quot;
+}
+
+# Close it. A closed (or unknown) cursor answers 404.
+(Invoke-RestMethod -Method Delete &quot;http://127.0.0.1:9900/cursor/$($c.cursor)&quot;).closed
+curl.exe -s -o NUL -w &quot;HTTP %{http_code}&quot; &quot;http://127.0.0.1:9900/cursor/$($c.cursor)?fetch=3&quot;
+&quot;&quot;</code></pre>
+<pre><code class="language-text">rows kept: 476   columns: time, symbol, close
+2026-09-10T05:15:00.000Z | CITY  | 504.4
+2026-09-10T05:15:00.000Z | COAST | 380
+2026-09-10T05:16:00.000Z | CITY  | 504.6
+count: 3   done: False
+2026-09-10T05:16:00.000Z | COAST | 379.6
+2026-09-10T05:17:00.000Z | CITY  | 504.2
+2026-09-10T05:17:00.000Z | COAST | 380.1
+count: 3   done: False
+True
+HTTP 404</code></pre>
+<ul><li>The rows are a snapshot: changes after <code>POST /cursor</code> do not change them. They stay in the server&#39;s memory until the cursor is closed.</li><li>A cursor closes by itself after 10 minutes without a <code>GET</code>. At most 16 cursors per database are open at the same time (SQL cursors from chapter 13 count too). At most 10 million rows per cursor.</li><li><code>GET /cursor/&lt;id&gt;</code> only reads (the rule above: GET never changes data). Opening needs POST, closing needs DELETE.</li><li>Use the same <code>db=</code> for all three requests: a cursor belongs to one database.</li></ul>
+<h2 id="clients">Clients</h2>
+<p>Every client below does the same three things: POST the SQL to <code>/exec?compat=0</code>, read <code>results</code>, and turn HTTP errors into error messages. The files are in <code>examples/08-http-api/</code>.</p>
+<h3 id="powershell">PowerShell</h3>
+<pre><code class="language-powershell">$sql = &quot;SELECT symbol, sum(quantity) AS shares FROM trade_log WHERE date IN &#39;2026-09-10&#39; GROUP BY symbol ORDER BY shares DESC&quot;
+$r = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/exec?compat=0&quot; -Body $sql -ContentType &quot;text/plain; charset=utf-8&quot;
+
+$result = $r.results[0]
+$names = $result.columns | ForEach-Object { $_.name }
+&quot;columns: $($names -join &#39;, &#39;)&quot;
+foreach ($row in $result.dataset) { &quot;  $($row -join &#39; | &#39;)&quot; }</code></pre>
+<pre><code class="language-text">columns: symbol, shares
+  COAST | 2850
+  CITY  | 910
+  TELCO | 770
+  VOLT  | 400</code></pre>
+<p>To send a <code>.sql</code> file with non-English text, send the <strong>bytes</strong> of the file, so no encoding is lost:</p>
+<pre><code class="language-powershell"># Send a whole .sql file in one request.
+@&quot;
+INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-14&#39;, &#39;COAST&#39;, 378.5, 381.0, 377.2, 380.4, 99000);
+INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-14&#39;, &#39;VOLT&#39;, 193.7, 196.0, 192.8, 195.1, 70500);
+&quot;@ | Set-Content load.sql -Encoding UTF8
+
+$body = [System.IO.File]::ReadAllBytes((Resolve-Path load.sql))
+$r = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/exec?compat=0&quot; -Body $body -ContentType &quot;text/plain; charset=utf-8&quot;
+$r.results | ForEach-Object { $_.message }</code></pre>
+<pre><code class="language-text">1 row(s) inserted
+1 row(s) inserted</code></pre>
+<h3 id="python-standard-library-only">Python (standard library only)</h3>
+<p><code>client.py</code>:</p>
+<pre><code class="language-python"># client.py - query KDB from Python. Only the standard library is used.
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+
+KDB = os.environ.get(&quot;KDB_URL&quot;, &quot;http://127.0.0.1:9900&quot;)
+TOKEN = &quot;&quot;  # set this if the server was started with --token
+
+def kdb(sql, limit=10000):
+    url = KDB + &quot;/exec?&quot; + urllib.parse.urlencode({&quot;limit&quot;: limit, &quot;compat&quot;: 0})
+    req = urllib.request.Request(url, data=sql.encode(&quot;utf-8&quot;), method=&quot;POST&quot;)
+    req.add_header(&quot;Content-Type&quot;, &quot;text/plain; charset=utf-8&quot;)
+    if TOKEN:
+        req.add_header(&quot;Authorization&quot;, &quot;Bearer &quot; + TOKEN)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.load(resp)[&quot;results&quot;]
+    except urllib.error.HTTPError as e:
+        body = json.load(e)
+        raise RuntimeError(f&quot;KDB error (HTTP {e.code}): {body[&#39;error&#39;]}&quot;) from None
+
+# Insert a row (INSERT OR REPLACE: safe to run again).
+print(kdb(&quot;INSERT OR REPLACE INTO ochl_day VALUES &quot;
+          &quot;(&#39;2026-09-13&#39;, &#39;CITY&#39;, 505, 509, 503.1, 508.2, 91000)&quot;)[0][&quot;message&quot;])
+
+# Read rows as dictionaries.
+res = kdb(&quot;SELECT time, symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-09&#39;&quot;)[0]
+names = [c[&quot;name&quot;] for c in res[&quot;columns&quot;]]
+for row in res[&quot;dataset&quot;]:
+    print(dict(zip(names, row)))
+
+# Errors become exceptions.
+try:
+    kdb(&quot;SELECT clsoe FROM ochl_day&quot;)
+except RuntimeError as err:
+    print(err)</code></pre>
+<pre><code class="language-powershell">python client.py</code></pre>
+<pre><code class="language-text">1 row(s) inserted
+{&#39;time&#39;: &#39;2026-09-09T00:00:00.000Z&#39;, &#39;symbol&#39;: &#39;CITY&#39;, &#39;close&#39;: 504.6}
+{&#39;time&#39;: &#39;2026-09-10T00:00:00.000Z&#39;, &#39;symbol&#39;: &#39;CITY&#39;, &#39;close&#39;: 504.9}
+{&#39;time&#39;: &#39;2026-09-13T00:00:00.000Z&#39;, &#39;symbol&#39;: &#39;CITY&#39;, &#39;close&#39;: 508.2}
+KDB error (HTTP 400): line 1, column 8: unknown column &#39;clsoe&#39; (table &#39;ochl_day&#39; has: time symbol open high low close volume)</code></pre>
+<p>Tested with Python 3.15. To turn a time text into a Python <code>datetime</code>: <code>datetime.fromisoformat(t.replace(&quot;Z&quot;, &quot;+00:00&quot;))</code>.</p>
+<h3 id="node-js-18-or-newer">Node.js (18 or newer)</h3>
+<p><code>client.mjs</code>:</p>
+<pre><code class="language-javascript">// client.mjs - query KDB from Node.js 18 or newer (fetch is built in).
+const KDB = process.env.KDB_URL || &quot;http://127.0.0.1:9900&quot;;
+const TOKEN = &quot;&quot;; // set this if the server was started with --token
+
+async function kdb(sql, limit = 10000) {
+  const res = await fetch(`${KDB}/exec?limit=${limit}&amp;compat=0`, {
+    method: &quot;POST&quot;,
+    headers: {
+      &quot;Content-Type&quot;: &quot;text/plain; charset=utf-8&quot;,
+      ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
+    },
+    body: sql,
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`KDB error (HTTP ${res.status}): ${body.error}`);
+  return body.results;
+}
+
+const [res] = await kdb(
+  &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY pct_change DESC&quot;
+);
+const names = res.columns.map((c) =&gt; c.name);
+for (const row of res.dataset) {
+  console.log(Object.fromEntries(names.map((n, i) =&gt; [n, row[i]])));
+}
+
+try {
+  await kdb(&quot;INSERT INTO brokers VALUES (58, &#39;Duplicate&#39;)&quot;);
+} catch (err) {
+  console.log(err.message);
+}</code></pre>
+<pre><code class="language-powershell">node client.mjs</code></pre>
+<pre><code class="language-text">{ symbol: &#39;CITY&#39;, ltp: 527.1, pct_change: 2.71 }
+{ symbol: &#39;TELCO&#39;, ltp: 897.7, pct_change: 1.9 }
+{ symbol: &#39;COAST&#39;, ltp: 401.9, pct_change: 0.7 }
+{ symbol: &#39;VOLT&#39;, ltp: 184, pct_change: -0.86 }
+KDB error (HTTP 400): a row with id=&#39;58&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
+<p>Tested with Node 24.</p>
+<h3 id="go-standard-library-only">Go (standard library only)</h3>
+<p><code>client.go</code>:</p>
+<pre><code class="language-go">// client.go - query KDB from Go (standard library only).
+// Run: go run client.go
+package main
+
+import (
+	&quot;encoding/json&quot;
+	&quot;fmt&quot;
+	&quot;io&quot;
+	&quot;net/http&quot;
+	&quot;net/url&quot;
+	&quot;os&quot;
+	&quot;strings&quot;
+)
+
+var kdbURL = &quot;http://127.0.0.1:9900&quot;
+
+const token = &quot;&quot; // set this if the server was started with --token
+
+type column struct {
+	Name string `json:&quot;name&quot;`
+	Type string `json:&quot;type&quot;`
+}
+
+type result struct {
+	Statement    string          `json:&quot;statement&quot;`
+	Columns      []column        `json:&quot;columns&quot;`
+	Dataset      [][]interface{} `json:&quot;dataset&quot;`
+	Count        int             `json:&quot;count&quot;`
+	RowsAffected int             `json:&quot;rows_affected&quot;`
+	Message      string          `json:&quot;message&quot;`
+}
+
+type response struct {
+	Results []result `json:&quot;results&quot;`
+	Error   string   `json:&quot;error&quot;`
+	Line    int      `json:&quot;line&quot;`
+	Column  int      `json:&quot;column&quot;`
+}
+
+func query(sql string) ([]result, error) {
+	u := kdbURL + &quot;/exec?&quot; + url.Values{&quot;compat&quot;: {&quot;0&quot;}, &quot;limit&quot;: {&quot;10000&quot;}}.Encode()
+	req, err := http.NewRequest(&quot;POST&quot;, u, strings.NewReader(sql))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set(&quot;Content-Type&quot;, &quot;text/plain; charset=utf-8&quot;)
+	if token != &quot;&quot; {
+		req.Header.Set(&quot;Authorization&quot;, &quot;Bearer &quot;+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var r response
+	if err := json.Unmarshal(body, &amp;r); err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(&quot;KDB error (HTTP %d): %s&quot;, resp.StatusCode, r.Error)
+	}
+	return r.Results, nil
+}
+
+func main() {
+	if u := os.Getenv(&quot;KDB_URL&quot;); u != &quot;&quot; {
+		kdbURL = u
+	}
+	res, err := query(&quot;SELECT time, first(open) AS open, last(close) AS close FROM ochl_minutes &quot; +
+		&quot;WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39; SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;&quot;)
+	if err != nil {
+		panic(err)
+	}
+	for _, row := range res[0].Dataset {
+		// Times are strings like &quot;2026-09-10T05:15:00.000Z&quot;; numbers are float64.
+		fmt.Printf(&quot;%v open=%v close=%v\n&quot;, row[0], row[1], row[2])
+	}
+
+	if _, err := query(&quot;DELETE FROM brokers WHERE id = 58&quot;); err != nil {
+		fmt.Println(err)
+	}
+}</code></pre>
+<pre><code class="language-powershell">go run client.go</code></pre>
+<pre><code class="language-text">2026-09-10T05:15:00.000Z open=504.6 close=505.3
+2026-09-10T06:15:00.000Z open=505.3 close=502.7
+2026-09-10T07:15:00.000Z open=502.7 close=502.6
+2026-09-10T08:15:00.000Z open=502.6 close=504.9
+KDB error (HTTP 400): cannot remove brokers(id) = &#39;58&#39;: table &#39;trade_log&#39; column &#39;buyer&#39; still refers to it (foreign key &#39;trade_log_buyer_fkey&#39;)</code></pre>
+<p>Tested with Go 1.26. Parse times with <code>time.Parse(time.RFC3339Nano, s)</code>. A Go app can also use its PostgreSQL driver <code>pgx</code> on port 8832 (chapter 14). This HTTP client needs no driver at all.</p>
+<h3 id="c-net-6-or-newer">C# (.NET 6 or newer)</h3>
+<p><code>Client.cs</code> (<strong>not run</strong> while writing this tutorial: there was no .NET SDK on the test PC):</p>
+<pre><code class="language-csharp">// Client.cs - query KDB from C# (.NET 6 or newer).
+// NOT RUN while writing the tutorial (no .NET SDK on that computer).
+// Use it in a console project: dotnet new console, then replace Program.cs.
+using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+class KdbClient
+{
+    static readonly HttpClient Http = new HttpClient { BaseAddress = new Uri(&quot;http://127.0.0.1:9900&quot;) };
+    const string Token = &quot;&quot;; // set this if the server was started with --token
+
+    static async Task&lt;JsonElement&gt; Query(string sql)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, &quot;/exec?compat=0&amp;limit=10000&quot;);
+        request.Content = new StringContent(sql, Encoding.UTF8, &quot;text/plain&quot;);
+        if (Token != &quot;&quot;) request.Headers.Add(&quot;Authorization&quot;, &quot;Bearer &quot; + Token);
+        using var response = await Http.SendAsync(request);
+        var text = await response.Content.ReadAsStringAsync();
+        var json = JsonDocument.Parse(text).RootElement.Clone();
+        if (!response.IsSuccessStatusCode)
+            throw new Exception($&quot;KDB error (HTTP {(int)response.StatusCode}): {json.GetProperty(&quot;error&quot;).GetString()}&quot;);
+        return json.GetProperty(&quot;results&quot;);
+    }
+
+    static async Task Main()
+    {
+        var results = await Query(&quot;SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39;&quot;);
+        foreach (var row in results[0].GetProperty(&quot;dataset&quot;).EnumerateArray())
+            Console.WriteLine($&quot;{row[0].GetString()} {row[1].GetDouble()}&quot;);
+    }
+}</code></pre>
+<h2 id="access-token">Access token</h2>
+<p>A second server on another port, with a token. Every <code>kdb serve</code> also opens the PostgreSQL port 8832 (chapter 14), and only one server can have it, so a second server needs <code>--pg-port 0</code> (off) or another port:</p>
+<pre><code class="language-powershell">kdb serve tokendb --port 9944 --pg-port 0 --token change-me-please</code></pre>
+<p>Then:</p>
+<pre><code class="language-powershell">curl.exe -s http://127.0.0.1:9944/health
+&quot;&quot;
+curl.exe -s -w &quot;   (HTTP %{http_code})&quot; &quot;http://127.0.0.1:9944/exec?query=SELECT%201&quot;
+&quot;&quot;
+curl.exe -s -w &quot;   (HTTP %{http_code})&quot; -H &quot;Authorization: Bearer wrong&quot; &quot;http://127.0.0.1:9944/exec?query=SELECT%201&quot;
+&quot;&quot;
+curl.exe -s -H &quot;Authorization: Bearer change-me-please&quot; &quot;http://127.0.0.1:9944/exec?query=SELECT%201%20AS%20one&amp;compat=0&quot;
+&quot;&quot;
+curl.exe -s --cookie &quot;kdb_token=change-me-please&quot; &quot;http://127.0.0.1:9944/exp?query=SELECT%201%20AS%20one&quot;</code></pre>
+<pre><code class="language-text">{&quot;status&quot;:&quot;ok&quot;,&quot;version&quot;:&quot;0.2.0-dev&quot;,&quot;server_time_ms&quot;:1789114675621,&quot;auth_required&quot;:true,&quot;login&quot;:false}
+{&quot;error&quot;:&quot;access token required&quot;}   (HTTP 401)
+{&quot;error&quot;:&quot;wrong access token&quot;}   (HTTP 401)
+{&quot;query&quot;:&quot;SELECT 1 AS one&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT 1 AS one&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;one&quot;,&quot;type&quot;:&quot;LONG&quot;}],&quot;dataset&quot;:[[1]],&quot;count&quot;:1,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:26,&quot;execute_us&quot;:16}}],&quot;timings&quot;:{&quot;parse_us&quot;:26,&quot;execute_us&quot;:16}}
+one
+1</code></pre>
+<ul><li>Send the token as <code>Authorization: Bearer &lt;token&gt;</code> (programs) or as the cookie <code>kdb_token=&lt;token&gt;</code> (the console does this).</li><li><code>/health</code> works without a token.</li><li>The 401 answer has the header <code>WWW-Authenticate: Bearer realm=&quot;kdb&quot;</code>.</li><li>The token can do everything. For programs that should only read, or only write one database, use <strong>users</strong> instead.</li></ul>
+<h2 id="stop-a-slow-request">Stop a slow request</h2>
+<p><code>kdb serve</code> stops every statement after <code>--statement-timeout</code> (60 s by default) with HTTP 408. Send your own shorter time, or give the request an id so that you can stop it:</p>
+<div class="table-wrap"><table><thead><tr><th>Header</th><th>Does</th></tr></thead><tbody><tr><td><code>X-KDB-Statement-Timeout: 5s</code></td><td>a shorter time for this request (admins may also make it longer)</td></tr><tr><td><code>X-KDB-Request-Id: report-17</code></td><td><code>DELETE /exec/report-17</code> stops it (your own requests; admins: all)</td></tr><tr><td><code>X-KDB-Safe-Updates: on</code></td><td>refuse <code>UPDATE</code> and <code>DELETE</code> without <code>WHERE</code> (<code>off</code> when the server has <code>--safe-updates</code>)</td></tr></tbody></table></div>
+<pre><code class="language-text">{&quot;query&quot;:&quot;SELECT ...&quot;,&quot;results&quot;:[],&quot;error&quot;:&quot;canceling statement due to user request&quot;}   (HTTP 408)</code></pre>
+<p>Closing the connection also stops the statement. Nothing of a stopped change is saved. Chapter 21 has the details.</p>
+<h2 id="users-and-logins">Users and logins</h2>
+<p>When the data folder has users (<code>CREATE USER</code>, or <code>kdb user add</code>), every request needs a login. Chapter 16 explains users and roles; here is only the HTTP part.</p>
+<div class="table-wrap"><table><thead><tr><th>How</th><th>Send</th><th>For</th></tr></thead><tbody><tr><td>HTTP Basic</td><td><code>curl -u name:password ...</code> (header <code>Authorization: Basic ...</code>)</td><td>scripts; KDB remembers a good password for 10 minutes, so it is not slow</td></tr><tr><td>Log in once</td><td><code>POST /api/login</code> with <code>{&quot;user&quot;:&quot;...&quot;,&quot;password&quot;:&quot;...&quot;}</code> (JSON or form; users with two-factor login add <code>&quot;code&quot;:&quot;123456&quot;</code>, chapter 21). The answer has <code>token</code> and sets the cookie <code>kdb_login</code> (HttpOnly, SameSite=Strict, 12 hours). Then send <code>Authorization: Bearer &lt;token&gt;</code>.</td><td>apps, the web console</td></tr><tr><td>Log out</td><td><code>POST /api/logout</code> with the cookie or the Bearer token</td><td></td></tr><tr><td>The <code>--token</code></td><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>everything, as before</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer</th><th>Means</th></tr></thead><tbody><tr><td>401 <code>{&quot;error&quot;:&quot;login required: ...&quot;,&quot;login&quot;:true}</code></td><td>no login, or a wrong password. The header is <code>WWW-Authenticate: Basic realm=&quot;kdb&quot;</code> (the console gets <code>Bearer</code>, so the browser shows no password box).</td></tr><tr><td>403 <code>{&quot;error&quot;:&quot;INSERT needs role write on database &#39;shop&#39;; user &#39;report&#39; has read&quot;}</code></td><td>logged in, but the role is too weak</td></tr><tr><td>429 <code>{&quot;error&quot;:&quot;too many failed logins; try again in 4 s&quot;}</code> and <code>Retry-After</code></td><td>5 failed logins for one user from one address: wait 1 s, 2 s, 4 s, ... up to 15 minutes</td></tr></tbody></table></div>
+<p>Rights per route: <code>read</code> for <code>/exec</code> and <code>/exp</code> with reading SQL, <code>/api/info</code>, <code>/api/backups</code> and cursors; <code>write</code> for changing SQL and <code>/write</code>; <code>admin</code> on the database for schema changes, <code>/api/check</code> and <code>/api/backup</code>; ROLE <code>admin</code> for <code>POST /api/databases</code>, <code>DELETE /api/databases/&lt;name&gt;</code> and user statements. <code>GET /api/databases</code> lists only the databases the user may read. A transaction session (<code>POST /session</code>) can only be used by the user who opened it.</p>
+<h2 id="safety-rules-of-the-api">Safety rules of the API</h2>
+<p>The server refuses requests that a web page in your browser could send behind your back:</p>
+<pre><code class="language-powershell">curl.exe -s -w &quot;   (HTTP %{http_code})&quot; -H &quot;Sec-Fetch-Site: cross-site&quot; &quot;http://127.0.0.1:9900/exec?query=SELECT%201&quot;
+&quot;&quot;
+curl.exe -s -w &quot;   (HTTP %{http_code})&quot; -H &quot;Origin: http://example.com&quot; &quot;http://127.0.0.1:9900/exec?query=SELECT%201&quot;
+&quot;&quot;
+curl.exe -s -w &quot;   (HTTP %{http_code})&quot; -H &quot;Host: market.example.com&quot; &quot;http://127.0.0.1:9900/exec?query=SELECT%201&quot;</code></pre>
+<pre><code class="language-text">{&quot;error&quot;:&quot;cross-site requests are not allowed&quot;}   (HTTP 403)
+{&quot;error&quot;:&quot;cross-origin requests are not allowed&quot;}   (HTTP 403)
+{&quot;error&quot;:&quot;host name &#39;market.example.com&#39; is not allowed without an access token; use localhost or start the server with --token&quot;}   (HTTP 403)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Why</th></tr></thead><tbody><tr><td>GET /exec and /exp only read</td><td>Links and images can send GET requests</td></tr><tr><td>Browser requests from other sites get 403</td><td>A bad web page must not use your local KDB</td></tr><tr><td>Without a token, the <code>Host</code> must be <code>localhost</code> or <code>127.x.x.x</code></td><td>Stops DNS rebinding. A reverse proxy needs <code>--token</code> or users.</td></tr><tr><td><code>kdb serve --bind 0.0.0.0</code> without <code>--token</code> and without users does not start</td><td>Nobody can open all data to the network by mistake</td></tr><tr><td>Login cookies are <code>HttpOnly</code> and <code>SameSite=Strict</code>; <code>POST /api/login</code> from another site gets 403</td><td>Scripts and other sites cannot steal or use a login</td></tr><tr><td>Failed logins are logged and slowed down</td><td>Guessing passwords does not work</td></tr><tr><td>The token is compared in constant time</td><td>Guessing it by timing does not work</td></tr></tbody></table></div>
+<p>Programs like curl, Python, Go and Node do not send <code>Sec-Fetch-Site</code> or <code>Origin</code>, so they are not affected. JavaScript in a web page on <strong>another</strong> site cannot call KDB (there are no CORS headers). Call KDB from your backend (for example the 006 Go app), not from browser code.</p>
+<h2 id="limits">Limits</h2>
+<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Rows per statement (<code>limit</code>)</td><td>default 10,000 for /exec, 1,000,000 for /exp; at most 1,000,000</td></tr><tr><td>Request body</td><td>64 MB</td></tr><tr><td>Request headers</td><td>64 KB</td></tr><tr><td>Time to send a request</td><td>30 seconds</td></tr><tr><td>Idle keep-alive connection</td><td>closed after 30 seconds</td></tr><tr><td>Worker threads</td><td>8: at most 8 requests run at once, the next ones wait for a free worker</td></tr><tr><td>Open cursors (<code>/cursor</code>)</td><td>16 per database; unused ones close after 10 minutes</td></tr><tr><td>Open sessions (<code>/session</code>)</td><td>1,000; unused ones close after 10 minutes</td></tr><tr><td>Writers at the same time</td><td>one per table; writers of different tables run together</td></tr><tr><td>Readers at the same time</td><td>many; a read never waits for another read</td></tr><tr><td>Time of one statement</td><td><code>--statement-timeout</code> (60 s)</td></tr><tr><td>Statements of one user at the same time</td><td><code>--max-queries-per-user</code> (32)</td></tr></tbody></table></div>
+<p>Reads see the last committed rows. They do not wait for an open transaction, only for a statement that is running right now (usually a millisecond; a long <code>CALL</code> or trigger can take longer, see <code>--reader-yield</code> in chapter 15). A writer waits only for another writer of the <strong>same</strong> table: at most 5 seconds, then HTTP 503 <code>table &#39;x&#39; is busy</code> (chapter 15).</p>
+<h2 id="not-available-yet">Not available yet</h2>
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>QuestDB has it</th><th>KDB</th></tr></thead><tbody><tr><td>ILP over its own TCP port</td><td>yes (port 9009)</td><td>no. Send the same lines over HTTP: <a href="#post-write-line-protocol">POST /write</a>.</td></tr><tr><td>HTTPS</td><td>no (use a proxy)</td><td>no (use a proxy)</td></tr></tbody></table></div>
+<p>The PostgreSQL protocol is there: port 8832, for <code>psql</code>, DBeaver, Go <code>pgx</code> and Python <code>psycopg</code> (chapter 14).</p>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>With curl, get the newest live price of TELCO as JSON, without the QuestDB copy.</li><li>Download all COAST daily candles as <code>coast.csv</code>.</li><li>In Python, insert a stock index snapshot row and read it back. (Create the table first with POST.)</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><pre><code class="language-powershell">curl.exe -s -G http://127.0.0.1:9900/exec --data-urlencode &quot;query=SELECT symbol, ltp, timestamp FROM live_data WHERE symbol = &#39;TELCO&#39; LATEST ON timestamp PARTITION BY symbol&quot; --data-urlencode &quot;compat=0&quot;</code></pre></li><li><pre><code class="language-powershell">curl.exe -s -G http://127.0.0.1:9900/exp --data-urlencode &quot;query=SELECT * FROM ochl_day WHERE symbol = &#39;COAST&#39; ORDER BY time&quot; -o coast.csv</code></pre></li><li>With <code>kdb()</code> from <code>client.py</code>:
+<pre><code class="language-python">kdb(&quot;CREATE TABLE IF NOT EXISTS index_live (time TIMESTAMP, name SYMBOL, value DOUBLE) &quot;
+    &quot;TIMESERIES(time) PARTITION BY DAY DEDUP KEY (name, time)&quot;)
+kdb(&quot;INSERT OR REPLACE INTO index_live VALUES (&#39;2026-09-10T15:00:00+05:45&#39;, &#39;MARKET&#39;, 2650.5)&quot;)
+print(kdb(&quot;SELECT * FROM index_live&quot;)[0][&quot;dataset&quot;])</code></pre>
+<p>It prints <code>[[&#39;2026-09-10T09:15:00.000Z&#39;, &#39;MARKET&#39;, 2650.5]]</code>.</p></li></ol>
+</details>
+<hr>
+<p>Next: <a href="09-backup-and-safety.html">9. Backup and safety</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/08-http-api.md">This page as markdown</a>.</footer>
+</body>
+</html>

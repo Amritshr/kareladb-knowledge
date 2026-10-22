@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Constraints - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Rules that keep table data correct: PRIMARY KEY, AUTO, NOT NULL, UNIQUE, DEFAULT, REFERENCES and CHECK.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/constraints.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/constraints.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="constraints">Constraints</h1>
+<blockquote><p>Rules that keep table data correct: PRIMARY KEY, AUTO, NOT NULL, UNIQUE, DEFAULT, REFERENCES and CHECK.</p></blockquote>
+<ul><li>Category: Constraints</li><li>Keywords: constraint, rule, column rule, primary key, key, auto increment, autoincrement, serial, identity, sequence, AUTO, not null, required, unique, duplicate, default value, DEFAULT, foreign key, references, REFERENCES, parent row, ON DELETE CASCADE, check, CHECK, CONSTRAINT, validation, data integrity, cannot be NULL, must be unique, has no matching row, still refers to it, CHECK constraint failed, NaN, bad price, price check</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="insert.html">INSERT</a>, <a href="update-delete.html">UPDATE and DELETE</a>, <a href="indexes.html">Indexes</a>, <a href="transactions.html">Transactions</a></li></ul>
+<p>A <strong>constraint</strong> is a rule for the rows of a table. KDB checks the rules every time a row is written (<code>INSERT</code>, <code>INSERT OR REPLACE</code>, <code>UPDATE</code>, the C++ <code>InsertRows</code>, the line protocol). A row that breaks a rule is <strong>not</strong> written, and the whole statement fails. So your app can never store a user without an email, a negative balance, or a trade for a broker that does not exist.</p>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Meaning</th><th>Error when broken</th></tr></thead><tbody><tr><td><a href="#primary-key"><code>PRIMARY KEY</code></a></td><td>one row per value; never NULL</td><td><code>a row with id=&#39;1&#39; already exists</code></td></tr><tr><td><a href="#auto"><code>AUTO</code></a></td><td>KDB gives the next id</td><td></td></tr><tr><td><a href="#not-null"><code>NOT NULL</code></a></td><td>the column must have a value</td><td><code>cannot be NULL</code></td></tr><tr><td><a href="#unique"><code>UNIQUE</code></a></td><td>no two rows with the same value</td><td><code>must be unique: ... is already used</code></td></tr><tr><td><a href="#default"><code>DEFAULT</code></a></td><td>the value when an INSERT gives none</td><td></td></tr><tr><td><a href="#references"><code>REFERENCES</code></a></td><td>the value must exist in another table</td><td><code>has no matching row in</code> / <code>still refers to it</code></td></tr><tr><td><a href="#check"><code>CHECK</code></a></td><td>a condition every row must meet</td><td><code>CHECK constraint &#39;...&#39; failed</code></td></tr></tbody></table></div>
+<p>A real example: the accounting tables of an app.</p>
+<p><strong>Example: Users, accounts and a ledger with every kind of rule</strong></p>
+<pre><code class="language-sql">CREATE TABLE users (
+  id            INT PRIMARY KEY AUTO,
+  email         STRING NOT NULL UNIQUE,
+  password_hash STRING NOT NULL,
+  created       TIMESTAMP DEFAULT now()
+);
+CREATE TABLE accounts (
+  id      INT PRIMARY KEY AUTO,
+  user_id INT NOT NULL REFERENCES users(id),
+  balance DECIMAL(2) NOT NULL DEFAULT 0 CHECK (balance &gt;= 0)
+);
+CREATE TABLE ledger (
+  id           LONG PRIMARY KEY AUTO,
+  from_account INT NOT NULL REFERENCES accounts(id),
+  to_account   INT NOT NULL REFERENCES accounts(id),
+  amount       DECIMAL(2) NOT NULL,
+  created      TIMESTAMP DEFAULT now(),
+  CONSTRAINT positive_amount CHECK (amount &gt; 0),
+  CONSTRAINT two_accounts CHECK (from_account != to_account)
+);
+SHOW CREATE TABLE ledger;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE users (</code></p>
+<pre><code class="language-text">table &#39;users&#39; created</code></pre>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>CREATE TABLE ledger (</code></p>
+<pre><code class="language-text">table &#39;ledger&#39; created</code></pre>
+<p><code>SHOW CREATE TABLE ledger</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE ledger (   id LONG PRIMARY KEY AUTO,   from_account INT NOT NULL REFERENCES accounts(id),   to_account INT NOT NULL REFERENCES accounts(id),   amount DECIMAL(2) NOT NULL,   created TIM...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="primary-key">PRIMARY KEY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE PRIMARY KEY [AUTO]</code></pre>
+<p>The column that identifies a row. There is <strong>one row per value</strong>. Rows are kept in key order, so finding a row by its key is fast.</p>
+<ul><li>At most one <code>PRIMARY KEY</code> per table, on one column. For a key over many columns, use <code>CREATE UNIQUE INDEX</code> (<a href="indexes.html">indexes</a>).</li><li>A key can never be <code>NULL</code> (you do not need to write <code>NOT NULL</code>).</li><li><code>UPDATE</code> may change a key; it is refused when the new value is already used.</li><li><strong>Returns:</strong> a duplicate key gives <code>a row with id=&#39;...&#39; already exists in &#39;t&#39;</code>; nothing of that statement is saved. Use <code>INSERT OR REPLACE</code> or <code>INSERT OR IGNORE</code> to decide what happens (<a href="insert.html#duplicates">INSERT</a>).</li><li><strong>Notes:</strong> only for relational tables. A time-series table uses <a href="create-table.html#dedup-key">DEDUP KEY</a> instead. You cannot add a primary key with <code>ALTER TABLE</code> later.</li></ul>
+<p><strong>Example: One row per broker</strong></p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;), (1, &#39;Keystone Securities&#39;);
+SELECT id, name FROM brokers;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE brokers (</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; created</code></pre>
+<p><code>INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;), (1, &#39;Keystone Securities&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, name FROM brokers</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Keystone Securities</td></tr><tr><td>58</td><td>Northgate Securities</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The same broker number twice</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO brokers VALUES (58, &#39;Another Broker&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>a row with id=&#39;58&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></p>
+<p><strong>Example: A key cannot be NULL</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE securities (symbol SYMBOL PRIMARY KEY, name STRING);</code></pre>
+<pre><code class="language-sql">INSERT INTO securities (name) VALUES (&#39;No symbol&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;symbol&#39; (SYMBOL): cannot be NULL</code></p>
+<h2 id="auto">PRIMARY KEY AUTO</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column BYTE | SHORT | INT | LONG PRIMARY KEY AUTO</code></pre>
+<p>When an <code>INSERT</code> gives no value (or <code>NULL</code>) for the key, KDB uses the <strong>next number</strong> of the table&#39;s counter: 1, 2, 3, ... This is like <code>SERIAL</code> or <code>IDENTITY</code> in PostgreSQL.</p>
+<ul><li>You may still give an id yourself. A bigger id moves the counter up: after id 10, the next automatic id is 11.</li><li>The counter <strong>only goes up</strong>. The id of a deleted row, of a failed insert, or of a rolled-back transaction is never used again, so there can be gaps (1, 2, 4, ...).</li><li><strong>Returns:</strong> use <code>RETURNING id</code> to get the new id back (<a href="insert.html#returning">RETURNING</a>).</li><li><strong>Notes:</strong> only on an integer <code>PRIMARY KEY</code>. Do not use AUTO ids to count rows. When the counter passes the type&#39;s range (127 for <code>BYTE</code>), the insert fails; use <code>LONG</code> for big tables.</li></ul>
+<p><strong>Example: New forum posts get ids 1, 2, 3</strong></p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, author STRING NOT NULL, body STRING NOT NULL);
+INSERT INTO posts (author, body) VALUES (&#39;ram&#39;, &#39;Is CITY a good buy?&#39;), (&#39;sita&#39;, &#39;I agree, the profit grew 18%.&#39;);
+INSERT INTO posts (author, body) VALUES (&#39;hari&#39;, &#39;Price is high now.&#39;);
+SELECT id, author, body FROM posts;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>INSERT INTO posts (author, body) VALUES (&#39;ram&#39;, &#39;Is CITY a good buy?&#39;), (&#39;sita&#39;, &#39;I agree, the profi</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>INSERT INTO posts (author, body) VALUES (&#39;hari&#39;, &#39;Price is high now.&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, author, body FROM posts</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>Is CITY a good buy?</td></tr><tr><td>2</td><td>sita</td><td>I agree, the profit grew 18%.</td></tr><tr><td>3</td><td>hari</td><td>Price is high now.</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Ids of deleted rows are not used again</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, body STRING NOT NULL);
+INSERT INTO posts (body) VALUES (&#39;first&#39;), (&#39;second&#39;), (&#39;third&#39;);</code></pre>
+<pre><code class="language-sql">DELETE FROM posts WHERE id = 3;
+INSERT INTO posts (id, body) VALUES (10, &#39;imported with its old id&#39;);
+INSERT INTO posts (body) VALUES (&#39;new post&#39;);
+SELECT id, body FROM posts;</code></pre>
+<p>Result:</p>
+<p><code>DELETE FROM posts WHERE id = 3</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>INSERT INTO posts (id, body) VALUES (10, &#39;imported with its old id&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO posts (body) VALUES (&#39;new post&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, body FROM posts</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>1</td><td>first</td></tr><tr><td>2</td><td>second</td></tr><tr><td>10</td><td>imported with its old id</td></tr><tr><td>11</td><td>new post</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: AUTO needs a whole-number column</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE users (id STRING PRIMARY KEY AUTO, email STRING);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 43: PRIMARY KEY AUTO needs an integer column; expected BYTE, SHORT, INT or LONG but column &#39;id&#39; is STRING</code></p>
+<h2 id="not-null">NOT NULL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE NOT NULL</code></pre>
+<p>The column must always have a value. An <code>INSERT</code> that gives no value (and there is no <code>DEFAULT</code>), or gives <code>NULL</code>, fails. An <code>UPDATE ... SET column = NULL</code> fails too.</p>
+<ul><li><strong>Returns:</strong> <code>column &#39;name&#39; (STRING): cannot be NULL</code>.</li><li><strong>Notes:</strong> a <code>DEFAULT</code> fills the column only when the <code>INSERT</code> does not name it. An explicit <code>NULL</code> is still refused. To add a <code>NOT NULL</code> column to a table with rows, give it a <code>DEFAULT</code> (<a href="alter-table.html#add-column">ADD COLUMN</a>). The time column of a time-series table always needs a value: <code>the time column &#39;time&#39; needs a value</code>.</li></ul>
+<p><strong>Example: Every user needs an email</strong></p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL, phone STRING);
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;);
+SELECT id, email, phone FROM users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE users (</code></p>
+<pre><code class="language-text">table &#39;users&#39; created</code></pre>
+<p><code>INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, email, phone FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>phone (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A user without an email</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL, phone STRING);</code></pre>
+<pre><code class="language-sql">INSERT INTO users (phone) VALUES (&#39;9800000000&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;email&#39; (STRING): cannot be NULL</code></p>
+<p><strong>Example: NOT NULL with a DEFAULT: leaving it out is fine, NULL is not</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY AUTO, status STRING NOT NULL DEFAULT &#39;active&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO accounts (id) VALUES (1);
+SELECT id, status FROM accounts;
+INSERT INTO accounts (id, status) VALUES (2, NULL);</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO accounts (id) VALUES (1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, status FROM accounts</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>status (STRING)</th></tr></thead><tbody><tr><td>1</td><td>active</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p>Error: <code>column &#39;status&#39; (STRING): cannot be NULL</code></p>
+<h2 id="unique">UNIQUE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE UNIQUE</code></pre>
+<p>No two rows may have the same value in this column. <code>NULL</code> does not count: many rows may have <code>NULL</code>.</p>
+<ul><li>A table may have many <code>UNIQUE</code> columns (email, phone, username).</li><li>Checked on <code>INSERT</code>, <code>INSERT OR REPLACE</code> and <code>UPDATE</code>, and also between the rows of one statement.</li><li><strong>Returns:</strong> <code>column &#39;email&#39; must be unique: &#39;ram@example.com&#39; is already used</code>.</li><li><strong>Notes:</strong> <code>INSERT OR REPLACE</code> replaces a row with the same <strong>key</strong>, not a row with the same unique value: a clash on a <code>UNIQUE</code> column is still an error. For a rule over many columns (one row per symbol, year and quarter), use <code>CREATE UNIQUE INDEX</code> (<a href="indexes.html">indexes</a>). Text compares exactly: <code>&#39;Ram@Example.com&#39;</code> and <code>&#39;ram@example.com&#39;</code> are different; store emails in lower case.</li></ul>
+<p><strong>Example: One account per email; many users without a phone</strong></p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE, phone STRING UNIQUE);
+INSERT INTO users (email, phone) VALUES (&#39;ram@example.com&#39;, NULL), (&#39;sita@example.com&#39;, NULL), (&#39;hari@example.com&#39;, &#39;9800000000&#39;);
+SELECT id, email, phone FROM users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE users (</code></p>
+<pre><code class="language-text">table &#39;users&#39; created</code></pre>
+<p><code>INSERT INTO users (email, phone) VALUES (&#39;ram@example.com&#39;, NULL), (&#39;sita@example.com&#39;, NULL), (&#39;har</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT id, email, phone FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>phone (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>NULL</td></tr><tr><td>2</td><td>sita@example.com</td><td>NULL</td></tr><tr><td>3</td><td>hari@example.com</td><td>9800000000</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Register the same email twice</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE);
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;email&#39; must be unique: &#39;ram@example.com&#39; is already used</code></p>
+<p><strong>Example: Change an email to one that is taken</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE);
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;);</code></pre>
+<pre><code class="language-sql">UPDATE users SET email = &#39;ram@example.com&#39; WHERE id = 2;</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;email&#39; must be unique: &#39;ram@example.com&#39; is already used</code></p>
+<h2 id="default">DEFAULT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE DEFAULT expression</code></pre>
+<p>The value a column gets when an <code>INSERT</code> does not name it. Also used by <code>INSERT OR REPLACE</code> for columns you do not give, and for old rows by <code>ALTER TABLE ... ADD COLUMN</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Default</th><th>Example</th></tr></thead><tbody><tr><td>a constant</td><td><code>DEFAULT 0</code>, <code>DEFAULT &#39;active&#39;</code>, <code>DEFAULT FALSE</code>, <code>DEFAULT &#39;{}&#39;</code> for JSON</td></tr><tr><td>an expression without columns</td><td><code>DEFAULT -1</code>, <code>DEFAULT 60 * 24</code></td></tr><tr><td>a function</td><td><code>DEFAULT now()</code>, <code>DEFAULT gen_random_uuid()</code>, <code>DEFAULT random_token()</code></td></tr></tbody></table></div>
+<ul><li><code>now()</code> and random functions are worked out for <strong>each</strong> inserted row.</li><li><strong>Notes:</strong> a default cannot use columns (write a computed column <code>AS (...)</code> for that) or subqueries. A constant must fit the column type: <code>INT DEFAULT &#39;x&#39;</code> is refused when the table is created. <code>NOT NULL DEFAULT NULL</code> is refused. An explicit <code>NULL</code> in an <code>INSERT</code> does not use the default. There is no <code>DEFAULT</code> keyword inside <code>VALUES (...)</code>: leave the column out of the column list instead.</li></ul>
+<p><strong>Example: New accounts start active, with 0.00 and a creation time</strong></p>
+<pre><code class="language-sql">CREATE TABLE accounts (
+  id      INT PRIMARY KEY AUTO,
+  owner   STRING NOT NULL,
+  balance DECIMAL(2) NOT NULL DEFAULT 0,
+  status  STRING NOT NULL DEFAULT &#39;active&#39;,
+  opened  TIMESTAMP DEFAULT now()
+);
+INSERT INTO accounts (owner) VALUES (&#39;Ram Sharma&#39;);
+INSERT INTO accounts (owner, balance, status) VALUES (&#39;Sita Rai&#39;, 99.50, &#39;frozen&#39;);
+SELECT id, owner, balance, status, opened IS NOT NULL AS has_open_time FROM accounts;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>INSERT INTO accounts (owner) VALUES (&#39;Ram Sharma&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO accounts (owner, balance, status) VALUES (&#39;Sita Rai&#39;, 99.50, &#39;frozen&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, owner, balance, status, opened IS NOT NULL AS has_open_time FROM accounts</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th><th>status (STRING)</th><th>has_open_time (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>Ram Sharma</td><td>0.00</td><td>active</td><td>true</td></tr><tr><td>2</td><td>Sita Rai</td><td>99.50</td><td>frozen</td><td>true</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A default of the wrong type</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, likes INT DEFAULT &#39;none&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;likes&#39; of table &#39;posts&#39; is INT but its DEFAULT &#39;none&#39; is text; expected a whole number</code></p>
+<p><strong>Example: A default cannot use another column</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, created TIMESTAMP, edited TIMESTAMP DEFAULT created);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;edited&#39; of table &#39;posts&#39; has DEFAULT using column &#39;created&#39;; expected a constant such as 0 or &#39;n/a&#39;, or AS (...) for a computed column</code></p>
+<h2 id="references">REFERENCES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE REFERENCES table(column)</code></pre>
+<p>The value must exist in the other table (the <strong>parent</strong>). This is a <strong>foreign key</strong>. Use it so a trade cannot point to a broker that does not exist, and a ledger row cannot point to a missing account.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code></td><td>the parent table; it must exist already (or be the same table)</td></tr><tr><td><code>column</code></td><td>the parent column; it must be the <code>PRIMARY KEY</code> or <code>UNIQUE</code>, with the same kind of type (any integer type fits any integer type; a <code>SYMBOL</code> may point to a <code>STRING</code>)</td></tr></tbody></table></div>
+<p>What KDB checks:</p>
+<div class="table-wrap"><table><thead><tr><th>Action</th><th>Result</th></tr></thead><tbody><tr><td><code>INSERT</code> or <code>UPDATE</code> of a child row with a value the parent does not have</td><td>error: <code>column &#39;buyer&#39; = &#39;99&#39; has no matching row in brokers(id)</code></td></tr><tr><td><code>NULL</code> in the child column</td><td>allowed, not checked (add <code>NOT NULL</code> to forbid it)</td></tr><tr><td><code>DELETE</code> of a parent row that children still use, or <code>UPDATE</code> of its key</td><td>error: <code>cannot remove brokers(id) = &#39;58&#39;: ... still refers to it</code></td></tr><tr><td><code>INSERT OR REPLACE</code> of a parent row with the same key</td><td>allowed</td></tr><tr><td><code>DROP TABLE</code> of the parent</td><td>error while a child column references it</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>ON DELETE</code> / <code>ON UPDATE</code> take <code>NO ACTION</code> (the default: refuse while children point to the row), <code>RESTRICT</code>, <code>CASCADE</code> (delete the children too; ON UPDATE CASCADE follows the new key), <code>SET NULL</code> and <code>SET DEFAULT</code>. All children are changed in the same statement, or none. Children that <code>SET NULL</code>, <code>SET DEFAULT</code> or <code>ON UPDATE CASCADE</code> change are an update of the child table: its <code>BEFORE UPDATE</code> row triggers and <code>UPDATE</code> triggers run for them (as in PostgreSQL), and a trigger that refuses stops the whole statement. What such a trigger changes is checked like a plain UPDATE (references, CHECK, the time column); it may not change a UNIQUE or key column there - do that with a separate <code>UPDATE</code>. Children <code>ON DELETE CASCADE</code> removes fire its <code>DELETE</code> triggers. Load the parent table before the child table. A new row cannot point to a row inserted <strong>in the same statement</strong> (a reply and its parent post in one <code>INSERT</code>): insert the parent first. REFERENCES checks every new row, so very big imports are faster without it.</li></ul>
+<p><strong>Example: Trades must use real brokers</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY AUTO, symbol SYMBOL, buyer INT NOT NULL REFERENCES brokers(id), seller INT REFERENCES brokers(id));
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;), (45, &#39;Imperial Securities&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO trades (symbol, buyer, seller) VALUES (&#39;CITY&#39;, 58, 45), (&#39;COAST&#39;, 45, NULL);
+SELECT id, symbol, buyer, seller FROM trades;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO trades (symbol, buyer, seller) VALUES (&#39;CITY&#39;, 58, 45), (&#39;COAST&#39;, 45, NULL)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, symbol, buyer, seller FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (INT)</th><th>seller (INT)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>58</td><td>45</td></tr><tr><td>2</td><td>COAST</td><td>45</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A broker that does not exist</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY AUTO, buyer INT NOT NULL REFERENCES brokers(id));
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO trades (buyer) VALUES (99);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;buyer&#39; = &#39;99&#39; has no matching row in brokers(id)</code></p>
+<p><strong>Example: A broker with trades cannot be deleted</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY AUTO, buyer INT NOT NULL REFERENCES brokers(id));
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;);
+INSERT INTO trades (buyer) VALUES (58);</code></pre>
+<pre><code class="language-sql">DELETE FROM brokers WHERE id = 58;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot remove brokers(id) = &#39;58&#39;: table &#39;trades&#39; column &#39;buyer&#39; still refers to it (foreign key &#39;trades_buyer_fkey&#39;)</code></p>
+<p><strong>Example: Forum replies point to their parent post (same table)</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, parent_id LONG REFERENCES posts(id), author STRING NOT NULL, body STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">INSERT INTO posts (parent_id, author, body) VALUES (NULL, &#39;ram&#39;, &#39;Is CITY a good buy?&#39;);
+INSERT INTO posts (parent_id, author, body) VALUES (1, &#39;sita&#39;, &#39;Yes, the dividend looks good.&#39;);
+SELECT id, parent_id, author, body FROM posts;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO posts (parent_id, author, body) VALUES (NULL, &#39;ram&#39;, &#39;Is CITY a good buy?&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO posts (parent_id, author, body) VALUES (1, &#39;sita&#39;, &#39;Yes, the dividend looks good.&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, parent_id, author, body FROM posts</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>parent_id (LONG)</th><th>author (STRING)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>1</td><td>NULL</td><td>ram</td><td>Is CITY a good buy?</td></tr><tr><td>2</td><td>1</td><td>sita</td><td>Yes, the dividend looks good.</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The parent column must be a key</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">CREATE TABLE trades (id LONG PRIMARY KEY AUTO, buyer_name STRING REFERENCES brokers(name));</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;buyer_name&#39; of table &#39;trades&#39; REFERENCES brokers(name), which is neither PRIMARY KEY nor UNIQUE; expected a key column so each value points at exactly one row</code></p>
+<h2 id="check">CHECK</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE [CONSTRAINT name] CHECK (condition)            -- after a column
+[CONSTRAINT name] CHECK (condition)                        -- after the columns, for the table
+ALTER TABLE table ADD [CONSTRAINT name] CHECK (condition)
+ALTER TABLE table DROP CONSTRAINT name</code></pre>
+<p>A condition that every row must meet. A row where the condition is <strong>false</strong> is not written, and the statement fails. Use it for business rules: a balance is never negative, an amount is positive, a quarter is 1 to 4.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Rule</th></tr></thead><tbody><tr><td><code>condition</code></td><td>uses the stored columns of the <strong>same row</strong>, operators, <code>CASE</code>, <code>IN</code>, <code>BETWEEN</code>, <code>LIKE</code> and built-in functions (<code>length(email) &gt; 3</code>)</td></tr><tr><td>not allowed</td><td>other rows, subqueries, aggregates (<code>sum</code>), window functions, saved functions, computed columns</td></tr><tr><td><code>CONSTRAINT name</code></td><td>the name of the rule; without it KDB makes <code>table_column_check</code> (after a column) or <code>table_check</code> (for the table)</td></tr><tr><td><code>NULL</code></td><td>a condition that is <code>NULL</code> <strong>passes</strong>: add <code>NOT NULL</code> when the value must be there</td></tr><tr><td>NaN</td><td>every comparison with a NaN (<code>=</code>, <code>&lt;</code>, <code>&gt;=</code>, <code>BETWEEN</code>, <code>IN</code>) is <strong>false</strong> here, and <code>&lt;&gt;</code> is true: <code>CHECK (price &gt; 0)</code> refuses a NaN price, <code>CHECK (price &lt;&gt; 0)</code> does not. Write what a good value is, not what a bad one is. (A query compares a NaN as PostgreSQL does, bigger than every number: see <a href="column-types.html#double">DOUBLE</a>.)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>CHECK constraint &#39;name&#39; of table &#39;t&#39; failed: condition is false for the row id=&#39;1&#39;, balance=&#39;-4000.00&#39;</code>. The message names the rule, the table, the row key and the columns the rule uses.</li><li><strong>Notes:</strong> table rules come <strong>after</strong> all columns. A column used by a <code>CHECK</code> cannot be dropped; <code>RENAME COLUMN</code> renames it inside the rule. <code>SHOW CREATE TABLE</code> shows every rule with its name. <a href="alter-table.html#add-check">ADD and DROP CONSTRAINT</a> change the rules later. A rule cannot compare with other rows (like &quot;the sum of all balances is 0&quot;); check that with a query or in a <a href="procedures.html">procedure</a>.</li></ul>
+<p><strong>Example: A withdrawal bigger than the balance is refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY AUTO, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0 CHECK (balance &gt;= 0));
+INSERT INTO accounts (owner, balance) VALUES (&#39;Ram&#39;, 1000.00);</code></pre>
+<pre><code class="language-sql">UPDATE accounts SET balance = balance - 5000 WHERE id = 1;</code></pre>
+<p>Result:</p>
+<p>Error: <code>CHECK constraint &#39;accounts_balance_check&#39; of table &#39;accounts&#39; failed: balance &gt;= 0 is false for the row id=&#39;1&#39;, balance=&#39;-4000.00&#39;</code></p>
+<p><strong>Example: Named rules for a ledger</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ledger (
+  id           LONG PRIMARY KEY AUTO,
+  from_account INT NOT NULL,
+  to_account   INT NOT NULL,
+  amount       DECIMAL(2) NOT NULL,
+  CONSTRAINT positive_amount CHECK (amount &gt; 0),
+  CONSTRAINT two_accounts CHECK (from_account != to_account)
+);</code></pre>
+<pre><code class="language-sql">INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 2, 250.50);
+INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 1, 100.00);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p>Error: <code>CHECK constraint &#39;two_accounts&#39; of table &#39;ledger&#39; failed: from_account != to_account is false for the row id=&#39;2&#39;, from_account=&#39;1&#39;, to_account=&#39;1&#39;</code></p>
+<p><strong>Example: Quarter 1 to 4, and a CHECK lets NULL pass</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE fundamentals (
+  symbol STRING NOT NULL,
+  quarter INT CHECK (quarter BETWEEN 1 AND 4),
+  eps DECIMAL(2)
+);</code></pre>
+<pre><code class="language-sql">INSERT INTO fundamentals VALUES (&#39;CITY&#39;, 4, 12.10), (&#39;COAST&#39;, NULL, 6.35);
+SELECT symbol, quarter, eps FROM fundamentals;
+SHOW CREATE TABLE fundamentals;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO fundamentals VALUES (&#39;CITY&#39;, 4, 12.10), (&#39;COAST&#39;, NULL, 6.35)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT symbol, quarter, eps FROM fundamentals</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>quarter (INT)</th><th>eps (DECIMAL(2))</th></tr></thead><tbody><tr><td>CITY</td><td>4</td><td>12.10</td></tr><tr><td>COAST</td><td>NULL</td><td>6.35</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SHOW CREATE TABLE fundamentals</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE fundamentals (   symbol STRING NOT NULL,   quarter INT,   eps DECIMAL(2),   CONSTRAINT fundamentals_quarter_check CHECK (quarter BETWEEN 1 AND 4) )</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A price rule: which values pass price &gt; 0</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (symbol SYMBOL NOT NULL, price DOUBLE NOT NULL CHECK (price &gt; 0));</code></pre>
+<pre><code class="language-sql">INSERT INTO prices VALUES (&#39;CITY&#39;, 527.1);
+SELECT symbol, price FROM prices;
+SELECT 527.1 &gt; 0 AS good_price, 0 &gt; 0 AS zero, -1 &gt; 0 AS negative;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO prices VALUES (&#39;CITY&#39;, 527.1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT symbol, price FROM prices</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT 527.1 &gt; 0 AS good_price, 0 &gt; 0 AS zero, -1 &gt; 0 AS negative</code></p>
+<div class="table-wrap"><table><thead><tr><th>good_price (BOOL)</th><th>zero (BOOL)</th><th>negative (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A NaN price is refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (symbol SYMBOL NOT NULL, price DOUBLE NOT NULL CHECK (price &gt; 0));</code></pre>
+<pre><code class="language-sql">INSERT INTO prices VALUES (&#39;CITY&#39;, &#39;NaN&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>CHECK constraint &#39;prices_price_check&#39; of table &#39;prices&#39; failed: price &gt; 0 is false for the row price=&#39;NaN&#39;</code></p>
+<p><strong>Example: A zero price is refused (and -1 the same way)</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (symbol SYMBOL NOT NULL, price DOUBLE NOT NULL CHECK (price &gt; 0));</code></pre>
+<pre><code class="language-sql">INSERT INTO prices VALUES (&#39;CITY&#39;, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>CHECK constraint &#39;prices_price_check&#39; of table &#39;prices&#39; failed: price &gt; 0 is false for the row price=&#39;0&#39;</code></p>
+<p><strong>Example: A missing price is refused by NOT NULL</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (symbol SYMBOL NOT NULL, price DOUBLE NOT NULL CHECK (price &gt; 0));</code></pre>
+<pre><code class="language-sql">INSERT INTO prices VALUES (&#39;CITY&#39;, NULL);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;price&#39; (DOUBLE): cannot be NULL</code></p>
+<p><strong>Example: A CHECK cannot look at other rows</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, balance DECIMAL(2) CHECK (balance &lt;= (SELECT max(balance) FROM accounts)));</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 81: CHECK cannot use a subquery; expected a condition on the values of one row</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/constraints.md">This page as markdown</a>.</footer>
+</body>
+</html>

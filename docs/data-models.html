@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Database models: relational, hierarchical, network, NoSQL, object - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="The five classic kinds of database, and how much of each KDB can be - with a picture and a working example for each.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/data-models.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/data-models.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="database-models-relational-hierarchical-network-nosql-object">Database models: relational, hierarchical, network, NoSQL, object</h1>
+<blockquote><p>The five classic kinds of database, and how much of each KDB can be - with a picture and a working example for each.</p></blockquote>
+<ul><li>Category: Getting started</li><li>Keywords: data model, database model, database type, kinds of database, relational database, RDBMS, hierarchical database, tree, org chart, parent child, network database, graph, graph database, nodes and edges, many parents, shortest route, non-relational, NoSQL, document database, document store, MongoDB, key-value, key value store, Redis, time-series database, full-text search engine, object-oriented database, OODBMS, object database, inheritance, ORM, WITH RECURSIVE, recursive query</li><li>See also: <a href="constraints.html">Constraints</a>, <a href="joins.html">Joins</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="column-types.html">Column types</a>, <a href="functions-json.html">JSON functions</a>, <a href="insert.html">INSERT</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="full-text-search.html">Full-text search</a>, <a href="saved-functions.html">Saved functions</a>, <a href="procedures.html">Stored procedures</a>, <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a></li></ul>
+<p>Books sort databases into five <strong>models</strong>, by the shape their data takes. KDB is a <strong>relational</strong> database, but its tables, keys, <code>JSON</code> columns and recursive queries let it act like four of the five. Only the <strong>object-oriented</strong> model is missing.</p>
+<div class="table-wrap"><table><thead><tr><th>Model</th><th>Data looks like</th><th>In KDB</th><th>How</th></tr></thead><tbody><tr><td><a href="#relational">Relational</a></td><td>tables linked by keys</td><td><strong>full</strong> - what KDB is</td><td>tables, <code>PRIMARY KEY</code>, <code>REFERENCES</code>, joins, transactions</td></tr><tr><td><a href="#hierarchical">Hierarchical</a></td><td>a tree: one parent each</td><td><strong>yes</strong></td><td>a column that points to its own table, read with <code>WITH RECURSIVE</code></td></tr><tr><td><a href="#network">Network</a></td><td>a web: many parents, loops</td><td><strong>yes</strong></td><td>a table of items and a table of links, read with <code>WITH RECURSIVE</code></td></tr><tr><td><a href="#non-relational">Non-relational (NoSQL)</a></td><td>documents, key-value, time-series, search</td><td><strong>yes</strong>, four kinds</td><td><code>JSON</code> columns, <code>INSERT OR REPLACE</code>, <code>SAMPLE BY</code>, <code>CREATE FULLTEXT INDEX</code></td></tr><tr><td><a href="#object-oriented">Object-oriented</a></td><td>classes with inheritance and methods</td><td><strong>partly</strong></td><td>objects as <code>JSON</code>, behaviour in saved functions; no classes</td></tr></tbody></table></div>
+<ul><li>All five work through the same SQL, over HTTP, in the web console and on the <a href="postgres-protocol.html">PostgreSQL port</a>. One query may mix them, for example join a tree to a <code>JSON</code> column.</li><li>KDB is one server. It is not a cluster that spreads data over many machines.</li></ul>
+<h2 id="relational">Relational</h2>
+<p>Data lives in <strong>tables</strong> of rows and columns. Tables are linked by <strong>keys</strong>: a column in one table holds the key of a row in another table, and a query joins them back together. Every rule is checked when a row is written, so the data stays correct.</p>
+<blockquote><p><strong>Diagram:</strong> Two tables, brokers and trades. The buyer column of trades references the id column of brokers.</p>
+<p>A trade can only name a broker that exists. KDB refuses any other row.</p></blockquote>
+<div class="table-wrap"><table><thead><tr><th>KDB gives you</th><th>Help</th></tr></thead><tbody><tr><td><code>PRIMARY KEY</code>, <code>UNIQUE</code>, <code>NOT NULL</code>, <code>CHECK</code>, <code>DEFAULT</code></td><td><a href="constraints.html">constraints</a></td></tr><tr><td>foreign keys: <code>REFERENCES</code></td><td><a href="constraints.html#references">constraints</a></td></tr><tr><td><code>JOIN</code>, subqueries, <code>UNION</code>, <code>GROUP BY</code></td><td><a href="joins.html">joins</a>, <a href="union-subqueries.html">union-subqueries</a></td></tr><tr><td>views, saved functions, procedures, triggers</td><td><a href="views.html">views</a>, <a href="procedures.html">procedures</a>, <a href="triggers.html">triggers</a></td></tr><tr><td><code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code></td><td><a href="transactions.html">transactions</a></td></tr></tbody></table></div>
+<ul><li><strong>Good for:</strong> users and accounts, ledgers, lists of companies and brokers - anything with rules that must always hold.</li><li><strong>Notes:</strong> there is no <code>ON DELETE CASCADE</code>: delete the child rows before the parent row.</li></ul>
+<p><strong>Example: A trade must name a real broker</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY AUTO, symbol SYMBOL, buyer INT NOT NULL REFERENCES brokers(id));
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;), (45, &#39;Imperial Securities&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO trades (symbol, buyer) VALUES (&#39;CITY&#39;, 58), (&#39;COAST&#39;, 45);
+SELECT t.id, t.symbol, b.name AS buyer FROM trades t JOIN brokers b ON b.id = t.buyer ORDER BY t.id;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO trades (symbol, buyer) VALUES (&#39;CITY&#39;, 58), (&#39;COAST&#39;, 45)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT t.id, t.symbol, b.name AS buyer FROM trades AS t JOIN brokers AS b ON b.id = t.buyer ORDER BY</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (STRING)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>Northgate Securities</td></tr><tr><td>2</td><td>COAST</td><td>Imperial Securities</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A broker that does not exist is refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY AUTO, buyer INT NOT NULL REFERENCES brokers(id));</code></pre>
+<pre><code class="language-sql">INSERT INTO trades (buyer) VALUES (99);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;buyer&#39; = &#39;99&#39; has no matching row in brokers(id)</code></p>
+<h2 id="hierarchical">Hierarchical</h2>
+<p>Data forms a <strong>tree</strong>. Every item has <strong>one</strong> parent, and a parent may have many children: an org chart, folders, sectors and sub-sectors, forum replies.</p>
+<p>In KDB, give the table a column that holds the parent&#39;s key and <code>REFERENCES</code> the same table. The top row has <code>NULL</code> there. A <code>WITH RECURSIVE</code> query then walks the tree: it starts at the top, and adds the children of the rows it found last, again and again, until no new rows come.</p>
+<blockquote><p><strong>Diagram:</strong> A tree. CEO at the top; CTO and CFO under the CEO; Dev Lead under the CTO; Developer under the Dev Lead.</p>
+<p>Each row keeps one link, to its boss. The recursive query builds the whole tree from those links.</p></blockquote>
+<ul><li><strong>Good for:</strong> org charts, categories, folders, comment threads, who referred whom.</li><li><strong>Notes:</strong> there is no special tree column type (like PostgreSQL&#39;s <code>ltree</code>). A recursive query stops with an error after 100,000 rounds or 10 million rows, so a mistake cannot run forever.</li></ul>
+<p><strong>Example: An org chart: every person with their level and path</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE staff (id INT PRIMARY KEY, boss_id INT REFERENCES staff(id), name STRING NOT NULL);
+INSERT INTO staff VALUES (1, NULL, &#39;CEO&#39;);
+INSERT INTO staff VALUES (2, 1, &#39;CTO&#39;), (3, 1, &#39;CFO&#39;);
+INSERT INTO staff VALUES (4, 2, &#39;Dev Lead&#39;);
+INSERT INTO staff VALUES (5, 4, &#39;Developer&#39;);</code></pre>
+<pre><code class="language-sql">WITH RECURSIVE tree(id, name, depth, path) AS (
+  SELECT id, name, 0, name FROM staff WHERE boss_id IS NULL
+  UNION ALL
+  SELECT s.id, s.name, t.depth + 1, t.path || &#39; &gt; &#39; || s.name
+  FROM staff s JOIN tree t ON s.boss_id = t.id
+)
+SELECT id, name, depth, path FROM tree ORDER BY path;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th><th>depth (LONG)</th><th>path (STRING)</th></tr></thead><tbody><tr><td>1</td><td>CEO</td><td>0</td><td>CEO</td></tr><tr><td>3</td><td>CFO</td><td>1</td><td>CEO &gt; CFO</td></tr><tr><td>2</td><td>CTO</td><td>1</td><td>CEO &gt; CTO</td></tr><tr><td>4</td><td>Dev Lead</td><td>2</td><td>CEO &gt; CTO &gt; Dev Lead</td></tr><tr><td>5</td><td>Developer</td><td>3</td><td>CEO &gt; CTO &gt; Dev Lead &gt; Developer</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Everyone under the CTO</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE staff (id INT PRIMARY KEY, boss_id INT REFERENCES staff(id), name STRING NOT NULL);
+INSERT INTO staff VALUES (1, NULL, &#39;CEO&#39;);
+INSERT INTO staff VALUES (2, 1, &#39;CTO&#39;), (3, 1, &#39;CFO&#39;);
+INSERT INTO staff VALUES (4, 2, &#39;Dev Lead&#39;);
+INSERT INTO staff VALUES (5, 4, &#39;Developer&#39;);</code></pre>
+<pre><code class="language-sql">WITH RECURSIVE team(id, name) AS (
+  SELECT id, name FROM staff WHERE name = &#39;CTO&#39;
+  UNION ALL
+  SELECT s.id, s.name FROM staff s JOIN team t ON s.boss_id = t.id
+)
+SELECT id, name FROM team ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>2</td><td>CTO</td></tr><tr><td>4</td><td>Dev Lead</td></tr><tr><td>5</td><td>Developer</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="network">Network</h2>
+<p>Like a tree, but an item may have <strong>many</strong> parents, and links may go round in a loop. The data is a web of <strong>nodes</strong> and <strong>links</strong>: roads between cities, share holdings between companies, friends of friends.</p>
+<p>In KDB, keep the nodes in one table and the links in a second table with two <code>REFERENCES</code> columns. A <code>WITH RECURSIVE</code> query follows the links. Give it a stop rule (a maximum number of steps), because a loop in the data would otherwise go round again and again.</p>
+<blockquote><p><strong>Diagram:</strong> Four cities and the roads between them. Kathmandu to Pokhara 200 km, Kathmandu to Chitwan 150 km, Chitwan to Butwal 110 km, Pokhara to Butwal 160 km. The shortest way to Butwal is through Chitwan, 260 km.</p>
+<p>Butwal has two parents, Pokhara and Chitwan - a tree cannot hold that. The coloured route is the shortest.</p></blockquote>
+<ul><li><strong>Good for:</strong> routes, networks of links, who owns shares in whom, recommendations.</li><li><strong>Notes:</strong> KDB is not a graph database like Neo4j: there is no Cypher language and no built-in shortest-path function. For networks of thousands of links, SQL is enough.</li></ul>
+<p><strong>Example: Every route from Kathmandu to Butwal, shortest first</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE city (name STRING PRIMARY KEY);
+CREATE TABLE road (from_city STRING NOT NULL REFERENCES city(name), to_city STRING NOT NULL REFERENCES city(name), km INT NOT NULL);
+INSERT INTO city VALUES (&#39;Kathmandu&#39;), (&#39;Pokhara&#39;), (&#39;Chitwan&#39;), (&#39;Butwal&#39;);
+INSERT INTO road VALUES (&#39;Kathmandu&#39;, &#39;Pokhara&#39;, 200), (&#39;Kathmandu&#39;, &#39;Chitwan&#39;, 150), (&#39;Chitwan&#39;, &#39;Butwal&#39;, 110), (&#39;Pokhara&#39;, &#39;Butwal&#39;, 160);</code></pre>
+<pre><code class="language-sql">WITH RECURSIVE route(city, km, hops, path) AS (
+  SELECT &#39;Kathmandu&#39;, 0, 0, &#39;Kathmandu&#39;
+  UNION ALL
+  SELECT r.to_city, route.km + r.km, route.hops + 1, route.path || &#39; &gt; &#39; || r.to_city
+  FROM road r JOIN route ON r.from_city = route.city
+  WHERE route.hops &lt; 5
+)
+SELECT km, hops, path FROM route WHERE city = &#39;Butwal&#39; ORDER BY km;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>km (LONG)</th><th>hops (LONG)</th><th>path (STRING)</th></tr></thead><tbody><tr><td>260</td><td>2</td><td>Kathmandu &gt; Chitwan &gt; Butwal</td></tr><tr><td>360</td><td>2</td><td>Kathmandu &gt; Pokhara &gt; Butwal</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="non-relational">Non-relational (NoSQL)</h2>
+<p>&quot;Non-relational&quot; is not one model but a family. KDB has four members of it, and each one is still a table you can join to the others.</p>
+<div class="table-wrap"><table><thead><tr><th>Kind</th><th>Other products like it</th><th>In KDB</th><th>Help</th></tr></thead><tbody><tr><td><strong>document</strong></td><td>MongoDB</td><td>a <code>JSON</code> column: every row may have different fields</td><td><a href="column-types.html#json">column-types</a>, <a href="functions-json.html">functions-json</a></td></tr><tr><td><strong>key-value</strong></td><td>Redis</td><td>a two-column table with a <code>PRIMARY KEY</code>, written with <code>INSERT OR REPLACE</code></td><td><a href="insert.html#insert-or-replace">insert</a></td></tr><tr><td><strong>time-series</strong></td><td>QuestDB, InfluxDB</td><td>a table with a time column, <code>PARTITION BY</code>, <code>SAMPLE BY</code>, <code>LATEST ON</code></td><td><a href="create-table.html">create-table</a>, <a href="sample-by.html">sample-by</a></td></tr><tr><td><strong>search</strong></td><td>Elasticsearch</td><td><code>CREATE FULLTEXT INDEX</code>, <code>match</code>, <code>search_rank</code></td><td><a href="full-text-search.html">full-text-search</a></td></tr></tbody></table></div>
+<blockquote><p><strong>Diagram:</strong> One KDB server with four non-relational kinds: document, key-value, time-series and search, all used through the same SQL.</p>
+<p>Not four products: four ways to use one database.</p></blockquote>
+<ul><li><strong>Not in KDB:</strong> a wide-column store (like Cassandra), a graph query language, and spreading data over many servers.</li><li>A <code>JSON</code> value, and a whole row, can be up to 16 MB. Keep images and PDF files outside the database, and store their path.</li></ul>
+<p><strong>Example: Document: products whose fields differ</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE products (id INT PRIMARY KEY, doc JSON NOT NULL);
+INSERT INTO products VALUES
+  (1, &#39;{&quot;name&quot;: &quot;Laptop&quot;, &quot;price&quot;: 950, &quot;tags&quot;: [&quot;tech&quot;, &quot;work&quot;], &quot;specs&quot;: {&quot;ram_gb&quot;: 16}}&#39;),
+  (2, &#39;{&quot;name&quot;: &quot;Shirt&quot;, &quot;price&quot;: 20, &quot;size&quot;: &quot;M&quot;}&#39;);</code></pre>
+<pre><code class="language-sql">UPDATE products SET doc = json_set(doc, &#39;$.price&#39;, 899) WHERE id = 1;
+SELECT id, doc -&gt;&gt; &#39;name&#39; AS name, json_value_double(doc, &#39;$.price&#39;) AS price,
+       json_value_long(doc, &#39;$.specs.ram_gb&#39;) AS ram_gb, doc -&gt;&gt; &#39;size&#39; AS size
+FROM products ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE products SET doc = json_set(doc, &#39;$.price&#39;, 899) WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT id, doc -&gt;&gt; &#39;name&#39; AS name, json_value_double(doc, &#39;$.price&#39;) AS price, json_value_long(doc, </code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th><th>price (DOUBLE)</th><th>ram_gb (LONG)</th><th>size (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Laptop</td><td>899</td><td>16</td><td>NULL</td></tr><tr><td>2</td><td>Shirt</td><td>20</td><td>NULL</td><td>M</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Key-value: a setting is replaced, not added twice</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE settings (k STRING PRIMARY KEY, v STRING);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO settings VALUES (&#39;theme&#39;, &#39;dark&#39;);
+INSERT OR REPLACE INTO settings VALUES (&#39;theme&#39;, &#39;light&#39;), (&#39;lang&#39;, &#39;ne&#39;);
+SELECT k, v FROM settings ORDER BY k;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO settings VALUES (&#39;theme&#39;, &#39;dark&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT OR REPLACE INTO settings VALUES (&#39;theme&#39;, &#39;light&#39;), (&#39;lang&#39;, &#39;ne&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT k, v FROM settings ORDER BY k</code></p>
+<div class="table-wrap"><table><thead><tr><th>k (STRING)</th><th>v (STRING)</th></tr></thead><tbody><tr><td>lang</td><td>ne</td></tr><tr><td>theme</td><td>light</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Time-series: 15-minute candles from ticks</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESTAMP(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 500), (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 510),
+  (&#39;2026-09-10T11:16:00+05:45&#39;, &#39;CITY&#39;, 505);</code></pre>
+<pre><code class="language-sql">SELECT time, first(price) AS open, max(price) AS high, min(price) AS low, last(price) AS close
+FROM ticks SAMPLE BY 15m;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>500</td><td>510</td><td>500</td><td>510</td></tr><tr><td>2026-09-10T05:30:00.000Z</td><td>505</td><td>505</td><td>505</td><td>505</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Search: news that talks about profit</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE news (id INT PRIMARY KEY, body STRING NOT NULL);
+CREATE FULLTEXT INDEX news_body ON news (body);
+INSERT INTO news VALUES (1, &#39;City Bank profit rises 18%&#39;), (2, &#39;Hydro power output falls&#39;), (3, &#39;COAST profit is flat&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, body FROM news WHERE match(body, &#39;profit&#39;) ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>1</td><td>City Bank profit rises 18%</td></tr><tr><td>3</td><td>COAST profit is flat</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="object-oriented">Object-oriented</h2>
+<p>An object database stores the objects of a program as they are: <strong>classes</strong>, <strong>inheritance</strong> (<code>class Car extends Vehicle</code>) and <strong>methods</strong> kept with the data. KDB does not have classes or inheritance. You can get part of the way:</p>
+<blockquote><p><strong>Diagram:</strong> An object database has nested fields, methods and inheritance. In KDB, nested fields become a JSON column and methods become saved functions or procedures; inheritance has no match.</p>
+<p>Two of the three parts have a match in KDB. Inheritance does not.</p></blockquote>
+<div class="table-wrap"><table><thead><tr><th>An object database has</th><th>In KDB</th><th>Help</th></tr></thead><tbody><tr><td>nested fields and lists</td><td>a <code>JSON</code> column; arrays are kept as JSON lists</td><td><a href="functions-json.html">functions-json</a>, <a href="functions-postgres.html#arrays">arrays</a></td></tr><tr><td>methods</td><td>saved functions and stored procedures</td><td><a href="saved-functions.html">saved-functions</a>, <a href="procedures.html">procedures</a></td></tr><tr><td>one clean shape to read</td><td>a view</td><td><a href="views.html">views</a></td></tr><tr><td>classes and inheritance</td><td><strong>none</strong>: use one table per class, or a <code>kind</code> column</td><td></td></tr><tr><td>object ids and links between objects</td><td>a <code>PRIMARY KEY</code> and <code>REFERENCES</code></td><td><a href="constraints.html">constraints</a></td></tr></tbody></table></div>
+<ul><li><strong>Tip:</strong> most apps do not use an object database. They map objects to tables with an <strong>ORM</strong> (SQLAlchemy, Prisma, Entity Framework, GORM), which talks to KDB over the <a href="postgres-protocol.html">PostgreSQL port</a>.</li></ul>
+<p><strong>Example: Vehicles of different kinds: shared columns, extra fields as JSON, a function as a method</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE vehicles (id INT PRIMARY KEY, kind STRING NOT NULL CHECK (kind IN (&#39;car&#39;, &#39;bike&#39;)), wheels INT NOT NULL, extra JSON DEFAULT &#39;{}&#39;);
+CREATE FUNCTION describe(kind STRING, wheels INT) RETURNS STRING AS (kind || &#39; with &#39; || wheels || &#39; wheels&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO vehicles VALUES (1, &#39;car&#39;, 4, &#39;{&quot;doors&quot;: 5, &quot;fuel&quot;: &quot;petrol&quot;}&#39;), (2, &#39;bike&#39;, 2, &#39;{&quot;gears&quot;: 21}&#39;);
+SELECT id, describe(kind, wheels) AS description, extra -&gt;&gt; &#39;doors&#39; AS doors, extra -&gt;&gt; &#39;gears&#39; AS gears
+FROM vehicles ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO vehicles VALUES (1, &#39;car&#39;, 4, &#39;{&quot;doors&quot;: 5, &quot;fuel&quot;: &quot;petrol&quot;}&#39;), (2, &#39;bike&#39;, 2, &#39;{&quot;gears</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, describe(kind, wheels) AS description, extra -&gt;&gt; &#39;doors&#39; AS doors, extra -&gt;&gt; &#39;gears&#39; AS g</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>description (STRING)</th><th>doors (STRING)</th><th>gears (STRING)</th></tr></thead><tbody><tr><td>1</td><td>car with 4 wheels</td><td>5</td><td>NULL</td></tr><tr><td>2</td><td>bike with 2 wheels</td><td>NULL</td><td>21</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/data-models.md">This page as markdown</a>.</footer>
+</body>
+</html>

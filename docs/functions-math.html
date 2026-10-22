@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Math functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Round and cut numbers, take powers, roots and logarithms, divide safely, put values in buckets, and make random numbers.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-math.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-math.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="math-functions">Math functions</h1>
+<blockquote><p>Round and cut numbers, take powers, roots and logarithms, divide safely, put values in buckets, and make random numbers.</p></blockquote>
+<ul><li>Category: Functions — math</li><li>Keywords: math, number, rounding, %, +, -, *, /, arithmetic, division by zero, truncate, cut decimals, cube root, log base 2, greatest common divisor, highest common factor, hcf, least common multiple, n!, combinations, histogram, bucket, bin, limit to a range, circuit limit, between bounds, divide by zero, ifnull division, zero if division by zero, ratio, percentage, banker&#39;s rounding, round half to even, NaN, not a number, infinity, inf, rand, random sample, shuffle, seed</li><li>See also: <a href="functions-math-more.html">Trigonometry and probability</a>, <a href="functions-finance.html">Finance and price functions</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="functions-aggregate.html">Aggregate functions</a></li></ul>
+<p>These functions work on numbers: <code>INT</code>, <code>LONG</code>, <code>DOUBLE</code>, <code>DECIMAL</code> and the other number types. Sine, cosine and the normal distribution are in <a href="functions-math-more.html">trigonometry and probability</a>; money functions (interest, loans, NPV) are in <a href="functions-finance.html">finance functions</a>.</p>
+<ul><li>A <code>NULL</code> argument gives <code>NULL</code> (except <code>greatest</code> and <code>least</code>, which skip NULLs).</li><li>A result that is not a real number (like <code>sqrt(-1)</code> or <code>ln(0)</code>) is <code>NULL</code>, not an error.</li><li>Text is not turned into a number by itself: <code>round(&#39;5&#39;)</code> is an error. Use <code>CAST(&#39;5&#39; AS DOUBLE)</code>.</li></ul>
+<p><strong>Example: Price change of CITY, rounded to 2 decimals</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(close - lag(close), 2) AS change,
+       round((close - lag(close)) / lag(close) * 100, 2) AS change_pct
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>change (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>542.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>539.7</td><td>-2.5</td><td>-0.46</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>539.3</td><td>-0.4</td><td>-0.07</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>542.4</td><td>3.1</td><td>0.57</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>-34.5</td><td>-6.36</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="abs">abs</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">abs(x)</code></pre>
+<p>The number without its minus sign: <code>abs(-5)</code> is <code>5</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the same type as <code>x</code> (INT stays INT, DECIMAL stays DECIMAL).</li><li><strong>NULL:</strong> <code>abs(NULL)</code> is <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT abs(-5) AS a, abs(-2.75) AS b, abs(CAST(-3.5 AS DECIMAL(2))) AS c, abs(NULL) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (DOUBLE)</th><th>c (DECIMAL(2))</th><th>d (STRING)</th></tr></thead><tbody><tr><td>5</td><td>2.75</td><td>3.50</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How far the close is from the open, for each day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, open, close, abs(close - open) AS move
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39;
+ORDER BY move DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>move (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>398</td><td>380.1</td><td>17.9</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>COAST</td><td>373.7</td><td>379.2</td><td>5.5</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>COAST</td><td>378.1</td><td>373</td><td>5.10000000000002</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="round">round</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">round(x)
+round(x, digits)</code></pre>
+<p>Rounds <code>x</code> to <code>digits</code> places after the decimal point. Halves go away from zero: <code>round(2.5)</code> is <code>3</code> and <code>round(-2.5)</code> is <code>-3</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to round</td></tr><tr><td><code>digits</code></td><td>whole number</td><td>places after the point; default <code>0</code>. A negative number rounds to tens, hundreds, ...</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. An <code>INT</code> or <code>LONG</code> with <code>digits</code> 0 or more comes back unchanged. A <code>DECIMAL</code> stays an exact <code>DECIMAL</code> with <code>digits</code> places: <code>round(2.345::NUMERIC(10,3), 2)</code> is <code>2.35</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> a <code>DOUBLE</code> can not hold every decimal exactly. <code>round</code> goes by the decimal a <code>DOUBLE</code> is written as, so <code>round(1.005, 2)</code> is <code>1.01</code> and <code>round(2.675, 2)</code> is <code>2.68</code>, as in PostgreSQL. For money that must be exact, use a <code>DECIMAL(2)</code> column.</li><li><strong>Notes:</strong> to store the same numbers as a program that rounds (for example to 6 places), round in the procedure too: <a href="procedures.html#rounding">matching another system&#39;s rounding</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT round(512.456, 2) AS two_places, round(512.5) AS whole, round(-2.5) AS negative, round(1234.5, -2) AS hundreds, round(7) AS int_value, round(1.005, 2) AS half_cent;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>two_places (DOUBLE)</th><th>whole (DOUBLE)</th><th>negative (DOUBLE)</th><th>hundreds (DOUBLE)</th><th>int_value (LONG)</th><th>half_cent (DOUBLE)</th></tr></thead><tbody><tr><td>512.46</td><td>513</td><td>-3</td><td>1200</td><td>7</td><td>1.01</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Average close per symbol, rounded for a report</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(avg(close), 2) AS avg_close, count(*) AS days
+FROM ochl_day
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>avg_close (DOUBLE)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>511.81</td><td>19</td></tr><tr><td>COAST</td><td>385.93</td><td>19</td></tr><tr><td>VOLT</td><td>180.97</td><td>19</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Text is not a number</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT round(&#39;5&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: round: argument 1 must be a number, got 5</code></p>
+<h2 id="round-half-even">round_half_even</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">round_half_even(x)
+round_half_even(x, digits)</code></pre>
+<p>Rounds like <a href="#round">round</a>, but a value exactly <strong>halfway</strong> goes to the <strong>even</strong> neighbour: <code>round_half_even(2.5)</code> is <code>2</code>, <code>round_half_even(3.5)</code> is <code>4</code> (banker&#39;s rounding, QuestDB&#39;s <code>round_half_even</code>). Adding many rounded amounts then does not drift upwards.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to round</td></tr><tr><td><code>digits</code></td><td>whole number</td><td>places after the point; default <code>0</code>. A negative number rounds to tens, hundreds, ...</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the same kinds as <code>round</code>: a <code>DECIMAL</code> stays an exact <code>DECIMAL</code> with <code>digits</code> places, a whole number with <code>digits</code> 0 or more is unchanged, anything else is a <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> a <code>DOUBLE</code> is judged by the decimal it is written as, as <code>round</code> does: <code>round_half_even(0.125::float8, 2)</code> is <code>0.12</code>, and <code>round_half_even(0.1251::float8, 2)</code> is <code>0.13</code> because it is past the half. <code>round</code> itself still rounds halves away from zero.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT round_half_even(2.5) AS two, round_half_even(3.5) AS four, round_half_even(-2.5) AS minus_two,
+       round_half_even(2.345, 2) AS even_cent, round_half_even(2.355, 2) AS up_cent, round_half_even(1250, -2) AS hundreds;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>two (DOUBLE)</th><th>four (DOUBLE)</th><th>minus_two (DOUBLE)</th><th>even_cent (DOUBLE)</th><th>up_cent (DOUBLE)</th><th>hundreds (LONG)</th></tr></thead><tbody><tr><td>2</td><td>4</td><td>-2</td><td>2.34</td><td>2.36</td><td>1200</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="floor">floor</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">floor(x)</code></pre>
+<p>Rounds down to the whole number at or below <code>x</code>: <code>floor(5.7)</code> is <code>5</code>, <code>floor(-5.2)</code> is <code>-6</code>.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> for <code>DOUBLE</code> input; a <code>DECIMAL</code> gives an exact <code>DECIMAL</code> with no places; an <code>INT</code> or <code>LONG</code> comes back unchanged.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT floor(5.7) AS a, floor(-5.2) AS b, floor(9) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (LONG)</th></tr></thead><tbody><tr><td>5</td><td>-6</td><td>9</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Price bands of 10 dollars</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT floor(close / 10) * 10 AS band, count(*) AS days
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+GROUP BY floor(close / 10) * 10
+ORDER BY band;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>band (DOUBLE)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>490</td><td>5</td></tr><tr><td>500</td><td>7</td></tr><tr><td>510</td><td>3</td></tr><tr><td>530</td><td>2</td></tr><tr><td>540</td><td>2</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="ceil">ceil, ceiling</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ceil(x)
+ceiling(x)</code></pre>
+<p>Rounds up to the whole number at or above <code>x</code>: <code>ceil(5.2)</code> is <code>6</code>, <code>ceil(-5.7)</code> is <code>-5</code>. <code>ceiling</code> is the same function.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> for <code>DOUBLE</code> input; a <code>DECIMAL</code> gives an exact <code>DECIMAL</code> with no places; an <code>INT</code> or <code>LONG</code> comes back unchanged.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT ceil(5.2) AS a, ceiling(-5.7) AS b, ceil(4) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (LONG)</th></tr></thead><tbody><tr><td>6</td><td>-5</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How many pages for 956 rows, 100 rows per page</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows, ceil(count(*) / 100.0) AS pages FROM ochl_minutes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th><th>pages (DOUBLE)</th></tr></thead><tbody><tr><td>956</td><td>10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="trunc">trunc, truncate</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">trunc(x)
+trunc(x, digits)
+truncate(x, digits)</code></pre>
+<p>Cuts off the digits after <code>digits</code> places, without rounding: <code>trunc(512.789, 2)</code> is <code>512.78</code>, while <code>round</code> gives <code>512.79</code>. It moves toward zero: <code>trunc(-5.7)</code> is <code>-5</code> (but <code>floor(-5.7)</code> is <code>-6</code>). <code>truncate</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to cut</td></tr><tr><td><code>digits</code></td><td>whole number</td><td>places after the point to keep; default <code>0</code>. A negative number cuts to tens, hundreds, ...</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. An <code>INT</code> or <code>LONG</code> with <code>digits</code> 0 or more comes back unchanged (as a <code>LONG</code>).</li><li><strong>NULL:</strong> <code>NULL</code> when <code>x</code> or <code>digits</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>digits</code> must be a whole number: <code>trunc(5.99, 1.5)</code> is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT trunc(512.789, 2) AS two_places, round(512.789, 2) AS rounded, trunc(-5.7) AS negative, floor(-5.7) AS floor, truncate(1234.5, -2) AS hundreds, trunc(7) AS int_value;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>two_places (DOUBLE)</th><th>rounded (DOUBLE)</th><th>negative (DOUBLE)</th><th>floor (DOUBLE)</th><th>hundreds (DOUBLE)</th><th>int_value (LONG)</th></tr></thead><tbody><tr><td>512.78</td><td>512.79</td><td>-5</td><td>-6</td><td>1200</td><td>7</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Average trade rate: cut and rounded to 1 decimal</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, avg(rate) AS avg_rate, trunc(avg(rate), 1) AS cut, round(avg(rate), 1) AS rounded
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>avg_rate (DOUBLE)</th><th>cut (DOUBLE)</th><th>rounded (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>515.590909090909</td><td>515.5</td><td>515.6</td></tr><tr><td>COAST</td><td>399.363636363636</td><td>399.3</td><td>399.4</td></tr><tr><td>TELCO</td><td>880.5</td><td>880.5</td><td>880.5</td></tr><tr><td>VOLT</td><td>185</td><td>185</td><td>185</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: digits must be a whole number</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT trunc(5.99, 1.5);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: trunc: argument 2 must be a whole number, got &#39;1.5&#39;</code></p>
+<h2 id="sqrt">sqrt</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sqrt(x)</code></pre>
+<p>Square root: <code>sqrt(16)</code> is <code>4</code>.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. A negative <code>x</code> also gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT sqrt(16) AS a, sqrt(2) AS b, sqrt(-1) AS negative;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>negative (STRING)</th></tr></thead><tbody><tr><td>4</td><td>1.4142135623731</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Daily volatility from the variance of the close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(sqrt(var_samp(close)), 3) AS stddev_close
+FROM ochl_day
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>stddev_close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>16.198</td></tr><tr><td>COAST</td><td>21.379</td></tr><tr><td>VOLT</td><td>8.637</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="cbrt">cbrt</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cbrt(x)</code></pre>
+<p>The <strong>cube root</strong>: the number that, multiplied by itself three times, gives <code>x</code>. <code>cbrt(27)</code> is <code>3</code>, because 3 × 3 × 3 = 27. Unlike <code>sqrt</code>, it works for negative numbers: <code>cbrt(-8)</code> is <code>-2</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> <code>cbrt(x)</code> is the same as <code>pow(x, 1.0 / 3)</code> for positive <code>x</code>, but <code>pow</code> gives <code>NULL</code> for a negative <code>x</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT cbrt(27) AS a, cbrt(-8) AS b, cbrt(2) AS c, pow(-8, 1.0 / 3) AS pow_negative;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th><th>pow_negative (STRING)</th></tr></thead><tbody><tr><td>3</td><td>-2</td><td>1.25992104989487</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Growth per year: 1,00,000 became 1,33,100 in 3 years</strong></p>
+<pre><code class="language-sql">SELECT round((cbrt(133100.0 / 100000) - 1) * 100, 2) AS growth_pct_per_year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>growth_pct_per_year (DOUBLE)</th></tr></thead><tbody><tr><td>10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pow">pow, power</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pow(x, y)
+power(x, y)</code></pre>
+<p><code>x</code> to the power <code>y</code>: <code>pow(2, 10)</code> is <code>1024</code>. <code>power</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the base</td></tr><tr><td><code>y</code></td><td>any number</td><td>the power; <code>0.5</code> is a square root</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, or when the result is not a real number (too big, or a negative base with a fraction power).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT pow(2, 10) AS a, power(2, 0.5) AS b, pow(10, -2) AS c, pow(-8, 1.0 / 3) AS not_real;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th><th>not_real (STRING)</th></tr></thead><tbody><tr><td>1024</td><td>1.4142135623731</td><td>0.01</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Money after 5 years at 8% a year</strong></p>
+<pre><code class="language-sql">SELECT round(100000 * pow(1 + 0.08, 5), 2) AS amount;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>146932.81</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="exp">exp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">exp(x)</code></pre>
+<p>The number e (2.718...) to the power <code>x</code>. It undoes <code>ln</code>.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. <code>NULL</code> when the result is too big for a <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT exp(0) AS a, exp(1) AS e, exp(ln(5)) AS back_to_5, exp(1000) AS too_big;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>e (DOUBLE)</th><th>back_to_5 (DOUBLE)</th><th>too_big (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>2.71828182845905</td><td>5</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="ln">ln, log</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ln(x)
+log(x)</code></pre>
+<p><code>ln(x)</code> is the natural logarithm (base e). <code>log(x)</code> is base 10, as in PostgreSQL: <code>log(100)</code> is <code>2</code>, the same as <code>log10(100)</code>. <code>log(b, x)</code> is base <code>b</code>.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. <code>x</code> of 0 or less gives <code>NULL</code>.</li><li><strong>Notes:</strong> before 2026-09-25 <code>log(x)</code> was the natural logarithm. A query that meant ln should now say <code>ln</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT ln(1) AS a, ln(exp(2)) AS b, log(100) AS base_10, log(2, 8) AS base_2, ln(0) AS zero;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>base_10 (DOUBLE)</th><th>base_2 (DOUBLE)</th><th>zero (STRING)</th></tr></thead><tbody><tr><td>0</td><td>2</td><td>2</td><td>3</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Log returns of CITY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(ln(close / lag(close)), 5) AS log_return
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>log_return (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>542.2</td><td>NULL</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>539.7</td><td>-0.00462</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>539.3</td><td>-0.00074</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>542.4</td><td>0.00573</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="log10">log10</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">log10(x)</code></pre>
+<p>Logarithm base 10: <code>log10(1000)</code> is <code>3</code>.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. <code>x</code> of 0 or less gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT log10(1000) AS a, log10(2) AS b, log10(-1) AS negative;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>negative (STRING)</th></tr></thead><tbody><tr><td>3</td><td>0.301029995663981</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="log2">log2</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">log2(x)</code></pre>
+<p>Logarithm base 2: how many times you double 1 to get <code>x</code>. <code>log2(8)</code> is <code>3</code>, because 1 → 2 → 4 → 8. For a price, <code>log2(new / old)</code> tells how many times the price <strong>doubled</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value, more than 0</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. <code>x</code> of 0 or less gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT log2(8) AS a, log2(1024) AS b, log2(1000) AS c, log2(0) AS zero;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th><th>zero (STRING)</th></tr></thead><tbody><tr><td>3</td><td>10</td><td>9.96578428466209</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A share went from 100 to 800 dollars: how many doublings?</strong></p>
+<pre><code class="language-sql">SELECT log2(800.0 / 100) AS doublings, pow(2, log2(800.0 / 100)) * 100 AS back_to_price;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>doublings (DOUBLE)</th><th>back_to_price (DOUBLE)</th></tr></thead><tbody><tr><td>3</td><td>800</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="sign">sign</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sign(x)</code></pre>
+<p><code>-1</code> for a negative number, <code>0</code> for zero, <code>1</code> for a positive number.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT sign(-7) AS a, sign(0) AS b, sign(3.5) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th></tr></thead><tbody><tr><td>-1</td><td>0</td><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Up, down or flat days</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT sign(close - open) AS direction, count(*) AS days
+FROM ochl_day
+GROUP BY sign(close - open)
+ORDER BY direction;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>direction (DOUBLE)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>-1</td><td>27</td></tr><tr><td>1</td><td>30</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="mod">mod</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">mod(x, y)
+x % y</code></pre>
+<p>The remainder after dividing <code>x</code> by <code>y</code>: <code>mod(10, 3)</code> is <code>1</code>. The <code>%</code> operator does the same.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code> when both are whole numbers, else <code>DOUBLE</code>. The sign follows <code>x</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>. A <code>y</code> of <code>0</code> is an error, &quot;division by zero&quot;, as in PostgreSQL.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT mod(10, 3) AS a, 10 % 3 AS b, mod(-10, 3) AS c, mod(10.5, 3) AS d, mod(5, NULLIF(0, 0)) AS by_zero;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (LONG)</th><th>d (DOUBLE)</th><th>by_zero (STRING)</th></tr></thead><tbody><tr><td>1</td><td>1</td><td>-1</td><td>1.5</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Every 5th transaction of the trade log</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol, quantity
+FROM trade_log
+WHERE transaction_id % 5 = 0
+ORDER BY transaction_id
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th></tr></thead><tbody><tr><td>100005</td><td>CITY</td><td>500</td></tr><tr><td>100010</td><td>CITY</td><td>50</td></tr><tr><td>100015</td><td>COAST</td><td>1000</td></tr><tr><td>100020</td><td>VOLT</td><td>100</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="greatest">greatest</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">greatest(value, value, ...)</code></pre>
+<p>The biggest of the values. <code>NULL</code> values are skipped. Works for numbers, text and times.</p>
+<ul><li><strong>Returns:</strong> the biggest value (its own type).</li><li><strong>NULL:</strong> <code>NULL</code> only when every value is <code>NULL</code>.</li><li><strong>Notes:</strong> values that cannot be compared (a number and a text) give an error. At most 64 values.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT greatest(3, 9, 4) AS a, greatest(3, NULL, 9) AS b, greatest(&#39;CITY&#39;, &#39;COAST&#39;) AS c, greatest(NULL, NULL) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (STRING)</th><th>d (STRING)</th></tr></thead><tbody><tr><td>9</td><td>9</td><td>COAST</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The bigger of two prices</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, open, close, greatest(open, close) AS body_top
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39;
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>body_top (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>187.7</td><td>191.7</td><td>191.7</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>192.9</td><td>196.4</td><td>196.4</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>195</td><td>192.3</td><td>195</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="least">least</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">least(value, value, ...)</code></pre>
+<p>The smallest of the values. <code>NULL</code> values are skipped. Works for numbers, text and times.</p>
+<ul><li><strong>Returns:</strong> the smallest value (its own type).</li><li><strong>NULL:</strong> <code>NULL</code> only when every value is <code>NULL</code>.</li><li><strong>Notes:</strong> values that cannot be compared give an error. At most 64 values.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT least(3, 9, 4) AS a, least(3, NULL, 9) AS b, least(&#39;2026-09-10&#39;, &#39;2026-01-01&#39;) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>3</td><td>3</td><td>2026-01-01</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A number and a text cannot be compared</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT least(1, &#39;a&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: least: values cannot be compared</code></p>
+<h2 id="gcd">gcd</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">gcd(a, b)</code></pre>
+<p>The <strong>greatest common divisor</strong>: the biggest whole number that divides both <code>a</code> and <code>b</code> with no remainder. <code>gcd(12, 18)</code> is <code>6</code>. Use it to make a ratio as small as possible, like a bonus share ratio of 20:100 that is really 1:5.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>a</code></td><td>whole number</td><td>the first value</td></tr><tr><td><code>b</code></td><td>whole number</td><td>the second value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>, 0 or more (the sign is ignored).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>gcd(0, 5)</code> is <code>5</code>. A number with a fraction (<code>12.5</code>) is an error; a <code>DOUBLE</code> like <code>12.0</code> is fine.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT gcd(12, 18) AS a, gcd(-12, 18) AS b, gcd(0, 5) AS c, gcd(7, 5) AS no_common;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (LONG)</th><th>no_common (LONG)</th></tr></thead><tbody><tr><td>6</td><td>6</td><td>5</td><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Write a bonus share ratio in its smallest form</strong></p>
+<pre><code class="language-sql">SELECT bonus, held,
+       bonus / gcd(bonus, held) AS bonus_small,
+       held / gcd(bonus, held) AS held_small
+FROM (SELECT 20 AS bonus, 100 AS held UNION ALL SELECT 15, 45 UNION ALL SELECT 7, 10) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>bonus (LONG)</th><th>held (LONG)</th><th>bonus_small (DOUBLE)</th><th>held_small (DOUBLE)</th></tr></thead><tbody><tr><td>20</td><td>100</td><td>1</td><td>5</td></tr><tr><td>15</td><td>45</td><td>1</td><td>3</td></tr><tr><td>7</td><td>10</td><td>7</td><td>10</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Only whole numbers</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT gcd(12.5, 5);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: gcd: argument 1 must be a whole number, got &#39;12.5&#39;</code></p>
+<h2 id="lcm">lcm</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">lcm(a, b)</code></pre>
+<p>The <strong>least common multiple</strong>: the smallest whole number that both <code>a</code> and <code>b</code> divide. <code>lcm(4, 6)</code> is <code>12</code>. If one thing happens every 4 days and another every 6 days, they happen on the same day every 12 days.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>a</code></td><td>whole number</td><td>the first value</td></tr><tr><td><code>b</code></td><td>whole number</td><td>the second value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>, 0 or more.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>lcm(0, x)</code> is <code>0</code>. A result too big for a <code>LONG</code> is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT lcm(4, 6) AS a, lcm(-4, 6) AS b, lcm(0, 5) AS c, lcm(7, 5) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (LONG)</th><th>d (LONG)</th></tr></thead><tbody><tr><td>12</td><td>12</td><td>0</td><td>35</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The smallest order that fits a lot size of 10 and a lot size of 25</strong></p>
+<pre><code class="language-sql">SELECT lcm(10, 25) AS smallest_order;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>smallest_order (LONG)</th></tr></thead><tbody><tr><td>50</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="factorial">factorial</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">factorial(n)</code></pre>
+<p><code>n!</code>: the product 1 × 2 × 3 × ... × <code>n</code>. <code>factorial(5)</code> is <code>120</code>. It counts the ways to put <code>n</code> things in a row, and it is used to count <strong>combinations</strong> (how many ways to pick <code>k</code> things from <code>n</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n</code></td><td>whole number, 0 or more</td><td>how many things</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code> for <code>n</code> up to 20. From 21, the result is too big for a <code>LONG</code> and is a <code>DOUBLE</code> (not exact). From 171 it is too big even for a <code>DOUBLE</code>: <code>NULL</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> <code>factorial(0)</code> is <code>1</code>. A negative <code>n</code> or a fraction is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT factorial(0) AS a, factorial(5) AS b, factorial(20) AS c, factorial(21) AS d, factorial(171) AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (LONG)</th><th>d (DOUBLE)</th><th>e (STRING)</th></tr></thead><tbody><tr><td>1</td><td>120</td><td>2432902008176640000</td><td>5.10909421717094e+19</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How many ways to pick 3 shares from the 5 securities?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT n, factorial(n) / (factorial(3) * factorial(n - 3)) AS ways_to_pick_3
+FROM (SELECT count(*) AS n FROM securities) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>n (LONG)</th><th>ways_to_pick_3 (DOUBLE)</th></tr></thead><tbody><tr><td>5</td><td>10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A negative number is an error</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT factorial(-1);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: factorial: needs 0 or more, got -1</code></p>
+<h2 id="pi">pi</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pi()</code></pre>
+<p>The number π (3.14159...): the length around a circle divided by its width. You need it with <a href="functions-math-more.html">sin and cos</a> and with <a href="#radians">radians</a>.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT pi() AS pi, round(pi(), 2) AS short, 2 * pi() AS full_circle_in_radians;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pi (DOUBLE)</th><th>short (DOUBLE)</th><th>full_circle_in_radians (DOUBLE)</th></tr></thead><tbody><tr><td>3.14159265358979</td><td>3.14</td><td>6.28318530717959</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="degrees">degrees</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">degrees(x)</code></pre>
+<p>Changes an angle in <strong>radians</strong> to <strong>degrees</strong>. A full circle is 360 degrees or 2π radians, so <code>degrees(pi())</code> is <code>180</code>. The functions <code>asin</code>, <code>acos</code>, <code>atan</code> and <code>atan2</code> give radians; use <code>degrees</code> to read them.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>an angle in radians</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT degrees(pi()) AS half_circle, degrees(pi() / 2) AS right_angle, degrees(1) AS one_radian, degrees(atan(1)) AS atan_1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>half_circle (DOUBLE)</th><th>right_angle (DOUBLE)</th><th>one_radian (DOUBLE)</th><th>atan_1 (DOUBLE)</th></tr></thead><tbody><tr><td>180</td><td>90</td><td>57.2957795130823</td><td>45</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="radians">radians</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">radians(x)</code></pre>
+<p>Changes an angle in <strong>degrees</strong> to <strong>radians</strong>, the unit that <code>sin</code>, <code>cos</code> and <code>tan</code> need. <code>radians(180)</code> is π.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>an angle in degrees</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT radians(180) AS pi, radians(90) AS right_angle, round(sin(radians(30)), 4) AS sin_30_degrees;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pi (DOUBLE)</th><th>right_angle (DOUBLE)</th><th>sin_30_degrees (DOUBLE)</th></tr></thead><tbody><tr><td>3.14159265358979</td><td>1.5707963267949</td><td>0.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="width_bucket">width_bucket</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">width_bucket(x, low, high, count)</code></pre>
+<p>Cuts the range from <code>low</code> to <code>high</code> into <code>count</code> buckets of the same width, and says which bucket <code>x</code> falls in: <code>1</code> to <code>count</code>. A value below <code>low</code> is bucket <code>0</code>; a value at or above <code>high</code> is bucket <code>count + 1</code>. Use it to make a <strong>histogram</strong>: a count of values per bucket.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to place</td></tr><tr><td><code>low</code></td><td>any number</td><td>where bucket 1 starts</td></tr><tr><td><code>high</code></td><td>any number</td><td>where the last bucket ends (not included)</td></tr><tr><td><code>count</code></td><td>whole number, 1 or more</td><td>how many buckets</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> each bucket includes its start and not its end. When <code>low</code> is bigger than <code>high</code>, the buckets count down. <code>low</code> and <code>high</code> must be different, else an error. Like PostgreSQL <code>width_bucket</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT width_bucket(512, 400, 600, 4) AS a, width_bucket(399, 400, 600, 4) AS below, width_bucket(600, 400, 600, 4) AS at_high, width_bucket(450, 600, 400, 4) AS down;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>below (LONG)</th><th>at_high (LONG)</th><th>down (LONG)</th></tr></thead><tbody><tr><td>3</td><td>0</td><td>5</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Histogram of CITY&#39;s one-minute closes on 10 September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT width_bucket(close, 500, 510, 5) AS bucket,
+       500 + (width_bucket(close, 500, 510, 5) - 1) * 2 AS from_price,
+       count(*) AS minutes
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+GROUP BY width_bucket(close, 500, 510, 5)
+ORDER BY bucket;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>bucket (LONG)</th><th>from_price (LONG)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>1</td><td>500</td><td>11</td></tr><tr><td>2</td><td>502</td><td>87</td></tr><tr><td>3</td><td>504</td><td>109</td></tr><tr><td>4</td><td>506</td><td>33</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Daily returns in 1% buckets from -3% to +3%</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT width_bucket(chg, -3, 3, 6) AS bucket, count(*) AS days
+FROM (SELECT pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS chg
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE chg IS NOT NULL
+GROUP BY width_bucket(chg, -3, 3, 6)
+ORDER BY bucket;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>bucket (LONG)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>1</td><td>1</td></tr><tr><td>2</td><td>11</td></tr><tr><td>3</td><td>11</td></tr><tr><td>4</td><td>9</td></tr><tr><td>5</td><td>5</td></tr><tr><td>6</td><td>4</td></tr><tr><td>7</td><td>1</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<h2 id="clamp">clamp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">clamp(x, low, high)</code></pre>
+<p>Keeps <code>x</code> inside the range from <code>low</code> to <code>high</code>: below <code>low</code> gives <code>low</code>, above <code>high</code> gives <code>high</code>, else <code>x</code>. It is the same as <code>least(greatest(x, low), high)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number, text or time</td><td>the value</td></tr><tr><td><code>low</code></td><td>same kind as <code>x</code></td><td>the smallest allowed value</td></tr><tr><td><code>high</code></td><td>same kind as <code>x</code></td><td>the biggest allowed value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the value that was chosen, with its own type.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>low</code> bigger than <code>high</code> is an error. Values that cannot be compared (a number and a text) are an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT clamp(15, 0, 10) AS too_big, clamp(-3, 0, 10) AS too_small, clamp(4.5, 0, 10) AS inside, clamp(&#39;m&#39;, &#39;a&#39;, &#39;k&#39;) AS text;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>too_big (LONG)</th><th>too_small (LONG)</th><th>inside (DOUBLE)</th><th>text (STRING)</th></tr></thead><tbody><tr><td>10</td><td>0</td><td>4.5</td><td>k</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Circuit limit: an order price must stay within 10% of yesterday&#39;s close</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE orders (id INT, symbol STRING, prev_close DOUBLE, price DOUBLE);
+INSERT INTO orders VALUES (1, &#39;CITY&#39;, 504.9, 570.0), (2, &#39;COAST&#39;, 376.1, 390.0), (3, &#39;VOLT&#39;, 191.2, 160.0);</code></pre>
+<pre><code class="language-sql">SELECT id, symbol, prev_close, price,
+       clamp(price, round(prev_close * 0.9, 1), round(prev_close * 1.1, 1)) AS allowed_price
+FROM orders
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>symbol (STRING)</th><th>prev_close (DOUBLE)</th><th>price (DOUBLE)</th><th>allowed_price (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>504.9</td><td>570</td><td>555.4</td></tr><tr><td>2</td><td>COAST</td><td>376.1</td><td>390</td><td>390</td></tr><tr><td>3</td><td>VOLT</td><td>191.2</td><td>160</td><td>172.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The lower bound must not be bigger</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT clamp(5, 10, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: clamp: the lower bound is bigger than the upper bound</code></p>
+<h2 id="safe_divide">safe_divide</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">safe_divide(x, y)</code></pre>
+<p><code>x / y</code>, but <code>NULL</code> when <code>y</code> is <code>0</code>. The <code>/</code> operator stops the query with &quot;division by zero&quot; instead, as PostgreSQL does; <code>safe_divide</code> works like <code>SAFE_DIVIDE</code> in BigQuery, so copied SQL runs.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the number to divide</td></tr><tr><td><code>y</code></td><td>any number</td><td>the number to divide by</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code> or <code>y</code> is <code>0</code>.</li><li><strong>Notes:</strong> to get <code>0</code> instead of <code>NULL</code>, use <a href="#div0">div0</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT safe_divide(10, 4) AS a, safe_divide(10, 0) AS by_zero, 10 / NULLIF(0, 0) AS operator, safe_divide(NULL, 2) AS null_value;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>by_zero (STRING)</th><th>operator (STRING)</th><th>null_value (STRING)</th></tr></thead><tbody><tr><td>2.5</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Average trade size, also on a day with no trades</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE broker_day (broker INT, trades INT, shares INT);
+INSERT INTO broker_day VALUES (1, 12, 3400), (34, 0, 0), (45, 5, 1250);</code></pre>
+<pre><code class="language-sql">SELECT broker, trades, shares, safe_divide(shares, trades) AS avg_trade_size
+FROM broker_day
+ORDER BY broker;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>broker (INT)</th><th>trades (INT)</th><th>shares (INT)</th><th>avg_trade_size (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>12</td><td>3400</td><td>283.333333333333</td></tr><tr><td>34</td><td>0</td><td>0</td><td>NULL</td></tr><tr><td>45</td><td>5</td><td>1250</td><td>250</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="div0">div0</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">div0(x, y)</code></pre>
+<p><code>x / y</code>, but <code>0</code> when <code>y</code> is <code>0</code> (like <code>DIV0</code> in Snowflake). Use it when a zero is the right answer, for example so that a total over many rows is not hurt by a <code>NULL</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the number to divide</td></tr><tr><td><code>y</code></td><td>any number</td><td>the number to divide by</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>. A <code>y</code> of <code>0</code> gives <code>0</code>, not <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT div0(10, 4) AS a, div0(10, 0) AS by_zero, div0(5, NULL) AS null_value;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>by_zero (DOUBLE)</th><th>null_value (STRING)</th></tr></thead><tbody><tr><td>2.5</td><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: safe_divide and div0 side by side</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE broker_day (broker INT, trades INT, shares INT);
+INSERT INTO broker_day VALUES (1, 12, 3400), (34, 0, 0), (45, 5, 1250);</code></pre>
+<pre><code class="language-sql">SELECT broker, safe_divide(shares, trades) AS safe_divide, div0(shares, trades) AS div0
+FROM broker_day
+ORDER BY broker;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>broker (INT)</th><th>safe_divide (DOUBLE)</th><th>div0 (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>283.333333333333</td><td>283.333333333333</td></tr><tr><td>34</td><td>NULL</td><td>0</td></tr><tr><td>45</td><td>250</td><td>250</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="percent">percent</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">percent(part, total)</code></pre>
+<p><code>part</code> as a percent of <code>total</code>: <code>part / total × 100</code>. <code>percent(25, 200)</code> is <code>12.5</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>part</code></td><td>any number</td><td>the part</td></tr><tr><td><code>total</code></td><td>any number</td><td>the whole</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (<code>12.5</code> means 12.5%).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code> or <code>total</code> is <code>0</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT percent(25, 200) AS a, percent(3, 4) AS b, percent(5, 0) AS zero_total;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>zero_total (STRING)</th></tr></thead><tbody><tr><td>12.5</td><td>75</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Share of paying (pro) users in each city</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT city, count(*) AS users,
+       sum(CASE WHEN plan = &#39;pro&#39; THEN 1 ELSE 0 END) AS pro_users,
+       round(percent(sum(CASE WHEN plan = &#39;pro&#39; THEN 1 ELSE 0 END), count(*)), 1) AS pro_pct
+FROM app_users
+WHERE city IS NOT NULL
+GROUP BY city
+ORDER BY pro_pct DESC, city;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>users (LONG)</th><th>pro_users (LONG)</th><th>pro_pct (DOUBLE)</th></tr></thead><tbody><tr><td>Dharan</td><td>1</td><td>1</td><td>100</td></tr><tr><td>Kathmandu</td><td>2</td><td>1</td><td>50</td></tr><tr><td>Pokhara</td><td>2</td><td>1</td><td>50</td></tr><tr><td>Lalitpur</td><td>1</td><td>0</td><td>0</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="is_nan">is_nan, is_inf, is_finite</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">is_nan(x)
+is_inf(x)
+is_finite(x)</code></pre>
+<p>A <code>DOUBLE</code> can hold three special values that are not normal numbers: <strong>NaN</strong> (&quot;not a number&quot;, for example from <code>0 × infinity</code>), <strong>inf</strong> (infinity) and <strong>-inf</strong>. They can come from other programs or from a calculation that is too big. These functions test for them.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th><code>true</code> when <code>x</code> is</th></tr></thead><tbody><tr><td><code>is_nan(x)</code></td><td>NaN</td></tr><tr><td><code>is_inf(x)</code></td><td>inf or -inf</td></tr><tr><td><code>is_finite(x)</code></td><td>a normal number (not NaN, not inf)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> most KDB math functions give <code>NULL</code> instead of NaN or inf. The <code>*</code> operator does not: <code>1e308 * 10</code> is inf. Text is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT is_nan(CAST(&#39;NaN&#39; AS DOUBLE)) AS nan, is_inf(CAST(&#39;-inf&#39; AS DOUBLE)) AS minus_inf,
+       is_finite(1e308 * 10) AS too_big_is_finite, is_finite(512.5) AS normal, is_nan(NULL) AS null_value;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nan (BOOL)</th><th>minus_inf (BOOL)</th><th>too_big_is_finite (BOOL)</th><th>normal (BOOL)</th><th>null_value (STRING)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>false</td><td>true</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Which values are normal numbers?</strong></p>
+<pre><code class="language-sql">SELECT name, is_nan(x) AS is_nan, is_inf(x) AS is_inf, is_finite(x) AS is_finite
+FROM (SELECT &#39;price&#39; AS name, 512.5 AS x
+      UNION ALL SELECT &#39;too big&#39;, 1e308 * 10
+      UNION ALL SELECT &#39;not a number&#39;, CAST(&#39;NaN&#39; AS DOUBLE)) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>is_nan (BOOL)</th><th>is_inf (BOOL)</th><th>is_finite (BOOL)</th></tr></thead><tbody><tr><td>price</td><td>false</td><td>false</td><td>true</td></tr><tr><td>too big</td><td>false</td><td>true</td><td>false</td></tr><tr><td>not a number</td><td>true</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="random">random, rand</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">random()
+rand()</code></pre>
+<p>A random number from <code>0</code> up to (but not including) <code>1</code>. Every call gives a new number, also on every row. <code>rand</code> is the same function.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, at least <code>0</code> and less than <code>1</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>A random whole number from 1 to 6: <code>floor(random() * 6) + 1</code>.</li><li><code>ORDER BY random() LIMIT n</code> picks <code>n</code> random rows.</li><li>Not safe for passwords or tokens: use <a href="functions-security.html#random-token">random_token</a> for those.</li><li>Results with <code>random()</code> are never taken from a cache.</li></ul></li></ul>
+<p><strong>Example: Every one-minute candle gets a random number, always from 0 to 1</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows, min(r) &gt;= 0 AS at_least_0, max(r) &lt; 1 AS below_1
+FROM (SELECT random() AS r FROM ochl_minutes) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th><th>at_least_0 (BOOL)</th><th>below_1 (BOOL)</th></tr></thead><tbody><tr><td>956</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Pick 3 app users for a survey (setseed makes the pick repeatable)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT setseed(0.42);
+SELECT username, city FROM app_users ORDER BY random() LIMIT 3;</code></pre>
+<p>Result:</p>
+<p><code>SELECT setseed(0.42)</code></p>
+<div class="table-wrap"><table><thead><tr><th>setseed(0.42) (STRING)</th></tr></thead><tbody><tr><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT username, city FROM app_users ORDER BY random() LIMIT 3</code></p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>city (STRING)</th></tr></thead><tbody><tr><td>suman</td><td>Pokhara</td></tr><tr><td>anita</td><td>NULL</td></tr><tr><td>gita</td><td>Dharan</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="setseed">setseed</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">setseed(seed)</code></pre>
+<p>Starts the random numbers from a fixed point, the <strong>seed</strong>. After the same <code>setseed</code>, <code>random()</code> gives the same numbers again, in the same order. Use it for tests and for a random sample that you can make again.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>seed</code></td><td>number from <code>-1</code> to <code>1</code></td><td>the starting point</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> always <code>NULL</code>.</li><li><strong>NULL:</strong> <code>setseed(NULL)</code> gives <code>NULL</code> and changes nothing.</li><li><strong>Notes:</strong> the seed is shared by the whole kdb program. On a server, another user&#39;s <code>random()</code> calls move the numbers on, so the order is only repeatable when nobody else uses <code>random()</code> at the same time.</li></ul>
+<p><strong>Example: The same seed gives the same numbers</strong></p>
+<pre><code class="language-sql">SELECT setseed(0.5);
+SELECT round(random(), 4) AS first, round(random(), 4) AS second;
+SELECT setseed(0.5);
+SELECT round(random(), 4) AS first_again, round(random(), 4) AS second_again;</code></pre>
+<p>Result:</p>
+<p><code>SELECT setseed(0.5)</code></p>
+<div class="table-wrap"><table><thead><tr><th>setseed(0.5) (STRING)</th></tr></thead><tbody><tr><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT round(random(), 4) AS first, round(random(), 4) AS second</code></p>
+<div class="table-wrap"><table><thead><tr><th>first (DOUBLE)</th><th>second (DOUBLE)</th></tr></thead><tbody><tr><td>0.1391</td><td>0.9194</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT setseed(0.5)</code></p>
+<div class="table-wrap"><table><thead><tr><th>setseed(0.5) (STRING)</th></tr></thead><tbody><tr><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT round(random(), 4) AS first_again, round(random(), 4) AS second_again</code></p>
+<div class="table-wrap"><table><thead><tr><th>first_again (DOUBLE)</th><th>second_again (DOUBLE)</th></tr></thead><tbody><tr><td>0.1391</td><td>0.9194</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The seed must be from -1 to 1</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT setseed(2);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: setseed: the seed must be between -1 and 1</code></p>
+<h2 id="operators">Arithmetic operators</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">a + b    a - b    a * b    a / b    a % b    -a</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Operator</th><th>Result</th></tr></thead><tbody><tr><td><code>+</code> <code>-</code> <code>*</code></td><td><code>LONG</code> when both sides are whole numbers (an <code>INT</code> result past <code>INT</code> simply becomes a <code>LONG</code>), else <code>DOUBLE</code>. A result too big for <code>LONG</code> is an error: &quot;bigint out of range&quot;</td></tr><tr><td><code>/</code></td><td><code>DOUBLE</code>: <code>7 / 2</code> is <code>3.5</code>. After <code>SET int_division = integer</code>, whole number / whole number is a whole number, as in PostgreSQL: <code>7 / 2</code> is <code>3</code> (<a href="operators.html#integer-division">integer division</a>)</td></tr><tr><td><code>%</code></td><td>remainder, like <code>mod</code></td></tr><tr><td><code>TIMESTAMP + number</code></td><td>the time plus that many milliseconds</td></tr><tr><td><code>TIMESTAMP - TIMESTAMP</code></td><td>milliseconds between the two times</td></tr><tr><td><code>DATE + number</code></td><td>the date plus that many days</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>.</li><li><strong>Division by zero:</strong> <code>5 / 0</code>, <code>5.0 / 0</code> and <code>5 % 0</code> stop the query with &quot;division by zero&quot; (SQLSTATE <code>22012</code>), as in PostgreSQL. For <code>NULL</code> instead, write <code>x / NULLIF(y, 0)</code> or <a href="#safe_divide">safe_divide</a>.</li><li><strong>Too big:</strong> a whole-number result that does not fit a <code>LONG</code> stops the query (SQLSTATE <code>22003</code>). Cast one side to <code>DOUBLE</code> for an approximate answer.</li><li><code>*</code> and <code>/</code> are done before <code>+</code> and <code>-</code>. Use <code>( )</code> to change the order.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT 2 + 3 * 4 AS a, (2 + 3) * 4 AS b, 7 / 2 AS c, 7 % 2 AS d, 5 / NULLIF(0, 0) AS e, -2 * 3 AS f, NULL + 1 AS g;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (DOUBLE)</th><th>d (LONG)</th><th>e (STRING)</th><th>f (LONG)</th><th>g (STRING)</th></tr></thead><tbody><tr><td>14</td><td>20</td><td>3.5</td><td>1</td><td>NULL</td><td>-6</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Division by zero is an error</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT 5 / 0;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 10: division by zero</code></p>
+<p><strong>Example: Too big for a LONG</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT 9223372036854775807 + 1;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 28: bigint out of range (numeric value out of range)</code></p>
+<p><strong>Example: Times: add one hour, and the minutes between two times</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP) + 3600000 AS plus_one_hour,
+       (CAST(&#39;2026-09-10T11:00:00Z&#39; AS TIMESTAMP) - CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP)) / 60000 AS minutes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plus_one_hour (TIMESTAMP)</th><th>minutes (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T06:15:00.000Z</td><td>345</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-math.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conditional and NULL functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Choose a value with CASE, replace NULL with coalesce, and turn a value into NULL with nullif.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-conditional.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conditional.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="conditional-and-null-functions">Conditional and NULL functions</h1>
+<blockquote><p>Choose a value with CASE, replace NULL with coalesce, and turn a value into NULL with nullif.</p></blockquote>
+<ul><li>Category: Functions — conditional and NULL</li><li>Keywords: if, if then else, else, switch, decode, iif, ifnull, nvl, isnull, zeroifnull, default value, empty text, missing value, three-valued logic, unknown, NULL</li><li>See also: <a href="where.html">WHERE</a>, <a href="operators.html">Operators</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="functions-aggregate.html#sum">Aggregate functions (sum)</a>, <a href="group-by.html">GROUP BY and HAVING</a></li></ul>
+<p>These tools choose a value for each row.</p>
+<ul><li><code>CASE</code> is SQL&#39;s &quot;if ... then ... else&quot;. It gives the value of the first condition that is true.</li><li><code>coalesce</code> gives the first value that is not <code>NULL</code>. Use it to show <code>0</code> or <code>&#39;-&#39;</code> instead of an empty cell.</li><li><code>nullif</code> does the opposite: it turns one value (like <code>0</code> or <code>&#39;&#39;</code>) into <code>NULL</code>.</li></ul>
+<p><code>NULL</code> means &quot;no value&quot; or &quot;not known&quot;. The last entry, <a href="functions-conditional.html#null-rules">NULL rules</a>, lists how every part of KDB treats it.</p>
+<p><strong>Example: Label each CITY day as up, down or flat</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, open, close,
+       CASE WHEN close &gt; open THEN &#39;up&#39;
+            WHEN close &lt; open THEN &#39;down&#39;
+            ELSE &#39;flat&#39; END AS direction
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>direction (STRING)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>540.3</td><td>542.2</td><td>up</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>540.6</td><td>539.7</td><td>down</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>538.5</td><td>539.3</td><td>up</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>540.4</td><td>542.4</td><td>up</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>505</td><td>507.9</td><td>up</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p>The examples below also use two small tables: <code>ledger</code> (an accounting book with money in <code>DECIMAL(2)</code>) and <code>app_users</code> (people who signed up in an app).</p>
+<p>Setup used by the examples below:</p>
+<pre><code class="language-sql">CREATE TABLE ledger (
+  id      INT PRIMARY KEY,
+  day     DATE,
+  account STRING,
+  debit   DECIMAL(2),
+  credit  DECIMAL(2),
+  note    STRING
+);
+INSERT INTO ledger VALUES
+  (1, &#39;2026-08-05&#39;, &#39;Cash&#39;, 5000.00, NULL, &#39;Opening balance&#39;),
+  (2, &#39;2026-08-20&#39;, &#39;Rent&#39;, 1200.50, NULL, NULL),
+  (3, &#39;2026-09-01&#39;, &#39;Cash&#39;, NULL, 750.25, &#39;Shop sale&#39;),
+  (4, &#39;2026-09-03&#39;, &#39;Bank&#39;, 300.00, NULL, &#39;&#39;);
+
+CREATE TABLE app_users (
+  id        INT PRIMARY KEY,
+  name      STRING NOT NULL,
+  phone     STRING,
+  email     STRING,
+  plan      STRING,
+  signed_up TIMESTAMP
+);
+INSERT INTO app_users VALUES
+  (1, &#39;Sita&#39;, &#39;9841000001&#39;, &#39;sita@example.com&#39;, &#39;pro&#39;, &#39;2026-09-08T10:00:00+05:45&#39;),
+  (2, &#39;Ram&#39;, NULL, &#39;ram@example.com&#39;, &#39;free&#39;, &#39;2026-09-08T18:30:00+05:45&#39;),
+  (3, &#39;Hari&#39;, &#39;9851000003&#39;, NULL, NULL, &#39;2026-09-09T09:15:00+05:45&#39;),
+  (4, &#39;Gita&#39;, NULL, NULL, &#39;trial&#39;, &#39;2026-09-10T12:00:00+05:45&#39;);</code></pre>
+<h2 id="case">CASE WHEN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CASE WHEN condition THEN result
+     [WHEN condition THEN result ...]
+     [ELSE other_result]
+END</code></pre>
+<p>KDB checks the conditions from top to bottom. The result of the <strong>first</strong> true condition is the answer. When no condition is true, the answer is the <code>ELSE</code> value, or <code>NULL</code> when there is no <code>ELSE</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>condition</code></td><td>true/false</td><td>a test like <code>close &gt; open</code> or <code>plan IS NULL</code></td></tr><tr><td><code>result</code></td><td>any</td><td>the value when this condition is true</td></tr><tr><td><code>other_result</code></td><td>any</td><td>the value when no condition is true (optional)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the value of the chosen branch.</li><li><strong>NULL:</strong> a condition that is <code>NULL</code> counts as not true, so KDB goes on to the next <code>WHEN</code>. Without <code>ELSE</code>, no match gives <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>A condition must be true, false or <code>NULL</code>. <code>CASE WHEN 1 THEN ...</code> is an error (write <code>WHEN x = 1</code>).</li><li>Only the chosen branch is worked out. The other results are not computed.</li><li>You can use <code>CASE</code> everywhere a value can go: <code>SELECT</code>, <code>WHERE</code>, <code>ORDER BY</code>, <code>GROUP BY</code>, inside <code>sum(...)</code>, and inside another <code>CASE</code>.</li><li>KDB does not make the branches one type. <code>CASE WHEN ... THEN 1 ELSE &#39;low&#39; END</code> gives a number in some rows and text in others. Give every branch the same type.</li><li><code>GROUP BY</code> cannot use the name after <code>AS</code>. Repeat the whole <code>CASE</code> in <code>GROUP BY</code> (see the example).</li></ul></li></ul>
+<p><strong>Example: Live price moves in five groups</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, ltp, pct_change,
+       CASE WHEN pct_change &gt;= 2  THEN &#39;strong up&#39;
+            WHEN pct_change &gt; 0   THEN &#39;up&#39;
+            WHEN pct_change = 0   THEN &#39;flat&#39;
+            WHEN pct_change &gt; -2  THEN &#39;down&#39;
+            ELSE &#39;strong down&#39; END AS move
+FROM live_data
+LATEST ON timestamp PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th><th>move (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>2.71</td><td>strong up</td></tr><tr><td>COAST</td><td>401.9</td><td>0.7</td><td>up</td></tr><tr><td>TELCO</td><td>897.7</td><td>1.9</td><td>up</td></tr><tr><td>VOLT</td><td>184</td><td>-0.86</td><td>down</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Count up days and down days per symbol (CASE inside sum)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       sum(CASE WHEN close &gt; open THEN 1 ELSE 0 END) AS up_days,
+       sum(CASE WHEN close &lt; open THEN 1 ELSE 0 END) AS down_days,
+       count(*) AS days
+FROM ochl_day
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>up_days (LONG)</th><th>down_days (LONG)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>12</td><td>7</td><td>19</td></tr><tr><td>COAST</td><td>8</td><td>11</td><td>19</td></tr><tr><td>VOLT</td><td>10</td><td>9</td><td>19</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Group rows by a CASE: repeat it in GROUP BY</strong></p>
+<pre><code class="language-sql">SELECT CASE WHEN phone IS NULL THEN &#39;no phone&#39; ELSE &#39;has phone&#39; END AS phone_status,
+       count(*) AS users
+FROM app_users
+GROUP BY CASE WHEN phone IS NULL THEN &#39;no phone&#39; ELSE &#39;has phone&#39; END
+ORDER BY phone_status;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>phone_status (STRING)</th><th>users (LONG)</th></tr></thead><tbody><tr><td>has phone</td><td>2</td></tr><tr><td>no phone</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Or group by the AS name, which is shorter</strong></p>
+<pre><code class="language-sql">SELECT CASE WHEN phone IS NULL THEN &#39;no phone&#39; ELSE &#39;has phone&#39; END AS phone_status,
+       count(*) AS users
+FROM app_users
+GROUP BY phone_status
+ORDER BY phone_status;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>phone_status (STRING)</th><th>users (LONG)</th></tr></thead><tbody><tr><td>has phone</td><td>2</td></tr><tr><td>no phone</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The condition must be true or false</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CASE WHEN 1 THEN &#39;yes&#39; ELSE &#39;no&#39; END;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 18: a condition must be true or false, got &#39;1&#39;</code></p>
+<h2 id="case-simple">CASE value WHEN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CASE value
+     WHEN match THEN result
+     [WHEN match THEN result ...]
+     [ELSE other_result]
+END</code></pre>
+<p>The short form. KDB compares <code>value</code> with each <code>match</code>, like <code>value = match</code>, and gives the result of the first one that is equal.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to look at, worked out once</td></tr><tr><td><code>match</code></td><td>any</td><td>a value to compare with</td></tr><tr><td><code>result</code>, <code>other_result</code></td><td>any</td><td>as in <a href="functions-conditional.html#case">CASE WHEN</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the value of the chosen branch.</li><li><strong>NULL:</strong> <code>NULL</code> never matches, not even <code>WHEN NULL</code>. Use <code>CASE WHEN value IS NULL THEN ...</code> for that.</li><li><strong>Notes:</strong>
+<ul><li>Numbers match numeric text: <code>CASE 5 WHEN &#39;5&#39; THEN ...</code> matches.</li><li>Values that cannot be compared (a number and <code>&#39;abc&#39;</code>) simply do not match. There is no error, unlike <code>=</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CASE &#39;COAST&#39; WHEN &#39;CITY&#39; THEN 1 WHEN &#39;COAST&#39; THEN 2 ELSE 0 END AS a,
+       CASE 5 WHEN &#39;5&#39; THEN &#39;text five matches&#39; END AS b,
+       CASE NULL WHEN NULL THEN &#39;matched&#39; ELSE &#39;no match&#39; END AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (STRING)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>2</td><td>text five matches</td><td>no match</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Sort sectors in your own order</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sector
+FROM securities
+ORDER BY CASE sector WHEN &#39;Banking&#39; THEN 1
+                     WHEN &#39;Energy&#39; THEN 2
+                     ELSE 3 END,
+         symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Banking</td></tr><tr><td>COAST</td><td>Banking</td></tr><tr><td>VOLT</td><td>Energy</td></tr><tr><td>ACME</td><td>Investment</td></tr><tr><td>TELCO</td><td>Telecom</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Plan names for an app report</strong></p>
+<pre><code class="language-sql">SELECT name,
+       CASE plan WHEN &#39;pro&#39; THEN &#39;Paid&#39;
+                 WHEN &#39;trial&#39; THEN &#39;Trial (14 days)&#39;
+                 WHEN &#39;free&#39; THEN &#39;Free&#39;
+                 ELSE &#39;Not chosen&#39; END AS plan_name
+FROM app_users
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>plan_name (STRING)</th></tr></thead><tbody><tr><td>Sita</td><td>Paid</td></tr><tr><td>Ram</td><td>Free</td></tr><tr><td>Hari</td><td>Not chosen</td></tr><tr><td>Gita</td><td>Trial (14 days)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: END is missing</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CASE plan WHEN &#39;pro&#39; THEN &#39;Paid&#39; FROM app_users;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 41: expected an operator (AND, OR, =, +, ...), WHEN, ELSE or END to close the CASE that starts at line 1, column 8 but found &#39;FROM&#39;</code></p>
+<h2 id="coalesce">coalesce</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">coalesce(value, value, ...)</code></pre>
+<p>Gives the first value that is not <code>NULL</code>. <code>coalesce(phone, &#39;no phone&#39;)</code> shows the phone, or <code>&#39;no phone&#39;</code> when there is none.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>1 to 64 values, checked from left to right</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the first value that is not <code>NULL</code>, with its own type.</li><li><strong>NULL:</strong> <code>NULL</code> only when every value is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>KDB stops at the first value that is not <code>NULL</code>. The values after it are not worked out.</li><li>The values keep their types. <code>coalesce(debit, 0)</code> gives a <code>DECIMAL(2)</code> in some rows and the whole number <code>0</code> in others. Then <code>sum</code> of it becomes a <code>DOUBLE</code>. For exact money write <code>coalesce(debit, 0::DECIMAL(2))</code>.</li><li>Other databases call this <code>ifnull</code>, <code>nvl</code> or <code>isnull</code>. KDB has only <code>coalesce</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT coalesce(NULL, &#39;n/a&#39;) AS a, coalesce(NULL, NULL, 3) AS b, coalesce(7, 8) AS c, coalesce(NULL, NULL) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (LONG)</th><th>c (LONG)</th><th>d (STRING)</th></tr></thead><tbody><tr><td>n/a</td><td>3</td><td>7</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Show something instead of an empty cell</strong></p>
+<pre><code class="language-sql">SELECT name,
+       coalesce(phone, email, &#39;no contact&#39;) AS contact,
+       coalesce(plan, &#39;free&#39;) AS plan
+FROM app_users
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>contact (STRING)</th><th>plan (STRING)</th></tr></thead><tbody><tr><td>Sita</td><td>9841000001</td><td>pro</td></tr><tr><td>Ram</td><td>ram@example.com</td><td>free</td></tr><tr><td>Hari</td><td>9851000003</td><td>free</td></tr><tr><td>Gita</td><td>no contact</td><td>trial</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Ledger totals per account: keep DECIMAL(2) exact</strong></p>
+<pre><code class="language-sql">SELECT account,
+       sum(coalesce(debit, 0::DECIMAL(2)))  AS total_debit,
+       sum(coalesce(credit, 0::DECIMAL(2))) AS total_credit,
+       sum(coalesce(debit, 0)) AS mixed_types
+FROM ledger
+GROUP BY account
+ORDER BY account;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>account (STRING)</th><th>total_debit (DECIMAL(2))</th><th>total_credit (DECIMAL(2))</th><th>mixed_types (DECIMAL(2))</th></tr></thead><tbody><tr><td>Bank</td><td>300.00</td><td>0.00</td><td>300.00</td></tr><tr><td>Cash</td><td>5000.00</td><td>750.25</td><td>5000</td></tr><tr><td>Rent</td><td>1200.50</td><td>0.00</td><td>1200.50</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p>In the <code>Cash</code> row, <code>mixed_types</code> is <code>5000</code> (a <code>DOUBLE</code>), not <code>5000.00</code>: one row added the <code>DECIMAL(2)</code> value <code>5000.00</code> and the other row added the whole number <code>0</code>.</p>
+<p><strong>Example: coalesce needs at least one value</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT coalesce();</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: function &#39;coalesce&#39; takes 1 to 64 argument(s), got 0</code></p>
+<h2 id="nullif">nullif</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">nullif(value, other)</code></pre>
+<p>Gives <code>NULL</code> when <code>value</code> equals <code>other</code>. Otherwise it gives <code>value</code>. It is a short way to write <code>CASE WHEN value = other THEN NULL ELSE value END</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to give back</td></tr><tr><td><code>other</code></td><td>any</td><td>when <code>value</code> equals this, the answer is <code>NULL</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>value</code> (with its type) or <code>NULL</code>.</li><li><strong>NULL:</strong> <code>nullif(NULL, x)</code> is <code>NULL</code>. <code>nullif(x, NULL)</code> is <code>x</code>.</li><li><strong>Notes:</strong>
+<ul><li>Equal means the same as <code>=</code>: <code>nullif(5, 5.0)</code> and <code>nullif(5, &#39;5&#39;)</code> are <code>NULL</code>. Text is compared exactly (<code>&#39;a&#39;</code> is not <code>&#39;A&#39;</code>).</li><li>Values that cannot be compared give back <code>value</code>, without an error.</li><li>Division by zero is an error, as in PostgreSQL, so <code>x / nullif(y, 0)</code> is the way to get <code>NULL</code> for it. <code>nullif</code> is also useful for <code>&#39;&#39;</code> or a &quot;no data&quot; marker like <code>-1</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT nullif(5, 5) AS a, nullif(10, 0) AS b, nullif(5, &#39;5&#39;) AS c, nullif(&#39;a&#39;, &#39;A&#39;) AS d, nullif(NULL, 1) AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (LONG)</th><th>c (STRING)</th><th>d (STRING)</th><th>e (STRING)</th></tr></thead><tbody><tr><td>NULL</td><td>10</td><td>NULL</td><td>a</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Empty notes count as no note</strong></p>
+<pre><code class="language-sql">SELECT id, note,
+       nullif(note, &#39;&#39;) AS clean_note,
+       coalesce(nullif(note, &#39;&#39;), &#39;(no note)&#39;) AS shown
+FROM ledger
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>note (STRING)</th><th>clean_note (STRING)</th><th>shown (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Opening balance</td><td>Opening balance</td><td>Opening balance</td></tr><tr><td>2</td><td>NULL</td><td>NULL</td><td>(no note)</td></tr><tr><td>3</td><td>Shop sale</td><td>Shop sale</td><td>Shop sale</td></tr><tr><td>4</td><td></td><td>NULL</td><td>(no note)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Average only over rows that really have a value</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       round(avg(quantity), 1) AS avg_all,
+       round(avg(nullif(quantity, 1000)), 1) AS avg_without_1000_lots,
+       count(nullif(quantity, 1000)) AS trades_not_1000
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>avg_all (DOUBLE)</th><th>avg_without_1000_lots (DOUBLE)</th><th>trades_not_1000 (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>220</td><td>220</td><td>11</td></tr><tr><td>COAST</td><td>279.1</td><td>118.9</td><td>9</td></tr><tr><td>TELCO</td><td>461.7</td><td>192.5</td><td>4</td></tr><tr><td>VOLT</td><td>100</td><td>100</td><td>4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="null-rules">NULL rules</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value IS NULL      value IS NOT NULL
+coalesce(value, default)      nullif(value, other)</code></pre>
+<p><code>NULL</code> means &quot;no value&quot;. Almost everything that touches <code>NULL</code> gives <code>NULL</code>, because the answer is not known. Use <a href="where.html"><code>IS NULL</code></a> to test for it: <code>x = NULL</code> is never true.</p>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>What <code>NULL</code> does</th><th>Example</th><th>Result</th></tr></thead><tbody><tr><td><code>+ - * / %</code></td><td>gives <code>NULL</code></td><td><code>NULL + 1</code></td><td><code>NULL</code></td></tr><tr><td><code>= &lt;&gt; &lt; &gt; &lt;= &gt;=</code></td><td>gives <code>NULL</code> (not true, not false)</td><td><code>NULL = NULL</code></td><td><code>NULL</code></td></tr><tr><td><code>IS NULL</code>, <code>IS NOT NULL</code></td><td>the only safe test</td><td><code>NULL IS NULL</code></td><td><code>true</code></td></tr><tr><td><code>AND</code></td><td><code>false</code> wins, else <code>NULL</code></td><td><code>FALSE AND NULL</code>, <code>TRUE AND NULL</code></td><td><code>false</code>, <code>NULL</code></td></tr><tr><td><code>OR</code></td><td><code>true</code> wins, else <code>NULL</code></td><td><code>TRUE OR NULL</code>, <code>FALSE OR NULL</code></td><td><code>true</code>, <code>NULL</code></td></tr><tr><td><code>NOT</code></td><td>gives <code>NULL</code></td><td><code>NOT NULL</code></td><td><code>NULL</code></td></tr><tr><td><code>IN (...)</code></td><td><code>NULL</code> when nothing matched and the list has a <code>NULL</code></td><td><code>3 IN (1, NULL)</code></td><td><code>NULL</code></td></tr><tr><td><code>BETWEEN</code>, <code>LIKE</code></td><td>gives <code>NULL</code></td><td><code>NULL LIKE &#39;a%&#39;</code></td><td><code>NULL</code></td></tr><tr><td><code>WHERE</code>, <code>HAVING</code>, <code>CASE WHEN</code></td><td><code>NULL</code> counts as not true: the row is left out, the next <code>WHEN</code> is tried</td><td></td><td></td></tr><tr><td><code>||</code></td><td>gives <code>NULL</code>; <code>concat</code> skips <code>NULL</code> instead</td><td><code>&#39;a&#39; || NULL</code></td><td><code>NULL</code></td></tr><tr><td>most functions</td><td><code>NULL</code> in, <code>NULL</code> out</td><td><code>abs(NULL)</code></td><td><code>NULL</code></td></tr><tr><td><code>coalesce</code>, <code>greatest</code>, <code>least</code>, <code>concat</code>, <code>concat_ws</code></td><td>skip <code>NULL</code> values</td><td><code>coalesce(NULL, 2)</code></td><td><code>2</code></td></tr><tr><td>aggregates (<code>sum</code>, <code>avg</code>, <code>min</code>, <code>count(x)</code>, ...)</td><td>ignore <code>NULL</code> rows; <code>count(*)</code> counts every row</td><td></td><td></td></tr><tr><td><code>ORDER BY</code></td><td><code>NULL</code> counts as the biggest value: last with <code>ASC</code>, first with <code>DESC</code> (change with <code>NULLS FIRST</code> / <code>NULLS LAST</code>)</td><td></td><td></td></tr><tr><td><code>CAST(NULL AS type)</code></td><td>stays <code>NULL</code></td><td><code>NULL::INT</code></td><td><code>NULL</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>3 NOT IN (1, NULL)</code> is <code>NULL</code>, not <code>true</code>. A <code>NOT IN</code> list with a <code>NULL</code> in it never keeps a row. See also <a href="functions-aggregate.html#count-star">aggregates</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT NULL + 1 AS plus, NULL = NULL AS equal, NULL IS NULL AS is_null,
+       FALSE AND NULL AS and_false, TRUE OR NULL AS or_true,
+       3 IN (1, NULL) AS in_list, 3 NOT IN (1, NULL) AS not_in_list, &#39;a&#39; || NULL AS joined;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plus (STRING)</th><th>equal (STRING)</th><th>is_null (BOOL)</th><th>and_false (BOOL)</th><th>or_true (BOOL)</th><th>in_list (STRING)</th><th>not_in_list (STRING)</th><th>joined (STRING)</th></tr></thead><tbody><tr><td>NULL</td><td>NULL</td><td>true</td><td>false</td><td>true</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: = NULL finds nothing; IS NULL finds the rows</strong></p>
+<pre><code class="language-sql">SELECT (SELECT count(*) FROM app_users WHERE phone = NULL) AS with_equals_null,
+       (SELECT count(*) FROM app_users WHERE phone IS NULL) AS with_is_null;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>with_equals_null (LONG)</th><th>with_is_null (LONG)</th></tr></thead><tbody><tr><td>0</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: count(*) counts rows, count(x) skips NULL</strong></p>
+<pre><code class="language-sql">SELECT count(*) AS users, count(phone) AS with_phone, count(email) AS with_email, count(plan) AS with_plan
+FROM app_users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>users (LONG)</th><th>with_phone (LONG)</th><th>with_email (LONG)</th><th>with_plan (LONG)</th></tr></thead><tbody><tr><td>4</td><td>2</td><td>2</td><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conditional.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correlation and regression - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Do two series move together? corr, covariance, a straight trend line (regr_slope, regr_intercept, regr_r2), and the beta and alpha of a share against the market.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-correlation.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-correlation.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="correlation-and-regression">Correlation and regression</h1>
+<blockquote><p>Do two series move together? corr, covariance, a straight trend line (regr_slope, regr_intercept, regr_r2), and the beta and alpha of a share against the market.</p></blockquote>
+<ul><li>Category: Functions — statistics</li><li>Keywords: correlation, correlation coefficient, Pearson, pearson, correl, covariance, covar, covariance_samp, covariance_pop, regression, linear regression, least squares, trend line, line of best fit, slope, intercept, r squared, R2, rsq, coefficient of determination, beta, market beta, systematic risk, alpha, Jensen&#39;s alpha, excess return, market index, diversification, pairs, y and x</li><li>See also: <a href="functions-statistics.html">Statistics functions</a>, <a href="functions-returns-risk.html">Returns and risk</a>, <a href="functions-indicators-trend.html#linearreg">Trend indicators (linearreg)</a>, <a href="functions-window.html#aggregates">Window and series functions (aggregates)</a>, <a href="joins.html">Joins</a></li></ul>
+<p>These aggregates look at <strong>pairs</strong> of numbers: one <code>y</code> and one <code>x</code> on each row, for example the return of CITY and the return of a market index on the same day. They answer two questions:</p>
+<ul><li><strong>Do the two move together?</strong> The <strong>correlation</strong> is a number from <code>-1</code> to <code>1</code>. <code>1</code>: when one goes up, the other always goes up too. <code>-1</code>: when one goes up, the other goes down. <code>0</code>: no straight-line link. Traders use it to spread risk: two shares with a low correlation do not fall on the same days so often (this is <strong>diversification</strong>).</li><li><strong>What straight line fits best?</strong> A <strong>linear regression</strong> finds the line <code>y = slope × x + intercept</code> that is closest to all points (the &quot;least squares&quot; line). The slope tells how much <code>y</code> changes when <code>x</code> changes by 1.</li></ul>
+<p>They follow these rules:</p>
+<ul><li><strong>Argument order:</strong> <code>y</code> first, <code>x</code> second, like PostgreSQL: <code>regr_slope(close, day_no)</code> is the slope of close against the day number. For <code>corr</code> and <code>covar_*</code> the order does not change the result.</li><li><strong>NULL:</strong> a row where <code>y</code> or <code>x</code> is NULL is <strong>skipped</strong> (the whole pair). With no pairs left the result is <code>NULL</code>, except <code>regr_count</code>, which gives <code>0</code>.</li><li>They take numbers. Text gives an error <code>needs numbers</code>.</li><li>They work with <code>GROUP BY</code>, <code>SAMPLE BY</code>, <code>HAVING</code> and <code>OVER (...)</code> (for example a moving 5-day correlation), like the other <a href="functions-aggregate.html">aggregates</a>.</li><li>They give a <code>DOUBLE</code>, except <code>regr_count</code> (<code>LONG</code>).</li></ul>
+<p><strong>Use returns, not prices.</strong> Two share prices that both trend up for months look strongly correlated even when their daily moves have nothing to do with each other. Compare the <strong>daily changes</strong> (<code>pct_change(close)</code>, or <a href="functions-returns-risk.html#pct_return">pct_return</a>). To put two series side by side, make each one in a subquery and join them on <code>time</code>.</p>
+<p><strong>Example: Which shares move together? Correlation of the daily % changes of every pair</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT a.symbol AS share_a, b.symbol AS share_b, count(*) AS days,
+       round(corr(a.r, b.r), 3) AS correlation
+FROM (SELECT time, symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS r
+      FROM ochl_day WHERE time &gt;= &#39;2026-08-23&#39;) a
+JOIN (SELECT time, symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS r
+      FROM ochl_day WHERE time &gt;= &#39;2026-08-23&#39;) b
+  ON a.time = b.time AND a.symbol &lt; b.symbol
+GROUP BY a.symbol, b.symbol
+ORDER BY correlation DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>share_a (SYMBOL)</th><th>share_b (SYMBOL)</th><th>days (LONG)</th><th>correlation (DOUBLE)</th></tr></thead><tbody><tr><td>COAST</td><td>VOLT</td><td>15</td><td>0.366</td></tr><tr><td>CITY</td><td>VOLT</td><td>15</td><td>0.217</td></tr><tr><td>CITY</td><td>COAST</td><td>15</td><td>0.032</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="corr">corr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">corr(y, x)
+corr(y, x) OVER (...)</code></pre>
+<p>The <strong>Pearson correlation</strong> of <code>y</code> and <code>x</code>: a number from <code>-1</code> to <code>1</code> that tells how well the points lie on one straight line. Above about <code>0.7</code> is a strong link, below about <code>0.3</code> a weak one.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the first value of each pair</td></tr><tr><td><code>x</code></td><td>number</td><td>the second value of each pair</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from <code>-1</code> to <code>1</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. <code>NULL</code> with fewer than 2 pairs, and when all <code>x</code> or all <code>y</code> values are the same (a flat line has no correlation).</li><li><strong>Notes:</strong> correlation is not cause: two shares can move together because the whole market moves. <code>corr(y, x)</code> is the same as <code>corr(x, y)</code>.</li></ul>
+<p><strong>Example: CITY and COAST: daily returns joined on the day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS days, regr_count(a.r, b.r) AS pairs, round(corr(a.r, b.r), 3) AS correlation
+FROM (SELECT time, pct_change(close) AS r FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;) a
+JOIN (SELECT time, pct_change(close) AS r FROM ochl_day WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-08-23&#39;) b
+  ON a.time = b.time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>days (LONG)</th><th>pairs (LONG)</th><th>correlation (DOUBLE)</th></tr></thead><tbody><tr><td>15</td><td>14</td><td>0.032</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Moving 5-day correlation (with OVER)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, round(corr(city_r, coast_r) OVER (ORDER BY time ROWS 4 PRECEDING), 3) AS corr_5d
+FROM (SELECT a.time AS time, a.r AS city_r, b.r AS coast_r
+      FROM (SELECT time, pct_change(close) AS r FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;) a
+      JOIN (SELECT time, pct_change(close) AS r FROM ochl_day WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-08-23&#39;) b
+        ON a.time = b.time) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>corr_5d (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>1</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>0.939</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>0.326</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>-0.208</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>-0.149</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>-0.091</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>-0.063</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>-0.331</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>-0.174</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>0.584</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>0.293</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>0.386</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>0.424</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Why returns: today&#39;s price and yesterday&#39;s price look strongly linked</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(corr(close, prev_close), 3) AS price_corr
+FROM (SELECT close, lag(close) AS prev_close
+      FROM ochl_day
+      WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>price_corr (DOUBLE)</th></tr></thead><tbody><tr><td>0.78</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="covar_pop">covar_pop</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">covar_pop(y, x)</code></pre>
+<p>The <strong>population covariance</strong>: the average of <code>(y - average y) × (x - average x)</code>. It is positive when <code>y</code> and <code>x</code> are often above their averages at the same time, negative when one is above while the other is below. It divides by <code>n</code>, the number of pairs.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the first value of each pair</td></tr><tr><td><code>x</code></td><td>number</td><td>the second value of each pair</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. Its unit is the unit of <code>y</code> times the unit of <code>x</code>, so the size is hard to read; <code>corr</code> is the same idea scaled to <code>-1 ... 1</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. One pair gives <code>0</code>; no pairs give <code>NULL</code>.</li></ul>
+<p><strong>Example: Pairs with a NULL are skipped: only 3 pairs count</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT regr_count(y, x) AS pairs, covar_pop(y, x) AS covar_pop, covar_samp(y, x) AS covar_samp
+FROM (SELECT 1 AS x, 2 AS y UNION ALL SELECT 2, 4 UNION ALL SELECT 3, 5
+      UNION ALL SELECT 4, NULL UNION ALL SELECT NULL, 9) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pairs (LONG)</th><th>covar_pop (DOUBLE)</th><th>covar_samp (DOUBLE)</th></tr></thead><tbody><tr><td>3</td><td>1</td><td>1.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="covar_samp">covar_samp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">covar_samp(y, x)</code></pre>
+<p>The <strong>sample covariance</strong>: like <code>covar_pop</code>, but it divides by <code>n - 1</code>. Use it when your rows are only a part of a longer history, as for returns (see &quot;sample or population&quot; in <a href="functions-statistics.html">statistics</a>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the first value of each pair</td></tr><tr><td><code>x</code></td><td>number</td><td>the second value of each pair</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. <code>NULL</code> with fewer than 2 pairs.</li><li><strong>Notes:</strong> <code>covar_samp(y, x) / (stddev(y) × stddev(x))</code> is <code>corr(y, x)</code> (when no pair has a NULL).</li></ul>
+<p><strong>Example: Covariance of price and volume, minute by minute</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(covar_samp(close, volume), 1) AS covar_samp,
+       round(covar_pop(close, volume), 1) AS covar_pop,
+       round(corr(close, volume), 3) AS corr
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>covar_samp (DOUBLE)</th><th>covar_pop (DOUBLE)</th><th>corr (DOUBLE)</th></tr></thead><tbody><tr><td>0.8</td><td>0.8</td><td>0.001</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: One pair: covar_pop is 0, covar_samp and corr are NULL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT covar_pop(y, x) AS covar_pop, covar_samp(y, x) AS covar_samp, corr(y, x) AS corr
+FROM (SELECT 1 AS x, 5 AS y) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>covar_pop (DOUBLE)</th><th>covar_samp (STRING)</th><th>corr (STRING)</th></tr></thead><tbody><tr><td>0</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regr_slope">regr_slope</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regr_slope(y, x)</code></pre>
+<p>The <strong>slope</strong> of the best straight line through the points: how much <code>y</code> goes up when <code>x</code> goes up by 1. With <code>x</code> = the day number and <code>y</code> = the close, it is the trend in dollars per day.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the value to explain, for example <code>close</code></td></tr><tr><td><code>x</code></td><td>number</td><td>the value that explains it, for example the day or minute number</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. Positive: an up trend; negative: a down trend.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. <code>NULL</code> when all <code>x</code> values are the same (also with only one pair).</li><li><strong>Notes:</strong> the same as <code>regr_sxy(y, x) / regr_sxx(y, x)</code>. Number the rows with <code>row_number()</code> in a subquery. For a slope for every candle over the last <code>n</code> candles, use <a href="functions-indicators-trend.html#linearreg_slope">linearreg_slope</a>.</li></ul>
+<p><strong>Example: Trend line of VOLT since 23 August: dollars per trading day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(regr_slope(close, day_no), 3) AS dollars_per_day,
+       round(regr_intercept(close, day_no), 2) AS line_at_day_0,
+       round(regr_r2(close, day_no), 3) AS r2
+FROM (SELECT row_number() AS day_no, close
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>dollars_per_day (DOUBLE)</th><th>line_at_day_0 (DOUBLE)</th><th>r2 (DOUBLE)</th></tr></thead><tbody><tr><td>0.673</td><td>172.21</td><td>0.247</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Intraday trend of each share on 10 September: dollars per minute</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(regr_slope(close, minute_no), 4) AS dollars_per_minute, round(regr_r2(close, minute_no), 3) AS r2
+FROM (SELECT symbol, close, row_number() OVER (PARTITION BY symbol ORDER BY time) AS minute_no
+      FROM ochl_minutes
+      WHERE time IN &#39;2026-09-10&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>dollars_per_minute (DOUBLE)</th><th>r2 (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>-0.0031</td><td>0.021</td></tr><tr><td>COAST</td><td>-0.028</td><td>0.848</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="regr_intercept">regr_intercept</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regr_intercept(y, x)</code></pre>
+<p>The <strong>intercept</strong> of the best straight line: the value of the line where <code>x</code> is <code>0</code>. Together with the slope it gives the line: <code>y = regr_slope × x + regr_intercept</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the value to explain</td></tr><tr><td><code>x</code></td><td>number</td><td>the value that explains it</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. <code>NULL</code> when all <code>x</code> values are the same.</li><li><strong>Notes:</strong> the same as <code>regr_avgy - regr_slope × regr_avgx</code>. To draw the line or guess the next value, compute <code>regr_intercept(y, x) + regr_slope(y, x) × next_x</code>.</li></ul>
+<p><strong>Example: Where would the VOLT trend line be on day 16?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(regr_intercept(close, day_no) + regr_slope(close, day_no) * 16, 2) AS line_day_16,
+       max(day_no) AS last_day
+FROM (SELECT row_number() AS day_no, close
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line_day_16 (DOUBLE)</th><th>last_day (LONG)</th></tr></thead><tbody><tr><td>182.97</td><td>15</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regr_r2">regr_r2</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regr_r2(y, x)</code></pre>
+<p>The <strong>R squared</strong> (coefficient of determination), from <code>0</code> to <code>1</code>: how much of the ups and downs of <code>y</code> the straight line explains. <code>1</code>: all points are on the line. <code>0</code>: the line explains nothing. For a trend line, a high R squared means a clean, steady trend.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the value to explain</td></tr><tr><td><code>x</code></td><td>number</td><td>the value that explains it</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from <code>0</code> to <code>1</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. <code>NULL</code> when all <code>x</code> values are the same. When <code>x</code> changes but all <code>y</code> values are the same, the result is <code>1</code> (like PostgreSQL).</li><li><strong>Notes:</strong> when no pair has a NULL, it is <code>corr(y, x)</code> squared.</li></ul>
+<p><strong>Example: A flat y: R squared 1, slope 0, corr NULL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT regr_r2(y, x) AS r2, regr_slope(y, x) AS slope, corr(y, x) AS corr
+FROM (SELECT 1 AS x, 5 AS y UNION ALL SELECT 2, 5) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>r2 (DOUBLE)</th><th>slope (DOUBLE)</th><th>corr (STRING)</th></tr></thead><tbody><tr><td>1</td><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regr_count">regr_count</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regr_count(y, x)</code></pre>
+<p>The number of pairs where <strong>both</strong> <code>y</code> and <code>x</code> are not NULL: the rows the other <code>regr_</code> functions really use.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>any number</td><td>the first value of each pair</td></tr><tr><td><code>x</code></td><td>any number</td><td>the second value of each pair</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>: no pairs give <code>0</code>.</li><li><strong>Notes:</strong> check it next to a correlation or a beta: a number made from 3 pairs means little.</li></ul>
+<p><strong>Example: The first day of a return series has no return: 15 days, 14 pairs</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS days, regr_count(a.r, b.r) AS pairs
+FROM (SELECT time, pct_change(close) AS r FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;) a
+JOIN (SELECT time, pct_change(close) AS r FROM ochl_day WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) b
+  ON a.time = b.time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>days (LONG)</th><th>pairs (LONG)</th></tr></thead><tbody><tr><td>15</td><td>14</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: No rows: regr_count is 0, corr is NULL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT regr_count(close, volume) AS pairs, corr(close, volume) AS corr
+FROM ochl_day
+WHERE symbol = &#39;NONE&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pairs (LONG)</th><th>corr (STRING)</th></tr></thead><tbody><tr><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regr_avgx">regr_avgx, regr_avgy</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regr_avgx(y, x)
+regr_avgy(y, x)</code></pre>
+<p>The average of <code>x</code> (<code>regr_avgx</code>) or of <code>y</code> (<code>regr_avgy</code>), taken <strong>only over the pairs</strong> where both values are not NULL. So it can be different from <code>avg(x)</code>, which also counts rows where <code>y</code> is NULL.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the first value of each pair</td></tr><tr><td><code>x</code></td><td>number</td><td>the second value of each pair</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. No pairs give <code>NULL</code>.</li></ul>
+<p><strong>Example: avg counts every value, regr_avgx only the full pairs</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT avg(x) AS avg_x, regr_avgx(y, x) AS regr_avgx, avg(y) AS avg_y, round(regr_avgy(y, x), 4) AS regr_avgy
+FROM (SELECT 1 AS x, 2 AS y UNION ALL SELECT 2, 4 UNION ALL SELECT 3, 5
+      UNION ALL SELECT 4, NULL UNION ALL SELECT NULL, 9) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>avg_x (DOUBLE)</th><th>regr_avgx (DOUBLE)</th><th>avg_y (DOUBLE)</th><th>regr_avgy (DOUBLE)</th></tr></thead><tbody><tr><td>2.5</td><td>2</td><td>5</td><td>3.6667</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regr_sxx">regr_sxx, regr_syy, regr_sxy</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regr_sxx(y, x)
+regr_syy(y, x)
+regr_sxy(y, x)</code></pre>
+<p>The sums that the regression is made from, over the full pairs:</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Sum</th></tr></thead><tbody><tr><td><code>regr_sxx(y, x)</code></td><td><code>sum((x - avg x)²)</code></td></tr><tr><td><code>regr_syy(y, x)</code></td><td><code>sum((y - avg y)²)</code></td></tr><tr><td><code>regr_sxy(y, x)</code></td><td><code>sum((x - avg x) × (y - avg y))</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>number</td><td>the first value of each pair</td></tr><tr><td><code>x</code></td><td>number</td><td>the second value of each pair</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. One pair gives <code>0</code>; no pairs give <code>NULL</code>.</li><li><strong>Notes:</strong> <code>regr_slope = regr_sxy / regr_sxx</code>, and <code>corr = regr_sxy / sqrt(regr_sxx × regr_syy)</code>. You rarely need them yourself.</li></ul>
+<p><strong>Example: Build the slope from the sums</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT regr_sxx(y, x) AS sxx, round(regr_syy(y, x), 4) AS syy, regr_sxy(y, x) AS sxy,
+       regr_sxy(y, x) / regr_sxx(y, x) AS slope_by_hand, regr_slope(y, x) AS slope
+FROM (SELECT 1 AS x, 2 AS y UNION ALL SELECT 2, 4 UNION ALL SELECT 3, 5) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sxx (DOUBLE)</th><th>syy (DOUBLE)</th><th>sxy (DOUBLE)</th><th>slope_by_hand (DOUBLE)</th><th>slope (DOUBLE)</th></tr></thead><tbody><tr><td>2</td><td>4.6667</td><td>3</td><td>1.5</td><td>1.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="beta">beta</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">beta(stock_return, market_return)
+beta(stock_return, market_return) OVER (...)</code></pre>
+<p>The <strong>beta</strong> of a share: how strongly it follows the market. It is the regression slope of the share&#39;s returns (<code>y</code>) against the market&#39;s returns (<code>x</code>), for example a stock market index.</p>
+<ul><li>beta <code>1</code>: the share moves like the market.</li><li>beta above <code>1</code> (like <code>1.5</code>): the share moves more; when the market rises 1%, it rises about 1.5% on average, and falls more too. It is riskier.</li><li>beta below <code>1</code>: a calmer share. Near <code>0</code>: no link with the market. Negative: it tends to move the other way.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>stock_return</code></td><td>number</td><td>the return of the share on each day (<code>y</code>)</td></tr><tr><td><code>market_return</code></td><td>number</td><td>the return of the market on the same day (<code>x</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. <code>NULL</code> with fewer than 2 pairs, and when the market return is the same on every row.</li><li><strong>Notes:</strong> the same number as <code>regr_slope(stock_return, market_return)</code>. Both returns must be in the same unit (both % or both fractions) and for the same days: join the two series on <code>time</code>. Beta from a few weeks of data changes a lot; use months or years of history for real decisions.</li></ul>
+<p><strong>Example: Beta of each share against the market index</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT s.symbol, regr_count(s.r, m.r) AS days,
+       round(beta(s.r, m.r), 3) AS beta,
+       round(corr(s.r, m.r), 3) AS corr,
+       round(regr_r2(s.r, m.r), 3) AS r2
+FROM (SELECT time, symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS r
+      FROM ochl_day WHERE time &gt;= &#39;2026-08-23&#39;) s
+JOIN (SELECT time, pct_change(close) AS r
+      FROM market_index WHERE time &gt;= &#39;2026-08-23&#39;) m
+  ON s.time = m.time
+GROUP BY s.symbol
+ORDER BY beta DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>beta (DOUBLE)</th><th>corr (DOUBLE)</th><th>r2 (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>14</td><td>3.322</td><td>0.705</td><td>0.497</td></tr><tr><td>COAST</td><td>14</td><td>1.962</td><td>0.686</td><td>0.47</td></tr><tr><td>CITY</td><td>14</td><td>0.862</td><td>0.462</td><td>0.214</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="alpha">alpha</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">alpha(stock_return, market_return)
+alpha(stock_return, market_return, risk_free)</code></pre>
+<p>The <strong>alpha</strong> (Jensen&#39;s alpha) of a share: the part of its average return that the market does <strong>not</strong> explain. After taking away what its beta would give, a positive alpha means the share did better than the market risk predicts; a negative alpha means worse. Fund managers try to &quot;make alpha&quot;.</p>
+<p>It is <code>(avg(stock) - risk_free) - beta × (avg(market) - risk_free)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>stock_return</code></td><td>number</td><td>the return of the share on each day (<code>y</code>)</td></tr><tr><td><code>market_return</code></td><td>number</td><td>the return of the market on the same day (<code>x</code>)</td></tr><tr><td><code>risk_free</code></td><td>number</td><td>the return without risk for <strong>one period</strong> (for example a fixed deposit rate per day), in the same unit as the returns; default <code>0</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, in the unit of the returns <strong>per period</strong>: with daily returns in %, <code>0.05</code> means +0.05% a day.</li><li><strong>NULL:</strong> pairs with a NULL are skipped. <code>NULL</code> with fewer than 2 pairs, when the market return is the same on every row, and when <code>risk_free</code> is NULL.</li><li><strong>Notes:</strong> <code>risk_free</code> must be a constant; it is read from the first row. A yearly rate must first be changed to the period: 6% a year is about <code>6 / 250 = 0.024</code>% a trading day.</li></ul>
+<p><strong>Example: Alpha and beta of each share (daily returns in %)</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT s.symbol,
+       round(beta(s.r, m.r), 3) AS beta,
+       round(alpha(s.r, m.r), 4) AS alpha_pct_per_day,
+       round(avg(s.r), 4) AS avg_return_pct
+FROM (SELECT time, symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS r
+      FROM ochl_day WHERE time &gt;= &#39;2026-08-23&#39;) s
+JOIN (SELECT time, pct_change(close) AS r
+      FROM market_index WHERE time &gt;= &#39;2026-08-23&#39;) m
+  ON s.time = m.time
+GROUP BY s.symbol
+ORDER BY alpha_pct_per_day DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>beta (DOUBLE)</th><th>alpha_pct_per_day (DOUBLE)</th><th>avg_return_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>3.322</td><td>0.4136</td><td>0.4088</td></tr><tr><td>CITY</td><td>0.862</td><td>-0.0385</td><td>-0.0397</td></tr><tr><td>COAST</td><td>1.962</td><td>-0.2682</td><td>-0.271</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: With a risk-free return of 0.024% a day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(alpha(y, x), 5) AS alpha, round(alpha(y, x, 0.024), 5) AS alpha_with_risk_free, round(beta(y, x), 3) AS beta
+FROM (SELECT 1.0 AS x, 2.0 AS y UNION ALL SELECT 2.0, 3.0 UNION ALL SELECT -1.0, -1.0) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>alpha (DOUBLE)</th><th>alpha_with_risk_free (DOUBLE)</th><th>beta (DOUBLE)</th></tr></thead><tbody><tr><td>0.42857</td><td>0.43714</td><td>1.357</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Returns must be numbers</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT beta(symbol, close) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: beta: needs numbers, got &#39;CITY&#39;</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-correlation.md">This page as markdown</a>.</footer>
+</body>
+</html>

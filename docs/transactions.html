@@ -1,0 +1,1972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transactions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="BEGIN, COMMIT and ROLLBACK: save many changes together, or none of them.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/transactions.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/transactions.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="transactions">Transactions</h1>
+<blockquote><p>BEGIN, COMMIT and ROLLBACK: save many changes together, or none of them.</p></blockquote>
+<ul><li>Category: Transactions</li><li>Keywords: transaction, TRANSACTION, WORK, BEGIN TRANSACTION, BEGIN WORK, COMMIT WORK, ROLLBACK WORK, START, atomic, all or nothing, rollback, undo, FOR UPDATE, SELECT FOR UPDATE, SKIP LOCKED, NOWAIT, job queue, --per-table-reads, KDB_PER_TABLE_READS, SELECT 1 waits, readers wait, checkpoint, BEGIN without COMMIT, cannot be used inside a transaction, database is busy, table is busy, deadlock, duplicate key while busy, taken key, table lock, --reader-yield, KDB_READER_YIELD, reader yield, --snapshot-reads, KDB_SNAPSHOT_READS, snapshot, snapshot reads, MVCC, writers at the same time, group commit, lock, lock_timeout_ms, lock_timeout, SET lock_timeout, --lock-timeout, KDB_LOCK_TIMEOUT, X-KDB-Lock-Timeout, 55P03, idle_transaction_timeout_ms, idle_in_transaction_session_timeout, --idle-in-transaction-timeout, KDB_IDLE_IN_TRANSACTION_TIMEOUT, session, double entry, ledger, accounting, SAVEPOINT, RELEASE SAVEPOINT, ROLLBACK TO SAVEPOINT, ROLLBACK TO, savepoints, 25P02, 3B001, isolation, isolation level, SERIALIZABLE, READ COMMITTED, SET TRANSACTION, BEGIN ISOLATION LEVEL, default_transaction_isolation, transaction_isolation, 40001, serialization_failure, 40P01, lost update, READ ONLY, BEGIN READ ONLY, read-only transaction, SET TRANSACTION READ ONLY, default_transaction_read_only, transaction_read_only, 25006, READ WRITE, LOCK TABLE, LOCK, IN SHARE MODE, ACCESS EXCLUSIVE, lock modes, LOCK TABLE NOWAIT, pg_locks, pg_blocking_pids, log_lock_waits, deadlock_timeout, --log-lock-waits, KDB_LOG_LOCK_WAITS, --deadlock-timeout, KDB_DEADLOCK_TIMEOUT, 25P01, who is blocking, lock waits, txn_spill_mb, --txn-spill-mb, KDB_TXN_SPILL_MB, transaction too big for memory, txn_spills, big transaction</li><li>See also: <a href="procedures.html">Stored procedures</a>, <a href="triggers.html">Triggers</a>, <a href="cursors.html">Cursors</a>, <a href="http-sessions-and-cursors.html">Sessions and cursors over HTTP</a>, <a href="cli-sql-and-shell.html">kdb sql and kdb shell</a>, <a href="constraints.html">Constraints</a>, <a href="../tutorial/15-transactions-and-accounting.html">15. Transactions and accounting</a></li></ul>
+<p>A <strong>transaction</strong> is a group of changes that KDB saves <strong>together, or not at all</strong>. Nobody ever sees half of it.</p>
+<p>Moving money is the classic case. A transfer is three changes: take money from one account, give it to the other, and write a ledger row (a row in the list of all transfers). If only the first change is saved, money is lost. Put them in a transaction.</p>
+<ul><li>Start it with <code>BEGIN</code>. Save it with <code>COMMIT</code>. Undo it with <code>ROLLBACK</code>.</li><li>When any statement in it fails, KDB undoes the whole transaction.</li><li>KDB writes the changes to its log (the file where every change is saved first) only at <code>COMMIT</code>, in one write. After a crash or a power cut, a committed transaction is there completely, and an unfinished one is not there at all.</li></ul>
+<p><strong>Example: Accounting: a transfer between two accounts, then check the books</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (
+  id INT PRIMARY KEY,
+  owner STRING NOT NULL,
+  opening DECIMAL(2) NOT NULL,
+  balance DECIMAL(2) NOT NULL
+);
+CREATE TABLE ledger (
+  id LONG PRIMARY KEY AUTO,
+  from_account INT NOT NULL REFERENCES accounts(id),
+  to_account INT NOT NULL REFERENCES accounts(id),
+  amount DECIMAL(2) NOT NULL,
+  note STRING,
+  created TIMESTAMP DEFAULT now()
+);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000, 1000), (2, &#39;Sita&#39;, 0, 0), (3, &#39;Hari&#39;, 500, 500);</code></pre>
+<pre><code class="language-sql">BEGIN;
+UPDATE accounts SET balance = balance - 250.50 WHERE id = 1;
+UPDATE accounts SET balance = balance + 250.50 WHERE id = 2;
+INSERT INTO ledger (from_account, to_account, amount, note) VALUES (1, 2, 250.50, &#39;rent&#39;);
+COMMIT;
+
+-- Check the books: the total never changes, and every balance matches the ledger.
+SELECT sum(opening) AS money_at_start, sum(balance) AS money_now FROM accounts;
+SELECT a.id, a.owner, a.balance,
+       a.opening + coalesce(i.total_in, 0) - coalesce(o.total_out, 0) AS from_ledger,
+       a.balance = a.opening + coalesce(i.total_in, 0) - coalesce(o.total_out, 0) AS ok
+FROM accounts a
+LEFT JOIN (SELECT to_account, sum(amount) AS total_in FROM ledger GROUP BY to_account) i ON i.to_account = a.id
+LEFT JOIN (SELECT from_account, sum(amount) AS total_out FROM ledger GROUP BY from_account) o ON o.from_account = a.id
+ORDER BY a.id;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>UPDATE accounts SET balance = balance - 250.50 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>UPDATE accounts SET balance = balance + 250.50 WHERE id = 2</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>INSERT INTO ledger (from_account, to_account, amount, note) VALUES (1, 2, 250.50, &#39;rent&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 3 change(s) saved</code></pre>
+<p><code>SELECT sum(opening) AS money_at_start, sum(balance) AS money_now FROM accounts</code></p>
+<div class="table-wrap"><table><thead><tr><th>money_at_start (DECIMAL(2))</th><th>money_now (DECIMAL(2))</th></tr></thead><tbody><tr><td>1500.00</td><td>1500.00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT a.id, a.owner, a.balance, a.opening + coalesce(i.total_in, 0) - coalesce(o.total_out, 0) AS f</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th><th>from_ledger (DECIMAL(2))</th><th>ok (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>Ram</td><td>749.50</td><td>749.50</td><td>true</td></tr><tr><td>2</td><td>Sita</td><td>250.50</td><td>250.50</td><td>true</td></tr><tr><td>3</td><td>Hari</td><td>500.00</td><td>500.00</td><td>true</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="begin">BEGIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">BEGIN
+BEGIN TRANSACTION
+BEGIN WORK</code></pre>
+<p>Starts a transaction. The statements after it are saved only at <code>COMMIT</code>.
+<code>BEGIN</code>, <code>BEGIN TRANSACTION</code> and <code>BEGIN WORK</code> are the same.</p>
+<ul><li><strong>Returns:</strong> <code>transaction started</code>.</li><li><strong>Notes:</strong>
+<ul><li>Inside the transaction you can use <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CALL</code>, <code>SHOW ...</code>, <code>EXPLAIN</code>, <code>CHECK TABLE</code> and <a href="cursors.html">cursors</a>. Other statements are <a href="transactions.html#not-inside">not allowed</a>.</li><li>A <code>SELECT</code> inside the transaction sees its own changes. Other sessions do not see them until <code>COMMIT</code>.</li><li>Only one transaction can be open. A second <code>BEGIN</code> is an error, and the open transaction is rolled back.</li><li>While the transaction is open, <strong>other writers of the same tables wait</strong> (see <a href="transactions.html#one-writer">one writer per table</a>). Keep transactions short.</li><li><code>BEGIN</code> cannot be used inside a procedure or trigger body: a <code>CALL</code> is already one transaction.</li><li><code>START TRANSACTION</code> (the MySQL spelling) is not supported. Write <code>BEGIN</code>.</li></ul></li></ul>
+<p><strong>Example: The SELECT inside sees the change; after ROLLBACK it is gone</strong> (sample data: sample)</p>
+<pre><code class="language-sql">BEGIN TRANSACTION;
+UPDATE securities SET sector = &#39;Banks&#39; WHERE symbol = &#39;CITY&#39;;
+SELECT symbol, sector FROM securities WHERE symbol = &#39;CITY&#39;;
+ROLLBACK;
+SELECT symbol, sector FROM securities WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>UPDATE securities SET sector = &#39;Banks&#39; WHERE symbol = &#39;CITY&#39;</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT symbol, sector FROM securities WHERE symbol = &#39;CITY&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Banks</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>ROLLBACK</code></p>
+<pre><code class="language-text">transaction rolled back: 1 change(s) undone</code></pre>
+<p><code>SELECT symbol, sector FROM securities WHERE symbol = &#39;CITY&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Banking</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: BEGIN twice</strong> (shows an error)</p>
+<pre><code class="language-sql">BEGIN;
+BEGIN;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">transaction started</code></pre>
+<p>Error: <code>a transaction is already open; COMMIT or ROLLBACK it first (the transaction was rolled back)</code></p>
+<h2 id="commit">COMMIT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">COMMIT
+COMMIT TRANSACTION
+COMMIT WORK</code></pre>
+<p>Saves every change of the open transaction, with one write to the log, and ends the transaction.</p>
+<ul><li><strong>Returns:</strong> <code>transaction committed: N change(s) saved</code>. N counts the log records (about one per changed row, plus the changes made by triggers and procedures).</li><li><strong>Notes:</strong>
+<ul><li>When <code>COMMIT</code> returns OK, the changes are safe on disk, also after a crash or a power cut.</li><li><code>COMMIT</code> without an open transaction is an error.</li><li>If the disk is full at <code>COMMIT</code>, it returns an error and nothing is saved.</li><li>In a session (<code>kdb shell</code>, HTTP session) whose transaction was already rolled back by an error, <code>COMMIT</code> fails with <code>COMMIT saved nothing</code>, so your app cannot think it was saved.</li></ul></li></ul>
+<p><strong>Example: App sign-up: the user and the first audit row, together</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY, email STRING NOT NULL, created TIMESTAMP DEFAULT now());
+CREATE TABLE audit_log (id LONG PRIMARY KEY AUTO, action STRING, detail STRING);</code></pre>
+<pre><code class="language-sql">BEGIN WORK;
+INSERT INTO app_users (id, email) VALUES (1, &#39;ram@example.com&#39;);
+INSERT INTO audit_log (action, detail) VALUES (&#39;sign-up&#39;, &#39;user 1: ram@example.com&#39;);
+COMMIT WORK;
+SELECT u.id, u.email, a.action FROM app_users u JOIN audit_log a ON a.detail = concat(&#39;user &#39;, u.id, &#39;: &#39;, u.email);</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>INSERT INTO app_users (id, email) VALUES (1, &#39;ram@example.com&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO audit_log (action, detail) VALUES (&#39;sign-up&#39;, &#39;user 1: ram@example.com&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 2 change(s) saved</code></pre>
+<p><code>SELECT u.id, u.email, a.action FROM app_users AS u JOIN audit_log AS a ON a.detail = concat(&#39;user &#39;,</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>action (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>sign-up</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: COMMIT without BEGIN</strong> (shows an error)</p>
+<pre><code class="language-sql">COMMIT;</code></pre>
+<p>Result:</p>
+<p>Error: <code>COMMIT without BEGIN: no transaction is open</code></p>
+<h2 id="rollback">ROLLBACK</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ROLLBACK
+ROLLBACK TRANSACTION
+ROLLBACK WORK</code></pre>
+<p>Undoes every change of the open transaction and ends it. The data is exactly as it was before <code>BEGIN</code>.</p>
+<ul><li><strong>Returns:</strong> <code>transaction rolled back: N change(s) undone</code>.</li><li><strong>Notes:</strong>
+<ul><li>Changes made by triggers and by <code>CALL</code>s inside the transaction are undone too.</li><li><code>ROLLBACK</code> without an open transaction is an error, except in a session whose transaction was already rolled back by an error: there <code>ROLLBACK</code> ends it and answers <code>transaction rolled back (it was already rolled back: ...)</code>.</li><li>Cursors declared inside the transaction stay open after <code>ROLLBACK</code> (their rows were read at <code>DECLARE</code>).</li></ul></li></ul>
+<p><strong>Example: Forum: undo a post and its counter</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE topics (id INT PRIMARY KEY, posts LONG NOT NULL DEFAULT 0);
+CREATE TABLE posts (id LONG PRIMARY KEY, topic_id INT NOT NULL, body STRING);
+INSERT INTO topics (id) VALUES (1);</code></pre>
+<pre><code class="language-sql">BEGIN;
+INSERT INTO posts VALUES (1, 1, &#39;Buy CITY now!!!&#39;);
+UPDATE topics SET posts = posts + 1 WHERE id = 1;
+SELECT id, posts FROM topics;
+ROLLBACK WORK;
+SELECT id, posts FROM topics;
+SELECT count(*) AS posts FROM posts;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>INSERT INTO posts VALUES (1, 1, &#39;Buy CITY now!!!&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>UPDATE topics SET posts = posts + 1 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT id, posts FROM topics</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>1</td><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>ROLLBACK</code></p>
+<pre><code class="language-text">transaction rolled back: 2 change(s) undone</code></pre>
+<p><code>SELECT id, posts FROM topics</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>1</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS posts FROM posts</code></p>
+<div class="table-wrap"><table><thead><tr><th>posts (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: ROLLBACK without BEGIN</strong> (shows an error)</p>
+<pre><code class="language-sql">ROLLBACK;</code></pre>
+<p>Result:</p>
+<p>Error: <code>ROLLBACK without BEGIN: no transaction is open</code></p>
+<h2 id="savepoint">SAVEPOINT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SAVEPOINT name
+ROLLBACK [WORK | TRANSACTION] TO [SAVEPOINT] name
+RELEASE [SAVEPOINT] name</code></pre>
+<p>A <strong>savepoint</strong> is a mark inside <code>BEGIN ... COMMIT</code>. <code>ROLLBACK TO</code> undoes only the work after the mark; the work before it stays, and the transaction goes on.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>What it does</th></tr></thead><tbody><tr><td><code>SAVEPOINT name</code></td><td>marks the point. A name used again marks a new point: the newest one counts.</td></tr><tr><td><code>ROLLBACK TO SAVEPOINT name</code></td><td>undoes every change after the mark. The mark stays, so you can go back to it again. Later marks are gone.</td></tr><tr><td><code>RELEASE SAVEPOINT name</code></td><td>forgets the mark and every later one. The changes stay in the transaction.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>savepoint name set</code>, <code>rolled back to savepoint name: N row change(s) undone</code>, <code>savepoint name released</code>.</li><li><strong>Errors:</strong> outside <code>BEGIN ... COMMIT</code>: <code>SAVEPOINT can only be used inside BEGIN ... COMMIT</code> (PostgreSQL <code>25P01</code>). A name that is not there: <code>savepoint &#39;x&#39; does not exist in this transaction</code> (<code>3B001</code>).</li><li><strong>Notes:</strong>
+<ul><li>Nothing is saved until <code>COMMIT</code>. <code>ROLLBACK</code> (without <code>TO</code>) still undoes the whole transaction.</li><li>Rows for <a href="triggers.html#deferred">DEFERRED triggers</a> that a <code>ROLLBACK TO</code> undid make no job.</li><li>Not inside a procedure or trigger body: the whole <code>CALL</code> is one transaction there.</li><li>Table locks stay until the transaction ends, also for tables only the undone part used (as in PostgreSQL).</li></ul></li></ul>
+<p><strong>Example: Keep the order, undo the discount</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE orders (id INT PRIMARY KEY, symbol SYMBOL, qty LONG, price DECIMAL(2));</code></pre>
+<pre><code class="language-sql">BEGIN;
+INSERT INTO orders VALUES (1, &#39;CITY&#39;, 10, 510.00);
+SAVEPOINT before_discount;
+UPDATE orders SET price = price * 0.5 WHERE id = 1;
+ROLLBACK TO SAVEPOINT before_discount;
+INSERT INTO orders VALUES (2, &#39;COAST&#39;, 5, 385.00);
+COMMIT;
+SELECT * FROM orders ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>INSERT INTO orders VALUES (1, &#39;CITY&#39;, 10, 510.00)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SAVEPOINT before_discount</code></p>
+<pre><code class="language-text">savepoint before_discount set</code></pre>
+<p><code>UPDATE orders SET price = price * 0.5 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>ROLLBACK TO SAVEPOINT before_discount</code></p>
+<pre><code class="language-text">rolled back to savepoint before_discount: 1 row change(s) undone</code></pre>
+<p><code>INSERT INTO orders VALUES (2, &#39;COAST&#39;, 5, 385.00)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 2 change(s) saved</code></pre>
+<p><code>SELECT * FROM orders ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>symbol (SYMBOL)</th><th>qty (LONG)</th><th>price (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>10</td><td>510.00</td></tr><tr><td>2</td><td>COAST</td><td>5</td><td>385.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h3 id="after-an-error-rollback-to-savepoint">After an error: ROLLBACK TO SAVEPOINT</h3>
+<p>In a session (an HTTP session, <code>kdb shell</code>, the PostgreSQL protocol), an error after a savepoint does <strong>not</strong> throw the transaction away. As in PostgreSQL:</p>
+<ol><li>The work after the newest savepoint is undone, and the transaction is <strong>aborted</strong>: every statement is refused with <code>current transaction is aborted ...</code> (<code>25P02</code>), except these.</li><li><code>ROLLBACK TO SAVEPOINT name</code> goes back to that mark and makes the transaction usable again.</li><li><code>ROLLBACK</code> ends it. <code>COMMIT</code> saves nothing and says so.</li></ol>
+<p>Without a savepoint, an error still rolls back the whole transaction (<a href="#errors">when a statement fails</a>).</p>
+<p><strong>HTTP: A duplicate key after a savepoint: go back and go on</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE users (id INT PRIMARY KEY, email STRING UNIQUE);
+INSERT INTO users VALUES (1, &#39;ram@example.np&#39;);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; INSERT INTO users VALUES (2, &#39;sita@example.np&#39;); SAVEPOINT before_hari
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+INSERT INTO users VALUES (3, &#39;ram@example.np&#39;)
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+ROLLBACK TO SAVEPOINT before_hari; INSERT INTO users VALUES (3, &#39;hari@example.np&#39;); COMMIT
+###
+POST /exec
+
+SELECT id, email FROM users ORDER BY id</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;ab37d2c476871d5a558032bd594384f8&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; INSERT INTO users VALUES (2, &#39;sita@example.np&#39;); SAVEPOINT before_hari&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 5}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO users VALUES (2, &#39;sita@example.np&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 48}
+    },
+    {
+      &quot;statement&quot;: &quot;SAVEPOINT before_hari&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;savepoint before_hari set&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 6}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 59}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO users VALUES (3, &#39;ram@example.np&#39;)&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: true,
+  &quot;error&quot;: &quot;column &#39;email&#39; must be unique: &#39;ram@example.np&#39; is already used (the transaction is aborted; send ROLLBACK TO SAVEPOINT before_hari to go on from the savepoint, or ROLLBACK to end it)&quot;,
+  &quot;sqlstate&quot;: &quot;23505&quot;,
+  &quot;table&quot;: &quot;users&quot;,
+  &quot;constraint&quot;: &quot;users_email_key&quot;,
+  &quot;column_name&quot;: &quot;email&quot;
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;ROLLBACK TO SAVEPOINT before_hari; INSERT INTO users VALUES (3, &#39;hari@example.np&#39;); COMMIT&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;ROLLBACK TO SAVEPOINT before_hari&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;rolled back to savepoint before_hari: 0 row change(s) undone&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 6, &quot;execute_us&quot;: 6}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO users VALUES (3, &#39;hari@example.np&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 6, &quot;execute_us&quot;: 31}
+    },
+    {
+      &quot;statement&quot;: &quot;COMMIT&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction committed: 2 change(s) saved&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 6, &quot;execute_us&quot;: 8}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 45}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id, email FROM users ORDER BY id&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, email FROM users ORDER BY id&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;email&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1, &quot;ram@example.np&quot;],
+        [2, &quot;sita@example.np&quot;],
+        [3, &quot;hari@example.np&quot;]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 100}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+    {&quot;name&quot;: &quot;email&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [1, &quot;ram@example.np&quot;],
+    [2, &quot;sita@example.np&quot;],
+    [3, &quot;hari@example.np&quot;]
+  ],
+  &quot;count&quot;: 3,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 100}
+}</code></pre>
+<h2 id="atomic">What is one transaction by itself</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT ... / UPDATE ... / DELETE ...    -- one statement: all its rows, or none
+CALL procedure(...)                     -- the whole procedure
+a statement that fires triggers         -- the statement and all its triggers</code></pre>
+<p>You do not always need <code>BEGIN</code>. These are each <strong>one transaction by themselves</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>All or nothing</th></tr></thead><tbody><tr><td>one <code>INSERT</code>, <code>UPDATE</code> or <code>DELETE</code></td><td>all its rows are written, or none (an <code>INSERT</code> of 1,000 rows with one bad row writes nothing)</td></tr><tr><td>one <code>CALL</code></td><td>every change of the procedure, and of the procedures it calls (see <a href="procedures.html#call-transaction">procedures</a>)</td></tr><tr><td>a statement that fires <a href="triggers.html">triggers</a></td><td>the statement and everything its triggers change</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Several statements <strong>without</strong> <code>BEGIN</code> are separate transactions. When the third one fails, the first two stay saved.</li><li>Inside <code>BEGIN ... COMMIT</code>, all of these become part of the bigger transaction.</li><li>At most <strong>10 million changed rows</strong> in one transaction (<code>DatabaseOptions::max_transaction_rows</code>). Until <code>COMMIT</code>, KDB keeps the old version of every changed row in memory.</li><li>A long transaction&#39;s log records go to a temporary file once they pass 64 MB (see <a href="#txn-spill">big transactions</a>).</li></ul></li></ul>
+<p><strong>Command line: One INSERT with a bad row writes no row</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;);</code></pre>
+<pre><code class="language-bash">kdb sql market &quot;INSERT INTO brokers VALUES (34, &#39;Vision Securities&#39;), (45, &#39;Imperial Securities&#39;), (1, &#39;Keystone again&#39;)&quot;
+kdb sql market &quot;SELECT id, name FROM brokers ORDER BY id&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql market &quot;INSERT INTO brokers VALUES (34, &#39;Vision Securities&#39;), (45, &#39;Imperial Securities&#39;), (1, &#39;Keystone again&#39;)&quot;</code></p>
+<pre><code class="language-text">error: row 3: a row with id=&#39;1&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
+<p>exit code 1</p>
+<p><code>&gt; kdb sql market &quot;SELECT id, name FROM brokers ORDER BY id&quot;</code></p>
+<pre><code class="language-text">id | name               
+---+--------------------
+ 1 | Keystone Securities
+(1 row, 0.3 ms)</code></pre>
+<p><strong>Command line: Without BEGIN, the statements before the error stay saved</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;);</code></pre>
+<pre><code class="language-bash">kdb sql market &quot;INSERT INTO brokers VALUES (34, &#39;Vision Securities&#39;); INSERT INTO brokers VALUES (1, &#39;Keystone again&#39;); INSERT INTO brokers VALUES (45, &#39;Imperial Securities&#39;)&quot;
+kdb sql market &quot;SELECT id, name FROM brokers ORDER BY id&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql market &quot;INSERT INTO brokers VALUES (34, &#39;Vision Securities&#39;); INSERT INTO brokers VALUES (1, &#39;Keystone again&#39;); INSERT INTO brokers VALUES (45, &#39;Imperial Securities&#39;)&quot;</code></p>
+<pre><code class="language-text">1 row(s) inserted
+error: a row with id=&#39;1&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
+<p>exit code 1</p>
+<p><code>&gt; kdb sql market &quot;SELECT id, name FROM brokers ORDER BY id&quot;</code></p>
+<pre><code class="language-text">id | name               
+---+--------------------
+ 1 | Keystone Securities
+34 | Vision Securities  
+(2 rows, 0.3 ms)</code></pre>
+<h2 id="errors">When a statement fails</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">BEGIN; statement; failing statement;   -- the whole transaction is rolled back here</code></pre>
+<p>When a statement inside <code>BEGIN ... COMMIT</code> fails (a duplicate key, <code>REFERENCES</code>, a <code>CHECK</code>, <code>RAISE</code> in a procedure or trigger, a typing error in a column name, ...), <strong>KDB rolls back the whole transaction</strong> at once.</p>
+<ul><li><strong>Returns:</strong> the error of the statement, with <code>(the transaction was rolled back)</code> at the end.</li><li><strong>Notes:</strong>
+<ul><li>In one text (<code>kdb sql</code>, <code>POST /exec</code>, the web console), the statements after the error do not run.</li><li>In a session (<code>kdb shell</code>, an HTTP session, the PostgreSQL protocol) the session then accepts <strong>only <code>ROLLBACK</code></strong> (or <code>COMMIT</code>, which fails). So your next statements cannot run outside the transaction by mistake.</li><li>With a <a href="#savepoint">savepoint</a> set, the error undoes only the work after it, and <code>ROLLBACK TO SAVEPOINT</code> lets the transaction go on.</li><li>A syntax error is found before anything runs: then no statement of the text runs at all.</li></ul></li></ul>
+<p><strong>Example: A transfer to an account that does not exist</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+CREATE TABLE ledger (id LONG PRIMARY KEY AUTO, from_account INT NOT NULL REFERENCES accounts(id), to_account INT NOT NULL REFERENCES accounts(id), amount DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-sql">BEGIN;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 99;
+INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 99, 100);
+COMMIT;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>UPDATE accounts SET balance = balance - 100 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>UPDATE accounts SET balance = balance + 100 WHERE id = 99</code></p>
+<pre><code class="language-text">0 row(s) updated</code></pre>
+<p>Error: <code>column &#39;to_account&#39; = &#39;99&#39; has no matching row in accounts(id) (the transaction was rolled back)</code></p>
+<p><strong>Command line: Ram still has 1000.00 after that</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+CREATE TABLE ledger (id LONG PRIMARY KEY AUTO, from_account INT NOT NULL REFERENCES accounts(id), to_account INT NOT NULL REFERENCES accounts(id), amount DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-bash">kdb sql market &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1; INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 99, 100); COMMIT&quot;
+kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql market &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1; INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 99, 100); COMMIT&quot;</code></p>
+<pre><code class="language-text">transaction started
+
+1 row(s) updated
+error: column &#39;to_account&#39; = &#39;99&#39; has no matching row in accounts(id) (the transaction was rolled back)</code></pre>
+<p>exit code 1</p>
+<p><code>&gt; kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></p>
+<pre><code class="language-text">id | owner | balance
+---+-------+--------
+ 1 | Ram   | 1000.00
+ 2 | Sita  |    0.00
+(2 rows, 0.4 ms)</code></pre>
+<h2 id="no-commit">A text that ends without COMMIT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">BEGIN; statement; ...   &lt;end of the text&gt;   -- rolled back</code></pre>
+<p><code>kdb sql</code>, <code>POST /exec</code> without a session, and the web console run one text at a time. A transaction cannot stay open after its text ends:
+when the text ends without <code>COMMIT</code> or <code>ROLLBACK</code>, KDB <strong>rolls it back</strong> and returns an error.</p>
+<ul><li><strong>Returns:</strong> the error <code>BEGIN without COMMIT: the transaction was rolled back (end it with COMMIT to save the changes)</code>, after the results of the statements that ran.</li><li><strong>Notes:</strong> in <code>kdb shell</code>, in an HTTP session and over the PostgreSQL protocol, the transaction stays open until you send <code>COMMIT</code> or <code>ROLLBACK</code> (or leave). Leaving the shell or closing the session rolls it back.</li></ul>
+<p><strong>Example: Forgot the COMMIT</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">BEGIN;
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;);
+SELECT count(*) AS brokers FROM brokers;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT count(*) AS brokers FROM brokers</code></p>
+<div class="table-wrap"><table><thead><tr><th>brokers (LONG)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p>Error: <code>BEGIN without COMMIT: the transaction was rolled back (end it with COMMIT to save the changes)</code></p>
+<h2 id="not-inside">Statements not allowed inside a transaction</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE ...  DROP ...  ALTER ...  RENAME ...  BACKUP DATABASE   -- before BEGIN or after COMMIT</code></pre>
+<p>Changes of the database structure cannot be undone like rows, so they are refused inside <code>BEGIN ... COMMIT</code>:
+<code>CREATE</code> / <code>DROP</code> / <code>ALTER</code> of tables, views, indexes, functions, procedures and triggers, <code>RENAME TABLE</code>, and <code>BACKUP DATABASE</code>.
+Run them before <code>BEGIN</code> or after <code>COMMIT</code>.</p>
+<ul><li><strong>Returns:</strong> the error <code>CREATE TABLE cannot be used inside a transaction; COMMIT or ROLLBACK first</code>. The open transaction is rolled back.</li><li><strong>Notes:</strong> the same statements are also not allowed inside a procedure or trigger body.</li></ul>
+<p><strong>Example: CREATE TABLE inside a transaction</strong> (shows an error)</p>
+<pre><code class="language-sql">BEGIN;
+CREATE TABLE archive (id INT PRIMARY KEY);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">transaction started</code></pre>
+<p>Error: <code>CREATE TABLE cannot be used inside a transaction; COMMIT or ROLLBACK first (the transaction was rolled back)</code></p>
+<p><strong>Example: CREATE PROCEDURE inside a transaction</strong> (shows an error)</p>
+<pre><code class="language-sql">BEGIN;
+CREATE PROCEDURE hello() AS BEGIN PRINT &#39;hello&#39;; END;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">transaction started</code></pre>
+<p>Error: <code>CREATE PROCEDURE cannot be used inside a transaction; COMMIT or ROLLBACK first (the transaction was rolled back)</code></p>
+<h2 id="for-update">SELECT ... FOR UPDATE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT columns FROM table WHERE ... FOR UPDATE</code></pre>
+<p>A <code>SELECT</code> that says: &quot;I read these rows because I will change them&quot;. Write it at the start of a transaction, before the <code>UPDATE</code>s.</p>
+<ul><li><p><strong>Returns:</strong> the rows, like a normal <code>SELECT</code>.</p></li><li><p><strong>Notes:</strong></p>
+<ul><li><p>On a table with a <strong>primary key</strong>, <code>FOR UPDATE</code> locks the <strong>rows it returns</strong>, until your transaction ends (<code>COMMIT</code>, <code>ROLLBACK</code>, the session closing, or the <a href="#idle-timeout">idle limit</a>). The rest of the table stays free: other sessions read it, change other rows, and lock other rows with their own <code>FOR UPDATE</code>.</p></li><li><p>Another transaction that wants one of your locked rows:</p>
+<div class="table-wrap"><table><thead><tr><th>It runs</th><th>What happens</th></tr></thead><tbody><tr><td><code>SELECT ... FOR UPDATE</code></td><td>waits until your transaction ends (up to the <a href="#lock-timeout">lock timeout</a>)</td></tr><tr><td><code>SELECT ... FOR UPDATE NOWAIT</code></td><td>fails <strong>at once</strong>: <code>could not obtain lock on row in relation &quot;jobs&quot;</code> (HTTP 503, PostgreSQL <code>55P03</code>)</td></tr><tr><td><code>SELECT ... FOR UPDATE SKIP LOCKED</code></td><td>leaves your rows out and returns the next free ones; <code>LIMIT</code> and <code>OFFSET</code> count after the skipping</td></tr><tr><td><code>UPDATE</code> or <code>DELETE</code> of the row</td><td>waits until your transaction ends (up to the lock timeout)</td></tr><tr><td>a plain <code>SELECT</code></td><td>reads it at once: row locks never stop a reader</td></tr></tbody></table></div></li><li><p>So a job queue works with many workers: each one runs <code>BEGIN; SELECT ... ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED</code>, does the job, then <code>UPDATE ...; COMMIT</code>, and no two workers get the same job.</p></li><li><p>Two transactions that each wait for a row the other one locked get <code>deadlock: ...</code> at once (PostgreSQL <code>40P01</code>) instead of both waiting. Roll back and try again.</p></li><li><p>A row your transaction <strong>changed</strong> (<code>UPDATE</code>, <code>DELETE</code>, <code>INSERT</code>) is still locked with its whole table until <code>COMMIT</code>, as every change is. Meanwhile:</p>
+<div class="table-wrap"><table><thead><tr><th>Another session runs</th><th>What happens</th></tr></thead><tbody><tr><td><code>SELECT ... FOR UPDATE SKIP LOCKED</code> inside its own <code>BEGIN</code></td><td>waits a moment (50 ms) and then returns <strong>no rows</strong></td></tr><tr><td><code>SELECT ... FOR UPDATE SKIP LOCKED</code> without <code>BEGIN</code></td><td>skips the rows you locked <strong>and the rows you changed</strong>, and returns the next free ones at once, as in PostgreSQL. It keeps no lock on them. Rows you added are not seen until <code>COMMIT</code>.</td></tr><tr><td><code>SELECT ... FOR UPDATE NOWAIT</code></td><td>fails at once with <code>table &#39;x&#39; is busy</code></td></tr></tbody></table></div>
+<p>So in a job worker, do the work first and send the <code>UPDATE</code> just before <code>COMMIT</code>: then the jobs table is held only for a few milliseconds. A worker that marks its job <code>running</code> early and then works on it makes the queue look empty to the others until it commits.</p></li><li><p><code>kdb serve --skip-locked-beside on</code> (off by default) makes <code>SKIP LOCKED</code> inside <code>BEGIN</code> return the free rows too, and lock them. The catch, until a change stops holding the whole table: the row you got is not free for your <code>UPDATE</code>. That <code>UPDATE</code> waits for the other transaction&#39;s <code>COMMIT</code>, and fails with <code>40001</code> after the <a href="#lock-timeout">lock timeout</a> (5 seconds unless set) when that transaction stays open longer. If the other transaction then changes that row too, one of the two gets <code>deadlock: ...</code> at once. Turn it on only when your workers commit quickly and retry <code>40001</code> and <code>deadlock</code>.</p></li><li><p>With either setting, <code>SKIP LOCKED</code> returns <strong>no rows</strong> while another transaction holds the table in a way that names no rows: a <code>FOR UPDATE</code> that locks tables (a join, a subquery), a change of more than 4,096 rows of the table, a <code>DELETE</code> of every row or a bulk load. It also returns no rows when the table is held by a statement that is running right now for more than 50 ms.</p></li><li><p>On a table <strong>without</strong> a primary key there is no key to lock a row by: <code>FOR UPDATE</code> locks the whole table until your transaction ends, and <code>SKIP LOCKED</code> returns no rows while another transaction holds it.</p></li><li><p>Without <code>BEGIN</code> (no transaction), <code>FOR UPDATE</code> locks the rows only while the statement runs.</p></li><li><p><code>FOR UPDATE</code> goes at the very end of the <code>SELECT</code>, after <code>ORDER BY</code> and <code>LIMIT</code>. Row locks are taken for a <code>SELECT</code> from one table; with a join, <code>GROUP BY</code>, <code>DISTINCT</code> or a view it locks the tables, as before.</p></li><li><p><code>FOR SHARE</code>, <code>FOR NO KEY UPDATE</code> and <code>FOR KEY SHARE</code> take the same lock as <code>FOR UPDATE</code>, with <code>NOWAIT</code> and <code>SKIP LOCKED</code> too. In PostgreSQL two sessions may both hold <code>FOR SHARE</code> on one row; in KDB the second one waits (or <code>NOWAIT</code> fails, or <code>SKIP LOCKED</code> skips the row). That is stricter, never looser: nothing gets through that PostgreSQL would stop. It is only slower when many readers share rows.</p></li></ul></li></ul>
+<p><strong>Example: Read the balances to be changed, then move the money</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-sql">BEGIN;
+SELECT id, balance FROM accounts WHERE id IN (1, 2) ORDER BY id FOR UPDATE;
+UPDATE accounts SET balance = balance - 250.50 WHERE id = 1;
+UPDATE accounts SET balance = balance + 250.50 WHERE id = 2;
+COMMIT;
+SELECT id, owner, balance FROM accounts ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>SELECT id, balance FROM accounts WHERE id IN (1, 2) ORDER BY id FOR UPDATE</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>1000.00</td></tr><tr><td>2</td><td>0.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>UPDATE accounts SET balance = balance - 250.50 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>UPDATE accounts SET balance = balance + 250.50 WHERE id = 2</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 2 change(s) saved</code></pre>
+<p><code>SELECT id, owner, balance FROM accounts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>Ram</td><td>749.50</td></tr><tr><td>2</td><td>Sita</td><td>250.50</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>HTTP: SKIP LOCKED: another session holds job 1, so this worker gets job 2</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE jobs (id INT PRIMARY KEY, state STRING);
+INSERT INTO jobs VALUES (1, &#39;new&#39;), (2, &#39;new&#39;), (3, &#39;new&#39;);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; SELECT id FROM jobs WHERE state = &#39;new&#39; ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
+###
+POST /exec
+
+SELECT id, state FROM jobs WHERE state = &#39;new&#39; ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;aeed33335b556ca67e8dfc88daeadbaa&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; SELECT id FROM jobs WHERE state = &#39;new&#39; ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 6}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT id FROM jobs WHERE state = &#39;new&#39; ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 151}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [1]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 46, &quot;execute_us&quot;: 157}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id, state FROM jobs WHERE state = &#39;new&#39; ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, state FROM jobs WHERE state = &#39;new&#39; ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;state&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [2, &quot;new&quot;]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 66, &quot;execute_us&quot;: 84}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+    {&quot;name&quot;: &quot;state&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [2, &quot;new&quot;]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 66, &quot;execute_us&quot;: 84}
+}</code></pre>
+<p><strong>HTTP: NOWAIT: a locked row is an error at once</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE jobs (id INT PRIMARY KEY, state STRING);
+INSERT INTO jobs VALUES (1, &#39;new&#39;), (2, &#39;new&#39;);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; SELECT id FROM jobs WHERE id = 1 FOR UPDATE
+###
+POST /exec
+
+SELECT id FROM jobs WHERE id = 1 FOR UPDATE NOWAIT</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;91ede6e2c499432dfd6ae7ad40f6f98d&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; SELECT id FROM jobs WHERE id = 1 FOR UPDATE&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT id FROM jobs WHERE id = 1 FOR UPDATE&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 64}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [1]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 68}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 503 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id FROM jobs WHERE id = 1 FOR UPDATE NOWAIT&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;could not obtain lock on row in relation \&quot;jobs\&quot;: another transaction holds it (SELECT ... FOR UPDATE), and FOR UPDATE NOWAIT does not wait&quot;,
+  &quot;sqlstate&quot;: &quot;55P03&quot;
+}</code></pre>
+<p><strong>HTTP: NOWAIT on a row nobody locked: the row</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE jobs (id INT PRIMARY KEY, state STRING);
+INSERT INTO jobs VALUES (1, &#39;new&#39;), (2, &#39;new&#39;);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; SELECT id FROM jobs WHERE id = 1 FOR UPDATE
+###
+POST /exec
+
+SELECT id FROM jobs WHERE id = 2 FOR UPDATE NOWAIT</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;12fda51f843e6372cb7f667626ffcc65&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; SELECT id FROM jobs WHERE id = 1 FOR UPDATE&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT id FROM jobs WHERE id = 1 FOR UPDATE&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 71}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [1]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 42, &quot;execute_us&quot;: 75}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id FROM jobs WHERE id = 2 FOR UPDATE NOWAIT&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id FROM jobs WHERE id = 2 FOR UPDATE NOWAIT&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [2]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 61}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [2]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 61}
+}</code></pre>
+<h2 id="kdb-shell">Transactions in kdb shell</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb shell database
+kdb&gt; BEGIN;
+kdb&gt; ...;
+kdb&gt; COMMIT;</code></pre>
+<p>In <a href="cli-sql-and-shell.html"><code>kdb shell</code></a>, one transaction can go over many lines: the shell keeps one session for the whole time.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>If you leave the shell (<code>.exit</code>) with a transaction still open, it is rolled back.</li><li>After an error inside the transaction, the shell accepts only <code>ROLLBACK</code> (see <a href="transactions.html#errors">when a statement fails</a>).</li><li>The shell knows that <code>CREATE PROCEDURE ... BEGIN ... END;</code> is one statement, so <code>BEGIN</code> inside a procedure does not start a transaction.</li></ul></li></ul>
+<p><strong>Command line: A transfer typed line by line</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-bash">kdb shell market
+&gt; BEGIN;
+&gt; UPDATE accounts SET balance = balance - 250.50 WHERE id = 1;
+&gt; UPDATE accounts SET balance = balance + 250.50 WHERE id = 2;
+&gt; SELECT id, owner, balance FROM accounts ORDER BY id;
+&gt; COMMIT;
+&gt; .exit</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; transaction started
+kdb&gt; 1 row(s) updated
+kdb&gt; 1 row(s) updated
+kdb&gt; id | owner | balance
+---+-------+--------
+ 1 | Ram   |  749.50
+ 2 | Sita  |  250.50
+(2 rows, 0.2 ms)
+kdb&gt; transaction committed: 2 change(s) saved
+kdb&gt;</code></pre>
+<p>In the next example, the <code>INSERT</code> fails (id 1 is already used). The shell then refuses the next <code>UPDATE</code>, so it cannot take 10 from Ram outside the transaction. <code>ROLLBACK</code> ends the failed transaction.
+The shell writes error lines to a separate output (stderr), so on this page they are shown at the end. In a real window, each error comes right after its line.</p>
+<p><strong>Command line: After an error, only ROLLBACK is accepted</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-bash">kdb shell market
+&gt; BEGIN;
+&gt; UPDATE accounts SET balance = balance + 10 WHERE id = 2;
+&gt; INSERT INTO accounts VALUES (1, &#39;Ram again&#39;, 0);
+&gt; UPDATE accounts SET balance = balance - 10 WHERE id = 1;
+&gt; ROLLBACK;
+&gt; SELECT id, owner, balance FROM accounts ORDER BY id;
+&gt; .exit</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; transaction started
+kdb&gt; 1 row(s) updated
+kdb&gt; kdb&gt; kdb&gt; transaction rolled back (it was already rolled back: a statement in it failed)
+kdb&gt; id | owner | balance
+---+-------+--------
+ 1 | Ram   | 1000.00
+ 2 | Sita  |    0.00
+(2 rows, 0.2 ms)
+kdb&gt; 
+error: a row with id=&#39;1&#39; already exists in &#39;accounts&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it (the transaction was rolled back; send ROLLBACK to end it)
+error: the transaction of this session was rolled back (a statement in it failed); nothing of it was saved. Send ROLLBACK to end it, then start again</code></pre>
+<h2 id="http">Transactions over HTTP</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /session                               -&gt; {&quot;session&quot;: &quot;&lt;id&gt;&quot;, ...}
+POST /exec   X-KDB-Session: &lt;id&gt;   BEGIN; ...
+POST /exec   X-KDB-Session: &lt;id&gt;   ...; COMMIT
+DELETE /session/&lt;id&gt;</code></pre>
+<p><code>POST /exec</code> without a session runs one text: a transaction must end in the same request.
+To keep a transaction open <strong>over many requests</strong>, open a session with <code>POST /session</code>, and send its id in the header <code>X-KDB-Session</code> with every <code>/exec</code>. See <a href="http-sessions-and-cursors.html">HTTP sessions and cursors</a>.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>A request <strong>without</strong> the session header does not see the open transaction&#39;s changes. It sees the data as it was before <code>BEGIN</code>.</li><li>A transaction with no statement for 30 seconds is rolled back. Change it with <code>SET idle_in_transaction_session_timeout</code> or for the server (see <a href="transactions.html#idle-timeout">idle transactions</a>). A session without a request for 10 minutes is closed.</li><li><code>DELETE /session/&lt;id&gt;</code> rolls back an open transaction.</li><li>Over the <a href="postgres-protocol.html">PostgreSQL protocol</a>, every connection is a session: use <code>BEGIN</code> and <code>COMMIT</code> as usual.</li></ul></li></ul>
+<p><strong>HTTP: A transfer over two requests; another request does not see it until COMMIT</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1
+###
+POST /exec
+
+SELECT id, balance FROM accounts ORDER BY id
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+UPDATE accounts SET balance = balance + 100 WHERE id = 2; COMMIT
+###
+POST /exec
+
+SELECT id, balance FROM accounts ORDER BY id
+###
+DELETE /session/{{session}}</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;c6c2e2f850f77619986b3b53723d9d39&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 9}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 74}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 83}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id, balance FROM accounts ORDER BY id&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, balance FROM accounts ORDER BY id&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;balance&quot;, &quot;type&quot;: &quot;DECIMAL(2)&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1, &quot;1000.00&quot;],
+        [2, &quot;0.00&quot;]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 63}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+    {&quot;name&quot;: &quot;balance&quot;, &quot;type&quot;: &quot;DECIMAL(2)&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [1, &quot;1000.00&quot;],
+    [2, &quot;0.00&quot;]
+  ],
+  &quot;count&quot;: 2,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 63}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;UPDATE accounts SET balance = balance + 100 WHERE id = 2; COMMIT&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = balance + 100 WHERE id = 2&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 56}
+    },
+    {
+      &quot;statement&quot;: &quot;COMMIT&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction committed: 2 change(s) saved&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 13}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 69}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id, balance FROM accounts ORDER BY id&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, balance FROM accounts ORDER BY id&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;balance&quot;, &quot;type&quot;: &quot;DECIMAL(2)&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1, &quot;900.00&quot;],
+        [2, &quot;100.00&quot;]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 2, &quot;execute_us&quot;: 91}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+    {&quot;name&quot;: &quot;balance&quot;, &quot;type&quot;: &quot;DECIMAL(2)&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [1, &quot;900.00&quot;],
+    [2, &quot;100.00&quot;]
+  ],
+  &quot;count&quot;: 2,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 2, &quot;execute_us&quot;: 91}
+}</code></pre>
+<p><code>DELETE /session/{{session}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;c6c2e2f850f77619986b3b53723d9d39&quot;, &quot;closed&quot;: true}</code></pre>
+<h2 id="one-writer">One writer per table</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">session A: BEGIN; UPDATE accounts SET ... WHERE id = 1;  -- A locks row 1 of accounts (row-level locks)
+session B: INSERT INTO ticks ...;                         -- B goes at once: another table
+session C: UPDATE accounts SET ... WHERE id = 2;          -- C goes at once: another row
+session C: UPDATE accounts SET ... WHERE id = 1;          -- C waits for A&#39;s row (5 s unless set), then &quot;a row of table &#39;accounts&#39; is locked&quot;
+session C: SELECT ... FROM accounts;                      -- C does not wait for A&#39;s open transaction: it reads the data without A&#39;s changes
+session A: COMMIT;                                        -- row 1 is free; the next writer goes</code></pre>
+<p>A reader waits only while a writer&#39;s <strong>statement</strong> runs (see <a href="transactions.html#reader-yield">reader yield</a> for long triggers and <code>CALL</code>s). Between A&#39;s requests nothing runs, so C reads at once.</p>
+<p>A writer <strong>locks every table it uses</strong> until its statement ends. Inside <code>BEGIN</code> ... <code>COMMIT</code> it keeps them until the transaction ends - except where it only updated rows by their key: there it holds just those rows (row-level locks, in the table below). Writers of <strong>different tables</strong> run at the same time. Writers of the <strong>same table</strong> take turns, so two transfers can never mix, and every transaction sees the data exactly as the one before it left it (this is called <em>serializable</em>).</p>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>Other tables</td><td>Writers of different tables do not wait for each other&#39;s locks: a live tick feed and a big load into another table run side by side. They can still wait a little for work the whole database shares: a checkpoint that writes the changes to disk, and the disk sync of a commit.</td></tr><tr><td>The same table</td><td>A second writer waits until the first one ends, first come, first served. Line-protocol writes and bulk loads wait the same way.</td></tr><tr><td>What is locked</td><td>The tables a statement changes and reads, and what it sets off: tables its triggers and procedures use, tables linked to it by foreign keys, and <code>_audit_log</code> for audited tables. A procedure or trigger whose <a href="procedure-language.html#execute"><code>EXECUTE</code></a> text is made while it runs (<code>format(...)</code>, <code>&#39;...&#39; || name</code>), and a read of <code>information_schema</code> or <code>pg_catalog</code> in a writer, lock every table. <code>EXECUTE</code> of text written out in the body locks only the tables of that text.</td></tr><tr><td>Row-level locks</td><td>Inside <code>BEGIN</code> ... <code>COMMIT</code>, an <code>UPDATE</code> of rows of a table with a primary key locks <strong>those rows</strong>, not the table, until the transaction ends. Between its statements the transaction gives the table back: another transaction may change <strong>other rows</strong> of it at once, and one that meets a locked row waits for it, as in PostgreSQL (after the lock timeout: <code>a row of table &#39;x&#39; is locked</code>, <code>55P03</code>, or <code>40001</code> inside its own transaction). Two transactions that wait for each other&#39;s rows: one gets <code>deadlock: ...</code> at once. A <code>ROLLBACK</code> puts back only its own rows. What still keeps the <strong>whole table</strong> until <code>COMMIT</code>: an <code>INSERT</code> or <code>DELETE</code> in it, an <code>UPDATE</code> that changes a row&#39;s key, and any change of a table with another <code>UNIQUE</code> column or unique index, a foreign key (either way) or a trigger - rows the transaction holds could clash with another writer&#39;s there. A read in another transaction does not hold up such a transaction. Turn it off with <code>KDB_NO_ROW_LOCKS=1</code> (every table a transaction writes stays locked until it ends, as before).</td></tr><tr><td><code>SELECT ... FOR UPDATE</code></td><td>On a table with a primary key it locks only the rows it returns, not the table, until the transaction ends: other writers of the table go on, and only a writer of one of those rows waits (<a href="#for-update">row locks</a>).</td></tr><tr><td>Several writers at once</td><td><code>kdb serve --table-writers many</code>: requests that touch a table only by single rows and their primary key run on it at the same time, waiting only for the same row (<a href="#shared-writers">several writers of one table</a>). Off by default.</td></tr><tr><td>Several tables</td><td>The tables of one request are locked all at once, always in the same order, so two such requests never wait for each other.</td></tr><tr><td>Deadlock</td><td>A transaction that needs one more table in a later request can meet another transaction that waits for one of its tables. KDB sees this at once: the one that would wait gets <code>deadlock: ...</code> (HTTP status 503) and is rolled back. Run it again.</td></tr><tr><td>Busy</td><td>A writer that waited the <a href="#lock-timeout">lock timeout</a> (5 seconds unless set) gets <code>table &#39;x&#39; is busy: ...</code> (HTTP status 503, PostgreSQL <code>55P03</code>; <code>40001</code> inside its own <code>BEGIN ... COMMIT</code>, see <a href="#isolation">isolation</a>). Nothing of its statement was done: try the whole transaction again a moment later.</td></tr><tr><td>A taken key</td><td>An <code>INSERT ... VALUES</code> that waits for a busy table looks its keys up in the <strong>committed</strong> rows while it waits. A key that is already there gives the duplicate key error <strong>at once</strong> (PostgreSQL <code>23505</code>, HTTP status 400, with the table and constraint named), not <code>55P03</code> after the lock timeout. Inside <code>BEGIN</code> the transaction ends, as after any <code>23505</code>. A key that only the other transaction has added, deleted or changed is not decided yet: the <code>INSERT</code> waits for it. When that transaction commits, the <code>INSERT</code> gets <code>23505</code> (if the key is now taken) or goes in; when it rolls back, the row goes in. A key it deleted is never reported as taken. This covers the primary key, <code>UNIQUE</code> columns, plain unique indexes and a time-series <code>DEDUP KEY</code> that includes the time column, with literal values or <code>$1</code> parameters (not values worked out by an expression, <code>ON CONFLICT</code>, or a table with an <code>INSERT</code> trigger: those wait as before).</td></tr><tr><td>Schema changes of a table</td><td><code>CREATE TABLE</code>, <code>ALTER TABLE</code> (<code>RENAME</code> too), <code>DROP TABLE</code>, <code>CREATE INDEX</code>, <code>DROP INDEX</code>, <code>CREATE</code>, <code>ALTER</code> and <code>DROP TRIGGER</code> and <code>TRUNCATE</code> lock only their table (and the tables its foreign keys point at). <code>CREATE TABLE ... AS</code> locks the tables its query reads. <code>CREATE</code>, <code>REFRESH</code> and <code>DROP MATERIALIZED VIEW</code> lock the view and its table. They wait for writers of that table, like any writer (<code>table &#39;x&#39; is busy: ...</code>). <code>CREATE TABLE</code> (also <code>IF NOT EXISTS</code> and <code>AS SELECT</code>), <code>ALTER TABLE</code> (not <code>SET TTL</code>, <code>SET (dedup_insert ...)</code> or <code>DEDUP</code>), <code>RENAME TABLE</code> and <code>CREATE</code> / <code>DROP INDEX</code> do not wait for writers of <strong>other</strong> tables at all: they run beside them, also beside one long <code>INSERT ... SELECT</code>, <code>COPY</code> or <code>CALL</code> that never pauses. Only a writer that named the new table before it existed is waited for. The other schema changes of a table (<code>DROP TABLE</code>, triggers, <code>TRUNCATE</code>, materialized views) wait for a long writer of other tables only until it pauses between two of its statements (<a href="#reader-yield">reader yield</a>). Only the wait for writers counts against the lock timeout: a long <code>SELECT</code> or read-only <code>CALL</code> is waited for as long as it runs, then the schema change runs. Readers wait while the schema change itself runs, which is short. Turn it off with <code>kdb serve --ddl-beside-writers off</code> (they wait for the pause again) or <code>--scoped-ddl off</code> (every schema change locks every table).</td></tr><tr><td>Views, procedures, functions</td><td>change a definition, not a table: they lock no table, and writers of tables go on (creating or altering a <code>CACHED</code> view and <code>REFRESH VIEW</code> lock the tables its query reads). They still wait for a writer that may use the old definition next: a view change for a running writer that reads a view, a procedure or function change for a running writer that runs a procedure, a function or a plpgsql trigger (a long <code>CALL</code>, say). After the lock timeout that is <code>database is busy: ...</code>.</td></tr><tr><td>Other schema changes</td><td>Sequences, <code>BACKUP</code>, <code>DEDUP TABLE</code>, a change of a table a materialized view reads, a <code>CREATE TABLE ... AS</code> whose query reads <code>information_schema</code>, and a schema change sent in one request with statements it affects (<code>CREATE OR REPLACE PROCEDURE p ...; CALL p()</code>, or <code>CREATE VIEW v ...; INSERT ... SELECT FROM v</code>) lock every table: they wait until no transaction is open, and after the lock timeout get <code>database is busy: ...</code>. While such a change waits for a writer that was already running, writers of other tables still go ahead of it. Once that writer ends, new writers wait behind the change, so it is never kept out.</td></tr><tr><td>Schema statements with nothing to do</td><td>lock nothing and answer at once: <code>CREATE TABLE IF NOT EXISTS</code> of a table that is there, <code>ALTER TABLE ... ADD COLUMN IF NOT EXISTS</code> of a column that is there, <code>DROP COLUMN IF EXISTS</code>, <code>DROP TABLE IF EXISTS</code>, <code>DROP INDEX IF EXISTS</code> and <code>DROP VIEW IF EXISTS</code> of something that is not there, <code>CREATE INDEX IF NOT EXISTS</code> and <code>CREATE VIEW IF NOT EXISTS</code> of one that is there, <code>CREATE EXTENSION</code>, and a <code>COMMENT ON</code> that changes nothing (the same text again, or an object whose comments KDB does not keep). So the <code>CREATE ... IF NOT EXISTS</code> an app sends at start-up never waits for a long writer.</td></tr><tr><td>A request that cannot get its locks</td><td>none of its statements ran. The error says so: <code>... (none of the 2 statements of this request was run)</code>. Send the whole request again.</td></tr><tr><td>Readers and open transactions</td><td>A <code>SELECT</code> does not wait for an open transaction between its requests: it runs at once and sees the data <strong>without</strong> that transaction&#39;s changes. A read never waits for another read.</td></tr><tr><td>Readers and a running writer</td><td>A <code>SELECT</code> waits only while a writer runs on a table it reads (a statement, a long <code>CALL</code>, a trigger, a <code>POST /write</code>). <code>SELECT 1</code>, a login lookup and reads of other tables answer at once (<a href="transactions.html#per-table-reads">readers during a long writer</a>). With <a href="transactions.html#reader-yield">reader yield</a> (on unless turned off), a long <code>CALL</code>, trigger or request of many statements lets readers of its tables in between its statements; with it off, they wait for the writer&#39;s whole request.</td></tr><tr><td>A <code>CALL</code> that only reads</td><td>is a reader, not a writer: it locks nothing, like a <code>SELECT</code> (<a href="procedures.html#read-only-call">a CALL that only reads</a>).</td></tr><tr><td>What a reader sees</td><td>the last committed state when its request starts, for every table at once. A commit that changes several tables (a trigger that fills three tables) is seen whole or not at all. The statements of one read-only request all see the same state.</td></tr><tr><td>Idle</td><td>A transaction with no statement for 30 seconds is rolled back, so a forgotten transaction cannot block everybody. The time is a setting: see <a href="transactions.html#idle-timeout">idle transactions</a>.</td></tr><tr><td>Commits</td><td>Writers that commit at the same moment share one wait for the disk (group commit). Each one is still told &quot;committed&quot; only when its changes are on the disk - unless its session set <code>SET synchronous_commit = off</code> (<a href="performance-tips.html#synchronous-commit">performance tips</a>): then it is told at once and the disk follows within about 10 ms.</td></tr><tr><td>Per database</td><td>The locks are for one database. Transactions on other databases do not wait.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> a transfer takes about a millisecond, so waiting is short. <strong>Never</strong> keep a transaction open while you wait for a person (a click, a form, an SMS code). Read first, ask the person, then do <code>BEGIN ... COMMIT</code> quickly.</li><li>Use the tables in the same order in every transaction (for example <code>accounts</code>, then <code>ledger</code>), or send the whole transaction in one request. Then deadlocks cannot happen.</li></ul>
+<p><strong>HTTP: A writer of another table goes at once</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+CREATE TABLE ticks (symbol SYMBOL, price DOUBLE);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1
+###
+POST /exec
+
+INSERT INTO ticks VALUES (&#39;CITY&#39;, 505.5)</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;f7e759966764a764063c635d46f4e31d&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 6}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 73}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 28, &quot;execute_us&quot;: 79}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO ticks VALUES (&#39;CITY&#39;, 505.5)&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;INSERT INTO ticks VALUES (&#39;CITY&#39;, 505.5)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 19}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 19}
+}</code></pre>
+<p><strong>HTTP: Another row of the same table goes at once (row-level locks)</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1
+###
+POST /exec
+
+UPDATE accounts SET balance = 0 WHERE id = 2</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;b53794a14362801a49dbfdae615461bd&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 42}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 46}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;UPDATE accounts SET balance = 0 WHERE id = 2&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = 0 WHERE id = 2&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 34}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 34}
+}</code></pre>
+<p><strong>HTTP: The same row waits 5 seconds, then gets &#39;a row of table ... is locked&#39;</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1
+###
+POST /exec
+
+UPDATE accounts SET balance = 0 WHERE id = 1</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;2fcad7bfc65a0a969b174771e5c08a0e&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 3}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 39}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 42}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 503 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;UPDATE accounts SET balance = 0 WHERE id = 1&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;a row of table &#39;accounts&#39; is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5013 ms (lock_timeout: SET lock_timeout, or kdb serve --lock-timeout). Try again, or keep transactions short&quot;,
+  &quot;sqlstate&quot;: &quot;55P03&quot;
+}</code></pre>
+<p><strong>HTTP: A transaction that inserted keeps the whole table: another writer waits, then gets &#39;table ... is busy&#39;</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; INSERT INTO accounts VALUES (3, &#39;Hari&#39;, 0)
+###
+POST /exec
+
+UPDATE accounts SET balance = 0 WHERE id = 2</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;ccf8379d5ccea6c1117951a641db70db&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; INSERT INTO accounts VALUES (3, &#39;Hari&#39;, 0)&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 5}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO accounts VALUES (3, &#39;Hari&#39;, 0)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 47}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 52}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 503 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;UPDATE accounts SET balance = 0 WHERE id = 2&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;table &#39;accounts&#39; is busy: another transaction has held it for 5027 ms; waited 5003 ms (lock_timeout: SET lock_timeout, or kdb serve --lock-timeout). Try again, or keep transactions short&quot;,
+  &quot;sqlstate&quot;: &quot;55P03&quot;
+}</code></pre>
+<p><strong>HTTP: An INSERT of a key that is taken gets 23505 at once, even while the table is busy</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1
+###
+POST /exec
+
+INSERT INTO accounts VALUES (2, &#39;Hari&#39;, 50)</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;3663ba76f5b8fcea203f7cb874c34c46&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 5}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 56}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 61}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO accounts VALUES (2, &#39;Hari&#39;, 50)&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;a row with id=&#39;2&#39; already exists in &#39;accounts&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it&quot;,
+  &quot;sqlstate&quot;: &quot;23505&quot;,
+  &quot;table&quot;: &quot;accounts&quot;,
+  &quot;constraint&quot;: &quot;accounts_pkey&quot;,
+  &quot;column_name&quot;: &quot;id&quot;
+}</code></pre>
+<p><strong>HTTP: CREATE TABLE IF NOT EXISTS of a table that is there goes at once, even while a transaction is open</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1
+###
+POST /exec
+
+CREATE TABLE IF NOT EXISTS accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS owner STRING</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;938dc0eedc33ef8407f39dac500ead73&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE accounts SET balance = balance - 100 WHERE id = 1&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 47}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 34, &quot;execute_us&quot;: 51}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;CREATE TABLE IF NOT EXISTS accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);\nALTER TABLE accounts ADD COLUMN IF NOT EXISTS owner STRING&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;CREATE TABLE IF NOT EXISTS accounts (\n  id INT PRIMARY KEY,\n  owner STRING NOT NULL,\n  balance DECIMAL(2) NOT NULL\n)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;table &#39;accounts&#39; already exists&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 1}
+    },
+    {
+      &quot;statement&quot;: &quot;ALTER TABLE accounts ADD COLUMN IF NOT EXISTS owner STRING&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;table &#39;accounts&#39; not changed (already as asked)&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 0}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 34, &quot;execute_us&quot;: 1}
+}</code></pre>
+<h2 id="isolation">Isolation: what a transaction sees</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">BEGIN [ISOLATION LEVEL READ COMMITTED | SERIALIZABLE]
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED        -- this transaction only (inside BEGIN)
+SET default_transaction_isolation = &#39;read committed&#39;  -- the session&#39;s transactions from now on
+SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED
+SHOW transaction_isolation</code></pre>
+<p>KDB&#39;s transactions are <strong>serializable</strong> unless you ask for READ COMMITTED: every table a transaction reads or writes is locked until <code>COMMIT</code> or <code>ROLLBACK</code>. PostgreSQL&#39;s default is READ COMMITTED.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>SERIALIZABLE (KDB&#39;s default)</th><th>READ COMMITTED</th></tr></thead><tbody><tr><td>A <code>SELECT</code> in the transaction</td><td>locks the table until the end</td><td>locks nothing, unless the transaction already holds the table</td></tr><tr><td>Reading again after another session committed</td><td>the same rows (the other session had to wait)</td><td>the new rows</td></tr><tr><td>&quot;Read v, write v + 1&quot; from many clients</td><td>never loses an update; clients take turns</td><td>can lose updates, as in PostgreSQL: use <code>UPDATE ... SET v = v + 1</code> or <code>SELECT ... FOR UPDATE</code></td></tr><tr><td>Tables the transaction wrote</td><td>read inside it: it sees its own changes</td><td>the same</td></tr></tbody></table></div>
+<ul><li><strong>What a refusal is:</strong> a transaction never sees half of another one. Instead, a writer that waits too long for a table is refused:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Error</th><th>SQLSTATE</th><th>HTTP</th><th>What to do</th></tr></thead><tbody><tr><td><code>table &#39;x&#39; is busy</code> inside <code>BEGIN ... COMMIT</code></td><td><code>40001</code> (serialization_failure)</td><td>503</td><td><code>ROLLBACK</code> and run the whole transaction again. Drivers and frameworks retry this code by themselves.</td></tr><tr><td><code>table &#39;x&#39; is busy</code> for a statement outside a transaction</td><td><code>55P03</code> (lock_not_available)</td><td>503</td><td>send it again</td></tr><tr><td><code>deadlock: ...</code></td><td><code>40P01</code> (deadlock_detected)</td><td>503</td><td>the transaction was rolled back: run it again</td></tr><tr><td><code>FOR UPDATE NOWAIT</code> on a busy table</td><td><code>55P03</code></td><td>503</td><td>as in PostgreSQL</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li><code>REPEATABLE READ</code> is taken as <code>SERIALIZABLE</code>, <code>READ UNCOMMITTED</code> as <code>READ COMMITTED</code> (as PostgreSQL does). A database may always give more than asked.</li><li>READ COMMITTED leaves only a <code>SELECT</code> sent <strong>on its own</strong> outside the locks. A <code>SELECT</code> in the same request as <code>BEGIN</code> or a write, <code>SELECT ... FOR UPDATE</code>, and a read that joins a table the transaction holds, lock their tables as before.</li><li><code>SET TRANSACTION</code> outside <code>BEGIN ... COMMIT</code> changes nothing (PostgreSQL gives a warning, <code>25P01</code>).</li><li>Readers outside any transaction never lock: they see the last committed rows (<a href="#one-writer">one writer per table</a>).</li></ul></li></ul>
+<p><strong>HTTP: READ COMMITTED: another session writes the table this transaction read</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE counter (k INT PRIMARY KEY, v LONG);
+INSERT INTO counter VALUES (1, 10);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN ISOLATION LEVEL READ COMMITTED
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+SELECT v FROM counter WHERE k = 1
+###
+POST /exec
+
+UPDATE counter SET v = 11 WHERE k = 1
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+SELECT v FROM counter WHERE k = 1
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+COMMIT</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;29d98ffec3c666650a313a55dbe88401&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN ISOLATION LEVEL READ COMMITTED&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN ISOLATION LEVEL READ COMMITTED&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 10}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 10}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT v FROM counter WHERE k = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT v FROM counter WHERE k = 1&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;v&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [10]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 40, &quot;execute_us&quot;: 64}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;v&quot;, &quot;type&quot;: &quot;LONG&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [10]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 40, &quot;execute_us&quot;: 64}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;UPDATE counter SET v = 11 WHERE k = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;UPDATE counter SET v = 11 WHERE k = 1&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 50}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 50}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT v FROM counter WHERE k = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT v FROM counter WHERE k = 1&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;v&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [11]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 112}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;v&quot;, &quot;type&quot;: &quot;LONG&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [11]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 112}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;COMMIT&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;COMMIT&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction committed: 0 change(s) saved&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 10}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 10}
+}</code></pre>
+<h2 id="read-only">Read-only transactions</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">BEGIN READ ONLY                               -- also START TRANSACTION READ ONLY (PostgreSQL port)
+BEGIN ISOLATION LEVEL READ COMMITTED, READ ONLY
+SET TRANSACTION READ ONLY | READ WRITE        -- this transaction only (inside BEGIN)
+SET default_transaction_read_only = on | off  -- the session&#39;s transactions from now on
+SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY
+SHOW transaction_read_only</code></pre>
+<p>A read-only transaction refuses every change, as in PostgreSQL. Use it for reports and checks that must never write by mistake.</p>
+<div class="table-wrap"><table><thead><tr><th>In a read-only transaction</th><th>Result</th></tr></thead><tbody><tr><td><code>SELECT</code>, <code>SHOW</code>, <code>EXPLAIN</code>, cursors, a <code>CALL</code> of a procedure that only reads</td><td>runs</td></tr><tr><td><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>TRUNCATE</code>, <code>COPY ... FROM</code></td><td>refused</td></tr><tr><td><code>CREATE</code>, <code>ALTER</code>, <code>DROP</code> of tables, views, indexes, procedures, databases and users</td><td>refused</td></tr><tr><td><code>SELECT ... FOR UPDATE</code>, <code>WITH x AS (UPDATE ...)</code>, <code>nextval()</code>, <code>setval()</code></td><td>refused</td></tr><tr><td>a <code>CALL</code> or <code>DO</code> block whose body changes data</td><td>refused at the first change</td></tr></tbody></table></div>
+<ul><li><strong>The error:</strong> <code>cannot execute INSERT in a read-only transaction</code>, SQLSTATE <code>25006</code> (HTTP 403). Inside <code>BEGIN ... COMMIT</code> the transaction is aborted, as in PostgreSQL: send <code>ROLLBACK</code>. Nothing is written.</li><li><strong>Notes:</strong>
+<ul><li>With <code>default_transaction_read_only = on</code>, a statement sent on its own is read-only too. <code>BEGIN READ WRITE</code> (or <code>SET TRANSACTION READ WRITE</code> first in the block) writes once, for that transaction.</li><li><code>SET TRANSACTION READ WRITE</code> after the transaction ran a query is refused (<code>25001</code>), as in PostgreSQL.</li><li>Over HTTP, <code>BEGIN READ ONLY</code> works in one request. <code>SET default_transaction_read_only</code> and <code>SET TRANSACTION</code> need an <a href="http-sessions-and-cursors.html">HTTP session</a> (<code>POST /session</code>): without one there is nowhere to keep them, so they are refused.</li><li>One session&#39;s setting never changes another session.</li><li>To make a whole database or server read-only for everyone, use <code>ALTER DATABASE ... SET READ ONLY</code> or <code>kdb serve --read-only</code> instead.</li></ul></li></ul>
+<p><strong>HTTP: A report session that cannot write by mistake</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE report_src (k INT PRIMARY KEY, v LONG);
+INSERT INTO report_src VALUES (1, 10);</code></pre>
+<pre><code class="language-http">POST /exec
+
+BEGIN READ ONLY; SELECT v FROM report_src; COMMIT
+###
+POST /exec
+
+BEGIN READ ONLY; UPDATE report_src SET v = 0 WHERE k = 1</code></pre>
+<p>Response:</p>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN READ ONLY; SELECT v FROM report_src; COMMIT&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN READ ONLY&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 3}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT v FROM report_src&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;v&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [10]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 54}
+    },
+    {
+      &quot;statement&quot;: &quot;COMMIT&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction committed: 0 change(s) saved&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 2}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 59}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 403 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN READ ONLY; UPDATE report_src SET v = 0 WHERE k = 1&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN READ ONLY&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 4}
+    }
+  ],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: true,
+  &quot;error&quot;: &quot;cannot execute UPDATE in a read-only transaction (the transaction was rolled back)&quot;,
+  &quot;sqlstate&quot;: &quot;25006&quot;
+}</code></pre>
+<h2 id="lock-timeout">How long a writer waits: lock_timeout</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --lock-timeout 20s              the server (default 5s; 0 = no limit)
+KDB_LOCK_TIMEOUT=20s                      the same, for Docker
+&quot;lock_timeout_ms&quot;: 20000                  the same, in kdb.conf
+SET lock_timeout = &#39;20s&#39; | 20000 | 0 | DEFAULT     one session (HTTP session or PostgreSQL connection)
+X-KDB-Lock-Timeout: 20s                   one HTTP request</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>Detail</th></tr></thead><tbody><tr><td>The server</td><td>A flag wins, then <code>kdb.conf</code>, then <code>KDB_LOCK_TIMEOUT</code>, then 5 seconds. The console&#39;s Settings page shows the value and where it came from.</td></tr><tr><td>One session</td><td><code>SET lock_timeout</code> lasts for the session, like in PostgreSQL. A plain number is milliseconds. <code>DEFAULT</code> (or <code>RESET lock_timeout</code>) goes back to the server&#39;s. <code>SHOW lock_timeout</code> gives the value in milliseconds.</td></tr><tr><td>One request</td><td>The HTTP header <code>X-KDB-Lock-Timeout</code> sets it for that request only: <code>/exec</code>, the line protocol (<code>POST /write</code>) and CSV import (<code>POST /imp</code>).</td></tr><tr><td>Loads</td><td>Rows from the line protocol, <code>/imp</code> and a PostgreSQL <code>COPY</code> wait in a write queue. Each caller keeps its own lock timeout there, also while it waits behind other loads of the same table. A cancel or a server stop ends its wait at once, and nothing of it is written.</td></tr><tr><td><code>0</code></td><td>Wait without a limit. A statement timeout, a cancel or a server stop still ends the wait at once.</td></tr><tr><td>The error</td><td><code>table &#39;x&#39; is busy: another transaction has held it for N ms; waited M ms ...</code>. When only writers that came first are in the way (they wait too), it says <code>other writers came first and wait for it too</code>.</td></tr></tbody></table></div>
+<p>Many small writers of one table (counters, logins) that should queue instead of failing: raise the lock timeout for them, and keep each transaction short.</p>
+<h2 id="lock-table">LOCK TABLE, pg_locks and lock waits</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">LOCK [TABLE] name [, name ...] [IN mode MODE] [NOWAIT]      only inside BEGIN ... COMMIT
+mode: ACCESS SHARE | ROW SHARE | ROW EXCLUSIVE | SHARE UPDATE EXCLUSIVE
+    | SHARE | SHARE ROW EXCLUSIVE | EXCLUSIVE | ACCESS EXCLUSIVE (the default)
+SELECT relation::regclass, mode, granted, pid FROM pg_locks        who holds and who waits
+SELECT pg_blocking_pids(pid)                                       who a waiting pid waits for
+SET log_lock_waits = on;  SET deadlock_timeout = &#39;1s&#39;              a log line for a long wait</code></pre>
+<p><code>LOCK TABLE</code> takes a table lock in one of PostgreSQL&#39;s eight modes and keeps it until the transaction ends (<code>COMMIT</code> or <code>ROLLBACK</code>). The modes keep each other out as in PostgreSQL:</p>
+<div class="table-wrap"><table><thead><tr><th>You lock with</th><th>Other transactions can still</th><th>They wait to</th></tr></thead><tbody><tr><td><code>ACCESS SHARE</code></td><td>read and change the table</td><td>drop or rebuild it (<code>ACCESS EXCLUSIVE</code>)</td></tr><tr><td><code>ROW SHARE</code>, <code>ROW EXCLUSIVE</code></td><td>read and change it</td><td>take <code>SHARE</code> or stronger (<code>ROW SHARE</code>: <code>EXCLUSIVE</code> or stronger)</td></tr><tr><td><code>SHARE</code></td><td>read it, and take <code>SHARE</code> too</td><td>change it (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>)</td></tr><tr><td><code>SHARE ROW EXCLUSIVE</code>, <code>EXCLUSIVE</code></td><td>read it</td><td>change it, or lock it in <code>SHARE</code> or stronger</td></tr><tr><td><code>ACCESS EXCLUSIVE</code></td><td>nothing</td><td>read it or change it. A plain <code>SELECT</code> of the table waits too</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>Only in a transaction</td><td>Outside <code>BEGIN ... COMMIT</code> it fails with <code>LOCK TABLE can only be used in transaction blocks</code> (<code>25P01</code>), as in PostgreSQL. In a procedure body it lasts until the request&#39;s transaction ends.</td></tr><tr><td><code>NOWAIT</code></td><td>A table another transaction holds in a conflicting mode fails at once with <code>could not obtain lock on relation &quot;t&quot;</code> (<code>55P03</code>, HTTP 503: try again), and the transaction is rolled back, as in PostgreSQL. Without <code>NOWAIT</code> it waits the <a href="#lock-timeout">lock timeout</a>.</td></tr><tr><td>A view</td><td>locks the tables the view reads, in the same mode.</td></tr><tr><td>KDB&#39;s own writers</td><td>still take turns on a table as always (<a href="#one-writer">one writer per table</a>): two <code>UPDATE</code>s of one table never run at once. <code>pg_locks</code> shows a writer&#39;s lock as <code>RowExclusiveLock</code> (it changes the table), <code>RowShareLock</code> (<code>SELECT ... FOR UPDATE</code>) or <code>AccessShareLock</code> (it reads the table in its transaction).</td></tr><tr><td>Readers</td><td>A plain <code>SELECT</code> waits only for <code>ACCESS EXCLUSIVE</code>. A read that started before the lock was granted runs to its end. The session that holds the lock reads on.</td></tr><tr><td>Deadlock</td><td>Two transactions that wait for each other: one gets <code>deadlock: process 12 waits for ExclusiveLock on table &#39;t1&#39;; blocked by process 34. Process 34 waits for ...</code> (<code>40P01</code>, HTTP 503) at once and is rolled back. Run it again.</td></tr><tr><td>Rights</td><td><code>ACCESS SHARE</code> needs the right to read the table; the other modes the right to change it. A read-only transaction may take up to <code>ROW EXCLUSIVE</code>.</td></tr></tbody></table></div>
+<p><code>pg_locks</code> lists the table locks of the database: one row per table and mode, <code>granted</code> true for a held lock and false for one waited for (then <code>waitstart</code> says since when). <code>pid</code> is the same number <code>pg_stat_activity</code> and <code>pg_backend_pid()</code> give for that connection or HTTP session. A lock of every table (a schema change, <code>BACKUP</code>) shows as <code>AccessExclusiveLock</code> on each table. Over the PostgreSQL port <code>relation::regclass</code> gives the table&#39;s name; over HTTP join <code>pg_class</code> on <code>oid</code>.</p>
+<p><code>pg_locks</code>, <code>pg_stat_activity</code> and <code>pg_stat_statements</code> read no table, so a transaction can look at them (<code>BEGIN; LOCK TABLE t; SELECT * FROM pg_locks</code>) without taking any other table and without waiting for anyone.</p>
+<p><code>pg_blocking_pids(pid)</code> gives the pids a waiting pid waits for: those holding a lock in its way, and those that came first and wait for the same table. <code>{}</code> when it does not wait.</p>
+<p><code>log_lock_waits</code> (off by default) writes one line to the server log when a statement has waited for a table lock longer than <code>deadlock_timeout</code> (1 second by default), naming it, the lock, who holds it and who waits: <code>kdb: LOG: process 12 still waiting for RowExclusiveLock on relation 16448 (&#39;t&#39;) of database &#39;main&#39; after 1003 ms; process holding the lock: 34; wait queue: 12</code>. Set it for the server with <code>kdb serve --log-lock-waits on --deadlock-timeout 1s</code> (<code>KDB_LOG_LOCK_WAITS</code>, <code>KDB_DEADLOCK_TIMEOUT</code>), or for one session with <code>SET</code>. KDB finds a deadlock at once whatever <code>deadlock_timeout</code> is: it only says when the line is written.</p>
+<p><strong>HTTP: SHARE mode: another transaction reads the table, its UPDATE would wait; pg_locks shows the lock</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; LOCK TABLE accounts IN SHARE MODE
+###
+POST /exec
+
+SELECT owner, balance FROM accounts ORDER BY id;
+SELECT c.relname, l.mode, l.granted FROM pg_locks l JOIN pg_class c ON c.oid = l.relation</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;18667f6568b87caad682354243a60541&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; LOCK TABLE accounts IN SHARE MODE&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;LOCK TABLE accounts IN SHARE MODE&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;LOCK TABLE&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 3}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 7}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT owner, balance FROM accounts ORDER BY id;\nSELECT c.relname, l.mode, l.granted FROM pg_locks l JOIN pg_class c ON c.oid = l.relation&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT owner, balance FROM accounts ORDER BY id&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;owner&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;balance&quot;, &quot;type&quot;: &quot;DECIMAL(2)&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;Ram&quot;, &quot;1000.00&quot;],
+        [&quot;Sita&quot;, &quot;0.00&quot;]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 64}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT c.relname, l.mode, l.granted FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;relname&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;mode&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;granted&quot;, &quot;type&quot;: &quot;BOOL&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;accounts&quot;, &quot;ShareLock&quot;, true]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 131}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;relname&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;mode&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;granted&quot;, &quot;type&quot;: &quot;BOOL&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;accounts&quot;, &quot;ShareLock&quot;, true]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 195}
+}</code></pre>
+<p><strong>HTTP: NOWAIT on a table another transaction holds: 55P03 at once</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+BEGIN; LOCK TABLE accounts IN SHARE MODE
+###
+POST /exec
+
+BEGIN; LOCK TABLE accounts IN ACCESS EXCLUSIVE MODE NOWAIT</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;4715e1b78204942da6d204e9b1644327&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; LOCK TABLE accounts IN SHARE MODE&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;LOCK TABLE accounts IN SHARE MODE&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;LOCK TABLE&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 1}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 5}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 503 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN; LOCK TABLE accounts IN ACCESS EXCLUSIVE MODE NOWAIT&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;could not obtain lock on relation \&quot;accounts\&quot; (none of the 2 statements of this request was run)&quot;,
+  &quot;sqlstate&quot;: &quot;55P03&quot;
+}</code></pre>
+<h2 id="idle-timeout">Idle transactions: idle_in_transaction_session_timeout</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --idle-in-transaction-timeout 5min    the server (default 30s; 0 = never)
+KDB_IDLE_IN_TRANSACTION_TIMEOUT=5min            the same, for Docker
+&quot;idle_in_transaction_timeout_ms&quot;: 300000        the same, in kdb.conf
+SET idle_in_transaction_session_timeout = &#39;5min&#39; | 300000 | 0 | DEFAULT   one session</code></pre>
+<p>An open <code>BEGIN</code> ... <code>COMMIT</code> that sends no statement for this long is rolled back. This happens when another writer needs its tables, or at its own next statement. Its session then gets an error until it sends <code>ROLLBACK</code>. So a client that died in the middle of a transaction cannot keep its tables locked for ever.</p>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>Detail</th></tr></thead><tbody><tr><td>The server</td><td>A flag wins, then <code>kdb.conf</code>, then <code>KDB_IDLE_IN_TRANSACTION_TIMEOUT</code>, then 30 seconds. The start-up lines and the console&#39;s Settings page show it and where it came from.</td></tr><tr><td>One session</td><td><code>SET idle_in_transaction_session_timeout</code> lasts for the session (an HTTP session or a PostgreSQL connection), like in PostgreSQL. A plain number is milliseconds. <code>0</code> = never. <code>DEFAULT</code> (or <code>RESET</code>) goes back to the server&#39;s. <code>SHOW idle_in_transaction_session_timeout</code> gives it in milliseconds on the PostgreSQL port.</td></tr><tr><td>The error</td><td><code>the transaction of this session was rolled back (it was open without a statement for N ms; the limit is M ms ...)</code>.</td></tr></tbody></table></div>
+<h2 id="per-table-reads">Readers during a long writer</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --per-table-reads on|off     (default on)
+KDB_PER_TABLE_READS=off                (the same, for Docker; a flag wins)</code></pre>
+<p>A reader waits only for writers that are <strong>running right now on a table it reads</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Reader</th><th>While a long <code>CALL</code>, trigger or bulk load writes table <code>t</code></th></tr></thead><tbody><tr><td><code>SELECT 1</code>, a read of other tables</td><td>answers at once</td></tr><tr><td>A read of <code>t</code> (or of a table the writer only reads)</td><td>waits for the statement running now: the writer lets it in between its statements (<a href="#reader-yield">reader yield</a>, on by default). With reader yield off, it waits until the writer&#39;s request ends. With <a href="#snapshot-reads">snapshot reads</a> on, it does not wait</td></tr><tr><td><code>SHOW ...</code>, <code>information_schema</code>, <code>pg_catalog</code></td><td>waits: it reads every table (not <code>pg_locks</code>, <code>pg_stat_activity</code>, <code>pg_stat_statements</code>: they read no table)</td></tr><tr><td>Any read, while a writer runs dynamic SQL (<code>EXECUTE format(...)</code>) or a schema change inside a <code>CALL</code></td><td>waits: that writer may touch every table</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>During a checkpoint</th><th></th></tr></thead><tbody><tr><td>Writing the partition files (can take seconds)</td><td>readers go on; writers wait</td></tr><tr><td>Taking open transactions out, publishing the new files</td><td>everybody waits (milliseconds)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Readers still see only committed rows: a table a running writer holds is never read until it is done.</li><li>A checkpoint that waits for a long writer does not hold readers back meanwhile.</li><li><code>off</code> goes back to the old rule: every reader waits for every running writer and for the whole checkpoint.</li></ul></li></ul>
+<h2 id="reader-yield">Readers of the writer&#39;s tables: reader yield</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --reader-yield on|off        (default on)
+KDB_READER_YIELD=off                   (the same, for Docker; a flag wins)</code></pre>
+<p>A writer&#39;s request can run for many seconds: a <code>CALL</code> that builds a day of candles, an immediate trigger, a request with many statements.
+Readers never see its changes before it commits. Readers of <strong>other</strong> tables never wait for it (<a href="#per-table-reads">above</a>). For readers of <strong>its</strong> tables, this switch decides whether they <strong>wait</strong> meanwhile. The start-up lines say which one is in use (<code>readers ...</code>).</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>off</th><th>on (default)</th></tr></thead><tbody><tr><td>A <code>SELECT</code> of the writer&#39;s tables while it runs</td><td>waits until the writer&#39;s request ends</td><td>answers soon, with the rows as the last commit left them</td></tr><tr><td>How</td><td>readers and writers take turns at the database</td><td>between two statements of the writer&#39;s body or request, the writer steps aside and lets waiting readers in. Its table locks stay, so no other writer gets its tables.</td></tr><tr><td>Cost</td><td>none</td><td>a pause is free when nobody waits. A reader of a table the writer already changed makes the writer take its changes out and put them back, so the writer keeps at least about two thirds of its time.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>The pause comes only <strong>between</strong> statements. One long statement (a big <code>INSERT ... SELECT</code>, a big <code>UPDATE</code>) still makes readers wait until it ends.</li><li>Readers see a committed state, never half of one: a commit that fills three tables is seen whole or not at all.</li><li>Writers of other tables do not need this switch: they never wait for each other.</li><li>The switch is for the whole server, not per database.</li><li>A deferred trigger job pauses the same way. See <a href="triggers.html#deferred">deferred triggers</a>.</li></ul></li></ul>
+<h2 id="snapshot-reads">Readers of the writer&#39;s tables: snapshot reads</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --snapshot-reads on|off      (default off)
+KDB_SNAPSHOT_READS=on                  (the same, for Docker; a flag wins)</code></pre>
+<p>With snapshot reads on, a reader of a table that a writer is changing <strong>does not wait</strong>, not even for one long statement. It reads a <strong>snapshot</strong> of the table: the rows committed when the read started.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>reader yield only</th><th>snapshot reads on</th></tr></thead><tbody><tr><td>A <code>SELECT</code> of <code>t</code> while a long <code>CALL</code>, trigger job or <code>INSERT ... SELECT</code> writes <code>t</code></td><td>waits for the statement running now</td><td>answers at once, with the committed rows</td></tr><tr><td>A <code>SELECT</code> of <code>t</code> while a session&#39;s <code>BEGIN</code> holds changes of <code>t</code></td><td>answers at once (the transaction is taken out for it)</td><td>answers at once (the transaction stays in)</td></tr><tr><td>A read-only <code>CALL</code> of <code>t</code></td><td>waits like a <code>SELECT</code></td><td>reads snapshots, each statement of its body the rows committed when it starts</td></tr><tr><td>What the writer pays</td><td>takes its changes out and puts them back for readers</td><td>nothing: when a reader holds a snapshot of a partition it changes next, it leaves the snapshot&#39;s unsaved rows as they are and writes on a new layer on top (since 2026-10-02; before, it copied them all)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>A writer that is about to finish (within 20 ms, a short write and its disk sync) is still waited for: a snapshot for every read of a table written many times a second would slow its writer down. Once a snapshot is taken, readers during the same long writer use it at once.</li><li>A snapshot never holds uncommitted rows, and never half of a commit: all the tables of one transaction or none of them.</li><li>A snapshot waits until the rows it holds are on disk, as the writer that made them does.</li><li>Tables with an index get snapshots too, while a writer is busy on them, <strong>at any size</strong> (since 2026-10-02). A read of the snapshot still uses a plain or expression index (<code>CREATE INDEX</code>): it checks each row the index finds against the snapshot, and also finds the rows the writer changed or deleted since. So a lookup stays a lookup, never sees an uncommitted row, and <code>EXPLAIN</code> shows the index as usual.</li><li>A full-text or JSON index is not used on a snapshot, and neither is an index that is not built in memory yet (after a restart, before its first use): such a read scans the snapshot instead. A table like that with more than 1,000,000 rows is not scanned: its readers wait for the writer, as before. <code>--snapshot-index-rows N</code> (<code>KDB_SNAPSHOT_INDEX_ROWS</code>) moves that line; <code>0</code> means indexed tables never get snapshots.</li><li>An open transaction that sits idle (<code>BEGIN</code>, a change, then nothing) gives readers of an indexed table no snapshot: they take it out of their way and use the index on the table itself, as without snapshot reads.</li><li>Materialized views are still read as before (the reader waits).</li><li>One statement that writes a table applies its rows in one step at the end. A reader of that same table waits for that step (up to about a second per million rows), never for the whole statement.</li><li>Readers that use a snapshot, snapshots taken and snapshots reused show in <code>GET /api/stats</code> (<code>snapshot_reads</code>, <code>snapshots_taken</code>, <code>snapshots_reused</code>).</li><li><code>GET /api/stats</code> itself reads snapshots too (since 2026-10-02): the row counts of a table a writer is changing are its committed rows, and it answers at once instead of saying <code>&quot;busy&quot;: true</code> until the writer is done.</li><li><strong>Layers</strong> (since 2026-10-02). The unsaved rows of a partition (changed since the last checkpoint) are shared between the table and its snapshots. A writer that changes such a partition freezes them as a layer and writes on a new one, so its cost is the rows it writes, not the rows the partition holds. Reads merge the layers. When no snapshot holds a layer any more, the next write to the partition folds it back; a checkpoint folds them all. A partition keeps at most 6 layers: past that, the two smallest neighbours become one.</li><li><code>GET /api/stats</code> counts them since the server started:</li></ul></li></ul>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>What it counts</th></tr></thead><tbody><tr><td><code>snapshot_delta_freezes</code></td><td>layers frozen because a snapshot held them when a writer came</td></tr><tr><td><code>snapshot_delta_folds</code></td><td>layers folded back once no snapshot held them</td></tr><tr><td><code>snapshot_delta_merges</code></td><td>pairs of layers made one (past 6 layers in a partition)</td></tr><tr><td><code>snapshot_delta_copies</code></td><td>full copies of a partition&#39;s unsaved rows (only an <code>ALTER TABLE</code> makes one now)</td></tr><tr><td><code>snapshot_delta_layers</code></td><td>frozen layers the tables hold right now (0 when the stats are read while a job runs)</td></tr></tbody></table></div>
+<p>A <code>snapshot_delta_layers</code> that stays high while nobody reads means a partition was not written since its last snapshot ended: the next write or checkpoint frees it.</p>
+<h2 id="shared-writers">Several writers of one table</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --table-writers one|many     (default one)
+KDB_TABLE_WRITERS=many                 (the same, for Docker; a flag wins)</code></pre>
+<p>With <code>many</code>, several users change <strong>one table at the same time</strong>, as long as each of their requests touches the table only by <strong>single rows and their primary key</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>Allowed on the shared table</th><th>Not allowed (the request takes the whole table, as before)</th></tr></thead><tbody><tr><td><code>INSERT INTO t VALUES (...)</code> (a row, or a few)</td><td><code>INSERT ... SELECT</code>, <code>ON CONFLICT DO UPDATE</code></td></tr><tr><td><code>UPDATE t SET ... WHERE id = x</code> (<code>x</code> a value, a parameter or a procedure variable; the key itself is not set)</td><td><code>UPDATE ... WHERE balance &gt; 0</code>, <code>UPDATE ... FROM</code>, an <code>UPDATE</code> without <code>WHERE</code></td></tr><tr><td><code>DELETE FROM t WHERE id = x</code></td><td><code>DELETE</code> of a range, with <code>USING</code> or <code>RETURNING</code></td></tr><tr><td><code>SET v = (SELECT a, b FROM t WHERE id = x)</code> in a procedure or trigger body</td><td>a <code>SELECT</code> statement, a <code>FOR</code> loop&#39;s query, a view, a CTE, a join</td></tr><tr><td>a <code>CALL</code> or a trigger made of the statements above</td><td><code>BEGIN ... COMMIT</code> across requests, <code>LOCK TABLE</code>, <code>SELECT ... FOR UPDATE</code></td></tr></tbody></table></div>
+<p>The table must be a plain table with a one-column <code>PRIMARY KEY</code>, no foreign key either way, no other <code>UNIQUE</code> column or index, no <code>AUTO</code> column, no <code>FOR EACH ROW</code> trigger and no materialized view built from it (statement triggers are fine). Other tables of the same request are not affected: each is held shared or whole on its own.</p>
+<ul><li><strong>What you get:</strong> eight users running a bank-transfer <code>CALL</code> no longer take turns on the accounts table; their statements overlap and more of their commits share one disk sync.</li><li><strong>The same row:</strong> a second writer of a row waits for the first one&#39;s end (the lock timeout applies), then reads the row as that writer left it, committed or rolled back: <code>balance = balance - 10</code> twice gives the same balance as one after the other, as PostgreSQL&#39;s row locks do. Two inserts of one key give one row and one <code>already exists</code> (<code>23505</code>). A read of a row another writer is changing waits for it: a request never sees a change that is not committed.</li><li><strong>Deadlock:</strong> two writers that wait for each other&#39;s rows get <code>deadlock: ...</code> (<code>40P01</code>) at once, like two transactions that wait for each other&#39;s tables. Run the request again.</li><li><strong>Readers:</strong> a <code>SELECT</code> of the table waits for all of its writers, or reads a snapshot with <a href="#snapshot-reads">snapshot reads</a> on; it never sees half a statement.</li><li><strong>The escape hatch:</strong> a request that turns out to need more of the table than its statements showed (rare) takes the whole table for itself, waiting for the other writers to end; <code>GET /api/stats</code> counts it in <code>shared_writer_upgrades</code>, next to <code>shared_writers</code> (requests that held a table shared) and <code>shared_row_waits</code>.</li></ul>
+<h2 id="txn-spill">Big transactions: log records on disk</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --txn-spill-mb 64            (default 64; 0 = never)
+KDB_TXN_SPILL_MB=64                    (the same, for Docker; a flag wins)</code></pre>
+<p>A transaction writes its changes to the log only at <code>COMMIT</code>. Until then KDB keeps the <strong>log records</strong> (the changes, ready to be written). A long <code>CALL</code>, a <a href="triggers.html#deferred">deferred trigger</a> job or a big <code>BEGIN ... COMMIT</code> can make many of them.</p>
+<p>Since 2026-10-02, once they pass <strong>64 MB</strong>, KDB moves them to a temporary file in the database&#39;s <code>_tmp</code> folder. Only where each record starts stays in memory.</p>
+<div class="table-wrap"><table><thead><tr><th>When</th><th>What happens to the file</th></tr></thead><tbody><tr><td><code>COMMIT</code></td><td>read back in order and written into the log, then removed</td></tr><tr><td><code>ROLLBACK</code></td><td>removed</td></tr><tr><td><code>ROLLBACK TO SAVEPOINT</code></td><td>cut back to where the savepoint was</td></tr><tr><td>a crash</td><td>removed when the database opens again (those records were never committed)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>With a memory limit (<code>--memory-limit</code>), the line is at most 1/16 of it. Under a 512 MB limit that is 32 MB.</li><li>Only the log records go to disk. The changed rows themselves stay in memory until <code>COMMIT</code>, so a transaction still stops at a quarter of the memory limit (&quot;transaction too big for memory&quot;) when its rows alone need that much.</li><li>Example: one <code>CALL</code> that inserts 2 million rows under a 512 MB memory limit was stopped at 1.5 million rows. With its 64 MB of log records on disk it finishes, and the heap stays near 230 MB.</li><li>A commit of spilled records always waits for the disk, even with <code>SET synchronous_commit = off</code>.</li><li><code>GET /api/stats</code> counts them per database: <code>txn_spills</code> (transactions that used a file) and <code>txn_spilled_bytes</code>.</li><li><code>0</code> keeps every record in memory, as before.</li></ul></li></ul>
+<p><strong>Example: The line where log records go to disk</strong></p>
+<pre><code class="language-sql">SELECT name, setting, unit, source FROM pg_settings WHERE name = &#39;txn_spill_mb&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>setting (STRING)</th><th>unit (STRING)</th><th>source (STRING)</th></tr></thead><tbody><tr><td>txn_spill_mb</td><td>64</td><td>MB</td><td>default</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="accounting">Accounting with CHECK constraints</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">balance DECIMAL(2) NOT NULL CHECK (balance &gt;= 0)
+BEGIN; UPDATE ...; UPDATE ...; INSERT INTO ledger ...; COMMIT;</code></pre>
+<p>A <code>CHECK</code> constraint (a rule that every row must follow, see <a href="constraints.html">constraints</a>) makes the database itself refuse a balance below zero. Together with a transaction, a transfer that would break the rule saves <strong>nothing</strong>.</p>
+<p>Checklist for money:</p>
+<ol><li>Money columns are <code>DECIMAL(2) NOT NULL</code> (exact, never <code>DOUBLE</code>), with <code>CHECK</code> rules for what must never happen.</li><li>Keep a ledger. Never update or delete its rows; correct a mistake with a new transfer back.</li><li>Every transfer: <code>BEGIN</code>, <code>UPDATE ... SET balance = balance - amount</code>, <code>UPDATE ... + amount</code>, <code>INSERT INTO ledger</code>, <code>COMMIT</code>. Let the database do the math; do not write a balance that your app computed.</li><li>On any error: <code>ROLLBACK</code>. On <code>table ... is busy</code>, <code>database is busy</code> or <code>deadlock</code>: run the whole transaction again.</li><li>Check the books every night (the total, and every balance against the ledger), like in the first example of this page.</li></ol>
+<p><strong>Example: A transfer of more than the balance saves nothing</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (
+  id INT PRIMARY KEY,
+  owner STRING NOT NULL,
+  balance DECIMAL(2) NOT NULL DEFAULT 0 CHECK (balance &gt;= 0)
+);
+CREATE TABLE ledger (
+  id LONG PRIMARY KEY AUTO,
+  from_account INT NOT NULL REFERENCES accounts(id),
+  to_account INT NOT NULL REFERENCES accounts(id),
+  amount DECIMAL(2) NOT NULL,
+  CONSTRAINT positive_amount CHECK (amount &gt; 0)
+);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 749.50), (2, &#39;Sita&#39;, 250.50);</code></pre>
+<pre><code class="language-sql">BEGIN;
+UPDATE accounts SET balance = balance + 900 WHERE id = 2;
+UPDATE accounts SET balance = balance - 900 WHERE id = 1;
+INSERT INTO ledger (from_account, to_account, amount) VALUES (1, 2, 900);
+COMMIT;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>UPDATE accounts SET balance = balance + 900 WHERE id = 2</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p>Error: <code>CHECK constraint &#39;accounts_balance_check&#39; of table &#39;accounts&#39; failed: balance &gt;= 0 is false for the row id=&#39;1&#39;, balance=&#39;-150.50&#39; (the transaction was rolled back)</code></p>
+<p>Without <code>CHECK</code> constraints (or in an older KDB), a <code>BEFORE UPDATE</code> trigger can refuse the same change: see <a href="triggers.html#before-after">triggers</a>.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/transactions.md">This page as markdown</a>.</footer>
+</body>
+</html>

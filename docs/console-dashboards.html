@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard page (many charts on one page) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Put many charts on one page, each from its own query, with pickers such as $symbol at the top and an automatic refresh. Dashboards are saved in the database.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/console-dashboards.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-dashboards.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="dashboard-page-many-charts-on-one-page">Dashboard page (many charts on one page)</h1>
+<blockquote><p>Put many charts on one page, each from its own query, with pickers such as $symbol at the top and an automatic refresh. Dashboards are saved in the database.</p></blockquote>
+<ul><li>Category: Web console</li><li>Keywords: dashboard, dashboards, Dashboard page, panel, chart panel, text note, Add panel, Add to dashboard, Edit, Variables, $symbol, $from, variable, picker, Auto refresh, refresh, Save, _dashboards, Export JSON, Import JSON, Copy JSON, Duplicate, example dashboards, Market overview, Stock view, Portfolio, today-30d</li><li>See also: <a href="web-console.html">Web console</a>, <a href="console-data-page.html">View data page (browse and edit rows)</a>, <a href="console-monitor.html">Monitor panel (memory, processor, caches)</a>, <a href="select.html">SELECT</a>, <a href="users-and-roles.html">Users and roles</a></li></ul>
+<p>The <strong>Dashboard</strong> page of the <a href="web-console.html">web console</a> (Home menu) shows many charts on one page. Each chart is a <strong>panel</strong>: one <code>SELECT</code> and the chart settings for it. The panels refresh by themselves, and pickers at the top (a symbol, a date range) change every panel at once.</p>
+<ul><li>A dashboard belongs to the database chosen at the top. It is saved in the table <code>_dashboards</code> of that database, so backups keep it and roles apply.</li><li>The list always holds three <strong>example</strong> dashboards: <strong>Market overview</strong>, <strong>Stock view</strong> and <strong>Portfolio</strong>. They are made for the <a href="sample-data.html">sample data</a>. <strong>Save</strong> on an example makes your own copy.</li><li>A panel only reads: it runs its SQL with <code>GET /exec</code>, which refuses statements that change data. Each panel reads at most 10,000 rows; <strong>Rows</strong> in its editor picks 100, 1,000, 10,000 or 100,000.</li></ul>
+<h2 id="screen">The screen</h2>
+<pre><code class="language-text">+---------------------------------------------------------------------------------------------+
+| [Stock view v] [Stock view        ]          Auto refresh [30 s v] Refresh Edit Add panel Variables Save More |
+| Symbol [CITY v]   From [2025-09-23]   To [2026-09-23]                                        |
+| +------------------------------------------------------------+                              |
+| | Candles, volume, RSI and MACD                          ... |                              |
+| |  (chart)                                                   |                              |
+| +------------------------------------------------------------+                              |
+| +------------------+ +---------------------------------------+                              |
+| | Last close   ... | | Daily move % (calendar)           ... |                              |
++---------------------------------------------------------------------------------------------+</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Control</th><th>What it does</th></tr></thead><tbody><tr><td>Dashboard list</td><td>Opens another dashboard: yours, then the examples</td></tr><tr><td>Title box</td><td>The dashboard&#39;s name</td></tr><tr><td><strong>Auto refresh</strong></td><td>Runs every panel again every 5 s, 10 s, 30 s, 1 min, 5 min or 15 min, or <strong>Off</strong></td></tr><tr><td><strong>Refresh</strong></td><td>Runs every panel again now</td></tr><tr><td><strong>Edit</strong></td><td>Turns on moving and resizing panels</td></tr><tr><td><strong>Add panel</strong></td><td>Opens the panel editor for a new panel</td></tr><tr><td><strong>Variables</strong></td><td>The pickers at the top (<a href="#variables">variables</a>)</td></tr><tr><td><strong>Save</strong></td><td>Writes the dashboard to <code>_dashboards</code></td></tr><tr><td><strong>More</strong></td><td><strong>New dashboard</strong>, <strong>Duplicate</strong>, <strong>Export JSON file</strong>, <strong>Copy JSON</strong>, <strong>Import JSON</strong>, <strong>Delete</strong></td></tr></tbody></table></div>
+<p>The panels sit on a grid of 12 columns. In <strong>Edit</strong> mode, drag a panel by its move handle, or drag its bottom right corner to resize it. With the keyboard: arrow keys move it, <code>Shift</code> + arrow keys resize it.</p>
+<h2 id="panels">Panels</h2>
+<p>Each panel has a <strong>...</strong> menu:</p>
+<div class="table-wrap"><table><thead><tr><th>Item</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Edit</strong></td><td>Opens the panel editor</td></tr><tr><td><strong>Refresh</strong></td><td>Runs this panel again</td></tr><tr><td><strong>Open SQL in editor</strong></td><td>Puts the panel&#39;s SQL, with the variables filled in, into the SQL editor on Home</td></tr><tr><td><strong>Save PNG</strong>, <strong>Save CSV</strong></td><td>The chart as a picture, or its rows as a CSV file</td></tr><tr><td><strong>Full screen</strong>, <strong>Reset zoom</strong></td><td>As on the <a href="web-console.html#chart">chart</a> of the SQL editor</td></tr><tr><td><strong>Duplicate</strong></td><td>A copy of the panel</td></tr><tr><td><strong>Remove</strong></td><td>Takes the panel off (in <strong>Edit</strong> mode only)</td></tr></tbody></table></div>
+<p>The panel editor has a title, a kind and, for a chart, the SQL. <strong>Chart from SQL</strong> is one <code>SELECT</code> and a chart; <strong>Text note</strong> is a few lines of text, for example how to use the dashboard. <strong>Run preview</strong> (or <code>Ctrl+Enter</code>) runs the SQL and shows the chart, with the same chart types and settings as the SQL editor.</p>
+<p>The quickest way to make a panel: run a query on Home, pick a chart, and click <strong>Add to dashboard</strong> on the chart bar.</p>
+<p><strong>Example: A good panel query: one symbol, a time range</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, open, high, low, close, volume
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>540.3</td><td>542.5</td><td>539.2</td><td>542.2</td><td>85290</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>540.6</td><td>542.1</td><td>538.8</td><td>539.7</td><td>52010</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>538.5</td><td>540.5</td><td>536.4</td><td>539.3</td><td>95460</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>540.4</td><td>546.2</td><td>538.9</td><td>542.4</td><td>22330</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>505</td><td>508.4</td><td>502</td><td>507.9</td><td>125050</td></tr></tbody></table></div>
+<p>(first 5 of 19 rows)</p>
+<h2 id="variables">Variables</h2>
+<p>A <strong>variable</strong> is a picker at the top of the dashboard. Write <code>$name</code> (or <code>${name}</code>) in a panel&#39;s SQL and the picker&#39;s value goes there. <strong>Variables</strong> opens the list: a name, a label, a type and a default value.</p>
+<div class="table-wrap"><table><thead><tr><th>Type</th><th>The picker</th><th>Goes into the SQL as</th></tr></thead><tbody><tr><td>Text</td><td>a text box</td><td>a quoted text: <code>&#39;CITY&#39;</code></td></tr><tr><td>List of values</td><td>a list of values you type (<code>CITY, COAST, VOLT</code>)</td><td>a quoted text</td></tr><tr><td>Values from SQL</td><td>a list filled by a query (<code>SELECT DISTINCT symbol FROM ochl_day ORDER BY symbol</code>)</td><td>a quoted text</td></tr><tr><td>Number</td><td>a number box</td><td>the number</td></tr><tr><td>Date</td><td>a date box; the default may be <code>today</code>, <code>today-30d</code>, <code>today-1y</code></td><td>a quoted date: <code>&#39;2026-09-11&#39;</code></td></tr><tr><td>Table or column name</td><td>a text box</td><td>the name as it is (letters, digits and <code>_</code> only)</td></tr><tr><td>Interval</td><td>a text box: <code>1d</code>, <code>15m</code>, <code>1M</code></td><td>as it is, for <code>SAMPLE BY $step</code></td></tr></tbody></table></div>
+<ul><li>Text is always quoted, and a <code>&#39;</code> in it is doubled, so a picker can never change what the statement does.</li><li>A list can allow <strong>several</strong> values; they go in as <code>&#39;CITY&#39;, &#39;COAST&#39;</code>, for <code>WHERE symbol IN ($symbols)</code>.</li><li><code>$name</code> inside a quoted text or a comment is left alone.</li><li>A value that does not fit its type (a word in a number box) stops the panel with a message; nothing is sent.</li></ul>
+<p><strong>Example: What a panel with $symbol, $from and $to runs</strong> (sample data: sample)</p>
+<pre><code class="language-sql">-- The panel SQL:  ... WHERE symbol = $symbol AND time &gt;= $from AND time &lt; $to
+SELECT time, close
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2025-01-01&#39; AND time &lt; &#39;2026-01-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>542.2</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>539.7</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>539.3</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>542.4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="save">Saving, and who may do what</h2>
+<div class="table-wrap"><table><thead><tr><th>Role on the database</th><th>Can</th></tr></thead><tbody><tr><td><code>read</code></td><td>open and look at dashboards; export them as JSON</td></tr><tr><td><code>write</code></td><td>also save, change and delete them</td></tr><tr><td><code>admin</code></td><td>also save the <strong>first</strong> dashboard, which creates the table <code>_dashboards</code></td></tr></tbody></table></div>
+<ul><li>The first <strong>Save</strong> in a database runs <code>CREATE TABLE IF NOT EXISTS _dashboards (...)</code>. That needs the <code>admin</code> role. A <code>write</code> user who is first is asked to let an admin save one dashboard first, or to use <strong>More &gt; Export JSON file</strong>.</li><li>A changed dashboard says <code>Changed, not saved</code> next to its title. Opening another one first asks whether to drop the changes.</li><li><strong>Export JSON file</strong> and <strong>Import JSON</strong> move a dashboard to another database or another server. An imported dashboard opens at once; <strong>Save</strong> keeps it.</li></ul>
+<p><strong>Example: The table the first Save creates</strong></p>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS _dashboards (id STRING PRIMARY KEY, title STRING NOT NULL, body STRING NOT NULL, updated TIMESTAMP, updated_by STRING);
+SHOW COLUMNS FROM _dashboards;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE IF NOT EXISTS _dashboards (</code></p>
+<pre><code class="language-text">table &#39;_dashboards&#39; created</code></pre>
+<p><code>SHOW COLUMNS FROM _dashboards</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>id</td><td>STRING</td><td>true</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>title</td><td>STRING</td><td>false</td><td>true</td><td>false</td><td>NULL</td></tr><tr><td>body</td><td>STRING</td><td>false</td><td>true</td><td>false</td><td>NULL</td></tr><tr><td>updated</td><td>TIMESTAMP</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>updated_by</td><td>STRING</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-dashboards.md">This page as markdown</a>.</footer>
+</body>
+</html>

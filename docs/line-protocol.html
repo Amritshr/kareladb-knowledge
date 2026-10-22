@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Line protocol (POST /write) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Load many rows fast with the InfluxDB line format over HTTP - one line per row, answered with 204.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/line-protocol.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/line-protocol.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="line-protocol-post-write">Line protocol (POST /write)</h1>
+<blockquote><p>Load many rows fast with the InfluxDB line format over HTTP - one line per row, answered with 204.</p></blockquote>
+<ul><li>Category: Writing data</li><li>Keywords: line protocol, ILP, InfluxDB, auto-create, create table from lines, ilp_auto_create, KDB_ILP_AUTO_CREATE, influx, /write, /api/v2/write, precision, nanoseconds, seconds, milliseconds, 1970, timestamps look like seconds, tag, field, measurement, ticks, live feed, bulk load, 204, 503, 507, disk full, table is busy, errorId, QuestDB ILP, upsert, upsert, merge, partial update, 3i, integer suffix, t suffix, Telegraf</li><li>See also: <a href="insert.html">INSERT</a>, <a href="loading-data.html">Loading many rows</a>, <a href="triggers.html">Triggers</a>, <a href="http-overview.html">HTTP API overview</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="performance-tips.html">Performance tips</a></li></ul>
+<p>The <strong>line protocol</strong> is a very short text format for rows, made by InfluxDB and used by QuestDB. Each line is one row. It is faster to make and to read than <code>INSERT</code> statements, so it is good for live feeds (market ticks or sensor readings every second) and big loads.</p>
+<pre><code class="language-text">live_data,symbol=CITY ltp=528.5,ltv=120i,volume=45120i 1789103700000000000</code></pre>
+<ul><li>Send the lines as the body of <code>POST /write</code>. A good request answers <strong>204</strong> (OK, no body).</li><li>A table that is not there is <strong>made from the lines</strong>, as QuestDB does (<a href="#new-tables">new tables</a>). Columns of a table that is there must already exist: add them with <a href="alter-table.html">ALTER TABLE</a>.</li><li>All lines of one request are written together, as one transaction: all or nothing.</li></ul>
+<p>For a few rows, or rows that need SQL, use <a href="insert.html">INSERT</a> with <a href="http-exec.html#post-exec">POST /exec</a>. More ways to load data: <a href="loading-data.html">loading data</a>.</p>
+<h2 id="format">Line format</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&lt;table&gt;[,&lt;tag&gt;=&lt;text&gt;...] &lt;field&gt;=&lt;value&gt;[,&lt;field&gt;=&lt;value&gt;...] [&lt;timestamp&gt;]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&lt;table&gt;</code></td><td>The table name (called the &quot;measurement&quot; in InfluxDB). Case is ignored.</td></tr><tr><td><code>,&lt;tag&gt;=&lt;text&gt;</code></td><td>A text value for a <code>SYMBOL</code> or <code>STRING</code> column, with no quotes. Tags come before the first space.</td></tr><tr><td><code> &lt;field&gt;=&lt;value&gt;</code></td><td>A value for any column. Fields come after the first space, separated by commas. At least one field is needed.</td></tr><tr><td><code> &lt;timestamp&gt;</code></td><td>A whole number: the time for the table&#39;s time column (the <code>TIMESERIES(...)</code> column). In nanoseconds unless <code>precision=</code> says otherwise (see <a href="#wrong-unit">the wrong unit</a>). Without it, the server&#39;s clock is used.</td></tr></tbody></table></div>
+<p>Field values:</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Kind</th><th>Goes into columns of type</th></tr></thead><tbody><tr><td><code>512.4</code>, <code>-3</code>, <code>1e6</code></td><td>a decimal number</td><td><code>DOUBLE</code>, <code>FLOAT</code>, <code>DECIMAL</code></td></tr><tr><td><code>120i</code></td><td>a whole number (<code>i</code> at the end)</td><td><code>INT</code>, <code>LONG</code>, <code>SHORT</code>, <code>BYTE</code>, and also <code>DOUBLE</code>, <code>DECIMAL</code></td></tr><tr><td><code>120u</code></td><td>a whole number without sign (<code>u</code>), up to 2^63-1</td><td>the same as <code>i</code></td></tr><tr><td><code>&quot;text&quot;</code></td><td>text in double quotes</td><td><code>STRING</code>, <code>SYMBOL</code>, <code>JSON</code>, <code>BYTES</code>, and any other type that can read that text (like <code>INSERT</code> does: <code>&quot;2026-09-11&quot;</code> for a <code>DATE</code>)</td></tr><tr><td><code>t</code>, <code>true</code>, <code>f</code>, <code>false</code> (also <code>T</code>, <code>True</code>, <code>TRUE</code>, ...)</td><td>a boolean</td><td><code>BOOL</code></td></tr><tr><td><code>1789103700000000t</code></td><td>a time in <strong>microseconds</strong> (<code>t</code> at the end, as QuestDB writes it). <strong>Only</strong> microseconds: see <a href="#wrong-unit">the wrong unit</a></td><td><code>TIMESTAMP</code>, <code>DATE</code></td></tr></tbody></table></div>
+<p>Rules for writing lines:</p>
+<ul><li>A space, a comma or <code>=</code> inside a table name, tag name or tag value is written with a backslash: <code>\ </code>, <code>\,</code>, <code>\=</code>.</li><li>In a <code>&quot;text&quot;</code> value, write <code>\&quot;</code> for a quote and <code>\\</code> for a backslash. Text may hold commas, spaces and even line breaks.</li><li>Empty lines and lines starting with <code>#</code> are skipped. Lines may end with <code>\n</code> or <code>\r\n</code>.</li><li>Columns not in a line get their <code>DEFAULT</code>, or NULL.</li><li>A decimal number like <code>5.0</code> cannot go into an <code>INT</code> or <code>LONG</code> column: write <code>5i</code>.</li><li>The time column itself cannot be a field: send its value as the line&#39;s timestamp.</li><li>KDB keeps times in milliseconds. Finer parts (microseconds, nanoseconds) are cut off.</li><li><code>precision=</code> is only for the timestamp at the <strong>end</strong> of the line. A <code>TIMESTAMP</code> field always needs microseconds and <code>t</code>.</li></ul>
+<h2 id="wrong-unit">Times in the wrong unit</h2>
+<p>A time in the wrong unit is the easiest way to load wrong data: <code>1757750400</code> read as nanoseconds is 1.7 seconds after midnight on 1 January 1970. KDB <strong>refuses</strong> such a request with 400 and says how to fix it. Nothing of the request is written.</p>
+<div class="table-wrap"><table><thead><tr><th>You send</th><th>KDB answers</th></tr></thead><tbody><tr><td>No <code>precision=</code>, and <strong>every</strong> line timestamp is before 1990 as nanoseconds, while one of them is a 1990-2200 time in seconds, milliseconds or microseconds</td><td>400 <code>timestamps look like seconds (1757750400) but precision= is not set: add ?precision=s</code></td></tr><tr><td>A <code>t</code> field whose number is a 1990-2200 time in seconds or milliseconds (<code>1757750400000t</code>)</td><td>400 <code>column &#39;at&#39; cannot take 1757750400000t: a t value is microseconds, and this number looks like milliseconds ...; write 1757750400000000t</code></td></tr><tr><td>A plain whole number for a <code>TIMESTAMP</code> or <code>DATE</code> field (<code>at=1757750400000</code> or <code>at=1757750400000i</code>)</td><td>400 <code>... cannot take the plain number 1757750400000i: a time field needs microseconds with a t suffix (this number looks like milliseconds: write 1757750400000000t)</code></td></tr></tbody></table></div>
+<ul><li><strong>Always send <code>precision=</code></strong> when your timestamps are not nanoseconds. With <code>precision=</code> the numbers are taken as sent, with no check.</li><li>The ranges of seconds, milliseconds and microseconds do not overlap, so the message names the one unit that fits. KDB never guesses and writes.</li><li>Real nanosecond data still goes in, also a small test time like <code>5</code>: no unit makes that a 1990-2200 time.</li><li><strong>QuestDB:</strong> QuestDB takes the same bodies without an error and writes 1970 times. A plain integer for a <code>TIMESTAMP</code> field is read as microseconds there; KDB refuses it, because apps often mean milliseconds.</li></ul>
+<p><strong>HTTP: Seconds without precision=: refused, nothing written</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /write
+
+live_data,symbol=CITY ltp=530.0 1789103700</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;code&quot;: &quot;invalid&quot;,
+  &quot;message&quot;: &quot;error in line 1: timestamps look like seconds (1789103700) but precision= is not set: add ?precision=s (without it they are read as nanoseconds and would land on 1970-01-01T00:00:01.789Z)&quot;,
+  &quot;line&quot;: 1,
+  &quot;errorId&quot;: &quot;d0e4b1bc074d-1&quot;
+}</code></pre>
+<p><strong>HTTP: The same line with precision=s</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /write?precision=s
+
+live_data,symbol=CITY ltp=530.0 1789103700
+###
+GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39; AND symbol = &#39;CITY&#39;</code></pre>
+<p>Response:</p>
+<p><code>POST /write?precision=s</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39; AND symbol = &#39;CITY&#39;</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39; AND symbol = &#39;CITY&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39; AND symbol = &#39;CITY&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;timestamp&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;ltp&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-11T05:15:00.000Z&quot;, &quot;CITY&quot;, 530]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 89}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 89}
+}</code></pre>
+<p><strong>HTTP: A TIMESTAMP field in milliseconds: refused</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE orders_log (time TIMESTAMP, symbol SYMBOL, placed TIMESTAMP) TIMESERIES(time) PARTITION BY DAY;</code></pre>
+<pre><code class="language-http">POST /write?precision=ms
+
+orders_log,symbol=CITY placed=1789103700000t 1789103700000</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;code&quot;: &quot;invalid&quot;,
+  &quot;message&quot;: &quot;error in line 1: table &#39;orders_log&#39;, column &#39;placed&#39; cannot take 1789103700000t: a t value is microseconds, and this number looks like milliseconds (it would be 1970-01-21T16:58:23.700Z); write 1789103700000000t&quot;,
+  &quot;line&quot;: 1,
+  &quot;errorId&quot;: &quot;d0e4b1bc074d-2&quot;
+}</code></pre>
+<h2 id="merge">Update some columns: upsert=merge</h2>
+<p>By default a line <strong>replaces the whole row</strong> with the same key: a column not in the line becomes its <code>DEFAULT</code> or NULL. With <code>upsert=merge</code>, a column not in the line <strong>keeps the value it has</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th><code>upsert=</code></th><th>A column missing from the line</th><th>Speed</th></tr></thead><tbody><tr><td><code>replace</code> (default)</td><td>becomes <code>DEFAULT</code> or NULL</td><td>fastest: rows are not looked up</td></tr><tr><td><code>merge</code></td><td>keeps its stored value; a new key is a normal insert</td><td>slower: every row is looked up by its key</td></tr></tbody></table></div>
+<ul><li><code>merge</code> needs a <code>PRIMARY KEY</code> or <code>DEDUP KEY</code>. A table without one is refused: <code>upsert=merge needs a PRIMARY KEY or DEDUP KEY ...</code>.</li><li>Two lines with the same key in one request are merged in order.</li><li><code>NOT NULL</code> and <code>CHECK</code> rules are checked on the merged row. A new key still needs its <code>NOT NULL</code> fields.</li></ul>
+<p><strong>HTTP: Change the balance, keep the name and plan</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id LONG PRIMARY KEY, name STRING, balance DOUBLE, plan STRING DEFAULT &#39;free&#39;);</code></pre>
+<pre><code class="language-http">POST /write
+
+accounts id=1i,name=&quot;Sita&quot;,balance=100,plan=&quot;pro&quot;
+###
+POST /write?upsert=merge
+
+accounts id=1i,balance=150
+###
+GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code></pre>
+<p>Response:</p>
+<p><code>POST /write</code></p>
+<p>HTTP 204</p>
+<p><code>POST /write?upsert=merge</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id, name, balance, plan FROM accounts&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, name, balance, plan FROM accounts&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;LONG&quot;},
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;balance&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;plan&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1, &quot;Sita&quot;, 150, &quot;pro&quot;]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 166}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 166}
+}</code></pre>
+<p><strong>HTTP: Without merge the missing columns are reset</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id LONG PRIMARY KEY, name STRING, balance DOUBLE, plan STRING DEFAULT &#39;free&#39;);</code></pre>
+<pre><code class="language-http">POST /write
+
+accounts id=1i,name=&quot;Sita&quot;,balance=100,plan=&quot;pro&quot;
+###
+POST /write
+
+accounts id=1i,balance=150
+###
+GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code></pre>
+<p>Response:</p>
+<p><code>POST /write</code></p>
+<p>HTTP 204</p>
+<p><code>POST /write</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id, name, balance, plan FROM accounts&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, name, balance, plan FROM accounts&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;LONG&quot;},
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;balance&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;plan&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1, null, 150, &quot;free&quot;]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 130}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 130}
+}</code></pre>
+<h2 id="new-tables">A table that is not there</h2>
+<p>When the lines name a table the database does not have, <code>POST /write</code> makes it, as QuestDB does, and then writes the rows. The columns come from every line of the request for that table, in the order they first appear:</p>
+<div class="table-wrap"><table><thead><tr><th>In the line</th><th>Column type</th></tr></thead><tbody><tr><td>a tag (<code>symbol=CITY</code>)</td><td><code>SYMBOL</code></td></tr><tr><td><code>512.4</code></td><td><code>DOUBLE</code></td></tr><tr><td><code>120i</code></td><td><code>LONG</code></td></tr><tr><td><code>&quot;text&quot;</code></td><td><code>STRING</code></td></tr><tr><td><code>t</code>, <code>f</code>, <code>true</code>, <code>false</code></td><td><code>BOOLEAN</code></td></tr><tr><td><code>1789103700000000t</code></td><td><code>TIMESTAMP</code></td></tr><tr><td>the timestamp at the end</td><td>the time column <code>timestamp</code> (<code>TIMESTAMP</code>)</td></tr></tbody></table></div>
+<ul><li>The table is a time-series table: <code>TIMESERIES(timestamp) PARTITION BY DAY</code>, without a <code>DEDUP KEY</code>, as QuestDB makes it. Add a key later with <a href="alter-table.html#dedup-enable">DEDUP ENABLE</a>, or make the table yourself first when you want other types or a key.</li><li>Making a table needs the role <strong>ddl</strong> (like <a href="loading-data.html">/imp</a>). A user with role <code>write</code> gets 403 for a table that is not there.</li><li>A column sent as two kinds (<code>3i</code> in one line, <code>1.5</code> in another) is refused with 400, and no table is made: a guess could lose digits. So is a field named <code>timestamp</code>.</li><li>A request with a bad line makes no table.</li><li>The admin turns this off with <code>--ilp-auto-create off</code>, <code>&quot;ilp_auto_create&quot;: &quot;off&quot;</code> in kdb.conf, or <code>KDB_ILP_AUTO_CREATE=off</code>. Then a table that is not there is an error, 400 <code>table &#39;x&#39; does not exist; create it first</code>.</li><li>Columns are not added to a table that is already there: a line with a new field is an error. Add the column with <code>ALTER TABLE ... ADD COLUMN</code>.</li></ul>
+<p><strong>HTTP: A table that is not there is made from the lines</strong></p>
+<pre><code class="language-http">POST /write
+
+market_index,name=MAIN value=2650.5,trades=1200i 1789103700000000000
+###
+GET /exec?compat=0&amp;query=SHOW COLUMNS FROM market_index</code></pre>
+<p>Response:</p>
+<p><code>POST /write</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SHOW COLUMNS FROM market_index</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SHOW COLUMNS FROM market_index&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SHOW COLUMNS FROM market_index&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;type&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;primary_key&quot;, &quot;type&quot;: &quot;BOOL&quot;},
+        {&quot;name&quot;: &quot;not_null&quot;, &quot;type&quot;: &quot;BOOL&quot;},
+        {&quot;name&quot;: &quot;computed&quot;, &quot;type&quot;: &quot;BOOL&quot;},
+        {&quot;name&quot;: &quot;references&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;name&quot;, &quot;SYMBOL&quot;, false, false, false, null],
+        [&quot;value&quot;, &quot;DOUBLE&quot;, false, false, false, null],
+        [&quot;trades&quot;, &quot;LONG&quot;, false, false, false, null],
+        [&quot;timestamp&quot;, &quot;TIMESTAMP&quot;, false, false, false, null]
+      ],
+      &quot;count&quot;: 4,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 9}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 9}
+}</code></pre>
+<h2 id="post-write">POST /write</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /write[?db=&lt;name&gt;][&amp;precision=n|u|ms|s][&amp;upsert=replace|merge]
+body: lines of the line protocol (UTF-8)</code></pre>
+<p>Parses every line, then writes all the rows in <strong>one transaction</strong>. Rows are <strong>upserted</strong>: a row with the same key as an existing row (its <code>PRIMARY KEY</code> or <code>DEDUP KEY</code>) replaces it, like <code>INSERT OR REPLACE</code>. So sending the same lines twice does not make duplicates in a table with a key.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td>body</td><td>body</td><td>The lines</td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). InfluxDB&#39;s <code>bucket</code> and <code>org</code> are ignored.</td><td>the default database</td></tr><tr><td><code>precision</code></td><td>URL</td><td>The unit of the timestamps at the end of the lines: <code>n</code> or <code>ns</code> nanoseconds, <code>u</code> or <code>us</code> microseconds, <code>ms</code> milliseconds, <code>s</code> seconds. Without it, timestamps that plainly are seconds, milliseconds or microseconds are refused (<a href="#wrong-unit">the wrong unit</a>).</td><td><code>n</code></td></tr><tr><td><code>upsert</code></td><td>URL</td><td><code>replace</code>: a line replaces the whole row. <code>merge</code>: columns missing from a line keep their stored values (<a href="#merge">merge</a>).</td><td><code>replace</code></td></tr><tr><td><code>dedup</code></td><td>URL</td><td><code>skip</code>: no duplicate lookups in days that already hold rows, for trusted loads of new rows. <strong>A key already stored may then be there twice</strong>; repair with <code>DEDUP TABLE</code> (<a href="partitions-and-dedup.html#dedup-skip">dedup=skip</a>).</td><td><code>on</code></td></tr><tr><td><code>wait</code></td><td>URL</td><td><code>trigger</code>: answer only after the <a href="triggers.html#deferred">deferred trigger</a> jobs of these rows ended, with <code>200</code> and <code>{&quot;rows&quot;:N,&quot;jobs&quot;:[...],&quot;done&quot;:true}</code>.</td><td>no wait: <code>204</code></td></tr><tr><td><code>wait_timeout</code></td><td>URL</td><td>With <code>wait=trigger</code>: the longest wait, like <code>10min</code>. Jobs still running then show <code>&quot;status&quot;:&quot;running&quot;</code>.</td><td>no limit</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer</th><th>Meaning</th></tr></thead><tbody><tr><td><code>204 No Content</code></td><td>All lines were written and are on disk. There is no body; the <code>Server-Timing</code> header says where the time went (<a href="http-import.html#timings">timings</a>).</td></tr><tr><td><code>code</code></td><td>(error) <code>&quot;invalid&quot;</code> for a bad request or line, <code>&quot;internal error&quot;</code> for trouble on the server</td></tr><tr><td><code>message</code></td><td>(error) what is wrong. About a line it starts with <code>error in line N:</code></td></tr><tr><td><code>line</code></td><td>(error) the line number (from 1), or <code>0</code> when the error is not about one line</td></tr><tr><td><code>errorId</code></td><td>(error) a unique id of this error, to find it in logs</td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 204 written; 400 a bad line, an unknown column (or table, when making tables is off), a value of the wrong type, a time in the wrong unit, a bad <code>precision</code> or <code>upsert</code>, a damaged compressed body, or a compression other than gzip and deflate; 401/403 login or role (needs <code>write</code>, and <code>ddl</code> to make a table); 404 unknown database; 405 for <code>GET</code>; 408 a trigger ran past the statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble (nothing written); 503 busy: another writer or transaction held the table for longer than the lock wait (5 s), with the message <code>table &#39;x&#39; is busy: ...</code> or <code>database is busy: ...</code> (nothing written; send it again); 507 the disk is full or has less than 64 MB free, with <code>&quot;code&quot;: &quot;disk full&quot;</code> (nothing written; see <a href="loading-data.html#speed">loading data</a>).</li><li><strong>Notes:</strong>
+<ul><li>When <strong>any</strong> line is wrong, <strong>nothing</strong> of the request is written. Fix the line and send the request again.</li><li><a href="triggers.html">Triggers</a> run <strong>once per request</strong> (not once per line), in the same transaction. <code>CHECK</code>, <code>NOT NULL</code> and <code>REFERENCES</code> rules are checked for every row.</li><li>An immediate <code>INSERT</code> trigger on a table makes the loads <strong>into that table</strong> go row by row, several times slower. A trigger on another table does not slow this one. For a table you load in bulk, make the trigger <a href="triggers.html#deferred">DEFERRED</a>.</li><li>Rows are written as columns, one piece per partition, also into a table with no <code>DEDUP KEY</code>. What a day that already has rows costs depends on the keys: <a href="partitions-and-dedup.html#load-dedup">how loads find duplicates</a>.</li><li>Loads into different tables run at the same time; loads into one table take turns.</li><li><a href="triggers.html#deferred">Deferred triggers</a> do not run inside the request: it returns when the rows are committed, and each deferred trigger gets one job with exactly these rows. Add <code>wait=trigger</code> to wait for the jobs.</li><li>The fastest load is one new day per request: the rows need no duplicate lookups (<a href="performance-tips.html#line-protocol">speed</a>).</li><li>A trigger&#39;s time counts toward the <a href="protection.html#statement-timeout">statement timeout</a> (60 s by default). An admin&#39;s loader may send <code>X-KDB-Statement-Timeout: 5min</code> for triggers that need longer. A trigger that runs too long gives status 408 with <code>&quot;line&quot;: 0</code> and the message <code>trigger &lt;name&gt;: statement timeout (&lt;N&gt; s)</code>: nothing of the request is written, and it is not about a line of the body.</li><li>Big bodies are read on several threads. For speed, send many lines per request (for example 1,000 to 100,000), not one request per line.</li><li>A body may be compressed: send <code>Content-Encoding: gzip</code> or <code>Content-Encoding: deflate</code>. The 64 MB limit counts the <strong>unpacked</strong> lines, so a small body that unpacks to more is refused with 413 <code>request body is too large once decompressed</code>. A damaged body gives 400 <code>the gzip request body could not be decompressed: ...</code> and writes nothing.</li><li>Chunked bodies are not supported: send <code>Content-Length</code>.</li></ul></li></ul>
+<pre><code class="language-bash"># Market ticks from a file, sent gzip-compressed
+gzip -c ticks.lp | curl --data-binary @- -H &quot;Content-Encoding: gzip&quot; &quot;http://127.0.0.1:9900/write?precision=ms&quot;</code></pre>
+<ul><li><strong>QuestDB:</strong> QuestDB creates missing tables and columns; KDB refuses them with a clear message. QuestDB&#39;s line protocol over TCP (port 9009) is not available: use HTTP. The error answer has QuestDB&#39;s shape.</li></ul>
+<p><strong>HTTP: Three market ticks, times in seconds</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /write?precision=s
+
+live_data,symbol=CITY ltp=528.5,ltv=120i,volume=45120i 1789103700
+live_data,symbol=COAST ltp=402.3,ltv=50i,volume=30110i 1789103700
+live_data,symbol=CITY ltp=529.0,ltv=80i,volume=45200i 1789103760
+###
+GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, ltv, volume FROM live_data WHERE timestamp &gt;= &#39;2026-09-11T05:15:00Z&#39; ORDER BY timestamp, symbol</code></pre>
+<p>Response:</p>
+<p><code>POST /write?precision=s</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, ltv, volume FROM live_data WHERE timestamp &gt;= &#39;2026-09-11T05:15:00Z&#39; ORDER BY timestamp, symbol</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT timestamp, symbol, ltp, ltv, volume FROM live_data WHERE timestamp &gt;= &#39;2026-09-11T05:15:00Z&#39; ORDER BY timestamp, symbol&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT timestamp, symbol, ltp, ltv, volume FROM live_data WHERE timestamp &gt;= &#39;2026-09-11T05:15:00Z&#39; ORDER BY timestamp, symbol&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;timestamp&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;ltp&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;ltv&quot;, &quot;type&quot;: &quot;LONG&quot;},
+        {&quot;name&quot;: &quot;volume&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-11T05:15:00.000Z&quot;, &quot;CITY&quot;, 528.5, 120, 45120],
+        [&quot;2026-09-11T05:15:00.000Z&quot;, &quot;COAST&quot;, 402.3, 50, 30110],
+        [&quot;2026-09-11T05:16:00.000Z&quot;, &quot;CITY&quot;, 529, 80, 45200]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 41, &quot;execute_us&quot;: 108}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 41, &quot;execute_us&quot;: 108}
+}</code></pre>
+<p><strong>HTTP: The same moment in three precisions</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /write
+
+live_data,symbol=TELCO ltp=900.1 1789103700123456789
+###
+POST /write?precision=u
+
+live_data,symbol=VOLT ltp=190.5 1789103700123456
+###
+POST /write?precision=ms
+
+live_data,symbol=ACME ltp=250.2 1789103700123
+###
+GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp &gt;= &#39;2026-09-11&#39; ORDER BY symbol</code></pre>
+<p>Response:</p>
+<p><code>POST /write</code></p>
+<p>HTTP 204</p>
+<p><code>POST /write?precision=u</code></p>
+<p>HTTP 204</p>
+<p><code>POST /write?precision=ms</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp &gt;= &#39;2026-09-11&#39; ORDER BY symbol</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp &gt;= &#39;2026-09-11&#39; ORDER BY symbol&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp &gt;= &#39;2026-09-11&#39; ORDER BY symbol&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;timestamp&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;ltp&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-11T05:15:00.123Z&quot;, &quot;ACME&quot;, 250.2],
+        [&quot;2026-09-11T05:15:00.123Z&quot;, &quot;TELCO&quot;, 900.1],
+        [&quot;2026-09-11T05:15:00.123Z&quot;, &quot;VOLT&quot;, 190.5]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 101}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 101}
+}</code></pre>
+<p><strong>HTTP: Every kind of value</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE feed (
+  time TIMESTAMP, symbol SYMBOL, price DOUBLE, qty LONG, amount DECIMAL(2),
+  final BOOL, note STRING, trade_day DATE, payload JSON
+) TIMESERIES(time) PARTITION BY DAY;</code></pre>
+<pre><code class="language-http">POST /write?precision=ms
+
+feed,symbol=CITY price=512.4,qty=100i,amount=51240.5,final=t,note=&quot;first, \&quot;big\&quot; buyer&quot;,trade_day=&quot;2026-09-11&quot;,payload=&quot;{\&quot;broker\&quot;: 58}&quot; 1789103700000
+feed,symbol=City\ Bank price=513,qty=5u,final=false,trade_day=1789103700000000t 1789103701000
+###
+GET /exec?compat=0&amp;query=SELECT * FROM feed ORDER BY time</code></pre>
+<p>Response:</p>
+<p><code>POST /write?precision=ms</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT * FROM feed ORDER BY time</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT * FROM feed ORDER BY time&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT * FROM feed ORDER BY time&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;price&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;qty&quot;, &quot;type&quot;: &quot;LONG&quot;},
+        {&quot;name&quot;: &quot;amount&quot;, &quot;type&quot;: &quot;DECIMAL(2)&quot;},
+        {&quot;name&quot;: &quot;final&quot;, &quot;type&quot;: &quot;BOOL&quot;},
+        {&quot;name&quot;: &quot;note&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;trade_day&quot;, &quot;type&quot;: &quot;DATE&quot;},
+        {&quot;name&quot;: &quot;payload&quot;, &quot;type&quot;: &quot;JSON&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [
+          &quot;2026-09-11T05:15:00.000Z&quot;,
+          &quot;CITY&quot;,
+          512.4,
+          100,
+          &quot;51240.50&quot;,
+          true,
+          &quot;first, \&quot;big\&quot; buyer&quot;,
+          &quot;2026-09-11&quot;,
+          {&quot;broker&quot;: 58}
+        ],
+        [&quot;2026-09-11T05:15:01.000Z&quot;, &quot;City Bank&quot;, 513, 5, null, false, null, &quot;2026-09-11&quot;, null]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 83}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 83}
+}</code></pre>
+<p><strong>HTTP: Send a correction: the same key replaces the row</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /write?precision=s
+
+live_data,symbol=COAST ltp=402.3 1789103700
+###
+POST /write?precision=s
+
+live_data,symbol=COAST ltp=402.8 1789103700
+###
+GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39;</code></pre>
+<p>Response:</p>
+<p><code>POST /write?precision=s</code></p>
+<p>HTTP 204</p>
+<p><code>POST /write?precision=s</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39;</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT timestamp, symbol, ltp FROM live_data WHERE timestamp = &#39;2026-09-11T05:15:00Z&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;timestamp&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;ltp&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-11T05:15:00.000Z&quot;, &quot;COAST&quot;, 402.8]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 115}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 115}
+}</code></pre>
+<p><strong>HTTP: Line 2 is wrong: nothing is written</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-http">POST /write?precision=s
+
+live_data,symbol=CITY ltp=530.0 1789103820
+live_data,symbol=COAST ltp=403.0,volume=12.5 1789103820
+live_data,symbol=TELCO ltp=901.0 1789103820
+###
+GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHERE timestamp = &#39;2026-09-11T05:17:00Z&#39;</code></pre>
+<p>Response:</p>
+<p><code>POST /write?precision=s</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;code&quot;: &quot;invalid&quot;,
+  &quot;message&quot;: &quot;error in line 2: table &#39;live_data&#39;, column &#39;volume&#39; is LONG and cannot take a float; write whole numbers with an i suffix, like 3i&quot;,
+  &quot;line&quot;: 2,
+  &quot;errorId&quot;: &quot;d0e4b1bc074d-3&quot;
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHERE timestamp = &#39;2026-09-11T05:17:00Z&#39;</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) AS rows_at_05_17 FROM live_data WHERE timestamp = &#39;2026-09-11T05:17:00Z&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS rows_at_05_17 FROM live_data WHERE timestamp = &#39;2026-09-11T05:17:00Z&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;rows_at_05_17&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [0]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 75}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 75}
+}</code></pre>
+<p><strong>HTTP: Every column must exist</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /write
+
+live_data,symbol=CITY ltp=530.0,turnover=1250000.5 1789103700000000000</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;code&quot;: &quot;invalid&quot;,
+  &quot;message&quot;: &quot;error in line 1: table &#39;live_data&#39; has no column &#39;turnover&#39;; add it first (ALTER TABLE live_data ADD COLUMN ...)&quot;,
+  &quot;line&quot;: 1,
+  &quot;errorId&quot;: &quot;d0e4b1bc074d-4&quot;
+}</code></pre>
+<p><strong>HTTP: A trigger runs once for the whole request</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE write_log (id INT PRIMARY KEY AUTO, rows_written LONG);
+CREATE TRIGGER count_ticks AFTER INSERT ON live_data EXECUTE BEGIN
+  FOR r IN (SELECT count(*) AS n FROM NEW) DO
+    INSERT INTO write_log (rows_written) VALUES (r.n);
+  END FOR;
+END;</code></pre>
+<pre><code class="language-http">POST /write?precision=s
+
+live_data,symbol=CITY ltp=531.0 1789104000
+live_data,symbol=COAST ltp=404.0 1789104000
+live_data,symbol=TELCO ltp=902.0 1789104000
+###
+GET /exec?compat=0&amp;query=SELECT * FROM write_log</code></pre>
+<p>Response:</p>
+<p><code>POST /write?precision=s</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT * FROM write_log</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT * FROM write_log&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT * FROM write_log&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;rows_written&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1, 3]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 84}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 84}
+}</code></pre>
+<p><strong>HTTP: Bad precision</strong></p>
+<pre><code class="language-http">POST /write?precision=minutes
+
+live_data,symbol=CITY ltp=530.0 1</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;code&quot;: &quot;invalid&quot;,
+  &quot;message&quot;: &quot;unsupported precision &#39;minutes&#39;: use n, u, ms or s&quot;,
+  &quot;line&quot;: 0,
+  &quot;errorId&quot;: &quot;d0e4b1bc074d-5&quot;
+}</code></pre>
+<p><strong>HTTP: Writing needs POST</strong></p>
+<pre><code class="language-http">GET /write</code></pre>
+<p>Response:</p>
+<p>HTTP 405 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;method GET is not allowed here&quot;}</code></pre>
+<p>Clients (not run by the help build):</p>
+<pre><code class="language-bash">curl -s -i &quot;http://127.0.0.1:9900/write?db=market&amp;precision=s&quot; --data-binary @ticks.lp</code></pre>
+<pre><code class="language-powershell"># Send a file of lines. -i shows the 204 status; on an error the JSON says which line.
+$lines = Get-Content ticks.lp -Raw
+Invoke-WebRequest -Method Post -Uri &quot;http://127.0.0.1:9900/write?db=market&amp;precision=s&quot; -Body $lines -ContentType &quot;text/plain; charset=utf-8&quot; |
+  Select-Object StatusCode</code></pre>
+<pre><code class="language-python">import time
+import requests
+
+def write_ticks(ticks, db=&quot;market&quot;):
+    # ticks: list of (symbol, ltp, volume). One request for all of them.
+    now = int(time.time())
+    body = &quot;\n&quot;.join(f&quot;live_data,symbol={s} ltp={ltp},volume={vol}i {now}&quot; for s, ltp, vol in ticks)
+    r = requests.post(&quot;http://127.0.0.1:9900/write&quot;, params={&quot;db&quot;: db, &quot;precision&quot;: &quot;s&quot;},
+                      data=body.encode(&quot;utf-8&quot;))
+    if r.status_code != 204:
+        e = r.json()
+        raise RuntimeError(f&quot;line {e[&#39;line&#39;]}: {e[&#39;message&#39;]}&quot;)
+
+write_ticks([(&quot;CITY&quot;, 528.5, 45120), (&quot;COAST&quot;, 402.3, 30110)])</code></pre>
+<pre><code class="language-js">// Node 18+: a live feed that sends the ticks of each second in one request.
+const lines = ticks.map((t) =&gt; `live_data,symbol=${t.symbol} ltp=${t.ltp},volume=${t.volume}i ${t.timeMs}`).join(&quot;\n&quot;);
+const res = await fetch(&quot;http://127.0.0.1:9900/write?db=market&amp;precision=ms&quot;, { method: &quot;POST&quot;, body: lines });
+if (res.status !== 204) {
+  const e = await res.json();
+  throw new Error(`line ${e.line}: ${e.message}`);
+}</code></pre>
+<pre><code class="language-csharp">using var http = new HttpClient();
+var body = new StringContent(&quot;live_data,symbol=CITY ltp=528.5,volume=45120i 1789103700\n&quot;, Encoding.UTF8, &quot;text/plain&quot;);
+var res = await http.PostAsync(&quot;http://127.0.0.1:9900/write?db=market&amp;precision=s&quot;, body);
+if ((int)res.StatusCode != 204) Console.WriteLine(await res.Content.ReadAsStringAsync());</code></pre>
+<h2 id="post-api-v2-write">POST /api/v2/write</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /api/v2/write[?db=&lt;name&gt;][&amp;precision=n|u|ms|s]
+body: lines of the line protocol</code></pre>
+<p>The same as <a href="line-protocol.html#post-write">POST /write</a>, at the path InfluxDB 2 clients use. Everything (parameters, answers, errors) is the same.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). <code>bucket</code> and <code>org</code> are ignored.</td><td>the default database</td></tr><tr><td><code>precision</code></td><td>URL</td><td><code>n</code>, <code>u</code>, <code>ms</code> or <code>s</code> (also <code>ns</code>, <code>us</code>)</td><td><code>n</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer</th><th>Meaning</th></tr></thead><tbody><tr><td>204, or <code>{&quot;code&quot;, &quot;message&quot;, &quot;line&quot;, &quot;errorId&quot;}</code></td><td>as for <a href="line-protocol.html#post-write">POST /write</a></td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> as for POST /write.</li><li><strong>Notes:</strong> an InfluxDB client library can send here when its URL is the KDB server and the database is given with <code>db=</code> (or the <code>X-KDB-Database</code> header). With a KDB <code>--token</code>, send it as <code>Authorization: Bearer &lt;token&gt;</code>; InfluxDB&#39;s <code>Authorization: Token ...</code> is not accepted. The client&#39;s gzip setting can stay on: gzip bodies are unpacked.</li></ul>
+<p><strong>HTTP: The InfluxDB 2 path</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /api/v2/write?db=demo&amp;precision=ms&amp;bucket=ignored
+
+live_data,symbol=VOLT ltp=191.0,volume=70500i 1789103700000
+###
+GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, volume FROM live_data WHERE symbol = &#39;VOLT&#39; AND timestamp &gt;= &#39;2026-09-11&#39;</code></pre>
+<p>Response:</p>
+<p><code>POST /api/v2/write?db=demo&amp;precision=ms&amp;bucket=ignored</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, volume FROM live_data WHERE symbol = &#39;VOLT&#39; AND timestamp &gt;= &#39;2026-09-11&#39;</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT timestamp, symbol, ltp, volume FROM live_data WHERE symbol = &#39;VOLT&#39; AND timestamp &gt;= &#39;2026-09-11&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT timestamp, symbol, ltp, volume FROM live_data WHERE symbol = &#39;VOLT&#39; AND timestamp &gt;= &#39;2026-09-11&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;timestamp&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;ltp&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;volume&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-11T05:15:00.000Z&quot;, &quot;VOLT&quot;, 191, 70500]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 119}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 119}
+}</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/line-protocol.md">This page as markdown</a>.</footer>
+</body>
+</html>

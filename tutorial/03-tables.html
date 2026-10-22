@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3. Tables - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/03-tables.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/03-tables.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="3-tables">3. Tables</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>The two kinds of tables, and when to use each.</li><li>Column types and column rules (keys, NOT NULL, DEFAULT, REFERENCES, computed columns).</li><li>How to change and remove tables.</li></ul>
+<p>The examples start with an <strong>empty</strong> database <code>market</code>. Run them in order.</p>
+<h2 id="two-kinds-of-tables">Two kinds of tables</h2>
+<div class="table-wrap"><table><thead><tr><th></th><th>Time-series table</th><th>Relational table</th></tr></thead><tbody><tr><td>What it holds</td><td>Rows with a time: prices, candles, trades</td><td>Lists of things: securities, brokers, accounts</td></tr><tr><td>How you make it</td><td><code>CREATE TABLE ... TIMESERIES(time_column)</code></td><td><code>CREATE TABLE ...</code> (nothing extra)</td></tr><tr><td>Must have</td><td>A <code>TIMESTAMP</code> or <code>DATE</code> column</td><td>nothing</td></tr><tr><td>Split into parts</td><td>Yes: <code>PARTITION BY DAY</code>, <code>MONTH</code>, <code>YEAR</code> or <code>NONE</code></td><td>No, one part</td></tr><tr><td>Duplicate check</td><td><code>DEDUP KEY (...)</code>, must include the time column</td><td><code>PRIMARY KEY</code></td></tr><tr><td>Special queries</td><td><code>SAMPLE BY</code>, <code>LATEST ON</code>, <code>ASOF JOIN</code>, <code>time IN &#39;2026-09&#39;</code></td><td>normal SQL</td></tr><tr><td>Stock market examples</td><td><code>ochl_day</code>, <code>ochl_minutes</code>, <code>trade_log</code>, <code>live_data</code></td><td><code>securities</code>, <code>brokers</code>, <code>accounts</code></td></tr></tbody></table></div>
+<p>Simple rule: <strong>if the row has a time and you get many new rows every day, use a time-series table.</strong></p>
+<h2 id="relational-tables">Relational tables</h2>
+<pre><code class="language-sql">CREATE TABLE securities (
+  symbol SYMBOL PRIMARY KEY,
+  name   STRING NOT NULL,
+  sector STRING
+);
+
+CREATE TABLE brokers (
+  id   INT PRIMARY KEY,
+  name STRING NOT NULL
+);
+
+INSERT INTO securities VALUES
+  (&#39;CITY&#39;, &#39;City Bank Limited&#39;, &#39;Banking&#39;),
+  (&#39;COAST&#39;,  &#39;Coastal Bank Limited&#39;, &#39;Banking&#39;),
+  (&#39;VOLT&#39;, &#39;Volt River Hydropower Limited&#39;, &#39;Energy&#39;);
+
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (45, &#39;Imperial Securities&#39;), (58, &#39;Northgate Securities&#39;);</code></pre>
+<pre><code class="language-text">table &#39;securities&#39; created
+
+table &#39;brokers&#39; created
+
+3 row(s) inserted
+
+3 row(s) inserted</code></pre>
+<p>(To run a file like this: <code>Get-Content tables.sql -Raw | kdb sql market -</code>.)</p>
+<h2 id="time-series-tables">Time-series tables</h2>
+<pre><code class="language-sql">CREATE TABLE ochl_day (
+  time   TIMESTAMP ROUND 1d,
+  symbol SYMBOL,
+  open   DOUBLE,
+  high   DOUBLE,
+  low    DOUBLE,
+  close  DOUBLE,
+  volume DOUBLE
+) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);
+
+CREATE TABLE ochl_minutes (
+  time   TIMESTAMP ROUND 1m,
+  symbol SYMBOL,
+  open   DOUBLE,
+  high   DOUBLE,
+  low    DOUBLE,
+  close  DOUBLE,
+  volume DOUBLE
+) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (symbol, time);</code></pre>
+<pre><code class="language-text">table &#39;ochl_day&#39; created
+
+table &#39;ochl_minutes&#39; created</code></pre>
+<h3 id="the-table-options">The table options</h3>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>TIMESERIES(col)</code></td><td>This is a time-series table. <code>col</code> is its time column (<code>TIMESTAMP</code> or <code>DATE</code>).</td><td>- (without it: relational table)</td></tr><tr><td><code>PARTITION BY DAY</code> / <code>MONTH</code> / <code>YEAR</code> / <code>NONE</code></td><td>Rows are saved in one file per day, month or year.</td><td><code>DAY</code></td></tr><tr><td><code>PARTITION BY MONTH, SYMBOL(symbol)</code></td><td>Also one file per symbol (the time part is <code>YEAR</code>, <code>MONTH</code> or <code>NONE</code>). A query for one symbol reads only its files.</td><td>-</td></tr><tr><td><code>TTL 90 DAYS</code></td><td>KDB drops partitions older than this by itself (see <a href="#keep-only-recent-data">Keep only recent data</a>).</td><td>no TTL</td></tr><tr><td><code>SORT BY (a, b)</code></td><td>Order of rows inside each file.</td><td>the first <code>SYMBOL</code> column, then the time column</td></tr><tr><td><code>DEDUP KEY (a, b)</code></td><td>Two rows with the same values here are &quot;the same row&quot;.</td><td>none: duplicates are allowed</td></tr></tbody></table></div>
+<h3 id="a-picture-of-a-time-series-table">A picture of a time-series table</h3>
+<p><code>ochl_minutes</code> with <code>PARTITION BY MONTH</code> and the default <code>SORT BY (symbol, time)</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Partition (one file)</th><th>Rows inside the file, in order</th></tr></thead><tbody><tr><td><code>2026-08</code></td><td>CITY 08-30 11:00, CITY 08-30 11:01, ... COAST 08-30 11:00, COAST 08-30 11:01, ...</td></tr><tr><td><code>2026-09</code></td><td>CITY 09-09 11:00, CITY 09-09 11:01, ... CITY 09-10 14:59, COAST 09-09 11:00, ...</td></tr><tr><td><code>2026-10</code></td><td>(made when the first October row arrives)</td></tr></tbody></table></div>
+<p>Why this is good:</p>
+<ul><li>A query with <code>WHERE time IN &#39;2026-09&#39;</code> reads only the <code>2026-09</code> file.</li><li>A query for one symbol finds its rows close together.</li><li>You can delete a whole month fast: <code>ALTER TABLE ochl_minutes DROP PARTITION &#39;2026-08&#39;</code>, or everything older than a year: <code>ALTER TABLE ochl_minutes DROP PARTITION OLDER THAN 1 YEAR</code>.</li></ul>
+<h3 id="which-partition-by-to-use">Which PARTITION BY to use</h3>
+<div class="table-wrap"><table><thead><tr><th>Data</th><th>Rows per day (all symbols)</th><th>Good choice</th></tr></thead><tbody><tr><td>Daily candles (<code>ochl_day</code>)</td><td>a few hundred</td><td><code>YEAR</code></td></tr><tr><td>Minute candles (<code>ochl_minutes</code>)</td><td>tens of thousands</td><td><code>MONTH</code></td></tr><tr><td>TradeLog trades</td><td>tens of thousands</td><td><code>DAY</code></td></tr><tr><td>Live price snapshots</td><td>many</td><td><code>DAY</code></td></tr><tr><td>Very small tables</td><td>few</td><td><code>NONE</code></td></tr></tbody></table></div>
+<p>Partitions are based on the <strong>UTC</strong> date of the time column.</p>
+<h3 id="dedup-key-how-duplicates-are-found">DEDUP KEY: how duplicates are found</h3>
+<p><code>DEDUP KEY (symbol, time)</code> means: one row per symbol per time. A second row with the same symbol and time is a duplicate.</p>
+<ul><li><code>INSERT</code> stops with an error on a duplicate.</li><li><code>INSERT OR REPLACE</code> overwrites the old row.</li><li><code>INSERT OR IGNORE</code> keeps the old row and skips the new one.</li></ul>
+<p>The DEDUP KEY <strong>must include the time column</strong>:</p>
+<pre><code class="language-sql">CREATE TABLE bad (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) DEDUP KEY (symbol);</code></pre>
+<pre><code class="language-text">error: DEDUP KEY must include the time column &#39;time&#39;, e.g. DEDUP KEY (symbol, time)</code></pre>
+<p>Without a DEDUP KEY, KDB keeps every row, also exact copies:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+
+INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510);
+INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510);
+
+SELECT time, symbol, price FROM ticks;</code></pre>
+<pre><code class="language-text">table &#39;ticks&#39; created
+
+1 row(s) inserted
+
+1 row(s) inserted
+
+time                     | symbol | price
+-------------------------+--------+------
+2026-09-10T05:15:00.000Z | CITY   |   510
+2026-09-10T05:15:00.000Z | CITY   |   510
+(2 rows, 0.1 ms)</code></pre>
+<p><strong>Tip:</strong> give every market-data time-series table a DEDUP KEY. Then you can load the same file twice without making double rows.</p>
+<h3 id="round-clean-times">ROUND: clean times</h3>
+<p><code>ROUND 1d</code> (or <code>1m</code>, <code>5m</code>, <code>1h</code>, ...) on a <code>TIMESTAMP</code> column cuts the time down when a row is written. Units: <code>ms</code>, <code>s</code>, <code>m</code> (minute), <code>h</code>, <code>d</code>, <code>w</code>.</p>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-10 14:37:12&#39;, &#39;CITY&#39;, 504.6, 507, 500.7, 504.9, 183040);
+INSERT INTO ochl_minutes VALUES (&#39;2026-09-10T11:05:42+05:45&#39;, &#39;CITY&#39;, 504.6, 504.9, 504.5, 504.8, 1200);
+SELECT time, symbol, close FROM ochl_day;
+SELECT time, symbol, close FROM ochl_minutes;</code></pre>
+<pre><code class="language-text">1 row(s) inserted
+
+1 row(s) inserted
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T00:00:00.000Z | CITY   | 504.9
+(1 row, 0.1 ms)
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T05:20:00.000Z | CITY   | 504.8
+(1 row, 0.0 ms)</code></pre>
+<ul><li><code>14:37:12</code> became <code>00:00:00</code> (the day, in UTC).</li><li><code>11:05:42</code> Nepal time is <code>05:20:42</code> UTC. It became <code>05:20:00</code>.</li></ul>
+<p>Because of ROUND, a second row for the same day is a duplicate, even with another time of day:</p>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-10 09:00&#39;, &#39;CITY&#39;, 1, 1, 1, 1, 1);</code></pre>
+<pre><code class="language-text">error: a row with symbol=&#39;CITY&#39;, time=&#39;2026-09-10T00:00:00.000Z&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
+<p><strong>Careful:</strong> <code>ROUND 1d</code> rounds to the <strong>UTC</strong> day. For daily candles stored at 00:00 UTC of the trading date, this is right. A time like <code>2026-09-10T02:00:00+05:45</code> (still 9 September in UTC) would go to 9 September.</p>
+<h2 id="show-look-at-tables">SHOW: look at tables</h2>
+<pre><code class="language-sql">SHOW TABLES;</code></pre>
+<pre><code class="language-text">name         | kind       | partition | columns | rows
+-------------+------------+-----------+---------+-----
+brokers      | relational | NONE      |       2 |    3
+trade_log    | timeseries | DAY       |       8 |    0
+live_data    | timeseries | DAY       |       5 |    0
+ochl_day     | timeseries | YEAR      |       7 |    0
+ochl_minutes | timeseries | MONTH     |       7 |    0
+securities   | relational | NONE      |       3 |    3
+(6 rows, 0.0 ms)</code></pre>
+<p>(<code>trade_log</code> and <code>live_data</code> are created in the next section. The output above was taken after that.)</p>
+<pre><code class="language-sql">SHOW COLUMNS FROM trade_log;</code></pre>
+<pre><code class="language-text">name           | type      | primary_key | not_null | computed | references 
+---------------+-----------+-------------+----------+----------+------------
+date           | TIMESTAMP | false       | false    | false    | NULL       
+transaction_id | LONG      | false       | false    | false    | NULL       
+symbol         | SYMBOL    | false       | false    | false    | NULL       
+buyer          | INT       | false       | false    | false    | brokers(id)
+seller         | INT       | false       | false    | false    | brokers(id)
+quantity       | LONG      | false       | false    | false    | NULL       
+rate           | DOUBLE    | false       | false    | false    | NULL       
+amount         | DOUBLE    | false       | false    | true     | NULL       
+(8 rows, 0.0 ms)</code></pre>
+<p><code>SHOW CREATE TABLE</code> gives the full statement. Use CSV format, so the long text is not cut:</p>
+<pre><code class="language-powershell">kdb sql market &quot;SHOW CREATE TABLE ochl_day&quot; --format csv</code></pre>
+<pre><code class="language-text">create_sql
+&quot;CREATE TABLE ochl_day (
+  time TIMESTAMP ROUND 1d,
+  symbol SYMBOL,
+  open DOUBLE,
+  high DOUBLE,
+  low DOUBLE,
+  close DOUBLE,
+  volume DOUBLE
+) TIMESERIES(time) PARTITION BY YEAR SORT BY (symbol, time) DEDUP KEY (symbol, time)&quot;</code></pre>
+<p>You can see the default <code>SORT BY (symbol, time)</code> here.</p>
+<p><code>SHOW VIEWS</code> lists views (chapter 5).</p>
+<h2 id="column-types">Column types</h2>
+<div class="table-wrap"><table><thead><tr><th>Type</th><th>Size</th><th>Values</th><th>Use it for</th></tr></thead><tbody><tr><td><code>BOOL</code></td><td>1 byte</td><td><code>TRUE</code>, <code>FALSE</code></td><td>yes/no flags</td></tr><tr><td><code>BYTE</code></td><td>1 byte</td><td>-127 to 127</td><td>very small numbers</td></tr><tr><td><code>SHORT</code></td><td>2 bytes</td><td>-32767 to 32767</td><td>small numbers</td></tr><tr><td><code>INT</code></td><td>4 bytes</td><td>-2147483647 to 2147483647</td><td>broker ids</td></tr><tr><td><code>LONG</code></td><td>8 bytes</td><td>about ±9.2 × 10^18</td><td>transaction ids, share quantities</td></tr><tr><td><code>FLOAT</code></td><td>4 bytes</td><td>about 7 digits</td><td>rarely needed</td></tr><tr><td><code>DOUBLE</code></td><td>8 bytes</td><td>about 15 digits</td><td>prices, volumes, percentages</td></tr><tr><td><code>DECIMAL(s)</code></td><td>8 bytes</td><td>exact, <code>s</code> digits after the point (0 to 18)</td><td>money: <code>DECIMAL(2)</code> for dollars and cents</td></tr><tr><td><code>DATE</code></td><td>4 bytes</td><td>a day, like <code>2026-09-10</code></td><td>dates without time</td></tr><tr><td><code>TIMESTAMP</code></td><td>8 bytes</td><td>a moment in UTC, in milliseconds</td><td>candle and trade times</td></tr><tr><td><code>SYMBOL</code></td><td>4 bytes</td><td>text that repeats a lot</td><td>stock symbols, sectors</td></tr><tr><td><code>STRING</code></td><td>as long as the text</td><td>any text (UTF-8)</td><td>names, notes</td></tr></tbody></table></div>
+<p>Other names that also work: <code>BOOLEAN</code> = <code>BOOL</code>, <code>INTEGER</code> = <code>INT</code>, <code>BIGINT</code> = <code>LONG</code>, <code>VARCHAR</code> and <code>TEXT</code> = <code>STRING</code>.</p>
+<p>There are more types for other kinds of data: <code>JSON</code> and <code>BYTES</code> (chapter 18), and the PostgreSQL types like <code>SERIAL</code>, <code>VARCHAR(n)</code>, <code>NUMERIC(p,s)</code>, <code>UUID</code> and arrays (chapter 22).</p>
+<p>Every type can be <code>NULL</code> (no value). For the number types, the smallest value is used to store NULL. That is why <code>BYTE</code> goes to -127, not -128.</p>
+<p>All types in one table:</p>
+<pre><code class="language-sql">CREATE TABLE type_demo (
+  b   BOOL,
+  i8  BYTE,
+  i16 SHORT,
+  i32 INT,
+  i64 LONG,
+  f   FLOAT,
+  d   DOUBLE,
+  m   DECIMAL(2),
+  day DATE,
+  ts  TIMESTAMP,
+  sym SYMBOL,
+  txt STRING
+);
+
+INSERT INTO type_demo VALUES
+  (TRUE, 127, 32767, 2147483647, 9223372036854775807, 1.5, 512.45, 1500.25,
+   &#39;2026-09-10&#39;, &#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, &#39;City Bank Limited&#39;),
+  (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+SELECT * FROM type_demo;</code></pre>
+<pre><code class="language-text">table &#39;type_demo&#39; created
+
+2 row(s) inserted
+
+b    | i8   | i16   | i32        | i64                 | f    | d      | m       | day        | ts                       | sym   | txt               
+-----+------+-------+------------+---------------------+------+--------+---------+------------+--------------------------+-------+-------------------
+true |  127 | 32767 | 2147483647 | 9223372036854775807 |  1.5 | 512.45 | 1500.25 | 2026-09-10 | 2026-09-10T05:15:00.000Z | CITY  | City Bank Limited
+NULL | NULL |  NULL |       NULL |                NULL | NULL |   NULL |    NULL | NULL       | NULL                     | NULL  | NULL              
+(2 rows, 0.1 ms)</code></pre>
+<p><strong>DOUBLE or DECIMAL?</strong> <code>DOUBLE</code> is fast and good for prices and indicators. It is not exact: <code>0.1 + 0.2</code> is not exactly <code>0.3</code>. For money that must add up exactly (accounts, fees), use <code>DECIMAL(2)</code>.</p>
+<h2 id="column-rules">Column rules</h2>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Meaning</th></tr></thead><tbody><tr><td><code>PRIMARY KEY</code></td><td>One row per value. At most one per table. Cannot be NULL.</td></tr><tr><td><code>PRIMARY KEY AUTO</code></td><td>Like PRIMARY KEY. If you give no value, KDB uses the next number of the table&#39;s counter. The counter only goes up: ids of deleted rows are never used again. Integer columns only.</td></tr><tr><td><code>NOT NULL</code></td><td>The column must have a value.</td></tr><tr><td><code>UNIQUE</code></td><td>No two rows may have the same value (NULL is allowed many times).</td></tr><tr><td><code>DEFAULT value</code></td><td>Used when the INSERT gives no value. A constant, or <code>now()</code>.</td></tr><tr><td><code>REFERENCES table(column)</code></td><td>The value must exist in the other table. The other column must be PRIMARY KEY or UNIQUE.</td></tr><tr><td><code>AS (expression)</code></td><td>A computed column. It is not stored; KDB computes it when you read.</td></tr><tr><td><code>ROUND interval</code></td><td>Cuts TIMESTAMP values down (see above).</td></tr></tbody></table></div>
+<p>Use PRIMARY KEY on <strong>relational</strong> tables. On time-series tables use DEDUP KEY (a PRIMARY KEY there is refused).</p>
+<h3 id="accounts-auto-key-not-null-unique-default-decimal">Accounts: AUTO key, NOT NULL, UNIQUE, DEFAULT, DECIMAL</h3>
+<pre><code class="language-sql">CREATE TABLE accounts (
+  id      LONG PRIMARY KEY AUTO,
+  owner   STRING NOT NULL,
+  email   STRING UNIQUE,
+  balance DECIMAL(2) DEFAULT 0,
+  status  STRING DEFAULT &#39;active&#39;,
+  opened  TIMESTAMP DEFAULT now()
+);
+
+INSERT INTO accounts (owner, email, balance) VALUES
+  (&#39;Ram Sharma&#39;, &#39;ram@example.com&#39;, 1500.25),
+  (&#39;Sita Rai&#39;, &#39;sita@example.com&#39;, &#39;99.5&#39;);
+INSERT INTO accounts (owner) VALUES (&#39;Hari Thapa&#39;);
+
+SELECT id, owner, email, balance, status FROM accounts;</code></pre>
+<pre><code class="language-text">table &#39;accounts&#39; created
+
+2 row(s) inserted
+
+1 row(s) inserted
+
+id | owner      | email            | balance | status
+---+------------+------------------+---------+-------
+ 1 | Ram Sharma | ram@example.com  | 1500.25 | active
+ 2 | Sita Rai   | sita@example.com |   99.50 | active
+ 3 | Hari Thapa | NULL             |    0.00 | active
+(3 rows, 0.1 ms)</code></pre>
+<ul><li><code>id</code> was filled with 1, 2, 3.</li><li><code>&#39;99.5&#39;</code> (text) was turned into the decimal <code>99.50</code>.</li><li>Hari got the DEFAULT values <code>0.00</code> and <code>active</code>.</li></ul>
+<p>The rules stop bad rows:</p>
+<pre><code class="language-sql">INSERT INTO accounts (owner, balance) VALUES (&#39;Gita&#39;, 10.555);</code></pre>
+<pre><code class="language-text">error: column &#39;balance&#39; (DECIMAL(2)): 10.555 has more than 2 decimal places</code></pre>
+<pre><code class="language-sql">INSERT INTO accounts (email) VALUES (&#39;nobody@example.com&#39;);</code></pre>
+<pre><code class="language-text">error: column &#39;owner&#39; (STRING): cannot be NULL</code></pre>
+<pre><code class="language-sql">INSERT INTO accounts (owner, email) VALUES (&#39;Ram Again&#39;, &#39;ram@example.com&#39;);</code></pre>
+<pre><code class="language-text">error: column &#39;email&#39; must be unique: &#39;ram@example.com&#39; is already used</code></pre>
+<h3 id="tradelog-references-and-a-computed-column">TradeLog: REFERENCES and a computed column</h3>
+<pre><code class="language-sql">CREATE TABLE trade_log (
+  date           TIMESTAMP ROUND 1d,
+  transaction_id LONG,
+  symbol         SYMBOL,
+  buyer          INT REFERENCES brokers(id),
+  seller         INT REFERENCES brokers(id),
+  quantity       LONG,
+  rate           DOUBLE,
+  amount         DOUBLE AS (quantity * rate)
+) TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, transaction_id);
+
+CREATE TABLE live_data (
+  timestamp  TIMESTAMP,
+  symbol     SYMBOL,
+  ltp        DOUBLE,
+  pct_change DOUBLE,
+  volume     LONG
+) TIMESERIES(timestamp) PARTITION BY DAY DEDUP KEY (timestamp, symbol);</code></pre>
+<pre><code class="language-text">table &#39;trade_log&#39; created
+
+table &#39;live_data&#39; created</code></pre>
+<p>Insert a trade. Do not give <code>amount</code>; KDB computes it:</p>
+<pre><code class="language-sql">INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate)
+VALUES (&#39;2026-09-10&#39;, 100001, &#39;CITY&#39;, 58, 45, 100, 515.5);
+
+SELECT transaction_id, symbol, buyer, seller, quantity, rate, amount FROM trade_log;</code></pre>
+<pre><code class="language-text">1 row(s) inserted
+
+transaction_id | symbol | buyer | seller | quantity | rate  | amount
+---------------+--------+-------+--------+----------+-------+-------
+        100001 | CITY   |    58 |     45 |      100 | 515.5 |  51550
+(1 row, 0.2 ms)</code></pre>
+<p>A broker that does not exist is refused:</p>
+<pre><code class="language-sql">INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate)
+VALUES (&#39;2026-09-10&#39;, 100002, &#39;COAST&#39;, 99, 45, 10, 399);</code></pre>
+<pre><code class="language-text">error: column &#39;buyer&#39; = &#39;99&#39; has no matching row in brokers(id)</code></pre>
+<p>A broker that trades are pointing at cannot be deleted:</p>
+<pre><code class="language-sql">DELETE FROM brokers WHERE id = 58;</code></pre>
+<pre><code class="language-text">error: cannot remove brokers(id) = &#39;58&#39;: table &#39;trade_log&#39; column &#39;buyer&#39; still refers to it (foreign key &#39;trade_log_buyer_fkey&#39;)</code></pre>
+<p><strong>Speed note:</strong> REFERENCES checks every new row. For very big imports (millions of trade_log rows) you may want to leave REFERENCES out, and check the data with a query instead.</p>
+<h2 id="change-a-table">Change a table</h2>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>What it does</th></tr></thead><tbody><tr><td><code>ALTER TABLE t ADD COLUMN c TYPE [rules]</code></td><td>Adds a column at the end. Old rows get NULL.</td></tr><tr><td><code>ALTER TABLE t RENAME COLUMN a TO b</code></td><td>Renames a column.</td></tr><tr><td><code>ALTER TABLE t DROP COLUMN c</code></td><td>Removes a column and its data.</td></tr><tr><td><code>ALTER TABLE t ALTER COLUMN c TYPE LONG</code></td><td>Changes the type of a column. Every row is checked first: when one value does not fit, nothing changes.</td></tr><tr><td><code>ALTER TABLE t DEDUP ENABLE UPSERT KEYS (time, symbol)</code></td><td>Gives a table a DEDUP KEY later. Rows with the same key are folded into one: the newest row is kept. <code>DEDUP DISABLE</code> takes the key away.</td></tr><tr><td><code>ALTER TABLE t DROP PARTITION &#39;2025&#39;, &#39;2026-01&#39;</code></td><td>Deletes whole partitions (chapter 4).</td></tr><tr><td><code>ALTER TABLE t DROP PARTITION OLDER THAN 6 MONTHS</code></td><td>Deletes the partitions that ended more than 6 months ago.</td></tr><tr><td><code>ALTER TABLE t SET TTL 90 DAYS</code> / <code>SET TTL NONE</code></td><td>Drops old partitions by itself from now on (see below).</td></tr><tr><td><code>TRUNCATE TABLE t</code></td><td>Removes all rows. The table, its columns and indexes stay.</td></tr><tr><td><code>RENAME TABLE a TO b</code></td><td>Renames a table.</td></tr><tr><td><code>DROP TABLE t</code> / <code>DROP TABLE IF EXISTS t</code></td><td>Deletes a table and all its data. It is kept in the trash for 7 days, so <code>UNDROP TABLE t</code> can bring it back (chapter 21).</td></tr><tr><td><code>CREATE TABLE IF NOT EXISTS t (...)</code></td><td>Creates the table only if it is not there yet.</td></tr></tbody></table></div>
+<p>The word <code>COLUMN</code> is optional: <code>ALTER TABLE t ADD c LONG</code> also works.</p>
+<pre><code class="language-sql">ALTER TABLE ticks ADD COLUMN volume LONG;
+ALTER TABLE ticks RENAME COLUMN price TO ltp;
+INSERT INTO ticks VALUES (&#39;2026-09-10T11:01:00+05:45&#39;, &#39;CITY&#39;, 511, 300);
+SELECT time, symbol, ltp, volume FROM ticks;</code></pre>
+<pre><code class="language-text">table &#39;ticks&#39; altered
+
+table &#39;ticks&#39; altered
+
+1 row(s) inserted
+
+time                     | symbol | ltp | volume
+-------------------------+--------+-----+-------
+2026-09-10T05:15:00.000Z | CITY   | 510 |   NULL
+2026-09-10T05:15:00.000Z | CITY   | 510 |   NULL
+2026-09-10T05:16:00.000Z | CITY   | 511 |    300
+(3 rows, 0.2 ms)</code></pre>
+<p>Some columns cannot be dropped: the TIMESERIES column, SORT BY and DEDUP KEY columns, the PRIMARY KEY, columns that other tables REFERENCE, and columns used by a computed column.</p>
+<pre><code class="language-sql">ALTER TABLE ticks DROP COLUMN symbol;</code></pre>
+<pre><code class="language-text">error: cannot drop column &#39;symbol&#39; from table &#39;ticks&#39;: it is part of SORT BY</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks DROP COLUMN volume;
+RENAME TABLE ticks TO test_ticks;
+DROP TABLE test_ticks;
+DROP TABLE IF EXISTS test_ticks;
+SHOW TABLES;</code></pre>
+<pre><code class="language-text">table &#39;ticks&#39; altered
+
+table &#39;ticks&#39; renamed to &#39;test_ticks&#39;
+
+table &#39;test_ticks&#39; dropped; UNDROP TABLE test_ticks brings it back within 7 days
+
+table &#39;test_ticks&#39; does not exist
+
+name         | kind       | partition | columns | rows
+-------------+------------+-----------+---------+-----
+accounts     | relational | NONE      |       6 |    3
+brokers      | relational | NONE      |       2 |    3
+trade_log    | timeseries | DAY       |       8 |    1
+live_data    | timeseries | DAY       |       5 |    0
+ochl_day     | timeseries | YEAR      |       7 |    1
+ochl_minutes | timeseries | MONTH     |       7 |    1
+securities   | relational | NONE      |       3 |    3
+type_demo    | relational | NONE      |      12 |    2
+(8 rows, 0.0 ms)</code></pre>
+<p>A table that another table REFERENCES cannot be dropped:</p>
+<pre><code class="language-sql">DROP TABLE brokers;</code></pre>
+<pre><code class="language-text">error: cannot drop table &#39;brokers&#39;: column &#39;buyer&#39; of table &#39;trade_log&#39; REFERENCES it; drop that column or table first</code></pre>
+<h3 id="keep-only-recent-data">Keep only recent data</h3>
+<p>Live prices and ticks grow every day. Often you need only the last months. A <strong>TTL</strong> (time to live) drops old partitions by itself:</p>
+<pre><code class="language-sql">ALTER TABLE live_data SET TTL 90 DAYS;</code></pre>
+<pre><code class="language-text">table &#39;live_data&#39; drops partitions older than 90 DAYS</code></pre>
+<ul><li>KDB checks once a minute. A partition goes when its <strong>last</strong> moment is older than the TTL. It never deletes single rows.</li><li><code>SHOW CREATE TABLE</code> shows the TTL. <code>ALTER TABLE live_data SET TTL NONE</code> turns it off.</li><li>You can also give it when you create the table: <code>... TIMESERIES(timestamp) PARTITION BY DAY TTL 90 DAYS</code>.</li><li>To drop old data once, by hand or from a timer, use <code>ALTER TABLE live_data DROP PARTITION OLDER THAN 90 DAYS</code>.</li></ul>
+<h3 id="what-you-cannot-change">What you cannot change</h3>
+<p>You cannot change the <strong>PARTITION BY</strong> or the <strong>SORT BY</strong> of a table, and you cannot change the type of a column that is the time column or part of SORT BY or DEDUP KEY. To change them, create a new table, copy the rows with <code>INSERT ... SELECT</code>, then drop the old table:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day_by_symbol (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY YEAR SORT BY (symbol, time);
+INSERT INTO ochl_day_by_symbol SELECT time, symbol, close FROM ochl_day;</code></pre>
+<p>Copying a big table this way takes time and space. <strong>Choose the table design carefully before you load big data.</strong></p>
+<h2 id="names">Names</h2>
+<ul><li>Table and column names: letters, digits and <code>_</code>. They do not care about upper or lower case.</li><li>A name that is a reserved word (like <code>order</code>, <code>from</code>, <code>select</code>) must be written in double quotes: <code>&quot;order&quot;</code>. Chapter 11 lists the reserved words.</li><li><code>time</code>, <code>date</code>, <code>timestamp</code>, <code>symbol</code> and <code>partition</code> are <strong>not</strong> reserved. You can use them as column names.</li></ul>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>Create a time-series table <code>index_minutes</code> for stock index values: time, index name, value. One row per index per minute. Partition by month.</li><li>Create a relational table <code>sectors</code> with <code>name</code> as the primary key. Add a new column <code>sector_name</code> to <code>securities</code> that must point to <code>sectors(name)</code>.</li><li>Insert a stock index value at <code>2026-09-10T11:00:00+05:45</code> and again at <code>11:00:30</code> into your table from task 1, with plain <code>INSERT</code>. What happens?</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><pre><code class="language-sql">CREATE TABLE index_minutes (
+  time       TIMESTAMP ROUND 1m,
+  index_name SYMBOL,
+  value      DOUBLE
+) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (index_name, time);</code></pre></li><li><pre><code class="language-sql">CREATE TABLE sectors (name STRING PRIMARY KEY);
+ALTER TABLE securities ADD COLUMN sector_name STRING REFERENCES sectors(name);</code></pre>
+<p>Old rows get NULL, which is allowed. A value that is not in <code>sectors</code> is refused.</p></li><li><code>ROUND 1m</code> makes both times <code>05:15:00</code> UTC. The second INSERT fails:
+<code>a row with index_name=&#39;MARKET&#39;, time=&#39;2026-09-10T05:15:00.000Z&#39; already exists</code>. Use <code>INSERT OR REPLACE</code> to keep the newest value.</li></ol>
+</details>
+<hr>
+<p>Next: <a href="04-writing-data.html">4. Writing data</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/03-tables.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7. Command line and scripts - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/07-command-line-and-scripts.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/07-command-line-and-scripts.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="7-command-line-and-scripts">7. Command line and scripts</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>When a command means a database in the data folder, and when a folder path.</li><li>The three output formats of <code>kdb sql</code>: table, CSV and JSON.</li><li>How to use KDB in PowerShell and bash scripts (loops, exit codes, UTF-8 text).</li><li>How to make a daily backup task with Windows Task Scheduler.</li></ul>
+<p>The examples use the database <code>market</code> with the sample data.</p>
+<h2 id="database-names-and-folder-paths">Database names and folder paths</h2>
+<p>Every command that needs a database (<code>sql</code>, <code>shell</code>, <code>serve</code>, <code>info</code>, <code>check</code>, <code>repair</code>, <code>backup</code>) takes a <strong>name</strong> or a <strong>path</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>KDB uses</th></tr></thead><tbody><tr><td>A name (only letters, digits, <code>_</code>, <code>-</code>), and the data folder has a database with that name</td><td>That database in the data folder (chapter 1). Upper or lower case does not matter.</td></tr><tr><td>A name, and the data folder has no database with that name</td><td>The folder with that name in the current folder, like before. It is created if it does not exist.</td></tr><tr><td>A path (it has <code>\</code>, <code>/</code>, <code>:</code> or <code>.</code>): <code>.\market</code>, <code>D:\kdb\market</code></td><td>Always that folder</td></tr><tr><td>Nothing (<code>kdb shell</code>, <code>kdb serve</code>)</td><td>The data folder: the database <code>default</code> for the shell; all databases for the server</td></tr></tbody></table></div>
+<ul><li>To be sure you mean the folder in the current folder, write <code>.\market</code> (Linux: <code>./market</code>).</li><li>To make a database in the data folder, use <code>CREATE DATABASE</code> in <code>kdb shell</code> (or in the console, or over HTTP).</li><li>With a <strong>name</strong>, <code>kdb backup</code> and <code>kdb repair --backups</code> use the sub-folder <code>&lt;backups-dir&gt;\&lt;name&gt;</code>, the same place <code>kdb serve</code> uses. With a path, they use <code>&lt;backups-dir&gt;</code> as before.</li></ul>
+<pre><code class="language-powershell">$env:KDB_DATA_DIR = &quot;kdb-data&quot;
+
+# Make a database in the data folder (kdb shell runs CREATE DATABASE).
+&quot;CREATE DATABASE reports;&quot; | kdb shell | Out-Null
+
+# A name that is in the data folder means that database, from any folder.
+kdb sql reports &quot;CREATE TABLE daily (day DATE PRIMARY KEY, trades LONG); INSERT INTO daily VALUES (&#39;2026-09-10&#39;, 32)&quot;
+kdb sql reports &quot;SELECT * FROM daily&quot;
+kdb info reports | Select-Object -First 1
+&quot;reports in the data folder: $(Test-Path kdb-data\reports)   in the current folder: $(Test-Path reports)&quot;
+
+# A name that is not in the data folder is a folder in the current folder, as before.
+kdb sql market &quot;SELECT count(*) AS brokers FROM brokers&quot;
+
+# A path always means that folder: .\reports is a new, empty database here.
+kdb sql .\reports &quot;SHOW TABLES&quot;
+&quot;reports in the current folder now: $(Test-Path reports)&quot;</code></pre>
+<pre><code class="language-text">table &#39;daily&#39; created
+
+1 row(s) inserted
+day        | trades
+-----------+-------
+2026-09-10 |     32
+(1 row, 0.4 ms)
+database        kdb-data/reports
+reports in the data folder: True   in the current folder: False
+brokers
+-------
+      5
+(1 row, 0.2 ms)
+name | kind | partition | columns | rows
+-----+------+-----------+---------+-----
+(0 rows, 0.0 ms)
+reports in the current folder now: True</code></pre>
+<h2 id="output-formats">Output formats</h2>
+<h3 id="table-default">table (default)</h3>
+<p>For people. Numbers are right-aligned. At most 1000 rows are shown (change with <code>--max-rows</code>).</p>
+<pre><code class="language-powershell">kdb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot;</code></pre>
+<pre><code class="language-text">symbol | ltp   | pct_change
+-------+-------+-----------
+CITY   | 527.1 |       2.71
+COAST  | 401.9 |        0.7
+TELCO  | 897.7 |        1.9
+VOLT   |   184 |      -0.86
+(4 rows, 0.4 ms)</code></pre>
+<h3 id="csv">csv</h3>
+<p>For Excel and scripts. The first line has the column names. There is no row limit.</p>
+<pre><code class="language-powershell">kdb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format csv</code></pre>
+<pre><code class="language-text">symbol,ltp,pct_change
+CITY,527.1,2.71
+COAST,401.9,0.7
+TELCO,897.7,1.9
+VOLT,184,-0.86</code></pre>
+<ul><li>Text with a comma, quote or line break is put in <code>&quot;double quotes&quot;</code>.</li><li>NULL is an empty field.</li><li>Times are UTC, like <code>2026-09-10T05:15:00.000Z</code>.</li><li>Messages like <code>3 row(s) inserted</code> are not printed in CSV.</li><li>With many SELECT statements, the CSV blocks come one after another, each with its own header line. Use one SELECT per command when you save CSV.</li></ul>
+<p>To save a file: <code>kdb sql market &quot;SELECT ...&quot; --format csv &gt; prices.csv</code>. (In Windows PowerShell 5.1, <code>&gt;</code> writes UTF-16. Use <code>| Set-Content prices.csv -Encoding UTF8</code> if another program must read the file.)</p>
+<h3 id="json">json</h3>
+<p>For programs. One JSON array with one object per statement.</p>
+<pre><code class="language-powershell">kdb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format json</code></pre>
+<pre><code class="language-text">[{&quot;statement&quot;:&quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;SYMBOL&quot;},{&quot;name&quot;:&quot;ltp&quot;,&quot;type&quot;:&quot;DOUBLE&quot;},{&quot;name&quot;:&quot;pct_change&quot;,&quot;type&quot;:&quot;DOUBLE&quot;}],&quot;rows&quot;:[[&quot;CITY&quot;,527.1,2.71],[&quot;COAST&quot;,401.9,0.7],[&quot;TELCO&quot;,897.7,1.9],[&quot;VOLT&quot;,184,-0.86]],&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;truncated&quot;:false}
+]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>statement</code></td><td>The statement, as KDB understood it</td></tr><tr><td><code>columns</code></td><td>Name and type of each column</td></tr><tr><td><code>rows</code></td><td>The rows. Each row is a list of values in column order.</td></tr><tr><td><code>rows_affected</code></td><td>Rows changed by INSERT, UPDATE or DELETE</td></tr><tr><td><code>message</code></td><td>For example <code>3 row(s) inserted</code></td></tr><tr><td><code>truncated</code></td><td><code>true</code> if there were more rows than <code>--max-rows</code></td></tr></tbody></table></div>
+<p>Values in JSON: numbers are numbers; TIMESTAMP and DATE are text (UTC); DECIMAL is text (to stay exact); NULL is <code>null</code>.</p>
+<p>If a statement fails, the JSON of the statements before it is printed, and the error goes to the error output (stderr) with exit code 1.</p>
+<h3 id="max-rows">--max-rows</h3>
+<pre><code class="language-powershell">kdb sql market &quot;SELECT time, symbol, close FROM ochl_minutes&quot; --max-rows 3</code></pre>
+<pre><code class="language-text">time                     | symbol | close
+-------------------------+--------+------
+2026-09-09T05:15:00.000Z | CITY   | 512.1
+2026-09-09T05:16:00.000Z | CITY   | 511.9
+2026-09-09T05:17:00.000Z | CITY   | 511.9
+(3 rows, more not shown, 0.6 ms)</code></pre>
+<p><code>--max-rows 0</code> means no limit. For a fixed number of rows in your result, <code>LIMIT</code> in the SQL is better: it also makes the query faster.</p>
+<h2 id="powershell">PowerShell</h2>
+<h3 id="csv-to-objects-convertfrom-csv">CSV to objects: ConvertFrom-Csv</h3>
+<pre><code class="language-powershell">$rows = kdb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format csv | ConvertFrom-Csv
+
+# Every value is text. Use [double] to compare numbers.
+$rows | Where-Object { [double]$_.pct_change -gt 1 } | Format-Table -AutoSize</code></pre>
+<pre><code class="language-text">symbol ltp   pct_change
+------ ---   ----------
+CITY   527.1 2.71      
+TELCO  897.7 1.9</code></pre>
+<p>Without <code>[double]</code>, PowerShell compares text: <code>&quot;10&quot; -gt &quot;9&quot;</code> is false.</p>
+<h3 id="json-to-objects-convertfrom-json">JSON to objects: ConvertFrom-Json</h3>
+<p>In Windows PowerShell 5.1, join the lines with <code>Out-String</code> first:</p>
+<pre><code class="language-powershell">$json = kdb sql market &quot;SELECT symbol, sum(quantity) AS shares FROM trade_log WHERE date IN &#39;2026-09-10&#39; GROUP BY symbol ORDER BY shares DESC&quot; --format json | Out-String
+$result = ConvertFrom-Json $json
+
+# One result per statement. rows is a list of rows; each row is a list of values.
+foreach ($row in $result[0].rows) {
+  &quot;{0,-6} {1,6} shares&quot; -f $row[0], $row[1]
+}</code></pre>
+<pre><code class="language-text">COAST    2850 shares
+CITY      910 shares
+TELCO     770 shares
+VOLT      400 shares</code></pre>
+<p>JSON keeps numbers as numbers, so you do not need <code>[double]</code>.</p>
+<h3 id="a-loop-one-csv-file-per-symbol">A loop: one CSV file per symbol</h3>
+<pre><code class="language-powershell">foreach ($symbol in @(&quot;CITY&quot;, &quot;COAST&quot;, &quot;VOLT&quot;)) {
+  $csv = kdb sql market &quot;SELECT symbol, time, close FROM ochl_day WHERE symbol = &#39;$symbol&#39; AND time IN &#39;2026-09&#39; ORDER BY time&quot; --format csv
+  $csv | Set-Content &quot;close-$symbol.csv&quot; -Encoding UTF8
+  &quot;$symbol : $(($csv | Measure-Object).Count - 1) rows saved to close-$symbol.csv&quot;
+}</code></pre>
+<pre><code class="language-text">CITY : 8 rows saved to close-CITY.csv
+COAST : 8 rows saved to close-COAST.csv
+VOLT : 8 rows saved to close-VOLT.csv</code></pre>
+<p>Inside <code>&quot;double quotes&quot;</code>, PowerShell puts in the value of <code>$symbol</code>. The SQL text uses <code>&#39;single quotes&#39;</code>, so both work together.</p>
+<p><strong>Never put text from users directly into SQL.</strong> A symbol like <code>x&#39; OR &#39;1&#39;=&#39;1</code> would change the query. Check such values first, for example with <code>if ($symbol -notmatch &#39;^[A-Z0-9-]+$&#39;) { throw &quot;bad symbol&quot; }</code>.</p>
+<h3 id="exit-codes-in-scripts">Exit codes in scripts</h3>
+<pre><code class="language-powershell">kdb sql market &quot;INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;)&quot; 2&gt;&amp;1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Output &quot;The insert failed (exit code $LASTEXITCODE). Stop here.&quot;
+}
+
+kdb check market | Out-Null
+switch ($LASTEXITCODE) {
+  0 { Write-Output &quot;check: OK&quot; }
+  2 { Write-Output &quot;check: DAMAGE FOUND - run kdb repair&quot; }
+  default { Write-Output &quot;check: could not run (exit code $LASTEXITCODE)&quot; }
+}</code></pre>
+<pre><code class="language-text">The insert failed (exit code 1). Stop here.
+check: OK</code></pre>
+<ul><li><code>0</code> = OK, <code>1</code> = error, <code>2</code> = damage, <code>3</code> = the database needs a newer KDB (chapter 2).</li><li><code>$LASTEXITCODE</code> changes after <strong>every</strong> program. Read it right after the <code>kdb</code> command.</li><li><code>$ErrorActionPreference = &quot;Stop&quot;</code> does <strong>not</strong> stop a script when <code>kdb</code> fails. Check <code>$LASTEXITCODE</code> yourself.</li></ul>
+<h3 id="non-english-text-utf-8">Non-English text (UTF-8)</h3>
+<p>Windows PowerShell 5.1 sends text into a pipe as ASCII by default. Letters outside English (Nepali, Chinese, accented letters, ...) then become <code>?</code>. Set UTF-8 first:</p>
+<pre><code class="language-powershell"># Windows PowerShell 5.1 sends pipe text as ASCII unless you say UTF-8.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+
+@&quot;
+CREATE TABLE IF NOT EXISTS names_np (symbol SYMBOL PRIMARY KEY, name_np STRING);
+INSERT OR REPLACE INTO names_np VALUES (&#39;TELCO&#39;, &#39;नेपाल दूरसञ्चार&#39;);
+&quot;@ | Set-Content names.sql -Encoding UTF8
+
+Get-Content names.sql -Raw -Encoding UTF8 | kdb sql market -
+kdb sql market &quot;SELECT symbol, name_np FROM names_np&quot;</code></pre>
+<pre><code class="language-text">table &#39;names_np&#39; created
+
+1 row(s) inserted
+symbol | name_np        
+-------+----------------
+TELCO  | नेपाल दूरसञ्चार
+(1 row, 0.2 ms)</code></pre>
+<ul><li>Save <code>.sql</code> files as <strong>UTF-8</strong>.</li><li>Text in any language also works directly in the command line (<code>kdb sql market &quot;INSERT ... &#39;नेपाल&#39;&quot;</code>). If you see <code>????</code> after a pipe, see <a href="12-troubleshooting.html#text-in-other-languages-looks-broken">chapter 12</a>.</li><li>PowerShell 7 already uses UTF-8.</li></ul>
+<h2 id="daily-backup-script">Daily backup script</h2>
+<p>This script makes a backup, deletes old backups, checks the database and writes a log. Run it every trading day <strong>after 15:00 Nepal time</strong>, when the market is closed.</p>
+<p>It works when <strong>no server is running</strong> on the database (<code>kdb backup</code> needs the database closed). If <code>kdb serve</code> runs all the time, see <a href="#if-kdb-serve-runs-all-day">the server version</a> below.</p>
+<p>Save as <code>daily-backup.ps1</code>:</p>
+<pre><code class="language-powershell"># daily-backup.ps1 - run after the market closes (15:00 Nepal time).
+# Use full paths in a scheduled task, for example:
+#   $Kdb = &quot;D:\KDB\build\bin\kdb.exe&quot;; $Data = &quot;D:\kdb\market&quot;; $Backups = &quot;E:\kdb_backups&quot;
+$Kdb     = &quot;kdb&quot;
+$Data    = &quot;market&quot;
+$Backups = &quot;backups&quot;
+$Log     = &quot;backup-log.txt&quot;
+
+Add-Content $Log &quot;---- $(Get-Date -Format &#39;yyyy-MM-dd HH:mm:ss&#39;)&quot;
+
+# 2&gt;&amp;1 keeps error lines too; &quot;$_&quot; turns each line into plain text.
+$out = &amp; $Kdb backup $Data $Backups --keep-daily 7 --keep-weekly 4 2&gt;&amp;1 | ForEach-Object { &quot;$_&quot; }
+$code = $LASTEXITCODE
+Add-Content $Log $out
+Add-Content $Log &quot;backup exit code: $code&quot;
+if ($code -ne 0) { Write-Output &quot;BACKUP FAILED, see $Log&quot;; exit $code }
+
+$out = &amp; $Kdb check $Data 2&gt;&amp;1 | ForEach-Object { &quot;$_&quot; }
+$code = $LASTEXITCODE
+Add-Content $Log $out
+Add-Content $Log &quot;check exit code: $code&quot;
+if ($code -ne 0) { Write-Output &quot;CHECK FOUND A PROBLEM, see $Log&quot;; exit $code }
+
+Write-Output &quot;backup and check OK&quot;</code></pre>
+<p>Run it:</p>
+<pre><code class="language-powershell">powershell -ExecutionPolicy Bypass -File .\daily-backup.ps1</code></pre>
+<pre><code class="language-text">backup and check OK</code></pre>
+<p>The log file:</p>
+<pre><code class="language-text">---- 2026-09-23 17:54:29
+backup created and verified: backups/20260923-120929-906
+  10 files, 190.8 KB, log up to 34
+backup exit code: 0
+checked 12 files (76.2 KB) and 1 log segments
+OK: no damage found
+check exit code: 0</code></pre>
+<p>Notes:</p>
+<ul><li><strong>Put the backups on another disk</strong> than the database (for example <code>E:\kdb_backups</code>). One broken disk must not destroy both.</li><li><code>--keep-daily 7 --keep-weekly 4</code> keeps the newest backup of each of the last 7 days and of the last 4 weeks. Older backups are deleted, and the script prints <code>removed old backup ...</code>.</li><li>Backup folder names use <strong>UTC</strong> time: <code>20260923-120929-906</code> = 12:09:29 UTC = 17:54 Nepal time.</li></ul>
+<h3 id="if-kdb-serve-runs-all-day">If kdb serve runs all day</h3>
+<p>A running server keeps the database open, so <code>kdb backup</code> fails. Ask the server to make the backup instead. Start the server with <code>--backups E:\kdb_backups</code>, then:</p>
+<pre><code class="language-powershell"># daily-backup-server.ps1
+$r = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/api/backup&quot;
+&quot;backup $($r.name): $($r.files) files, $($r.bytes) bytes&quot;
+$c = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/api/check&quot;
+if (-not $c.ok) { Write-Output &quot;CHECK FOUND A PROBLEM: $($c.problems -join &#39;; &#39;)&quot;; exit 2 }</code></pre>
+<p>(If the server uses <code>--token</code>, add <code>-Headers @{ Authorization = &quot;Bearer &lt;token&gt;&quot; }</code>.) The server keeps 7 daily and 4 weekly backups by itself. Chapter 8 shows the JSON of these two calls.</p>
+<p>Simpler: no script at all. <code>kdb serve ... --backups E:\kdb_backups --backup-schedule &quot;daily 16:00&quot; --backup-copy F:\kdb_copy</code> makes and checks the backups by itself, while the server keeps working (<a href="21-protection.html#part-c-backups-on-a-schedule">chapter 21</a>).</p>
+<h3 id="windows-task-scheduler">Windows Task Scheduler</h3>
+<p>Register the script to run Sunday to Thursday at 15:30. Run PowerShell <strong>as Administrator</strong>. Change the paths.</p>
+<pre><code class="language-powershell">$action  = New-ScheduledTaskAction -Execute &quot;powershell.exe&quot; `
+             -Argument &quot;-NoProfile -ExecutionPolicy Bypass -File D:\kdb-work\daily-backup.ps1&quot; `
+             -WorkingDirectory &quot;D:\kdb-work&quot;
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday,Monday,Tuesday,Wednesday,Thursday -At 15:30
+Register-ScheduledTask -TaskName &quot;KDB daily backup&quot; -Action $action -Trigger $trigger `
+  -Description &quot;Backup and check the market KDB database after market close&quot;</code></pre>
+<p>(These Task Scheduler commands were <strong>not run</strong> while writing this tutorial, so they would not change the test PC. The script itself was run.)</p>
+<ul><li>The time <code>15:30</code> is the <strong>computer&#39;s</strong> clock. Set the PC to Nepal time, or change the time.</li><li>Test it once: <code>Start-ScheduledTask -TaskName &quot;KDB daily backup&quot;</code>, then read the log file.</li><li>In a task, use <strong>full paths</strong> in the script, because the task does not have your <code>PATH</code>.</li></ul>
+<h2 id="bash-linux-macos-git-bash">bash (Linux, macOS, Git Bash)</h2>
+<p>The same ideas in bash. Save as <code>report.sh</code>:</p>
+<pre><code class="language-bash">#!/usr/bin/env bash
+set -u
+DB=market
+
+kdb sql &quot;$DB&quot; &quot;SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39;&quot; --format csv &gt; closes.csv
+echo &quot;saved $(( $(wc -l &lt; closes.csv) - 1 )) rows&quot;
+
+kdb sql &quot;$DB&quot; &quot;SELECT nope FROM ochl_day&quot; &gt; /dev/null 2&gt;&amp;1
+code=$?
+if [ &quot;$code&quot; -ne 0 ]; then
+  echo &quot;query failed with exit code $code&quot;
+fi
+
+kdb sql &quot;$DB&quot; - &lt;&lt;&#39;SQL&#39;
+SELECT count(*) AS trades FROM trade_log;
+SQL</code></pre>
+<pre><code class="language-bash">bash ./report.sh</code></pre>
+<pre><code class="language-text">saved 3 rows
+query failed with exit code 1
+trades
+------
+    32
+(1 row, 0.3 ms)</code></pre>
+<ul><li><code>&lt;&lt;&#39;SQL&#39; ... SQL</code> sends many lines of SQL into <code>kdb sql ... -</code>. The quotes around <code>&#39;SQL&#39;</code> stop bash from changing <code>$</code> signs in the SQL.</li><li><code>kdb sql &quot;$DB&quot; - &lt; file.sql</code> sends a file.</li><li>On Linux you can use <code>cron</code> for the daily backup: <code>30 15 * * 0-4 /home/kdb/daily-backup.sh</code> (Sunday=0 to Thursday=4, computer time).</li></ul>
+<p>(Tested with Git Bash on Windows.)</p>
+<h2 id="speed-options-for-kdb-serve">Speed options for <code>kdb serve</code></h2>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>--memory &lt;MB&gt;</code></td><td>512</td><td>Table data kept in memory. More is faster for big tables. Data stays on disk; only what queries need is loaded.</td></tr><tr><td><code>--threads &lt;N&gt;</code></td><td>half of the CPU threads</td><td>Threads for big queries and bulk writes. KDB never uses more than half of the CPU threads.</td></tr><tr><td><code>--cache-mb &lt;MB&gt;</code></td><td>64</td><td>Memory for results of repeated queries. <code>0</code> turns the cache off.</td></tr><tr><td><code>--sync-commits always|batch</code></td><td>always</td><td><code>batch</code> is much faster for many small writes; a power cut can lose the last few confirmed writes, but never damages data. With <code>always</code>, writers that commit at the same moment still share one wait for the disk (group commit).</td></tr><tr><td><code>--warm-indexes on|off</code></td><td>on</td><td>Build every index on a background thread right after a database opens, so the first query after a restart finds it ready. <code>off</code>: an index is built when a query first needs it.</td></tr><tr><td><code>--reader-yield on|off</code></td><td>off</td><td><code>on</code>: reads do not wait for a long trigger or <code>CALL</code>; they read the last committed rows. Also <code>KDB_READER_YIELD</code>.</td></tr></tbody></table></div>
+<p><strong>The result cache.</strong> When the same <code>SELECT</code> comes again (a dashboard that refreshes, a live page) and no table it reads has changed, KDB answers from memory in a few microseconds.</p>
+<ul><li>Any change to a table it read (INSERT, UPDATE, DELETE, line protocol, rollback) makes KDB compute the result again.</li><li>Changes of views, functions, procedures and tables clear the whole cache.</li><li>Queries with <code>now()</code>, <code>random()</code>, <code>gen_random_uuid()</code>, password functions and similar are never kept.</li><li>A <code>SELECT</code> inside your own open transaction is never taken from the cache.</li></ul>
+<pre><code class="language-powershell">.\kdb serve market --memory 2048 --cache-mb 128</code></pre>
+<h2 id="protection-options-for-kdb-serve">Protection options for <code>kdb serve</code></h2>
+<p><a href="21-protection.html">Chapter 21</a> explains them. They cost almost no speed.</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>--statement-timeout 30s</code></td><td>60s</td><td>Stop a statement that runs longer (<code>0</code> = no limit)</td></tr><tr><td><code>--max-result-memory 512MB</code></td><td>1GB</td><td>Stop a query that keeps more rows in memory</td></tr><tr><td><code>--max-groups N</code></td><td>5000000</td><td>Stop a <code>GROUP BY</code> with more groups. (A <code>GROUP BY</code> that needs more than half of <code>--max-result-memory</code> does not stop: it puts groups in temporary files on disk and gives the same result, only slower.)</td></tr><tr><td><code>--max-queries-per-user N</code></td><td>32</td><td>Statements of one user at the same time</td></tr><tr><td><code>--safe-updates</code></td><td>off</td><td>Refuse <code>UPDATE</code>/<code>DELETE</code> without <code>WHERE</code></td></tr><tr><td><code>--read-only</code></td><td>off</td><td>No changes at all (a report server)</td></tr><tr><td><code>--trash-days N</code></td><td>7</td><td><code>DROP TABLE</code> keeps the table for <code>UNDROP TABLE</code> (also <code>kdb sql</code> and <code>kdb shell</code>)</td></tr><tr><td><code>--audit on|off</code>, <code>--audit-keep-days N</code></td><td>on, forever</td><td>The audit log of logins, user changes, DDL and backups</td></tr><tr><td><code>--backup-schedule &quot;daily 16:00&quot;</code></td><td>off</td><td>Backups by themselves (needs <code>--backups</code>)</td></tr><tr><td><code>--backup-copy &lt;dir&gt;</code></td><td>none</td><td>A checked second copy of each scheduled backup</td></tr><tr><td><code>--backup-warn-hours N</code></td><td>26</td><td>Warn when the last good backup is older</td></tr><tr><td><code>--drain-timeout 30s</code></td><td>30s</td><td>On stop (Ctrl+C or a service stop), running requests may finish this long; new ones get HTTP 503</td></tr><tr><td><code>--activity-log-size N</code></td><td>5000</td><td>Recent events kept in memory for the console&#39;s Terminal (<code>0</code> = off)</td></tr></tbody></table></div>
+<p><code>kdb sql</code> and <code>kdb shell</code> have no timeouts or limits. <code>kdb user reset-2fa &lt;name&gt;</code> turns two-factor login off while the server is stopped.</p>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>Save all CITY minute candles of 2026-09-10 to <code>city-minutes.csv</code>.</li><li>Write a PowerShell line that prints only the number of trade_log trades on 2026-09-10 (just the number).</li><li>Change the daily backup script so it also writes the size of the newest backup into the log (hint: <code>kdb backups</code>).</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><pre><code class="language-powershell">kdb sql market &quot;SELECT * FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39; ORDER BY time&quot; --format csv | Set-Content city-minutes.csv -Encoding UTF8</code></pre></li><li><pre><code class="language-powershell">(kdb sql market &quot;SELECT count(*) AS n FROM trade_log WHERE date IN &#39;2026-09-10&#39;&quot; --format csv | ConvertFrom-Csv).n</code></pre>
+<p>The answer is <code>24</code>.</p></li><li>After the backup lines, add:
+<pre><code class="language-powershell">$list = &amp; $Kdb backups $Backups 2&gt;&amp;1 | ForEach-Object { &quot;$_&quot; }
+Add-Content $Log $list[1]    # line 2 = the newest backup</code></pre></li></ol>
+</details>
+<hr>
+<p>Next: <a href="08-http-api.html">8. HTTP API</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/07-command-line-and-scripts.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volume indicators - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Is money flowing in or out? On-balance volume, the A/D line, Chaikin money flow and oscillator, MFI, force index and ease of movement.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-indicators-volume.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators-volume.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="volume-indicators">Volume indicators</h1>
+<blockquote><p>Is money flowing in or out? On-balance volume, the A/D line, Chaikin money flow and oscillator, MFI, force index and ease of movement.</p></blockquote>
+<ul><li>Category: Functions — technical indicators</li><li>Keywords: volume, money flow, buying pressure, selling pressure, accumulation, distribution, divergence, on-balance volume, on balance volume, OBV, accumulation/distribution, accumulation distribution, A/D line, AD, Chaikin money flow, CMF, Chaikin oscillator, Chaikin A/D oscillator, ADOSC, money flow index, MFI, volume RSI, force index, Elder force index, EFI, ease of movement, EMV, EOM, stock market</li><li>See also: <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-indicators-volatility.html">Volatility indicators and bands</a>, <a href="functions-indicators-momentum.html">Momentum indicators</a>, <a href="functions-indicators-trend.html">Trend indicators</a>, <a href="functions-aggregate.html#vwap">Aggregate functions (vwap)</a>, <a href="functions-window.html">Window and series functions</a></li></ul>
+<p><strong>Volume</strong> is how many shares were traded in a candle. A price move on big volume means many people agree with it; a move on small volume is weak. <strong>Volume indicators</strong> mix the price and the volume to show if money is flowing <strong>into</strong> a share (buying pressure, &quot;accumulation&quot;) or <strong>out of</strong> it (selling pressure, &quot;distribution&quot;).</p>
+<p>A common use is a <strong>divergence</strong>: the price goes sideways or down, but the volume indicator goes up. That can mean big buyers are collecting the share before the price rises.</p>
+<p>These functions are <strong>series functions</strong>, like <a href="functions-indicators.html">sma and atr</a>. The same rules apply:</p>
+<ul><li><strong>Order:</strong> without <code>OVER</code>, all result rows are one series in time order. With <strong>many symbols</strong>, always write <code>OVER (PARTITION BY symbol ORDER BY time)</code>.</li><li><strong>Period:</strong> <code>n</code> is how many candles the indicator looks back, a whole number of 1 or more.</li><li><strong>WHERE runs first</strong>, and candles made with <code>SAMPLE BY</code> must be made in a subquery: see the rules in <a href="functions-indicators.html">technical indicators</a>. <code>obv</code> and <code>ad</code> are running totals, so their numbers depend on the first row the series has.</li><li><strong>Warm-up:</strong> at the start of a series there are not enough candles yet, and the result is <code>NULL</code>:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Function (default periods)</th><th>First value on candle</th><th>NULL candles at the start</th></tr></thead><tbody><tr><td><code>obv(close, volume)</code></td><td>1</td><td>0</td></tr><tr><td><code>ad(high, low, close, volume)</code></td><td>1</td><td>0</td></tr><tr><td><code>cmf(high, low, close, volume, n)</code> (n = 20)</td><td>n</td><td>n - 1</td></tr><tr><td><code>adosc(high, low, close, volume, fast, slow)</code> (3, 10)</td><td>the bigger of fast and slow</td><td>one less</td></tr><tr><td><code>mfi(high, low, close, volume, n)</code> (n = 14)</td><td>n + 1</td><td>n</td></tr><tr><td><code>efi(close, volume, n)</code> (n = 13)</td><td>n + 1</td><td>n</td></tr><tr><td><code>eom(high, low, volume, n, divisor)</code> (14, 100000000)</td><td>n + 1</td><td>n</td></tr></tbody></table></div>
+<ul><li><strong>NULL values:</strong> <code>cmf</code> and <code>eom</code> look at a window of candles: a NULL makes the windows that hold it <code>NULL</code>, and then the values come back. <code>obv</code>, <code>ad</code>, <code>adosc</code>, <code>mfi</code> and <code>efi</code> are built step by step: one NULL makes this and <strong>every later</strong> value <code>NULL</code>. Leave NULL candles out with <code>WHERE</code>.</li><li><strong>Same as TA-Lib:</strong> <code>obv</code>, <code>ad</code>, <code>adosc</code> and <code>mfi</code> give the same numbers as TA-Lib (OBV, AD, ADOSC, MFI). <code>cmf</code> (Chaikin), <code>efi</code> (Elder) and <code>eom</code> (Arms) are not in TA-Lib; they use the usual formulas written on each entry.</li><li><strong>Returns</strong> <code>DOUBLE</code>.</li></ul>
+<p><strong>Example: Volume indicators of CITY&#39;s one-minute candles (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume, obv, ad, cmf20, adosc, mfi14, efi13
+FROM (SELECT time, close, volume,
+             obv(close, volume) AS obv,
+             round(ad(high, low, close, volume)) AS ad,
+             round(cmf(high, low, close, volume), 3) AS cmf20,
+             round(adosc(high, low, close, volume)) AS adosc,
+             round(mfi(high, low, close, volume), 1) AS mfi14,
+             round(efi(close, volume)) AS efi13
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>obv (DOUBLE)</th><th>ad (DOUBLE)</th><th>cmf20 (DOUBLE)</th><th>adosc (DOUBLE)</th><th>mfi14 (DOUBLE)</th><th>efi13 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>1000</td><td>13660</td><td>-17532</td><td>-0.031</td><td>-513</td><td>34.3</td><td>-46</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>460</td><td>14660</td><td>-17389</td><td>-0.06</td><td>-560</td><td>47.3</td><td>-20</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>390</td><td>14200</td><td>-17542</td><td>0.02</td><td>-662</td><td>50.5</td><td>-47</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>1350</td><td>13810</td><td>-17932</td><td>-0.041</td><td>-646</td><td>47.7</td><td>-74</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>1340</td><td>15160</td><td>-16582</td><td>0.013</td><td>-159</td><td>59.3</td><td>-64</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A NULL volume: cmf comes back, obv stays NULL</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE candles (time TIMESTAMP, high DOUBLE, low DOUBLE, close DOUBLE, volume DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO candles VALUES (&#39;2026-09-01&#39;, 11, 9, 10, 100), (&#39;2026-09-02&#39;, 12, 10, 11, 200), (&#39;2026-09-03&#39;, 13, 11, 12, NULL),
+  (&#39;2026-09-04&#39;, 14, 12, 13, 400), (&#39;2026-09-05&#39;, 13, 11, 12, 500), (&#39;2026-09-06&#39;, 15, 12, 14, 600);</code></pre>
+<pre><code class="language-sql">SELECT time, close, volume, obv(close, volume) AS obv, round(cmf(high, low, close, volume, 2), 3) AS cmf2
+FROM candles
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>obv (DOUBLE)</th><th>cmf2 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>10</td><td>100</td><td>100</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>11</td><td>200</td><td>300</td><td>0</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>12</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-04T00:00:00.000Z</td><td>13</td><td>400</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-05T00:00:00.000Z</td><td>12</td><td>500</td><td>NULL</td><td>0</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>14</td><td>600</td><td>NULL</td><td>0.182</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="obv">obv</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">obv(close, volume)
+obv(close, volume) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>On-balance volume</strong>: a running total of the volume. When the close is higher than the previous close, the candle&#39;s volume is <strong>added</strong>; when it is lower, the volume is <strong>subtracted</strong>; when it is the same, nothing changes. When OBV rises, the volume is bigger on up days than on down days: buyers are stronger. Only the direction of OBV matters, not the number itself.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>volume</code></td><td>number</td><td>the candle&#39;s volume</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> never <code>NULL</code> at the start. <strong>Careful:</strong> a NULL <code>close</code> or <code>volume</code> makes this and every later value <code>NULL</code>.</li><li><strong>Notes:</strong> like TA-Lib, the first candle&#39;s OBV is its own volume. Because it is a running total, the number depends on where the series starts; compare its <strong>changes</strong>, not its level.</li></ul>
+<p><strong>Example: Up day: add the volume. Down day: subtract it</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume, obv(close, volume) AS obv
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>obv (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>58850</td><td>58850</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>21770</td><td>80620</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>145930</td><td>226550</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>78550</td><td>305100</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>135560</td><td>169540</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>136770</td><td>306310</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>94410</td><td>400720</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>41470</td><td>442190</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Divergence: price change and OBV change since 23 August</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS days,
+       round(last(close) - first(close), 1) AS price_change,
+       last(obv) - first(obv) AS obv_change
+FROM (SELECT time, symbol, close,
+             obv(close, volume) OVER (PARTITION BY symbol ORDER BY time) AS obv
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>price_change (DOUBLE)</th><th>obv_change (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>15</td><td>-3</td><td>226090</td></tr><tr><td>COAST</td><td>15</td><td>-14.9</td><td>65740</td></tr><tr><td>VOLT</td><td>15</td><td>10.2</td><td>-246280</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="ad">ad, ad_line</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ad(high, low, close, volume)
+ad_line(high, low, close, volume)
+ad(high, low, close, volume) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>accumulation/distribution line</strong> (A/D line). For every candle it finds where the close is inside the candle, with the <strong>money flow multiplier</strong> <code>((close - low) - (high - close)) / (high - low)</code>: <code>1</code> when the close is at the high, <code>-1</code> when it is at the low, <code>0</code> in the middle. The A/D line is the running total of <code>multiplier × volume</code>. A rising line means the closes are near the highs on big volume: accumulation. <code>ad_line</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>volume</code></td><td>number</td><td>the candle&#39;s volume</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> never <code>NULL</code> at the start. <strong>Careful:</strong> a NULL argument makes this and every later value <code>NULL</code>.</li><li><strong>Notes:</strong> a candle with <code>high = low</code> adds nothing. Unlike <code>obv</code>, it does not look at the previous close, only at the candle itself. The same as TA-Lib AD.</li></ul>
+<p><strong>Example: The multiplier of each day and the A/D line of CITY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, high, low, close, volume,
+       round(((close - low) - (high - close)) / (high - low), 3) AS multiplier,
+       round(ad(high, low, close, volume)) AS ad_line
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-03&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>multiplier (DOUBLE)</th><th>ad_line (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-03T00:00:00.000Z</td><td>500.9</td><td>495.5</td><td>497.9</td><td>101000</td><td>-0.111</td><td>-11222</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>500.1</td><td>496</td><td>499</td><td>74950</td><td>0.463</td><td>23511</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>501</td><td>495</td><td>498.7</td><td>117080</td><td>0.233</td><td>50829</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>501.1</td><td>497.5</td><td>497.5</td><td>34400</td><td>-1</td><td>16429</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>512.4</td><td>504</td><td>504.6</td><td>182390</td><td>-0.857</td><td>-139905</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>507</td><td>500.7</td><td>504.9</td><td>183040</td><td>0.333</td><td>-78892</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: A/D line of both symbols at the end of each day (one-minute candles)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, ad_line
+FROM (SELECT time, symbol, close,
+             round(ad_line(high, low, close, volume) OVER (PARTITION BY symbol ORDER BY time)) AS ad_line
+      FROM ochl_minutes) t
+WHERE time IN (&#39;2026-09-09T09:14:00Z&#39;, &#39;2026-09-10T09:14:00Z&#39;)
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>ad_line (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T09:14:00.000Z</td><td>CITY</td><td>504.6</td><td>-14867</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>504.9</td><td>-17532</td></tr><tr><td>2026-09-09T09:14:00.000Z</td><td>COAST</td><td>380.1</td><td>-19693</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>COAST</td><td>376.1</td><td>-9254</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="cmf">cmf</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cmf(high, low, close, volume)
+cmf(high, low, close, volume, n)
+cmf(high, low, close, volume, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Chaikin money flow</strong>: over the last <code>n</code> candles, the sum of <code>multiplier × volume</code> divided by the sum of the volume (the multiplier is the one of <a href="functions-indicators-volume.html#ad">ad</a>). It is between <code>-1</code> and <code>1</code>. <strong>Above 0</strong> means buying pressure (closes near the highs); <strong>below 0</strong> means selling pressure. Many traders look for values above <code>0.1</code> or below <code>-0.1</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>volume</code></td><td>number</td><td>the candle&#39;s volume</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles; default <code>20</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from -1 to 1.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and when the total volume of the window is <code>0</code>. A NULL argument makes the <code>n</code> results whose window holds it <code>NULL</code>; after that CMF comes back.</li><li><strong>Notes:</strong> a candle with <code>high = low</code> counts with multiplier <code>0</code> (its volume still counts in the total).</li></ul>
+<p><strong>Example: Buying or selling pressure? 5-day CMF of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, cmf5,
+       CASE WHEN cmf5 &gt; 0 THEN &#39;buying&#39; WHEN cmf5 &lt; 0 THEN &#39;selling&#39; END AS pressure
+FROM (SELECT time, symbol, close,
+             round(cmf(high, low, close, volume, 5) OVER (PARTITION BY symbol ORDER BY time), 3) AS cmf5
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>cmf5 (DOUBLE)</th><th>pressure (STRING)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>-0.072</td><td>selling</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>-0.274</td><td>selling</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>-0.114</td><td>selling</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>0.337</td><td>buying</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>-0.077</td><td>selling</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>-0.267</td><td>selling</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>0.238</td><td>buying</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>0.283</td><td>buying</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>0.254</td><td>buying</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: 20-minute CMF at the last minute of the day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, cmf20
+FROM (SELECT time, symbol, close,
+             round(cmf(high, low, close, volume) OVER (PARTITION BY symbol ORDER BY time), 3) AS cmf20
+      FROM ochl_minutes) t
+WHERE time = &#39;2026-09-10T09:14:00Z&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>cmf20 (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>-0.031</td></tr><tr><td>COAST</td><td>376.1</td><td>-0.015</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="adosc">adosc, chaikin_osc</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">adosc(high, low, close, volume)
+adosc(high, low, close, volume, fast, slow)
+chaikin_osc(high, low, close, volume, fast, slow)
+adosc(high, low, close, volume, fast, slow) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>Chaikin oscillator</strong> (Chaikin A/D oscillator): the fast EMA of the <a href="functions-indicators-volume.html#ad">A/D line</a> minus its slow EMA. It shows if the A/D line speeds up or slows down, like <a href="functions-indicators-momentum.html#macd">MACD</a> does for the price. When it crosses <strong>above 0</strong>, buying pressure is growing (a buy signal); below 0, selling pressure is growing. <code>chaikin_osc</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>volume</code></td><td>number</td><td>the candle&#39;s volume</td></tr><tr><td><code>fast</code></td><td>whole number, 1 or more</td><td>the fast EMA period; default <code>3</code></td></tr><tr><td><code>slow</code></td><td>whole number, 1 or more</td><td>the slow EMA period; default <code>10</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, in the unit of <code>volume</code>.</li><li><strong>NULL:</strong> the first value is on candle <code>max(fast, slow)</code>: candle 10 with the defaults. <strong>Careful:</strong> a NULL argument makes this and every later value <code>NULL</code>.</li><li><strong>Notes:</strong> like TA-Lib ADOSC, both EMAs start at the first A/D value (not at an SMA like <a href="functions-indicators.html#ema">ema</a>), so the first values still depend on the start. Load more candles than you show.</li></ul>
+<p><strong>Example: Chaikin oscillator of CITY (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, osc
+FROM (SELECT time, close, round(adosc(high, low, close, volume)) AS osc
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>osc (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>-513</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>-560</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>-662</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>-646</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>-159</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Signals: the oscillator crosses 0</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(osc) AS osc, CASE WHEN osc &gt; 0 THEN &#39;BUY&#39; ELSE &#39;SELL&#39; END AS signal
+FROM (SELECT time, close, osc, lag(osc) AS prev_osc
+      FROM (SELECT time, close, chaikin_osc(high, low, close, volume, 3, 10) AS osc
+            FROM ochl_minutes
+            WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;) a) b
+WHERE (osc &gt; 0 AND prev_osc &lt;= 0) OR (osc &lt; 0 AND prev_osc &gt;= 0)
+ORDER BY time
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>osc (DOUBLE)</th><th>signal (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T05:39:00.000Z</td><td>505.2</td><td>420</td><td>BUY</td></tr><tr><td>2026-09-10T05:52:00.000Z</td><td>506.3</td><td>-310</td><td>SELL</td></tr><tr><td>2026-09-10T06:10:00.000Z</td><td>505.9</td><td>211</td><td>BUY</td></tr><tr><td>2026-09-10T06:13:00.000Z</td><td>505.4</td><td>-162</td><td>SELL</td></tr><tr><td>2026-09-10T06:16:00.000Z</td><td>505.6</td><td>311</td><td>BUY</td></tr><tr><td>2026-09-10T06:21:00.000Z</td><td>505.2</td><td>-189</td><td>SELL</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="mfi">mfi</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">mfi(high, low, close, volume)
+mfi(high, low, close, volume, n)
+mfi(high, low, close, volume, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>money flow index</strong>, a number from 0 to 100. It is often called the &quot;volume RSI&quot;: it works like <a href="functions-indicators.html#rsi">rsi</a>, but with money instead of price. Each candle has a <strong>typical price</strong> <code>(high + low + close) / 3</code> and a <strong>money flow</strong> <code>typical price × volume</code>. The money flow counts as positive when the typical price is higher than the previous one, negative when it is lower. MFI is <code>100 × positive / (positive + negative)</code> over the last <code>n</code> candles. Above <strong>80</strong> traders call the share overbought; below <strong>20</strong>, oversold.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>volume</code></td><td>number</td><td>the candle&#39;s volume</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles (the first candle has no previous typical price). <strong>Careful:</strong> a NULL argument makes this and every later value <code>NULL</code>.</li><li><strong>Notes:</strong> the same as TA-Lib MFI. Only falls in the window give <code>0</code>; only rises give <code>100</code>. When the total money flow of the window is less than 1 (for example no volume), MFI is <code>0</code>.</li></ul>
+<p><strong>Example: Overbought (80 or more) and oversold (20 or less) days, 5-day MFI</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, mfi5,
+       CASE WHEN mfi5 &gt;= 80 THEN &#39;overbought&#39; ELSE &#39;oversold&#39; END AS zone
+FROM (SELECT time, symbol, close,
+             round(mfi(high, low, close, volume, 5) OVER (PARTITION BY symbol ORDER BY time), 1) AS mfi5
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE mfi5 &gt;= 80 OR mfi5 &lt;= 20
+ORDER BY time, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>mfi5 (DOUBLE)</th><th>zone (STRING)</th></tr></thead><tbody><tr><td>2026-08-30T00:00:00.000Z</td><td>VOLT</td><td>173</td><td>0</td><td>oversold</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>CITY</td><td>505.7</td><td>14.3</td><td>oversold</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>VOLT</td><td>172.6</td><td>10.9</td><td>oversold</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>CITY</td><td>502.4</td><td>0</td><td>oversold</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>VOLT</td><td>169</td><td>12.2</td><td>oversold</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>CITY</td><td>496.4</td><td>0</td><td>oversold</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>CITY</td><td>497.9</td><td>18.6</td><td>oversold</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>VOLT</td><td>180.1</td><td>83.8</td><td>overbought</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>COAST</td><td>379.2</td><td>86.3</td><td>overbought</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>87</td><td>overbought</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>89.6</td><td>overbought</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<p><strong>Example: MFI 14 against RSI 14 of COAST (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, mfi14, rsi14
+FROM (SELECT time, close,
+             round(mfi(high, low, close, volume), 1) AS mfi14,
+             round(rsi(close, 14), 1) AS rsi14
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>mfi14 (DOUBLE)</th><th>rsi14 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>68.9</td><td>59.4</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>58.8</td><td>60.9</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>54</td><td>59</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>43.1</td><td>53.9</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>36.4</td><td>55.2</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: high, low, close and volume are all needed</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT mfi(high, low, close) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: function &#39;mfi&#39; takes 4 to 5 argument(s), got 3</code></p>
+<h2 id="efi">efi, force_index</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">efi(close, volume)
+efi(close, volume, n)
+force_index(close, volume, n)
+efi(close, volume, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Elder&#39;s force index</strong>: the <strong>force</strong> of one candle is <code>(close - previous close) × volume</code>, so a big move on big volume is a big force. <code>efi</code> is the <a href="functions-indicators.html#ema">ema</a> of the force over <code>n</code> candles. Above 0, buyers are in control; below 0, sellers. <code>force_index</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>volume</code></td><td>number</td><td>the candle&#39;s volume</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the EMA period; default <code>13</code> (traders also use <code>2</code> for short signals)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, in price × shares (for example dollars × shares).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles (the first candle has no force). <strong>Careful:</strong> a NULL argument makes this and every later value <code>NULL</code>.</li><li><strong>Notes:</strong> the EMA starts with the plain average of the first <code>n</code> forces, like <code>ema</code>.</li></ul>
+<p><strong>Example: The force of each day and its 3-day EMA (VOLT)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume,
+       round((close - lag(close)) * volume) AS force,
+       round(efi(close, volume, 3)) AS efi3
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-30&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>force (DOUBLE)</th><th>efi3 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>93050</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>48550</td><td>-19420</td><td>NULL</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>58850</td><td>-211860</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>21770</td><td>54425</td><td>-58952</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>145930</td><td>656685</td><td>298867</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>78550</td><td>322055</td><td>310461</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>135560</td><td>-433792</td><td>-61666</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>136770</td><td>752235</td><td>345285</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>94410</td><td>462609</td><td>403947</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>41470</td><td>161733</td><td>282840</td></tr></tbody></table></div>
+<p>(10 rows)</p>
+<p><strong>Example: 13-minute force index of COAST (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume, force13
+FROM (SELECT time, close, volume, round(force_index(close, volume)) AS force13
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>force13 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>1060</td><td>104</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>1320</td><td>140</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>1150</td><td>119</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>680</td><td>43</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>1200</td><td>61</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="eom">eom, ease_of_movement</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">eom(high, low, volume)
+eom(high, low, volume, n)
+eom(high, low, volume, n, divisor)
+ease_of_movement(high, low, volume, n, divisor)
+eom(high, low, volume, n, divisor) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Ease of movement</strong> (Richard Arms): how easily the price moves. A big positive value means the price went <strong>up easily</strong>, on little volume; a big negative value means it went down easily. Values near 0 mean the price needed a lot of volume to move. <code>ease_of_movement</code> is the same function.</p>
+<p>For each candle: the <strong>distance</strong> is <code>(high + low) / 2 - (previous high + previous low) / 2</code>, the <strong>box ratio</strong> is <code>(volume / divisor) / (high - low)</code>, and the candle&#39;s value is <code>distance / box ratio</code>. <code>eom</code> is the <a href="functions-indicators.html#sma">sma</a> of these values over <code>n</code> candles.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>volume</code></td><td>number</td><td>the candle&#39;s volume</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles; default <code>14</code></td></tr><tr><td><code>divisor</code></td><td>number, not 0</td><td>scales the volume; default <code>100000000</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. The size depends on <code>divisor</code>; only the sign and the changes matter.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles (the first candle has no previous high and low). A candle with volume <code>0</code> or a NULL value makes the windows that hold it <code>NULL</code>; after that EOM comes back.</li><li><strong>Notes:</strong> a candle with <code>high = low</code> counts as <code>0</code>. The default divisor is made for very big volumes; with small volumes (hundreds or thousands of shares per minute) a divisor like <code>10000</code> gives easier numbers. It does not change the sign.</li></ul>
+<p><strong>Example: EOM 14 of COAST with the default divisor and with 10000 (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, eom_default, eom_10000
+FROM (SELECT time, close,
+             round(eom(high, low, volume), 1) AS eom_default,
+             round(eom(high, low, volume, 14, 10000), 3) AS eom_10000
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>eom_default (DOUBLE)</th><th>eom_10000 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>460.9</td><td>0.046</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>-634.5</td><td>-0.063</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>3122.5</td><td>0.312</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>395.9</td><td>0.04</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>-1109.3</td><td>-0.111</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Did VOLT rise easily? 3-day EOM</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume, eom3,
+       CASE WHEN eom3 &gt; 0 THEN &#39;up easily&#39; WHEN eom3 &lt; 0 THEN &#39;down easily&#39; END AS reading
+FROM (SELECT time, close, volume, round(ease_of_movement(high, low, volume, 3, 10000), 2) AS eom3
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+WHERE time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>eom3 (DOUBLE)</th><th>reading (STRING)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>58850</td><td>-0.97</td><td>down easily</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>21770</td><td>1.09</td><td>up easily</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>145930</td><td>1.13</td><td>up easily</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>78550</td><td>3.88</td><td>up easily</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>135560</td><td>2.21</td><td>up easily</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>136770</td><td>2.14</td><td>up easily</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>94410</td><td>1.71</td><td>up easily</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>41470</td><td>3.2</td><td>up easily</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: The divisor must not be 0</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT eom(high, low, volume, 14, 0) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: eom: the divisor must not be 0</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators-volume.md">This page as markdown</a>.</footer>
+</body>
+</html>

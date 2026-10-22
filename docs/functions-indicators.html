@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technical indicators - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Moving averages (SMA, EMA, WMA, DEMA, TEMA, TRIMA, KAMA, HMA, VWMA), RSI and ATR on candles, per symbol, with the same results as TA-Lib.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-indicators.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="technical-indicators">Technical indicators</h1>
+<blockquote><p>Moving averages (SMA, EMA, WMA, DEMA, TEMA, TRIMA, KAMA, HMA, VWMA), RSI and ATR on candles, per symbol, with the same results as TA-Lib.</p></blockquote>
+<ul><li>Category: Functions — technical indicators</li><li>Keywords: indicator, technical analysis, TA-Lib, trading, chart, trend, momentum, volatility, moving average, MA, simple moving average, SMA, exponential moving average, EMA, weighted moving average, WMA, linear weighted moving average, double exponential moving average, DEMA, triple exponential moving average, TEMA, triangular moving average, TRIMA, Kaufman adaptive moving average, KAMA, adaptive moving average, efficiency ratio, Hull moving average, Hull, HMA, volume weighted moving average, VWMA, lag, relative strength index, RSI, overbought, oversold, average true range, ATR, true range, stop loss, crossover, golden cross, death cross, warm-up, period, vwap, volume weighted average price, stock market</li><li>See also: <a href="functions-indicators-momentum.html">Momentum indicators</a>, <a href="functions-indicators-volatility.html">Volatility indicators and bands</a>, <a href="functions-indicators-trend.html">Trend indicators</a>, <a href="functions-indicators-volume.html">Volume indicators</a>, <a href="functions-returns-risk.html">Returns and risk</a>, <a href="functions-window.html">Window and series functions</a>, <a href="functions-aggregate.html#vwap">Aggregate functions (vwap)</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="candles-cookbook.html">Candles cookbook</a></li></ul>
+<p>A <strong>technical indicator</strong> is a number made from past prices. Traders draw it on the chart next to the candles to see the <strong>trend</strong> (is the price going up?), the <strong>momentum</strong> (how strong is the move?) and the <strong>volatility</strong> (how big are the moves?). The price data is usually candles: <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, <code>volume</code> per day or per minute.</p>
+<p>The indicators are <strong>series functions</strong> (<a href="functions-window.html">window and series functions</a>). They give a value for every candle, and they follow these rules:</p>
+<ul><li><strong>Order:</strong> without <code>OVER</code>, all result rows are one series in time order. With <strong>many symbols</strong>, always write <code>OVER (PARTITION BY symbol ORDER BY time)</code>, or the prices of different symbols mix.</li><li><strong>Period:</strong> <code>n</code> is the number of candles the indicator looks back, a whole number of 1 or more (<code>sma(close, 20)</code> is the 20-day average on daily candles).</li><li><strong>Warm-up:</strong> at the start of a series there are not enough candles yet, and the result is <code>NULL</code>:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>First value on candle</th><th>NULL candles at the start</th></tr></thead><tbody><tr><td><code>sma(x, n)</code></td><td>n</td><td>n - 1</td></tr><tr><td><code>ema(x, n)</code></td><td>n</td><td>n - 1</td></tr><tr><td><code>wma(x, n)</code></td><td>n</td><td>n - 1</td></tr><tr><td><code>trima(x, n)</code></td><td>n</td><td>n - 1</td></tr><tr><td><code>vwma(price, volume, n)</code></td><td>n</td><td>n - 1</td></tr><tr><td><code>kama(x, n)</code></td><td>n + 1</td><td>n</td></tr><tr><td><code>hma(x, n)</code></td><td>n + √n - 1 (√n rounded down)</td><td>n + √n - 2</td></tr><tr><td><code>dema(x, n)</code></td><td>2n - 1</td><td>2n - 2</td></tr><tr><td><code>tema(x, n)</code></td><td>3n - 2</td><td>3n - 3</td></tr><tr><td><code>rsi(x, n)</code></td><td>n + 1</td><td>n</td></tr><tr><td><code>atr(high, low, close, n)</code></td><td>n + 1</td><td>n</td></tr></tbody></table></div>
+<ul><li><strong>WHERE runs first:</strong> the indicator only sees the rows that <code>WHERE</code> keeps. To show the last 5 days of a 20-day average, compute it on more history in a subquery, and filter outside.</li><li><strong>Candles from SAMPLE BY or GROUP BY:</strong> make the candles in a subquery, and put the indicator outside. An indicator in the same <code>SELECT</code> as <code>SAMPLE BY</code> is an error.</li><li><strong>Same as TA-Lib:</strong> <code>ema</code> starts with the SMA of the first <code>n</code> values; <code>rsi</code> and <code>atr</code> use Wilder&#39;s smoothing. The numbers match TA-Lib and most charting programs. <code>wma</code>, <code>dema</code>, <code>tema</code>, <code>trima</code> and <code>kama</code> match TA-Lib too. <code>hma</code> (Alan Hull&#39;s formula) and <code>vwma</code> (TradingView&#39;s <code>ta.vwma</code>) are not in TA-Lib.</li><li><strong>Returns</strong> <code>DOUBLE</code>. Use <code>round(x, 2)</code> for prices.</li></ul>
+<p>For the <strong>volume-weighted average price</strong> of a day or a candle, use the aggregate <a href="functions-aggregate.html#vwap">vwap</a>; with <code>OVER (... ROWS n PRECEDING)</code> it becomes a moving VWAP.</p>
+<p><strong>More indicators</strong> (they follow the same rules):</p>
+<ul><li><a href="functions-indicators-momentum.html">Momentum indicators</a>: MACD, stochastic, stochastic RSI, Williams %R, CCI, ROC, momentum, TRIX.</li><li><a href="functions-indicators-volatility.html">Volatility and bands</a>: true range, NATR, Bollinger bands, Keltner channels, Donchian channels.</li><li><a href="functions-indicators-trend.html">Trend indicators</a>: DMI and ADX, Aroon, parabolic SAR, Ichimoku, SuperTrend, linear regression, Heikin-Ashi candles.</li><li><a href="functions-indicators-volume.html">Volume indicators</a>: OBV, A/D line, CMF, Chaikin oscillator, MFI, force index, ease of movement.</li><li><a href="functions-returns-risk.html">Returns and risk</a>: returns, drawdown, volatility, Sharpe ratio and more.</li></ul>
+<p><strong>Example: All four indicators on COAST&#39;s daily candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(sma(close, 5), 2) AS sma5,
+       round(ema(close, 5), 2) AS ema5,
+       round(rsi(close, 5), 1) AS rsi5,
+       round(atr(high, low, close, 5), 2) AS atr5
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma5 (DOUBLE)</th><th>ema5 (DOUBLE)</th><th>rsi5 (DOUBLE)</th><th>atr5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>391</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>384.9</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>379.8</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>373</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>367.1</td><td>379.16</td><td>379.16</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>372.4</td><td>375.44</td><td>376.91</td><td>18.2</td><td>8.92</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>368.2</td><td>372.1</td><td>374</td><td>15.4</td><td>9.04</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>367.4</td><td>369.62</td><td>371.8</td><td>14.8</td><td>7.87</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>369.2</td><td>368.86</td><td>370.94</td><td>22.5</td><td>7.08</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>373.2</td><td>370.08</td><td>371.69</td><td>37.9</td><td>7.56</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td><td>370.68</td><td>372.93</td><td>45.4</td><td>7.25</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td><td>372.88</td><td>375.02</td><td>56.7</td><td>7.38</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td><td>374.84</td><td>375.75</td><td>49.9</td><td>7</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>380.1</td><td>377.02</td><td>377.2</td><td>58.8</td><td>9.92</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td><td>377.6</td><td>376.83</td><td>45</td><td>9.7</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: An indicator on a raw column with SAMPLE BY: an error</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT time, last(close) AS close, sma(close, 4) AS sma4
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39;
+SAMPLE BY 15m;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 40: column &#39;close&#39; is used by a window function in a query with aggregates, so it must be a key of the groups: add it to the SELECT list or to GROUP BY</code></p>
+<p><strong>Example: Right: 15-minute candles inside, indicators outside</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sma(close, 4), 2) AS sma4, round(rsi(close, 4), 1) AS rsi4
+FROM (SELECT time, last(close) AS close
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+      SAMPLE BY 15m) c
+ORDER BY time
+LIMIT 8;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma4 (DOUBLE)</th><th>rsi4 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>381.7</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-10T05:30:00.000Z</td><td>380.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-10T05:45:00.000Z</td><td>379.7</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-10T06:00:00.000Z</td><td>381.3</td><td>380.73</td><td>NULL</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>379.6</td><td>380.2</td><td>30.2</td></tr><tr><td>2026-09-10T06:30:00.000Z</td><td>379.9</td><td>380.13</td><td>35.1</td></tr><tr><td>2026-09-10T06:45:00.000Z</td><td>379.2</td><td>380</td><td>28.8</td></tr><tr><td>2026-09-10T07:00:00.000Z</td><td>378.4</td><td>379.28</td><td>22.6</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="sma">sma</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sma(x, n)
+sma(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>simple moving average</strong>: the average of the last <code>n</code> values (this candle and the <code>n - 1</code> before it). A 20-day SMA smooths out the daily noise and shows the trend. When the price is above its SMA, the trend is usually up; below, down. When a short SMA crosses above a long SMA, traders call it a buy signal (a &quot;golden cross&quot;).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles to average</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. A NULL value makes the <code>n</code> results whose window holds it <code>NULL</code>; after that the SMA comes back.</li><li><strong>Notes:</strong> unlike <code>avg(x) OVER (... ROWS n-1 PRECEDING)</code>, which averages fewer values at the start, <code>sma</code> waits until it has <code>n</code> values. <code>ROWS</code> inside <code>OVER</code> is ignored for <code>sma</code>.</li></ul>
+<p><strong>Example: Is VOLT above its 5-day average?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sma(close, 5), 2) AS sma5,
+       CASE WHEN close &gt; sma(close, 5) THEN &#39;above&#39;
+            WHEN close &lt; sma(close, 5) THEN &#39;below&#39; END AS trend
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma5 (DOUBLE)</th><th>trend (STRING)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>176.76</td><td>below</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>175.16</td><td>below</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>173.98</td><td>below</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>172.42</td><td>below</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>171.88</td><td>below</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>172.42</td><td>above</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>173.84</td><td>above</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>174.7</td><td>above</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>177.38</td><td>above</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>180.54</td><td>above</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>183.58</td><td>above</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: 3-day SMA of every symbol (PARTITION BY symbol)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       round(sma(close, 3) OVER (PARTITION BY symbol ORDER BY time), 2) AS sma3
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-06&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>sma3 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>CITY</td><td>499</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>CITY</td><td>498.7</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>498.4</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>500.27</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>502.33</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>COAST</td><td>375.4</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>COAST</td><td>379.2</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>377.27</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>378.83</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>377.8</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>VOLT</td><td>180.1</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>VOLT</td><td>176.9</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>179.8</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>182.2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>186.97</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Moving average crossover: buy and sell signals (3-day against 5-day)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, fast, slow,
+       CASE WHEN fast &gt; slow THEN &#39;BUY&#39; ELSE &#39;SELL&#39; END AS signal
+FROM (SELECT time, symbol, close, fast, slow,
+             lag(fast) OVER (PARTITION BY symbol ORDER BY time) AS prev_fast,
+             lag(slow) OVER (PARTITION BY symbol ORDER BY time) AS prev_slow
+      FROM (SELECT time, symbol, close,
+                   round(sma(close, 3) OVER (PARTITION BY symbol ORDER BY time), 2) AS fast,
+                   round(sma(close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS slow
+            FROM ochl_day
+            WHERE time &gt;= &#39;2026-08-23&#39;) a) b
+WHERE (fast &gt; slow AND prev_fast &lt;= prev_slow) OR (fast &lt; slow AND prev_fast &gt;= prev_slow)
+ORDER BY time, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>fast (DOUBLE)</th><th>slow (DOUBLE)</th><th>signal (STRING)</th></tr></thead><tbody><tr><td>2026-08-30T00:00:00.000Z</td><td>CITY</td><td>503.1</td><td>507.4</td><td>509.16</td><td>SELL</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>COAST</td><td>375.4</td><td>372.6</td><td>370.68</td><td>BUY</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>VOLT</td><td>180.1</td><td>175.87</td><td>173.84</td><td>BUY</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>498.4</td><td>497.9</td><td>BUY</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: WHERE runs first: compute on all history, then keep the last 3 days</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sma(close, 3), 2) AS sma3_only_3_rows
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-08&#39;
+ORDER BY time;
+
+SELECT time, close, sma3
+FROM (SELECT time, close, round(sma(close, 3), 2) AS sma3 FROM ochl_day WHERE symbol = &#39;CITY&#39;) t
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<p><code>SELECT time, close, round(sma(close, 3), 2) AS sma3_only_3_rows FROM ochl_day WHERE symbol = &#39;CITY&#39; </code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma3_only_3_rows (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>NULL</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>502.33</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT time, close, sma3 FROM (SELECT time, close, round(sma(close, 3), 2) AS sma3 FROM ochl_day WHE</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma3 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>498.4</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>500.27</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>502.33</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The period must be 1 or more</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT sma(close, 0) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: sma: the period must be a whole number of rows (1 or more)</code></p>
+<h2 id="ema">ema</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ema(x, n)
+ema(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>exponential moving average</strong>. Like the SMA, it smooths prices, but new prices count more than old ones, so it follows the price faster. Each new EMA is <code>previous EMA + k × (price - previous EMA)</code> with <code>k = 2 / (n + 1)</code>. The first EMA (on candle <code>n</code>) is the SMA of the first <code>n</code> prices, like TA-Lib.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period; bigger is smoother and slower</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. <strong>Careful:</strong> one NULL value makes this and <strong>every later</strong> EMA of the series <code>NULL</code>. Leave NULL prices out with <code>WHERE close IS NOT NULL</code>.</li><li><strong>Notes:</strong> because every EMA depends on all earlier prices, the values of the first few candles after the warm-up still depend on where the series starts. Load more history than you show.</li></ul>
+<p><strong>Example: EMA follows the price faster than SMA</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(sma(close, 5), 2) AS sma5,
+       round(ema(close, 5), 2) AS ema5
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma5 (DOUBLE)</th><th>ema5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>176.76</td><td>176.76</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>175.16</td><td>175.51</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>173.98</td><td>174.54</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>172.42</td><td>172.69</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>171.88</td><td>172.29</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>172.42</td><td>173.53</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>173.84</td><td>175.72</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>174.7</td><td>176.11</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>177.38</td><td>178.21</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>180.54</td><td>181.24</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>183.58</td><td>184.56</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: 12- and 26-candle EMA of CITY&#39;s one-minute candles (the last 5)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, ema12, ema26, round(ema12 - ema26, 3) AS difference
+FROM (SELECT time, close,
+             round(ema(close, 12), 2) AS ema12,
+             round(ema(close, 26), 2) AS ema26
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>ema12 (DOUBLE)</th><th>ema26 (DOUBLE)</th><th>difference (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>504.99</td><td>505.08</td><td>-0.09</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>505</td><td>505.09</td><td>-0.09</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>504.98</td><td>505.09</td><td>-0.11</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>505.02</td><td>505.12</td><td>-0.1</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>505.11</td><td>505.16</td><td>-0.05</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A NULL price: SMA comes back, EMA stays NULL</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (time TIMESTAMP, close DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO prices VALUES (&#39;2026-09-01&#39;, 10), (&#39;2026-09-02&#39;, 11), (&#39;2026-09-03&#39;, NULL),
+  (&#39;2026-09-04&#39;, 13), (&#39;2026-09-05&#39;, 12), (&#39;2026-09-06&#39;, 14), (&#39;2026-09-07&#39;, 15);</code></pre>
+<pre><code class="language-sql">SELECT time, close, sma(close, 2) AS sma2, ema(close, 2) AS ema2, rsi(close, 2) AS rsi2
+FROM prices
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma2 (DOUBLE)</th><th>ema2 (DOUBLE)</th><th>rsi2 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>10</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>11</td><td>10.5</td><td>10.5</td><td>NULL</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>NULL</td><td>NULL</td><td>NULL</td><td>100</td></tr><tr><td>2026-09-04T00:00:00.000Z</td><td>13</td><td>NULL</td><td>NULL</td><td>100</td></tr><tr><td>2026-09-05T00:00:00.000Z</td><td>12</td><td>12.5</td><td>NULL</td><td>20</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>14</td><td>13</td><td>NULL</td><td>80.9523809523809</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>15</td><td>14.5</td><td>NULL</td><td>89.1891891891892</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<h2 id="wma">wma</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">wma(x, n)
+wma(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>weighted moving average</strong>. Like the SMA it averages the last <code>n</code> values, but newer prices count more: the newest price has weight <code>n</code>, the one before <code>n - 1</code>, and the oldest weight <code>1</code>. So it has less <strong>lag</strong> than the SMA. Lag means how many candles an average is late when the price turns.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles to average</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. A NULL value makes the <code>n</code> results whose window holds it <code>NULL</code>; after that the WMA comes back.</li><li><strong>Notes:</strong> <code>wma(x, n) = (1 × oldest + 2 × next + ... + n × newest) / (1 + 2 + ... + n)</code>. The same as TA-Lib&#39;s <code>WMA</code>.</li></ul>
+<p><strong>Example: SMA and WMA of VOLT: the WMA turns sooner</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sma(close, 5), 2) AS sma5, round(wma(close, 5), 2) AS wma5
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma5 (DOUBLE)</th><th>wma5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>176.76</td><td>175.45</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>175.16</td><td>174.19</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>173.98</td><td>173.34</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>172.42</td><td>171.68</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>171.88</td><td>171.37</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>172.42</td><td>172.75</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>173.84</td><td>175.31</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>174.7</td><td>176.33</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>177.38</td><td>178.89</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>180.54</td><td>182.2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>183.58</td><td>185.75</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Close against its 5-day WMA, every symbol on the last day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, wma5,
+       CASE WHEN close &gt; wma5 THEN &#39;above&#39; ELSE &#39;below&#39; END AS position
+FROM (SELECT time, symbol, close,
+             round(wma(close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS wma5
+      FROM ochl_day) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>wma5 (DOUBLE)</th><th>position (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>502.12</td><td>above</td></tr><tr><td>COAST</td><td>376.1</td><td>377.75</td><td>below</td></tr><tr><td>VOLT</td><td>191.2</td><td>185.75</td><td>above</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="dema">dema</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">dema(x, n)
+dema(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>double exponential moving average</strong>: <code>2 × EMA - EMA of the EMA</code>. Taking away the &quot;EMA of the EMA&quot; removes much of the EMA&#39;s lag, so the DEMA stays closer to the price. It also jumps around a little more.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period of both EMAs</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>2n - 2</code> candles (the second EMA needs <code>n</code> values of the first). <strong>Careful:</strong> like <code>ema</code>, one NULL value makes this and <strong>every later</strong> DEMA of the series <code>NULL</code>.</li><li><strong>Notes:</strong> the same as TA-Lib&#39;s <code>DEMA</code>. Load more history than you show: the first values depend on where the series starts.</li></ul>
+<p><strong>Example: EMA, DEMA and TEMA of CITY&#39;s one-minute candles (the last 5)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, ema10, dema10, tema10
+FROM (SELECT time, close,
+             round(ema(close, 10), 2) AS ema10,
+             round(dema(close, 10), 2) AS dema10,
+             round(tema(close, 10), 2) AS tema10
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>ema10 (DOUBLE)</th><th>dema10 (DOUBLE)</th><th>tema10 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>504.96</td><td>504.86</td><td>504.84</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>504.98</td><td>504.87</td><td>504.84</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>504.95</td><td>504.79</td><td>504.7</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>504.98</td><td>504.82</td><td>504.71</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>505.09</td><td>505</td><td>504.93</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="tema">tema</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">tema(x, n)
+tema(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>triple exponential moving average</strong>: <code>3 × EMA - 3 × EMA of the EMA + EMA of the EMA of the EMA</code>. It has even less lag than the DEMA, and it is the fastest of the EMA family.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period of the three EMAs</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>3n - 3</code> candles. <strong>Careful:</strong> one NULL value makes this and every later TEMA of the series <code>NULL</code>.</li><li><strong>Notes:</strong> the same as TA-Lib&#39;s <code>TEMA</code>. A long period needs many candles: <code>tema(close, 20)</code> has its first value on candle 58.</li></ul>
+<p><strong>Example: Warm-up: EMA on candle n, DEMA on candle 2n - 1, TEMA on candle 3n - 2</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(ema(close, 3), 2) AS ema3,
+       round(dema(close, 3), 2) AS dema3,
+       round(tema(close, 3), 2) AS tema3
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>ema3 (DOUBLE)</th><th>dema3 (DOUBLE)</th><th>tema3 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>367.4</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>369.2</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>373.2</td><td>369.93</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td><td>372.67</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td><td>375.93</td><td>379.02</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td><td>376.57</td><td>378.43</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>380.1</td><td>378.33</td><td>380.15</td><td>380.13</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td><td>377.22</td><td>377.57</td><td>376.82</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="trima">trima</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">trima(x, n)
+trima(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>triangular moving average</strong>. The prices in the middle of the window count most, and the oldest and newest count least (the weights look like a triangle: 1, 2, 3, 2, 1). It is very smooth, but it has <strong>more</strong> lag than the SMA.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles to average</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. A NULL value makes the <code>n</code> results whose window holds it <code>NULL</code>; after that the TRIMA comes back.</li><li><strong>Notes:</strong> it is the SMA of an SMA. The same as TA-Lib&#39;s <code>TRIMA</code>. Use it to see the calm, long trend, not for fast signals.</li></ul>
+<p><strong>Example: TRIMA is smoother and slower than SMA</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sma(close, 5), 2) AS sma5, round(trima(close, 5), 2) AS trima5
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma5 (DOUBLE)</th><th>trima5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>510.12</td><td>511.19</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>509.16</td><td>510.16</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>508.24</td><td>507.7</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>506.06</td><td>505.34</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>502.7</td><td>503.38</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>501.1</td><td>501.38</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>500.28</td><td>499.39</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>498.88</td><td>498.4</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>497.9</td><td>498.23</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>499.54</td><td>499.07</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>500.94</td><td>500.33</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<h2 id="kama">kama</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kama(x, n)
+kama(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Kaufman&#39;s adaptive moving average</strong>. It changes its own speed. It looks at the <strong>efficiency ratio</strong> of the last <code>n</code> candles: the price change from start to end, divided by the sum of all the small up and down moves. When the price goes straight in one direction (ratio near 1), KAMA follows it fast. When the price only goes up and down (ratio near 0), KAMA hardly moves, so it gives fewer false signals in a sideways market.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles the efficiency ratio looks back</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles. <strong>Careful:</strong> one NULL value makes this and every later KAMA of the series <code>NULL</code>.</li><li><strong>Notes:</strong> the same as TA-Lib&#39;s <code>KAMA</code>: its speed goes from a 2-candle EMA (fastest) to a 30-candle EMA (slowest). TA-Lib&#39;s usual period is 30; many traders use 10.</li></ul>
+<p><strong>Example: KAMA follows a straight move, and stays calm when the price goes up and down</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE moves (time TIMESTAMP, straight DOUBLE, zigzag DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO moves VALUES (&#39;2026-09-01&#39;, 100, 100), (&#39;2026-09-02&#39;, 101, 104), (&#39;2026-09-03&#39;, 102, 100),
+  (&#39;2026-09-04&#39;, 103, 104), (&#39;2026-09-05&#39;, 104, 100), (&#39;2026-09-06&#39;, 105, 104), (&#39;2026-09-07&#39;, 106, 100),
+  (&#39;2026-09-08&#39;, 107, 104);</code></pre>
+<pre><code class="language-sql">SELECT time, straight, round(kama(straight, 3), 2) AS kama_straight,
+       zigzag, round(kama(zigzag, 3), 2) AS kama_zigzag, round(ema(zigzag, 3), 2) AS ema_zigzag
+FROM moves
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>straight (DOUBLE)</th><th>kama_straight (DOUBLE)</th><th>zigzag (DOUBLE)</th><th>kama_zigzag (DOUBLE)</th><th>ema_zigzag (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>100</td><td>NULL</td><td>100</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>101</td><td>NULL</td><td>104</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>102</td><td>NULL</td><td>100</td><td>NULL</td><td>101.33</td></tr><tr><td>2026-09-04T00:00:00.000Z</td><td>103</td><td>102.44</td><td>104</td><td>100.28</td><td>102.67</td></tr><tr><td>2026-09-05T00:00:00.000Z</td><td>104</td><td>103.14</td><td>100</td><td>100.26</td><td>101.33</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>105</td><td>103.96</td><td>104</td><td>100.52</td><td>102.67</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>106</td><td>104.87</td><td>100</td><td>100.49</td><td>101.33</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>107</td><td>105.82</td><td>104</td><td>100.73</td><td>102.67</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: KAMA and EMA of COAST&#39;s one-minute candles (the last 5)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, kama10, ema10
+FROM (SELECT time, close, round(kama(close, 10), 2) AS kama10, round(ema(close, 10), 2) AS ema10
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>kama10 (DOUBLE)</th><th>ema10 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>375.38</td><td>375.59</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>375.27</td><td>375.47</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>375.09</td><td>375.31</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>375.02</td><td>375.16</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>375.01</td><td>375.09</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="hma">hma</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">hma(x, n)
+hma(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>Hull moving average</strong> (by Alan Hull). It is both smooth and fast: it takes <code>2 × WMA of n/2 candles - WMA of n candles</code>, which runs a little ahead of the price, and then smooths that with a WMA of <code>√n</code> candles.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>the period; <code>n/2</code> and <code>√n</code> are rounded down</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n + √n - 2</code> candles (<code>hma(close, 20)</code>: 22 candles). A NULL value gives NULL for a while; after that the HMA comes back.</li><li><strong>Notes:</strong> not in TA-Lib. Because it runs ahead of the price, the HMA can overshoot after a sharp turn.</li></ul>
+<p><strong>Example: HMA follows VOLT with little lag</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sma(close, 4), 2) AS sma4, round(hma(close, 4), 2) AS hma4
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma4 (DOUBLE)</th><th>hma4 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>177.63</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>175.7</td><td>172.81</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>174.33</td><td>172.46</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>173.28</td><td>172.46</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>171.98</td><td>170.21</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>171.53</td><td>169.84</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>172.28</td><td>174.13</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>174.15</td><td>179.65</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>176.13</td><td>179.67</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>178.85</td><td>180.59</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>181.68</td><td>186.03</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>184.45</td><td>191.41</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: The period must be 2 or more</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT hma(close, 1) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: hma: the period must be a whole number of rows (2 or more)</code></p>
+<h2 id="vwma">vwma</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">vwma(price, volume, n)
+vwma(price, volume, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>volume-weighted moving average</strong>: <code>sum(price × volume) / sum(volume)</code> of the last <code>n</code> candles. Candles with a big volume count more. When the VWMA is above the SMA, the higher prices came with more volume, which traders read as strong buying.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>price</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>volume</code></td><td>number</td><td>the volume of the candle</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and when the total volume of the window is <code>0</code>. A NULL price or volume makes the <code>n</code> results whose window holds it <code>NULL</code>; after that the VWMA comes back.</li><li><strong>Notes:</strong> the same as TradingView&#39;s <code>ta.vwma</code>. It is a moving <a href="functions-aggregate.html#vwap">vwap</a> that waits until it has <code>n</code> candles.</li></ul>
+<p><strong>Example: VWMA and SMA of CITY&#39;s one-minute candles (the last 5)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume, vwma20, sma20
+FROM (SELECT time, close, volume,
+             round(vwma(close, volume, 20), 2) AS vwma20,
+             round(sma(close, 20), 2) AS sma20
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>vwma20 (DOUBLE)</th><th>sma20 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>1000</td><td>504.91</td><td>504.97</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>460</td><td>504.88</td><td>504.95</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>390</td><td>504.88</td><td>504.94</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>1350</td><td>504.87</td><td>504.94</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>1340</td><td>504.91</td><td>504.98</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: VWMA is a moving VWAP that waits for n candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume,
+       round(vwma(close, volume, 3), 2) AS vwma3,
+       round(vwap(close, volume) OVER (ORDER BY time ROWS 2 PRECEDING), 2) AS moving_vwap
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-03&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>vwma3 (DOUBLE)</th><th>moving_vwap (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>145930</td><td>NULL</td><td>176</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>78550</td><td>NULL</td><td>177.43</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>135560</td><td>177.23</td><td>177.23</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>136770</td><td>179.76</td><td>179.76</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>94410</td><td>181.63</td><td>181.63</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>41470</td><td>185.44</td><td>185.44</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="rsi">rsi</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">rsi(x, n)
+rsi(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>relative strength index</strong>, a momentum number from 0 to 100. It compares the size of the recent rises with the size of the recent falls. Above <strong>70</strong>, traders call a share &quot;overbought&quot; (it rose a lot, it may fall back); below <strong>30</strong>, &quot;oversold&quot;. The usual period is 14.</p>
+<p>It is Wilder&#39;s RSI, like TA-Lib: the average gain and average loss of the first <code>n</code> changes, then <code>average = (previous average × (n - 1) + today&#39;s gain or loss) / n</code>, and <code>RSI = 100 - 100 / (1 + average gain / average loss)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period, usually <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles (the first candle has no change). A NULL price counts as &quot;no change&quot; in both of its changes; the RSI goes on.</li><li><strong>Notes:</strong> only rises give <code>100</code>; only falls give <code>0</code>; a flat price (no rises, no falls) gives <code>50</code>.</li></ul>
+<p><strong>Example: RSI 14 on CITY&#39;s one-minute candles (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, rsi14
+FROM (SELECT time, close, round(rsi(close, 14), 1) AS rsi14
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>rsi14 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>47.6</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>50.1</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>46.2</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>42</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>43</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Overbought or oversold? Daily RSI 5 of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, rsi5,
+       CASE WHEN rsi5 &gt;= 70 THEN &#39;overbought&#39;
+            WHEN rsi5 &lt;= 30 THEN &#39;oversold&#39;
+            ELSE &#39;normal&#39; END AS zone
+FROM (SELECT time, symbol, close,
+             round(rsi(close, 5) OVER (PARTITION BY symbol ORDER BY time), 1) AS rsi5
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>rsi5 (DOUBLE)</th><th>zone (STRING)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>31.6</td><td>normal</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>63.1</td><td>normal</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>64</td><td>normal</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>49.9</td><td>normal</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>58.8</td><td>normal</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>45</td><td>normal</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>67.5</td><td>normal</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>76.1</td><td>overbought</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>81.1</td><td>overbought</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Only rises: 100. Only falls: 0. Flat: 50</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, rising, falling, flat,
+       rsi(rising, 3) AS rsi_rising, rsi(falling, 3) AS rsi_falling, rsi(flat, 3) AS rsi_flat
+FROM (SELECT time,
+             100 + row_number() AS rising,
+             100 - row_number() AS falling,
+             100 AS flat
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-06&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>rising (LONG)</th><th>falling (LONG)</th><th>flat (LONG)</th><th>rsi_rising (DOUBLE)</th><th>rsi_falling (DOUBLE)</th><th>rsi_flat (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>101</td><td>99</td><td>100</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>102</td><td>98</td><td>100</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>103</td><td>97</td><td>100</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>104</td><td>96</td><td>100</td><td>100</td><td>0</td><td>50</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>105</td><td>95</td><td>100</td><td>100</td><td>0</td><td>50</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="atr">atr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">atr(high, low, close, n)
+atr(high, low, close, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>average true range</strong>: how much the price moves in one candle, on average, in the unit of the price (for example dollars). It measures <strong>volatility</strong>, not direction. Traders use it to place a stop-loss (for example 2 × ATR below the price) and to choose a position size.</p>
+<p>The <strong>true range</strong> of a candle is the biggest of: <code>high - low</code>, <code>|high - previous close|</code> and <code>|low - previous close|</code>. So a gap from yesterday&#39;s close counts too. ATR is Wilder&#39;s average of the true range, like TA-Lib: the plain average of the first <code>n</code> true ranges, then <code>(previous ATR × (n - 1) + true range) / n</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period, usually <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (the same unit as the prices).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles (the first candle has no previous close). <strong>Careful:</strong> a NULL <code>high</code>, <code>low</code> or <code>close</code> makes this and every later ATR of the series <code>NULL</code> (when it is in the first <code>n</code> candles, the table output can even show <code>NaN</code> once). Leave such candles out with <code>WHERE</code>.</li><li><strong>Notes:</strong> all four arguments are needed. To compare shares with very different prices, divide by the close: <code>atr / close × 100</code> is the ATR in percent.</li></ul>
+<p><strong>Example: ATR in dollars and in percent of the price</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, atr5, round(atr5 / close * 100, 2) AS atr_pct
+FROM (SELECT time, symbol, close,
+             round(atr(high, low, close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS atr5
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY atr_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>atr5 (DOUBLE)</th><th>atr_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>7.3</td><td>3.82</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>9.7</td><td>2.58</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>7.33</td><td>1.45</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A stop-loss 2 × ATR below today&#39;s close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, atr5, round(close - 2 * atr5, 1) AS stop_loss
+FROM (SELECT time, symbol, close,
+             round(atr(high, low, close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS atr5
+      FROM ochl_day) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>atr5 (DOUBLE)</th><th>stop_loss (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>7.65</td><td>489.6</td></tr><tr><td>COAST</td><td>376.1</td><td>9.99</td><td>356.1</td></tr><tr><td>VOLT</td><td>191.2</td><td>7.43</td><td>176.3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: high, low, close and the period are all needed</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT atr(close, 14) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: function &#39;atr&#39; takes 4 argument(s), got 2</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators.md">This page as markdown</a>.</footer>
+</body>
+</html>

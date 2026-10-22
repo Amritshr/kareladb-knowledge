@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORDER BY, LIMIT, OFFSET - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Sort the result, and give back only the first rows or one page of rows.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/order-by-limit.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/order-by-limit.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="order-by-limit-offset">ORDER BY, LIMIT, OFFSET</h1>
+<blockquote><p>Sort the result, and give back only the first rows or one page of rows.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: sort, order, sorting, ORDER BY, ASC, DESC, ascending, descending, NULLS FIRST, NULLS LAST, NULLS, FIRST, LAST, LIMIT, OFFSET, top N, first rows, paging, pagination, page, next page, LIMIT a, b, order by, limit, offset, asc, desc, paging</li><li>See also: <a href="select.html">SELECT</a>, <a href="where.html#row-comparison">WHERE (row-comparison)</a>, <a href="group-by.html">GROUP BY and HAVING</a>, <a href="union-subqueries.html#union-all">UNION and subqueries (union-all)</a>, <a href="functions-window.html">Window and series functions</a>, <a href="explain.html">EXPLAIN</a></li></ul>
+<p><code>ORDER BY</code> sorts the rows of the result. <code>LIMIT</code> keeps only the first rows, and <code>OFFSET</code> skips rows before them.
+They run <strong>last</strong>, after <code>WHERE</code>, <code>GROUP BY</code> and the select list, so they work on the final result.</p>
+<p>Without <code>ORDER BY</code>, the order of the rows is not promised. Always add <code>ORDER BY</code> when the order matters (a &quot;top 10&quot;, a page of posts, a report).</p>
+<p><strong>Example: The 3 days with the biggest volume, then the next 3</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, volume FROM ochl_day ORDER BY volume DESC LIMIT 3;
+SELECT time, symbol, volume FROM ochl_day ORDER BY volume DESC LIMIT 3 OFFSET 3;</code></pre>
+<p>Result:</p>
+<p><code>SELECT time, symbol, volume FROM ochl_day ORDER BY volume DESC LIMIT 3</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>186330</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>186200</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>183040</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT time, symbol, volume FROM ochl_day ORDER BY volume DESC LIMIT 3 OFFSET 3</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>182390</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>CITY</td><td>159240</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>VOLT</td><td>145930</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="order-by">ORDER BY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ORDER BY sort_key [ASC | DESC] [NULLS FIRST | NULLS LAST], ...</code></pre>
+<p>A <code>sort_key</code> can be:</p>
+<div class="table-wrap"><table><thead><tr><th>Sort key</th><th>Example</th><th>Meaning</th></tr></thead><tbody><tr><td>an output column name or alias</td><td><code>ORDER BY change_pct</code></td><td>the value of that output column</td></tr><tr><td>a position</td><td><code>ORDER BY 2</code></td><td>the 2nd output column (counts from 1)</td></tr><tr><td>a table column</td><td><code>ORDER BY volume</code></td><td>also when it is not in the select list</td></tr><tr><td>an expression</td><td><code>ORDER BY abs(close - open)</code></td><td>the value of the expression for each row</td></tr></tbody></table></div>
+<p>With many keys, the second key sorts rows that are equal in the first key, and so on.</p>
+<ul><li><strong>Returns:</strong> the same rows, sorted.</li><li><strong>Notes:</strong> text is sorted by its bytes: <code>&#39;A&#39;</code> comes before <code>&#39;B&#39;</code>, and <strong>every capital letter comes before every small letter</strong> (<code>&#39;Z&#39;</code> before <code>&#39;a&#39;</code>). This is PostgreSQL&#39;s <code>COLLATE &quot;C&quot;</code>. For dictionary order write <code>ORDER BY name COLLATE &quot;en_US&quot;</code> (<a href="#collate">COLLATE</a>), or <code>ORDER BY lower(name)</code>.</li><li>An alias can be used alone (<code>ORDER BY move</code>), but not inside an expression (<code>ORDER BY abs(move)</code> is an error in a query without <code>GROUP BY</code>): write the expression again.</li><li>After <code>GROUP BY</code> or with aggregates, <code>ORDER BY</code> can only use the output columns (names, aliases, positions) and expressions of them, like <code>ORDER BY q / n</code>.</li><li>After <code>UNION ALL</code>, <code>ORDER BY</code> can only use output column names or positions (see <a href="union-subqueries.html#union-all">UNION ALL</a>).</li><li>Rows that are equal in every key keep the order they came in. For stable pages, end with a unique column (like <code>id</code>).</li><li><code>ORDER BY ... LIMIT n</code> on a big table only keeps the best <code>n</code> rows while it reads, so it is fast. <code>ORDER BY time DESC LIMIT n</code> on a time-series table even stops early: it reads the newest rows first (see <a href="performance-tips.html#limit">LIMIT</a>).</li></ul>
+<p><strong>Example: Top gainers of the day, sorted by an alias</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, open, close, round((close - open) / open * 100, 2) AS change_pct
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY change_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>185.6</td><td>191.2</td><td>3.02</td></tr><tr><td>CITY</td><td>504.6</td><td>504.9</td><td>0.06</td></tr><tr><td>COAST</td><td>380.1</td><td>376.1</td><td>-1.05</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Sector first, then symbol inside each sector</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT sector, symbol, name FROM securities ORDER BY sector, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sector (STRING)</th><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>Banking</td><td>CITY</td><td>City Bank Limited</td></tr><tr><td>Banking</td><td>COAST</td><td>Coastal Bank Limited</td></tr><tr><td>Energy</td><td>VOLT</td><td>Volt River Hydropower Limited</td></tr><tr><td>Investment</td><td>ACME</td><td>Acme Investment Company</td></tr><tr><td>Telecom</td><td>TELCO</td><td>Northwind Telecom Limited</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Sort by a column that is not shown, and by an expression</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39; ORDER BY abs(close - open) DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>191.2</td></tr><tr><td>COAST</td><td>376.1</td></tr><tr><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Newest news first</strong> (sample data: content-news)</p>
+<pre><code class="language-sql">SELECT published_at, symbol, title FROM news ORDER BY published_at DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>published_at (TIMESTAMP)</th><th>symbol (STRING)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>2026-09-02T03:15:00.000Z</td><td>COAST</td><td>Coastal Bank merger talks</td></tr><tr><td>2026-09-01T02:15:00.000Z</td><td>NULL</td><td>Market index closes at 2,840</td></tr><tr><td>2026-08-15T04:15:00.000Z</td><td>VOLT</td><td>Hydropower company plans IPO</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Sort by position: the 3rd column (type), then the 2nd (name)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT code, name, type FROM accounts WHERE type IN (&#39;income&#39;, &#39;expense&#39;) ORDER BY 3, 2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>code (INT)</th><th>name (STRING)</th><th>type (STRING)</th></tr></thead><tbody><tr><td>5000</td><td>Broker commission</td><td>expense</td></tr><tr><td>5100</td><td>Office rent</td><td>expense</td></tr><tr><td>4000</td><td>Dividend income</td><td>income</td></tr><tr><td>4100</td><td>Gain on sale</td><td>income</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Capital letters come before small letters; lower() fixes it</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY email;
+SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY lower(email);</code></pre>
+<p>Result:</p>
+<p><code>SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY email</code></p>
+<div class="table-wrap"><table><thead><tr><th>email (STRING)</th></tr></thead><tbody><tr><td>GITA.RAI@Gmail.com</td></tr><tr><td>anita_m@hotmail.com</td></tr><tr><td>sita.k@yahoo.com</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY lower(email)</code></p>
+<div class="table-wrap"><table><thead><tr><th>email (STRING)</th></tr></thead><tbody><tr><td>anita_m@hotmail.com</td></tr><tr><td>GITA.RAI@Gmail.com</td></tr><tr><td>sita.k@yahoo.com</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: An alias inside an expression is not known</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol, close - open AS move FROM ochl_day WHERE time IN &#39;2026-09-10&#39; ORDER BY abs(move);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 91: unknown column &#39;move&#39; (table &#39;ochl_day&#39; has: time symbol open high low close volume)</code></p>
+<p><strong>Example: A position must be one of the columns</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT id, name FROM brokers ORDER BY 3;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 39: ORDER BY 3: there are only 2 columns</code></p>
+<h2 id="asc-desc">ASC, DESC</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ORDER BY sort_key ASC
+ORDER BY sort_key DESC</code></pre>
+<p><code>ASC</code> (ascending) sorts small to big: 1, 2, 3; A, B, C; old times first. It is the default.
+<code>DESC</code> (descending) sorts big to small: 3, 2, 1; new times first.</p>
+<ul><li><strong>Notes:</strong> <code>ASC</code> or <code>DESC</code> belongs to one sort key. <code>ORDER BY a DESC, b</code> sorts <code>a</code> big first, and <code>b</code> small first.</li><li><code>DESC</code> also changes where <code>NULL</code> goes by default (see <a href="order-by-limit.html#nulls-first-last">NULLS FIRST, NULLS LAST</a>).</li></ul>
+<p><strong>Example: Brokers by turnover, biggest first; equal turnover by id, smallest first</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT buyer, sum(amount) AS turnover
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY buyer
+ORDER BY turnover DESC, buyer ASC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>turnover (DOUBLE)</th></tr></thead><tbody><tr><td>49</td><td>960370</td></tr><tr><td>45</td><td>695950</td></tr><tr><td>58</td><td>260190</td></tr><tr><td>1</td><td>239420</td></tr><tr><td>34</td><td>205450</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The last 3 minutes of COAST on 2026-09-10</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>1060</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>1320</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>1150</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="collate">COLLATE: dictionary order</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sort_key COLLATE &quot;name&quot;
+a COLLATE &quot;name&quot; = b      (also &lt;, &gt;, BETWEEN, IN)</code></pre>
+<p><code>COLLATE</code> picks the order for one <code>ORDER BY</code> key or one comparison. Without it, text compares byte by byte.</p>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Order</th><th>Example</th></tr></thead><tbody><tr><td><code>&quot;C&quot;</code>, <code>&quot;POSIX&quot;</code>, <code>&quot;default&quot;</code></td><td>bytes (the same as no <code>COLLATE</code>)</td><td><code>Apple, Zebra, apple</code></td></tr><tr><td><code>&quot;en_US&quot;</code>, <code>&quot;en_US.utf8&quot;</code>, <code>&quot;und-x-icu&quot;</code>, <code>&quot;unicode&quot;</code>, other language names</td><td>dictionary: letters first, case and accents only break ties</td><td><code>apple, Apple, ěa, Zebra</code></td></tr><tr><td><code>nocase</code></td><td>like the dictionary, and <code>&#39;a&#39; = &#39;A&#39;</code></td><td><code>&#39;apple&#39; COLLATE nocase = &#39;APPLE&#39;</code> is true</td></tr><tr><td><code>natural</code></td><td>like the dictionary, and digits compare as numbers</td><td><code>file2, file10</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a comparison gives <code>true</code> or <code>false</code>; <code>ORDER BY</code> sorts. <code>SELECT name COLLATE &quot;en_US&quot;</code> gives <code>name</code> unchanged.</li><li><strong>Notes:</strong> every language name uses the same dictionary order (a letter with an accent sorts right after the plain letter). An unknown name is an error.</li><li>In <code>ORDER BY</code>, write the column or expression with <code>COLLATE</code>, not an alias or a position.</li><li><code>COLLATE</code> after a column type in <code>CREATE TABLE</code> is still read and ignored: write it in the query.</li><li>Sorting with <code>COLLATE</code> works out a sort key for every row, so it is slower than a plain <code>ORDER BY</code>.</li></ul>
+<p><strong>Example: Byte order, then dictionary order</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY email;
+SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY email COLLATE &quot;en_US&quot;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY email</code></p>
+<div class="table-wrap"><table><thead><tr><th>email (STRING)</th></tr></thead><tbody><tr><td>GITA.RAI@Gmail.com</td></tr><tr><td>anita_m@hotmail.com</td></tr><tr><td>sita.k@yahoo.com</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY email COLLATE en_US</code></p>
+<div class="table-wrap"><table><thead><tr><th>email (STRING)</th></tr></thead><tbody><tr><td>anita_m@hotmail.com</td></tr><tr><td>GITA.RAI@Gmail.com</td></tr><tr><td>sita.k@yahoo.com</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Case-insensitive match and natural order</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;Zebra&#39; &lt; &#39;apple&#39; AS bytes, &#39;Zebra&#39; COLLATE &quot;en_US&quot; &lt; &#39;apple&#39; AS dictionary,
+       &#39;apple&#39; COLLATE nocase = &#39;APPLE&#39; AS same, &#39;file2&#39; COLLATE natural &lt; &#39;file10&#39; AS natural;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>bytes (BOOL)</th><th>dictionary (BOOL)</th><th>same (BOOL)</th><th>natural (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An unknown collation</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT &#39;a&#39; COLLATE klingon = &#39;a&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 20: collation &quot;klingon&quot; does not exist; KDB knows &quot;C&quot;, &quot;en_US&quot; (and other language names), &quot;nocase&quot; and &quot;natural&quot;</code></p>
+<h2 id="nulls-first-last">NULLS FIRST, NULLS LAST</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ORDER BY sort_key [ASC | DESC] NULLS FIRST
+ORDER BY sort_key [ASC | DESC] NULLS LAST</code></pre>
+<p>Say where rows with a <code>NULL</code> sort key go: before all other rows (<code>NULLS FIRST</code>) or after them (<code>NULLS LAST</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>NULL rows go</th></tr></thead><tbody><tr><td><code>ORDER BY x</code> or <code>ORDER BY x ASC</code></td><td>last (like <code>NULLS LAST</code>)</td></tr><tr><td><code>ORDER BY x DESC</code></td><td>first (like <code>NULLS FIRST</code>)</td></tr><tr><td><code>ORDER BY x ... NULLS FIRST</code></td><td>first</td></tr><tr><td><code>ORDER BY x ... NULLS LAST</code></td><td>last</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> the defaults are the same as in PostgreSQL: <code>NULL</code> counts as bigger than every value.</li><li>A common case: &quot;last login, newest first&quot; should show users who never logged in at the end: <code>ORDER BY last_login DESC NULLS LAST</code>.</li></ul>
+<p><strong>Example: Recently active users first, never logged in last</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, last_login FROM app_users ORDER BY last_login DESC NULLS LAST;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>last_login (TIMESTAMP)</th></tr></thead><tbody><tr><td>bikash</td><td>2026-09-11T04:20:00.000Z</td></tr><tr><td>gita</td><td>2026-09-11T00:45:00.000Z</td></tr><tr><td>ram</td><td>2026-09-10T14:30:00.000Z</td></tr><tr><td>suman</td><td>2026-09-10T03:55:00.000Z</td></tr><tr><td>sita</td><td>2026-09-09T02:15:00.000Z</td></tr><tr><td>anita</td><td>2026-08-30T06:15:00.000Z</td></tr><tr><td>hari_99</td><td>NULL</td></tr><tr><td>test_user</td><td>NULL</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Without NULLS LAST, DESC puts NULL first</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, last_login FROM app_users ORDER BY last_login DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>last_login (TIMESTAMP)</th></tr></thead><tbody><tr><td>hari_99</td><td>NULL</td></tr><tr><td>test_user</td><td>NULL</td></tr><tr><td>bikash</td><td>2026-09-11T04:20:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Securities without a close today at the top</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, d.close
+FROM securities s
+LEFT JOIN ochl_day d ON d.symbol = s.symbol AND d.time IN &#39;2026-09-10&#39;
+ORDER BY d.close NULLS FIRST;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>ACME</td><td>NULL</td></tr><tr><td>TELCO</td><td>NULL</td></tr><tr><td>VOLT</td><td>191.2</td></tr><tr><td>COAST</td><td>376.1</td></tr><tr><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: NULLS needs FIRST or LAST</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT id FROM brokers ORDER BY id NULLS;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 41: expected FIRST or LAST after NULLS but found &#39;;&#39;</code></p>
+<h2 id="limit">LIMIT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">LIMIT n
+LIMIT n OFFSET m
+LIMIT ALL
+LIMIT lo, hi
+LIMIT -n
+LIMIT -n, -m
+FETCH FIRST n ROWS ONLY</code></pre>
+<p>Gives back at most <code>n</code> rows. With <code>ORDER BY</code>, these are the first <code>n</code> rows in that order (a &quot;top n&quot;).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n</code></td><td>whole number, 0 or more</td><td>the most rows to give back; <code>LIMIT 0</code> gives no rows (only the columns)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the first <code>n</code> rows, or fewer when there are fewer.</li><li><strong>Notes:</strong> <code>LIMIT</code> comes after <code>ORDER BY</code>, at the very end of the query. With <code>UNION ALL</code>, it works on all the rows together.</li><li><code>n</code> must be a plain number: not an expression, not negative.</li><li><code>LIMIT ALL</code> means no limit. The QuestDB form <code>LIMIT lo, hi</code> gives rows <code>lo + 1</code> to <code>hi</code>, so <code>LIMIT 10, 20</code> is the same as <code>LIMIT 10 OFFSET 10</code>. The standard <code>FETCH FIRST n ROWS ONLY</code> works too.</li><li><code>LIMIT -n</code> (QuestDB) gives the <strong>last</strong> <code>n</code> rows, still in their own order. On a time-series table these are the newest rows by time, and KDB reads only the newest partitions to find them. <code>LIMIT -n, -m</code> gives the last <code>n</code> rows without the final <code>m</code>: <code>LIMIT -5, -2</code> is the 3 rows before the last 2. It cannot be used with <code>OFFSET</code> or <code>FOR UPDATE</code>.</li><li>Server programs (<code>kdb sql</code>, HTTP <code>/exec</code>) also cut very big results; see <a href="limits.html">limits</a>.</li></ul>
+<p><strong>Example: The 5 biggest trades of the trade log</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol, quantity, rate, amount FROM trade_log ORDER BY amount DESC LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>100001</td><td>TELCO</td><td>1000</td><td>881</td><td>881000</td></tr><tr><td>100007</td><td>TELCO</td><td>1000</td><td>879</td><td>879000</td></tr><tr><td>100017</td><td>TELCO</td><td>500</td><td>881</td><td>440500</td></tr><tr><td>100031</td><td>COAST</td><td>1000</td><td>402</td><td>402000</td></tr><tr><td>100015</td><td>COAST</td><td>1000</td><td>398</td><td>398000</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Only the column names: LIMIT 0</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT * FROM app_users LIMIT 0;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>username (STRING)</th><th>email (STRING)</th><th>full_name (STRING)</th><th>city (STRING)</th><th>plan (STRING)</th><th>created_at (TIMESTAMP)</th><th>last_login (TIMESTAMP)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><strong>Example: The newest post of the forum</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, body, created_at FROM posts ORDER BY created_at DESC LIMIT 1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>body (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>8</td><td>gita</td><td>Which ones?</td><td>2026-09-02T03:25:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: LIMIT -n: the newest 3 daily candles of CITY, oldest first (QuestDB)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; LIMIT -3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: LIMIT -n, -m: the last 5 rows without the final 2</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT id FROM brokers ORDER BY id LIMIT -5, -2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr><tr><td>34</td></tr><tr><td>45</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: LIMIT lo, hi gives the rows between them (QuestDB)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT id FROM brokers ORDER BY id LIMIT 2, 4;
+SELECT id FROM brokers ORDER BY id LIMIT 2 OFFSET 2;
+SELECT id FROM brokers ORDER BY id FETCH FIRST 2 ROWS ONLY;</code></pre>
+<p>Result:</p>
+<p><code>SELECT id FROM brokers ORDER BY id LIMIT 2 OFFSET 2</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>45</td></tr><tr><td>49</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT id FROM brokers ORDER BY id LIMIT 2 OFFSET 2</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>45</td></tr><tr><td>49</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT id FROM brokers ORDER BY id LIMIT 2</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr><tr><td>34</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="offset">OFFSET</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">LIMIT n OFFSET m</code></pre>
+<p>Skips the first <code>m</code> rows, then gives back at most <code>n</code> rows.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>m</code></td><td>whole number, 0 or more</td><td>how many rows to skip</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> rows <code>m + 1</code> to <code>m + n</code>. When <code>m</code> is past the end, no rows.</li><li><strong>Notes:</strong> <code>OFFSET</code> may be written after <code>LIMIT</code>, or by itself (then there is no limit), or before <code>LIMIT</code> as PostgreSQL allows. <code>OFFSET m ROWS</code> is accepted too.</li><li>KDB still makes and sorts the skipped rows, so a big <code>OFFSET</code> is slow. See <a href="order-by-limit.html#paging">paging</a>.</li></ul>
+<p><strong>Example: Rows 4 to 6 by volume</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, volume FROM ochl_day ORDER BY volume DESC LIMIT 3 OFFSET 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>182390</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>CITY</td><td>159240</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>VOLT</td><td>145930</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Past the end: no rows</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT id, name FROM brokers ORDER BY id LIMIT 5 OFFSET 10;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><strong>Example: OFFSET by itself: skip rows, keep the rest</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT id, name FROM brokers ORDER BY id OFFSET 2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>45</td><td>Imperial Securities</td></tr><tr><td>49</td><td>Online Securities</td></tr><tr><td>58</td><td>Northgate Securities</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="paging">Paging</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">-- page p (1, 2, 3, ...) with k rows per page:
+ORDER BY key, unique_column LIMIT k OFFSET (p - 1) * k
+
+-- keyset paging: the page after the last row shown
+WHERE (key, unique_column) &lt; (last_key, last_unique) ORDER BY key DESC, unique_column DESC LIMIT k</code></pre>
+<p>An app shows long lists one <strong>page</strong> at a time: 20 forum posts, then the next 20.</p>
+<p>There are two ways:</p>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>How</th><th>Good</th><th>Not good</th></tr></thead><tbody><tr><td><code>LIMIT</code> + <code>OFFSET</code></td><td>page 3 = <code>LIMIT 20 OFFSET 40</code></td><td>simple; can jump to any page number</td><td>slow for deep pages; rows move between pages when new rows arrive</td></tr><tr><td>keyset paging</td><td>&quot;the 20 rows after the last row I showed&quot; with a <a href="where.html#row-comparison">row comparison</a></td><td>fast on every page; no rows are skipped or shown twice</td><td>only &quot;next page&quot; and &quot;previous page&quot;</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> the page order must be <strong>unique</strong>: add a unique column like <code>id</code> as the last sort key. Otherwise rows with equal keys can move from one page to another.</li><li>For the offset, KDB needs a whole number: compute <code>(p - 1) * k</code> in your program.</li></ul>
+<p><strong>Example: Forum posts, 3 per page: page 1</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, created_at FROM posts ORDER BY created_at DESC, id DESC LIMIT 3 OFFSET 0;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>8</td><td>gita</td><td>2026-09-02T03:25:00.000Z</td></tr><tr><td>7</td><td>hari</td><td>2026-09-02T03:15:00.000Z</td></tr><tr><td>6</td><td>sita</td><td>2026-09-01T06:15:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Page 2</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, created_at FROM posts ORDER BY created_at DESC, id DESC LIMIT 3 OFFSET 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>5</td><td>ram</td><td>2026-09-01T05:45:00.000Z</td></tr><tr><td>4</td><td>gita</td><td>2026-09-01T05:15:00.000Z</td></tr><tr><td>3</td><td>hari</td><td>2026-09-01T04:35:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Page 2 with keyset paging: after post 6, the last row of page 1</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, created_at FROM posts
+WHERE (created_at, id) &lt; (&#39;2026-09-01T12:00:00+05:45&#39;, 6)
+ORDER BY created_at DESC, id DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>5</td><td>ram</td><td>2026-09-01T05:45:00.000Z</td></tr><tr><td>4</td><td>gita</td><td>2026-09-01T05:15:00.000Z</td></tr><tr><td>3</td><td>hari</td><td>2026-09-01T04:35:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A ledger page for the accountant: 5 lines per page, page 2</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT line_id, entry_date, account, debit, credit, memo
+FROM ledger
+ORDER BY entry_date, line_id
+LIMIT 5 OFFSET 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line_id (INT)</th><th>entry_date (TIMESTAMP)</th><th>account (INT)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th><th>memo (STRING)</th></tr></thead><tbody><tr><td>6</td><td>2026-09-03T00:00:00.000Z</td><td>1100</td><td>NULL</td><td>257500.00</td><td>Pay the broker</td></tr><tr><td>7</td><td>2026-09-03T00:00:00.000Z</td><td>5000</td><td>1030.00</td><td>NULL</td><td>Commission on the CITY buy</td></tr><tr><td>8</td><td>2026-09-03T00:00:00.000Z</td><td>1100</td><td>NULL</td><td>1030.00</td><td>Commission on the CITY buy</td></tr><tr><td>9</td><td>2026-09-04T00:00:00.000Z</td><td>1000</td><td>30000.00</td><td>NULL</td><td>Take cash from the bank</td></tr><tr><td>10</td><td>2026-09-04T00:00:00.000Z</td><td>1100</td><td>NULL</td><td>30000.00</td><td>Take cash from the bank</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/order-by-limit.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSV import over HTTP (POST /imp) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Send a CSV file to kdb serve and it loads the rows, making the table from the file when it is new - QuestDB&#39;s /imp.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-import.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-import.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="csv-import-over-http-post-imp">CSV import over HTTP (POST /imp)</h1>
+<blockquote><p>Send a CSV file to kdb serve and it loads the rows, making the table from the file when it is new - QuestDB&#39;s /imp.</p></blockquote>
+<ul><li>Category: HTTP API</li><li>Keywords: /imp, imp, CSV import, timings, Server-Timing, parse_ms, lock_wait_ms, wal_ms, apply_ms, durable_ms, durable, queued, gzip upload, import CSV, upload CSV, load a file, QuestDB import, multipart, form-data, overwrite, atomicity, skipCol, skipRow, abort, forceHeader, partitionBy, delimiter, fmt, rowsImported, rowsRejected, schema</li><li>See also: <a href="line-protocol.html">Line protocol (POST /write)</a>, <a href="loading-data.html">Loading many rows</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="http-overview.html">HTTP API overview</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a></li></ul>
+<p><code>POST /imp</code> loads a <strong>CSV file</strong> into a table. It is QuestDB&#39;s import route, so a QuestDB script or the QuestDB web console can send here without changes.</p>
+<ul><li>A table that is <strong>not there yet</strong> is made from the file: the column names come from the first line, the types from the values.</li><li>A table that <strong>is</strong> there gets the rows added (upserted, like the <a href="line-protocol.html#post-write">line protocol</a>).</li><li>Everything is written in <strong>one transaction</strong>: after a good answer all rows are in, after an error nothing changed.</li></ul>
+<p>For SQL, use <a href="http-exec.html#post-exec">POST /exec</a>. For a fast live feed, use the <a href="line-protocol.html">line protocol</a>. More ways to load data: <a href="loading-data.html">loading data</a>.</p>
+<h2 id="post-imp">POST /imp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /imp?name=&lt;table&gt;[&amp;db=&lt;name&gt;]
+         [&amp;overwrite=true][&amp;atomicity=skipCol|skipRow|abort]
+         [&amp;timestamp=&lt;column&gt;&amp;partitionBy=DAY|MONTH|YEAR|NONE]
+         [&amp;delimiter=,][&amp;forceHeader=true][&amp;fmt=json]
+body: the CSV itself, or multipart/form-data with a file part named &quot;data&quot;</code></pre>
+<p>Reads the CSV, makes the table when it is new, and writes the rows.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>name</code></td><td>URL</td><td>The table to load into. Without it, the file name of the upload (without <code>.csv</code>) is used.</td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). Without it: the one database that already has the table (<a href="#which-database">which database</a>).</td><td>see the left</td></tr><tr><td><code>overwrite</code></td><td>URL</td><td><code>true</code>: drop the table first and make it again from the file.</td><td><code>false</code></td></tr><tr><td><code>atomicity</code></td><td>URL</td><td>What a value that does not fit its column does: <code>skipCol</code> the value becomes <code>NULL</code>, <code>skipRow</code> the whole row is left out, <code>abort</code> nothing at all is written.</td><td><code>skipCol</code></td></tr><tr><td><code>dedup</code></td><td>URL</td><td><code>skip</code>: no duplicate lookups in days that already hold rows. <strong>A key already stored may then be there twice</strong>; the answer has <code>dedupSkipped</code> (<a href="partitions-and-dedup.html#dedup-skip">dedup=skip</a>).</td><td><code>on</code></td></tr><tr><td><code>timestamp</code></td><td>URL</td><td>Which column is the time column of a <strong>new</strong> table (<code>TIMESERIES(...)</code>).</td><td>none</td></tr><tr><td><code>partitionBy</code></td><td>URL</td><td><code>NONE</code>, <code>DAY</code>, <code>MONTH</code> or <code>YEAR</code> for a <strong>new</strong> table. Anything but <code>NONE</code> needs <code>timestamp=</code>.</td><td><code>NONE</code></td></tr><tr><td><code>delimiter</code></td><td>URL</td><td>The character between the values; <code>\t</code> or <code>tab</code> for a tab. Without it KDB guesses from the first lines.</td><td>guessed</td></tr><tr><td><code>forceHeader</code></td><td>URL</td><td><code>true</code>: the first line is column names. Without it KDB decides: names that match the table, or a first line with nothing that looks like data.</td><td>guessed</td></tr><tr><td><code>fmt</code></td><td>URL</td><td><code>json</code>: answer as JSON. Anything else: a short text answer.</td><td>text</td></tr><tr><td><code>schema</code></td><td>form part</td><td>JSON that sets column types: <code>[{&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}]</code>.</td><td>types guessed</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer (with <code>fmt=json</code>)</th><th>Meaning</th></tr></thead><tbody><tr><td><code>status</code></td><td><code>&quot;OK&quot;</code>, or the error message</td></tr><tr><td><code>database</code></td><td>the database the rows went into</td></tr><tr><td><code>location</code></td><td>the table the rows went into</td></tr><tr><td><code>rowsImported</code></td><td>how many rows were written</td></tr><tr><td><code>rowsRejected</code></td><td>how many rows were left out (<code>atomicity=skipRow</code>)</td></tr><tr><td><code>header</code></td><td>whether the first line was read as column names</td></tr><tr><td><code>partitionBy</code>, <code>timestamp</code></td><td>the table&#39;s partitioning and time column</td></tr><tr><td><code>columns</code></td><td>one entry per column: <code>name</code>, <code>type</code>, <code>size</code> in bytes, <code>errors</code> (values that did not fit)</td></tr><tr><td><code>timings</code></td><td>where the time of the request went, in milliseconds (<a href="#timings">timings</a>)</td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200 loaded (read <code>rowsRejected</code>: a 200 can still have left rows out); 400 a bad CSV, a bad parameter, an unknown column, <code>atomicity=abort</code> with a bad value, or no <code>db</code> when the database cannot be worked out; 401/403 login or role (403 also when a <a href="table-rights.html">table right</a> does not allow inserts into this table); 404 unknown database; 405 for a <code>GET</code>; 408 a trigger ran past the statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble (nothing written); 503 while the server is stopping; 507 the disk is full: free space, then send the same file again, unless the message says <code>do not send it again</code> (the disk filled while the log was flushed: the rows are already in the table and are saved once space is back, see <a href="backup-and-safety.html">backup and safety</a>).</li><li><strong>Roles:</strong> loading into a table that is there needs the <strong>write</strong> role. Making a table (a new name, or <code>overwrite=true</code>) needs <strong>admin</strong>.</li><li><strong>Types of a new table:</strong> <code>BOOLEAN</code>, <code>LONG</code>, <code>DOUBLE</code>, <code>DATE</code>, <code>TIMESTAMP</code>, else <code>STRING</code>. Send <code>schema</code> (or make the table yourself with <a href="create-table.html">CREATE TABLE</a>) when you want <code>SYMBOL</code>, <code>DECIMAL(2)</code> or a <code>PRIMARY KEY</code>.</li><li><strong>Notes:</strong>
+<ul><li>Rows are <strong>upserted</strong>: a row with the same <code>PRIMARY KEY</code> or <code>DEDUP KEY</code> replaces the old one, so sending the same file twice makes no duplicates.</li><li>The first 5000 lines are read first, to find the header and the types. A column whose later values do not fit follows <code>atomicity</code>.</li><li>The body may be compressed with <code>Content-Encoding: gzip</code> or <code>deflate</code>. The 64 MB limit counts the unpacked CSV. A damaged body gives 400 and imports nothing. With curl: <code>gzip -c prices.csv | curl --data-binary @- -H &quot;Content-Encoding: gzip&quot; &quot;http://127.0.0.1:9900/imp?name=prices&quot;</code>.</li><li><a href="triggers.html">Triggers</a> run once for the whole request, like the line protocol. Their time counts toward the <a href="protection.html#statement-timeout">statement timeout</a>; send <code>X-KDB-Statement-Timeout</code> for a longer one (admins only). A trigger that runs too long gives status 408 and <code>trigger &lt;name&gt;: statement timeout (&lt;N&gt; s) (nothing was imported)</code>.</li></ul></li></ul>
+<h3 id="timings">When the OK comes, and where the time went</h3>
+<p>An OK from <code>/imp</code> (200) or <a href="line-protocol.html#post-write"><code>/write</code></a> (204) means the rows are <strong>written and safe on disk</strong>. Nothing is queued for later: the answer waits for the log&#39;s disk sync. A server crash right after the OK loses none of these rows.</p>
+<p>Each answer says where its time went. <code>/imp</code> with <code>fmt=json</code> has a <code>timings</code> object; <code>/write</code> answers 204 with no body, so it sends the same numbers in the standard <code>Server-Timing</code> header (browser developer tools show it). All are milliseconds with 3 decimals.</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th><code>Server-Timing</code></th><th>What the time was spent on</th></tr></thead><tbody><tr><td><code>parse_ms</code></td><td><code>parse</code></td><td>reading the body (after unpacking gzip) and building the rows, before any lock</td></tr><tr><td><code>lock_wait_ms</code></td><td><code>lock</code></td><td>waiting behind other writes of the same tables, or for a transaction that holds one</td></tr><tr><td><code>wal_ms</code></td><td><code>wal</code></td><td>writing the log and waiting for its disk sync. Writers that arrive together share one sync</td></tr><tr><td><code>apply_ms</code></td><td><code>apply</code></td><td>checking the rows (keys, rules) and putting them in the table</td></tr><tr><td><code>trigger_ms</code></td><td><code>trigger</code></td><td><a href="triggers.html">triggers</a> the rows fired inside the request</td></tr><tr><td><code>durable_ms</code></td><td></td><td>from the start until the rows were on disk: the moment the OK can go out</td></tr><tr><td><code>total_ms</code></td><td><code>total</code></td><td>the whole request</td></tr></tbody></table></div>
+<p>The five steps add up to <code>total_ms</code>. A slow load then shows at a glance what to fix:</p>
+<ul><li>a large <code>lock_wait_ms</code>: other writers or a long transaction hold the table. Send fewer, bigger requests, or write to separate tables.</li><li>a large <code>wal_ms</code>: the disk is slow to sync. Bigger requests share one sync between more rows.</li><li>a large <code>parse_ms</code>: the body is big. Several senders at once parse in parallel.</li></ul>
+<p>The activity log (<code>GET /api/activity</code>) keeps the same numbers for each write event, and <code>GET /api/stats</code> adds them up since the start under <code>writes</code> (<code>line_protocol</code> and <code>csv_import</code>: <code>requests</code>, <code>rows</code> and the sum of each step; a step&#39;s average is its sum divided by <code>requests</code>). <code>bench/parallel-write.mjs</code> sends from 1, 2, 4 and 8 senders at once and prints rows per second with the average of each step.</p>
+<h3 id="which-database">Which database, without db=</h3>
+<p>A QuestDB client has no <code>db=</code> to send, so <code>/imp</code> works out the database from the table name:</p>
+<div class="table-wrap"><table><thead><tr><th>The server has</th><th>Without <code>db=</code> the rows go to</th></tr></thead><tbody><tr><td>one database</td><td>that database</td></tr><tr><td>several, and one of them has the table</td><td>that database (the default one wins when it is among several that have it)</td></tr><tr><td>several, and more than one has the table (not the default)</td><td>nothing: 400, add <code>db=</code></td></tr><tr><td>several, and none has the table</td><td>nothing: 400, add <code>db=</code> or create the table first</td></tr></tbody></table></div>
+<p>KDB refuses rather than guessing, so a load meant for another database never makes a new table with guessed types in the default one. The answer&#39;s <code>database</code> says where the rows went.</p>
+<p><strong>HTTP: A new table straight from a CSV of daily closes</strong></p>
+<pre><code class="language-http">POST /imp?name=day_closes&amp;timestamp=time&amp;partitionBy=YEAR&amp;fmt=json
+Content-Type: text/csv
+
+time,symbol,close
+2026-09-09T00:00:00Z,CITY,502.10
+2026-09-09T00:00:00Z,COAST,374.80
+2026-09-10T00:00:00Z,CITY,504.90
+2026-09-10T00:00:00Z,COAST,376.10
+###
+GET /exec?compat=0&amp;query=SELECT * FROM day_closes ORDER BY time, symbol</code></pre>
+<p>Response:</p>
+<p><code>POST /imp?name=day_closes&amp;timestamp=time&amp;partitionBy=YEAR&amp;fmt=json</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;OK&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;location&quot;: &quot;day_closes&quot;,
+  &quot;rowsRejected&quot;: 0,
+  &quot;rowsImported&quot;: 4,
+  &quot;header&quot;: true,
+  &quot;partitionBy&quot;: &quot;YEAR&quot;,
+  &quot;timestamp&quot;: &quot;time&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 0},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;STRING&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 0}
+  ],
+  &quot;timings&quot;: {
+    &quot;parse_ms&quot;: 22.162,
+    &quot;lock_wait_ms&quot;: 0.012,
+    &quot;wal_ms&quot;: 5.798,
+    &quot;apply_ms&quot;: 6.818,
+    &quot;trigger_ms&quot;: 0,
+    &quot;durable_ms&quot;: 34.79,
+    &quot;total_ms&quot;: 34.79
+  }
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT * FROM day_closes ORDER BY time, symbol</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT * FROM day_closes ORDER BY time, symbol&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT * FROM day_closes ORDER BY time, symbol&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-09T00:00:00.000Z&quot;, &quot;CITY&quot;, 502.1],
+        [&quot;2026-09-09T00:00:00.000Z&quot;, &quot;COAST&quot;, 374.8],
+        [&quot;2026-09-10T00:00:00.000Z&quot;, &quot;CITY&quot;, 504.9],
+        [&quot;2026-09-10T00:00:00.000Z&quot;, &quot;COAST&quot;, 376.1]
+      ],
+      &quot;count&quot;: 4,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 31, &quot;execute_us&quot;: 87}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 31, &quot;execute_us&quot;: 87}
+}</code></pre>
+<p><strong>HTTP: Add rows to a table that already exists</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /imp?name=securities&amp;fmt=json
+
+symbol,name,sector
+SUMMIT,Summit Bank Limited,Banking
+###
+GET /exec?compat=0&amp;query=SELECT symbol, name FROM securities ORDER BY symbol</code></pre>
+<p>Response:</p>
+<p><code>POST /imp?name=securities&amp;fmt=json</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;OK&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;location&quot;: &quot;securities&quot;,
+  &quot;rowsRejected&quot;: 0,
+  &quot;rowsImported&quot;: 1,
+  &quot;header&quot;: true,
+  &quot;partitionBy&quot;: &quot;NONE&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0},
+    {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0},
+    {&quot;name&quot;: &quot;sector&quot;, &quot;type&quot;: &quot;STRING&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0}
+  ],
+  &quot;timings&quot;: {
+    &quot;parse_ms&quot;: 0.164,
+    &quot;lock_wait_ms&quot;: 0.012,
+    &quot;wal_ms&quot;: 3.957,
+    &quot;apply_ms&quot;: 3.514,
+    &quot;trigger_ms&quot;: 0,
+    &quot;durable_ms&quot;: 7.647,
+    &quot;total_ms&quot;: 7.647
+  }
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT symbol, name FROM securities ORDER BY symbol</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT symbol, name FROM securities ORDER BY symbol&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT symbol, name FROM securities ORDER BY symbol&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;ACME&quot;, &quot;Acme Investment Company&quot;],
+        [&quot;CITY&quot;, &quot;City Bank Limited&quot;],
+        [&quot;COAST&quot;, &quot;Coastal Bank Limited&quot;],
+        [&quot;SUMMIT&quot;, &quot;Summit Bank Limited&quot;],
+        [&quot;TELCO&quot;, &quot;Northwind Telecom Limited&quot;],
+        [&quot;VOLT&quot;, &quot;Volt River Hydropower Limited&quot;]
+      ],
+      &quot;count&quot;: 6,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 193}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 193}
+}</code></pre>
+<p><strong>HTTP: The short text answer (no fmt=json)</strong></p>
+<pre><code class="language-http">POST /imp?name=broker_list
+
+id,name
+58,Northgate Securities
+45,Sani Securities</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (text/plain)</p>
+<pre><code class="language-text">Database: demo
+Location: broker_list
+Rows handled: 2
+Rows imported: 2
+0 | id | LONG | 0 errors
+1 | name | STRING | 0 errors</code></pre>
+<p><strong>HTTP: A bad value: skipCol (the default) makes it NULL and keeps the row</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE day_closes2 (symbol SYMBOL PRIMARY KEY, close DOUBLE);</code></pre>
+<pre><code class="language-http">POST /imp?name=day_closes2&amp;fmt=json
+
+symbol,close
+CITY,504.90
+COAST,not a number
+###
+GET /exec?compat=0&amp;query=SELECT * FROM day_closes2 ORDER BY symbol</code></pre>
+<p>Response:</p>
+<p><code>POST /imp?name=day_closes2&amp;fmt=json</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;OK&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;location&quot;: &quot;day_closes2&quot;,
+  &quot;rowsRejected&quot;: 0,
+  &quot;rowsImported&quot;: 2,
+  &quot;header&quot;: true,
+  &quot;partitionBy&quot;: &quot;NONE&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 1}
+  ],
+  &quot;timings&quot;: {
+    &quot;parse_ms&quot;: 0.063,
+    &quot;lock_wait_ms&quot;: 0.014,
+    &quot;wal_ms&quot;: 1.918,
+    &quot;apply_ms&quot;: 5.278,
+    &quot;trigger_ms&quot;: 0,
+    &quot;durable_ms&quot;: 7.273,
+    &quot;total_ms&quot;: 7.273
+  }
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT * FROM day_closes2 ORDER BY symbol</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT * FROM day_closes2 ORDER BY symbol&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT * FROM day_closes2 ORDER BY symbol&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;CITY&quot;, 504.9],
+        [&quot;COAST&quot;, null]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 105}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 105}
+}</code></pre>
+<p><strong>HTTP: skipRow leaves the bad row out</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE day_closes3 (symbol SYMBOL PRIMARY KEY, close DOUBLE);</code></pre>
+<pre><code class="language-http">POST /imp?name=day_closes3&amp;atomicity=skipRow&amp;fmt=json
+
+symbol,close
+CITY,504.90
+COAST,not a number
+###
+GET /exec?compat=0&amp;query=SELECT * FROM day_closes3 ORDER BY symbol</code></pre>
+<p>Response:</p>
+<p><code>POST /imp?name=day_closes3&amp;atomicity=skipRow&amp;fmt=json</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;OK&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;location&quot;: &quot;day_closes3&quot;,
+  &quot;rowsRejected&quot;: 1,
+  &quot;rowsImported&quot;: 1,
+  &quot;header&quot;: true,
+  &quot;partitionBy&quot;: &quot;NONE&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 1}
+  ],
+  &quot;timings&quot;: {
+    &quot;parse_ms&quot;: 0.07,
+    &quot;lock_wait_ms&quot;: 0.012,
+    &quot;wal_ms&quot;: 1.845,
+    &quot;apply_ms&quot;: 3.957,
+    &quot;trigger_ms&quot;: 0,
+    &quot;durable_ms&quot;: 5.884,
+    &quot;total_ms&quot;: 5.884
+  }
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT * FROM day_closes3 ORDER BY symbol</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT * FROM day_closes3 ORDER BY symbol&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT * FROM day_closes3 ORDER BY symbol&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;CITY&quot;, 504.9]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 100}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 100}
+}</code></pre>
+<p><strong>HTTP: atomicity=abort: one bad value and nothing is written</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE day_closes4 (symbol SYMBOL PRIMARY KEY, close DOUBLE);</code></pre>
+<pre><code class="language-http">POST /imp?name=day_closes4&amp;atomicity=abort&amp;fmt=json
+
+symbol,close
+CITY,504.90
+COAST,not a number</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;line 3: column &#39;close&#39;: &#39;not a number&#39; is not a number (atomicity=abort: nothing was imported)&quot;
+}</code></pre>
+<p><strong>HTTP: A tab-separated file</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /imp?name=broker_notes&amp;delimiter=tab&amp;fmt=json
+
+id	note
+58	top buyer of the day
+45	sold CITY</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;OK&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;location&quot;: &quot;broker_notes&quot;,
+  &quot;rowsRejected&quot;: 0,
+  &quot;rowsImported&quot;: 2,
+  &quot;header&quot;: true,
+  &quot;partitionBy&quot;: &quot;NONE&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;LONG&quot;, &quot;size&quot;: 8, &quot;errors&quot;: 0},
+    {&quot;name&quot;: &quot;note&quot;, &quot;type&quot;: &quot;STRING&quot;, &quot;size&quot;: 0, &quot;errors&quot;: 0}
+  ],
+  &quot;timings&quot;: {
+    &quot;parse_ms&quot;: 14.877,
+    &quot;lock_wait_ms&quot;: 0.013,
+    &quot;wal_ms&quot;: 3.195,
+    &quot;apply_ms&quot;: 3.204,
+    &quot;trigger_ms&quot;: 0,
+    &quot;durable_ms&quot;: 21.289,
+    &quot;total_ms&quot;: 21.289
+  }
+}</code></pre>
+<p><strong>HTTP: The table must be named</strong></p>
+<pre><code class="language-http">POST /imp
+
+symbol,close
+CITY,504.90</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (text/plain)</p>
+<pre><code class="language-text">name the table: POST /imp?name=table (or send a file with a name)</code></pre>
+<p><strong>HTTP: Importing needs POST</strong></p>
+<pre><code class="language-http">GET /imp?name=day_closes</code></pre>
+<p>Response:</p>
+<p>HTTP 405 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;method GET is not allowed here&quot;}</code></pre>
+<p>Clients (not run by the help build):</p>
+<pre><code class="language-powershell"># QuestDB&#39;s own way: a multipart upload with a file part named &quot;data&quot;.
+curl.exe -s -F &quot;data=@day_closes.csv&quot; `
+  &quot;http://127.0.0.1:9900/imp?name=day_closes&amp;timestamp=time&amp;partitionBy=YEAR&amp;fmt=json&amp;db=market&quot;</code></pre>
+<pre><code class="language-python">import requests
+
+with open(&quot;day_closes.csv&quot;, &quot;rb&quot;) as f:
+    r = requests.post(&quot;http://127.0.0.1:9900/imp&quot;,
+                      params={&quot;name&quot;: &quot;day_closes&quot;, &quot;timestamp&quot;: &quot;time&quot;,
+                              &quot;partitionBy&quot;: &quot;YEAR&quot;, &quot;fmt&quot;: &quot;json&quot;, &quot;db&quot;: &quot;market&quot;},
+                      files={&quot;data&quot;: (&quot;day_closes.csv&quot;, f, &quot;text/csv&quot;)})
+answer = r.json()
+if answer[&quot;status&quot;] != &quot;OK&quot;:
+    raise RuntimeError(answer[&quot;status&quot;])
+print(answer[&quot;rowsImported&quot;], &quot;rows in&quot;, answer[&quot;location&quot;])</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-import.md">This page as markdown</a>.</footer>
+</body>
+</html>

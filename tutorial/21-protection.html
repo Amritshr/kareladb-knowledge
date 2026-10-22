@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>21. Protection - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/21-protection.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/21-protection.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="21-protection">21. Protection</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<p>KDB already protects your data from crashes and disk damage (chapter 9) and from strangers (chapter 16). This chapter is about the other dangers of a real app:</p>
+<ul><li><strong>Part A.</strong> A slow or huge query that blocks the server: timeouts, cancel, memory limits, statements per user, and a stop that lets running requests finish.</li><li><strong>Part B.</strong> &quot;Who changed this?&quot;: the audit log.</li><li><strong>Part C.</strong> Backups that happen by themselves, with a checked copy on another disk.</li><li><strong>Part D.</strong> Rights on single tables: an app user who may add ledger rows but never change them.</li><li><strong>Part E.</strong> Stronger logins: a password rule and two-factor codes.</li><li><strong>Part F.</strong> Mistakes: <code>UPDATE</code> without <code>WHERE</code>, a read-only database, <code>DROP TABLE</code> by mistake.</li><li><strong>Part G.</strong> What is not there yet: encryption of the files.</li><li>A <strong>VPS checklist</strong> and <strong>what it costs</strong> in speed.</li></ul>
+<p>Everything here is fast. A running query looks at one flag every 16,384 rows (never at every row). Tables without audit pay nothing. The numbers are at the end.</p>
+<h2 id="the-short-version">The short version</h2>
+<p>For the NChartPro server on a VPS, start KDB like this:</p>
+<pre><code class="language-sh">kdb serve --data-dir /srv/kdb/data --backups /srv/kdb/backups \
+  --backup-schedule &quot;daily 16:00&quot; --backup-copy /mnt/backup-disk/kdb \
+  --statement-timeout 30s --max-queries-per-user 32 --safe-updates</code></pre>
+<p>Then, in the console as an admin:</p>
+<pre><code class="language-sql">ALTER TABLE ledger SET AUDIT ON;
+ALTER TABLE accounts SET AUDIT ON;
+REVOKE UPDATE, DELETE ON TABLE ledger FROM app;
+ALTER USER admin ENABLE TOTP;</code></pre>
+<p>The rest of the chapter explains each line.</p>
+<div class="table-wrap"><table><thead><tr><th>Protection</th><th>Default in <code>kdb serve</code></th><th>How to change</th></tr></thead><tbody><tr><td>statement timeout</td><td>60 s</td><td><code>--statement-timeout 30s</code>, <code>SET statement_timeout = &#39;5s&#39;</code></td></tr><tr><td>memory of one query</td><td>1 GB of rows, 5,000,000 groups</td><td><code>--max-result-memory</code>, <code>--max-groups</code></td></tr><tr><td>statements per user</td><td>32 at the same time</td><td><code>--max-queries-per-user</code></td></tr><tr><td>requests at a stop</td><td>may finish for 30 s; new ones get 503</td><td><code>--drain-timeout 5s</code></td></tr><tr><td>audit log of logins, users, DDL, backups</td><td>on (with a data folder)</td><td><code>--audit off</code>, <code>--audit-keep-days N</code></td></tr><tr><td>audit of changed rows</td><td>off</td><td><code>ALTER TABLE t SET AUDIT ON</code></td></tr><tr><td>scheduled backups</td><td>off</td><td><code>--backup-schedule &quot;daily 16:00&quot;</code>, <code>--backup-copy &lt;dir&gt;</code></td></tr><tr><td>table rights</td><td>none</td><td><code>GRANT/REVOKE ... ON TABLE</code></td></tr><tr><td>password rule</td><td>at least 12 characters, not the user name</td><td>always on</td></tr><tr><td>two-factor login</td><td>off</td><td><code>ALTER USER x ENABLE TOTP</code></td></tr><tr><td>safe updates</td><td>off</td><td><code>--safe-updates</code>, <code>SET safe_updates = on</code></td></tr><tr><td>read-only</td><td>off</td><td><code>--read-only</code>, <code>ALTER DATABASE x SET READ ONLY</code></td></tr><tr><td>DROP TABLE trash</td><td>7 days (also <code>kdb sql</code> and <code>kdb shell</code>)</td><td><code>--trash-days N</code></td></tr></tbody></table></div>
+<p><code>kdb sql</code>, <code>kdb shell</code> and apps that use the KDB library directly have no timeouts or limits (they are your own programs). Their <code>DROP TABLE</code> keeps the trash.</p>
+<hr>
+<h2 id="part-a-slow-and-huge-queries">Part A: slow and huge queries</h2>
+<h3 id="statement-timeout">Statement timeout</h3>
+<p>A statement that runs longer than the limit is stopped. In the web console of <code>kdb serve market</code> (with the sample data of chapter 2):</p>
+<pre><code class="language-sql">SET statement_timeout = &#39;2s&#39;;
+SELECT count(*) FROM ochl_minutes a CROSS JOIN ochl_minutes b CROSS JOIN ochl_minutes c WHERE a.close + b.close &gt; c.close;</code></pre>
+<pre><code class="language-text">statement_timeout is 2 s for this session
+error: canceling statement due to statement timeout (2 s); make the query faster (WHERE, an index, LIMIT) or raise statement_timeout</code></pre>
+<ul><li>The limit counts from the start of the request (over HTTP) or of the query message (PostgreSQL).</li><li><strong>Nothing of a stopped change is written.</strong> An <code>UPDATE</code> stopped halfway changes no row; inside <code>BEGIN ... COMMIT</code> the transaction is rolled back, like any failed statement.</li><li>The server&#39;s limit is <code>--statement-timeout</code> (60 s by default; <code>0</code> = no limit). A user who is not an admin can only make it shorter.</li><li>HTTP: send <code>X-KDB-Statement-Timeout: 5s</code> with a request, or <code>SET statement_timeout = &#39;5s&#39;</code> in an <a href="08-http-api.html">HTTP session</a>.</li><li>PostgreSQL: <code>SET statement_timeout = 5000</code> (milliseconds) or <code>&#39;5s&#39;</code>, like PostgreSQL itself. The error has SQLSTATE <code>57014</code>.</li><li>HTTP answers a stopped statement with status <strong>408</strong>.</li></ul>
+<h3 id="cancel-a-running-statement">Cancel a running statement</h3>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>How</th></tr></thead><tbody><tr><td>Go <code>pgx</code>, Python, psql</td><td>cancel the context / press Ctrl+C: the driver sends a PostgreSQL CancelRequest, KDB stops the statement (<code>57014</code>, &quot;due to user request&quot;)</td></tr><tr><td>HTTP</td><td>send <code>X-KDB-Request-Id: &lt;your id&gt;</code> with <code>POST /exec</code>; <code>DELETE /exec/&lt;your id&gt;</code> stops it</td></tr><tr><td>HTTP</td><td>close the connection: KDB notices it within 0.2 s and stops the statement</td></tr></tbody></table></div>
+<pre><code class="language-sh"># terminal 1: a long report
+curl -s -H &quot;X-KDB-Request-Id: report-17&quot; --data &quot;SELECT ... big report ...&quot; http://127.0.0.1:9900/exec
+# terminal 2: stop it
+curl -s -X DELETE http://127.0.0.1:9900/exec/report-17</code></pre>
+<pre><code class="language-text">{&quot;request_id&quot;:&quot;report-17&quot;,&quot;cancelled&quot;:true}</code></pre>
+<p>Users may stop only their own requests; admins may stop all.</p>
+<h3 id="memory-of-one-query">Memory of one query</h3>
+<p>A query that keeps too many rows in memory (the result, rows waiting for <code>ORDER BY</code>, <code>DISTINCT</code>, window functions) or makes too many groups is stopped before it uses all the memory of the VPS:</p>
+<pre><code class="language-text">error: the query keeps too many rows in memory (about 1030 MB; the limit is 1024 MB, max_result_memory). Add a WHERE or a LIMIT, or fetch the rows in parts with a cursor
+error: the query makes more than 5000000 groups (max_groups). Group by fewer columns, add a WHERE, or use a longer SAMPLE BY interval</code></pre>
+<p>Set them with <code>--max-result-memory 512MB</code> and <code>--max-groups 1000000</code>. HTTP status 413, SQLSTATE <code>54000</code>. For a small VPS (1-2 GB), use <code>--max-result-memory 256MB</code>.</p>
+<p>A big <code>GROUP BY</code> is not stopped just because its groups need a lot of memory. When they need more than half of <code>--max-result-memory</code>, KDB writes the groups that do not fit to temporary files in the database folder (<code>_tmp/</code>) and adds them up after the scan. The result is the same, only slower. The files are removed when the query ends. One query may write at most 16 GB of them; past that it stops with <code>the GROUP BY needs more than N MB of temporary files (max_spill_bytes)</code>.</p>
+<h3 id="statements-per-user">Statements per user</h3>
+<p><code>--max-queries-per-user 32</code>: one user runs at most 32 statements at the same time (HTTP and PostgreSQL together). More get HTTP 429 (<code>user &#39;app&#39; already runs 32 statements at the same time</code>). This stops one broken client or one script in a loop from taking every thread. Your app&#39;s connection pool should be smaller than the limit (pgx: <code>pool_max_conns=16</code>).</p>
+<h3 id="stopping-the-server">Stopping the server</h3>
+<p>Ctrl+C, SIGTERM and <code>docker stop</code> do not cut running requests off:</p>
+<div class="table-wrap"><table><thead><tr><th>Request</th><th>What happens</th></tr></thead><tbody><tr><td>already running</td><td>finishes and gets its real answer, for up to <code>--drain-timeout</code> (30 s; 5 s in the Docker image)</td></tr><tr><td>arrives during the stop</td><td>HTTP <strong>503</strong> with <code>Retry-After: 2</code>; nothing of it is run. <code>/health</code> answers 503 too.</td></tr><tr><td>still running after <code>--drain-timeout</code></td><td>cancelled like a statement timeout; nothing half-done is written</td></tr></tbody></table></div>
+<p>Keep the drain time below how long your service manager waits before it kills the process (<code>docker run --stop-timeout 60</code>, <code>TimeoutStopSec=</code> in systemd). Clients should send a request again after a 503: a cut-off <code>/write</code> or <code>/exec</code> was rolled back as a whole.</p>
+<hr>
+<h2 id="part-b-the-audit-log">Part B: the audit log</h2>
+<h3 id="security-events">Security events</h3>
+<p><code>kdb serve --data-dir ...</code> writes these events to a table <code>_audit_log</code> in the hidden <code>_system</code> database:</p>
+<div class="table-wrap"><table><thead><tr><th>event</th><th>When</th></tr></thead><tbody><tr><td><code>login</code>, <code>login_failed</code>, <code>lockout</code></td><td>a login (HTTP, Basic, PostgreSQL), a wrong password or code, an address that must wait</td></tr><tr><td><code>user</code></td><td><code>CREATE/ALTER/DROP USER</code>, <code>GRANT</code>, <code>REVOKE</code>, also <code>kdb user ...</code> while the server is stopped</td></tr><tr><td><code>ddl</code></td><td><code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>RENAME</code> of tables, indexes, views, functions, procedures, triggers; <code>CREATE/DROP DATABASE</code></td></tr><tr><td><code>protection</code></td><td><code>SET AUDIT</code>, <code>UNDROP TABLE</code>, <code>ALTER DATABASE ... SET READ ONLY</code></td></tr><tr><td><code>backup</code></td><td>every scheduled or manual backup, OK or failed</td></tr><tr><td><code>denied</code></td><td>a statement the user&#39;s rights did not allow</td></tr><tr><td><code>server</code></td><td>the server started or stopped</td></tr></tbody></table></div>
+<p>Read them as a server admin:</p>
+<pre><code class="language-sql">SHOW AUDIT WHERE event = &#39;login_failed&#39; LIMIT 20;
+SHOW AUDIT WHERE user = &#39;app&#39; AND time &gt; dateadd(&#39;d&#39;, -1, now());</code></pre>
+<pre><code class="language-text">time                     | event        | user  | client             | db | object | detail                                   | ...
+-------------------------+--------------+-------+--------------------+----+--------+------------------------------------------+
+2026-09-12T10:31:07.412Z | login_failed | admin | 203.0.113.7 (http) |    | admin  | wrong password; 3 failure(s) in a row    |</code></pre>
+<p>Over HTTP: <code>GET /api/audit?limit=50&amp;where=event%20%3D%20&#39;lockout&#39;</code>. The <code>where</code> can use every column, but no subqueries of other tables.</p>
+<p>Nobody can change the audit rows: <code>DELETE FROM _audit_log</code> answers <code>the audit table _audit_log is append-only</code>. The rows are written in groups every 200 ms, through the log like any change: a crash can lose only the events of that last moment.</p>
+<p>Old rows: <code>--audit-keep-days 400</code> removes whole months older than 400 days, once a day. The default keeps everything. For accounting data, keep the log as long as the law asks.</p>
+<p>A server started on one folder by its path (<code>kdb serve D:\kdb\market</code>) has no <code>_system</code> and writes no security events. Use <code>--data-dir</code>.</p>
+<h3 id="who-changed-this-row">Who changed this row?</h3>
+<p>For money tables, turn on the data-change audit:</p>
+<pre><code class="language-sql">ALTER TABLE accounts SET AUDIT ON;
+UPDATE accounts SET balance = balance - 25 WHERE id = 1;
+SELECT time, event, user, row_key, old_values, new_values, detail FROM _audit_log ORDER BY time DESC LIMIT 5;</code></pre>
+<pre><code class="language-text">audit is on for table &#39;accounts&#39;: every changed row is written to _audit_log
+1 row(s) updated
+time                     | event  | user | row_key | old_values                               | new_values                              | detail
+-------------------------+--------+------+---------+------------------------------------------+-----------------------------------------+------------------------------------------------
+2026-09-12T10:40:02.118Z | update | app  | id=&#39;1&#39;  | {&quot;id&quot;:1,&quot;owner&quot;:&quot;Sita&quot;,&quot;balance&quot;:100.00} | {&quot;id&quot;:1,&quot;owner&quot;:&quot;Sita&quot;,&quot;balance&quot;:75.00} | UPDATE accounts SET balance = balance - 25 ...</code></pre>
+<ul><li>Every row that an <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>INSERT OR REPLACE</code>, <code>CALL</code>, trigger or line-protocol request adds, changes or deletes gets one audit row: <code>event</code> (insert, update, delete), <code>user</code>, <code>client</code>, <code>session</code>, the statement, the row key, and the row before and after as JSON.</li><li>The audit row is written <strong>in the same transaction</strong> as the change. There is never a change without its audit row, not even after a power cut. A rolled back transaction leaves neither.</li><li>Columns whose name holds <code>password</code>, <code>secret</code>, <code>token</code>, <code>scram</code> or <code>totp</code> show <code>&quot;***&quot;</code>.</li><li>An <code>UPDATE</code> that changes nothing in a row writes no audit row.</li><li>Only admins of the database can read <code>_audit_log</code>; nobody can change it.</li><li>Tables without <code>SET AUDIT ON</code> cost nothing extra. An audited table&#39;s writes cost about one row lookup and one extra row per changed row.</li><li><code>ALTER TABLE accounts SET AUDIT OFF</code> stops it; the rows already written stay.</li></ul>
+<hr>
+<h2 id="part-c-backups-on-a-schedule">Part C: backups on a schedule</h2>
+<p>Chapter 9 made backups by hand. <code>kdb serve</code> can do it by itself:</p>
+<pre><code class="language-sh">kdb serve --data-dir D:\kdb\data --backups D:\kdb_backups --backup-schedule &quot;daily 16:00&quot; --backup-copy E:\kdb_copy</code></pre>
+<pre><code class="language-text">  schedule  backups daily 16:00, next 2026-09-12 16:00:00, checked copy in E:\kdb_copy
+...
+2026-09-12 16:00:03  backup of &#39;market&#39; OK: 41 files, 312.4 MB, 2850 ms, D:/kdb_backups/market/20260912-101500-004; copy checked: E:/kdb_copy/market/20260912-101500-004
+2026-09-12 16:00:03  backup of &#39;_system&#39; OK: 6 files, 1.2 MB, 90 ms, ...</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Schedule</th><th>Meaning</th></tr></thead><tbody><tr><td><code>daily 16:00</code></td><td>every day at 16:00 local time (for example after a market closes at 15:00)</td></tr><tr><td><code>daily 02:00,16:00</code></td><td>twice a day</td></tr><tr><td><code>hourly</code>, <code>hourly :30</code></td><td>every hour</td></tr><tr><td><code>every 6h</code>, <code>every 30m</code></td><td>from midnight on</td></tr></tbody></table></div>
+<ul><li>Times are the <strong>local time</strong> of the computer. In a zone without daylight saving (such as Nepal, +05:45), <code>16:00</code> stays 16:00 all year. On a VPS set to UTC, write the UTC time: <code>daily 10:15</code> for 16:00 in Nepal.</li><li>Every database of the data folder and <code>_system</code> (users and audit log) are backed up. Each backup is read back and checked, as in chapter 9.</li><li><strong>The backup does not stop the server.</strong> It waits for an open transaction to end (at most a few seconds), writes a checkpoint, then copies the files while reads and writes go on. The test <code>test_protection</code> writes rows during a scheduled backup to check this.</li><li><code>--backup-copy &lt;dir&gt;</code>: after each backup, a second copy in another folder, best on another disk. KDB checks every block and log checksum of the copy by reading it back from that disk. A failed copy is reported (<code>COPY FAILED</code>) and the backup itself still counts.</li><li>Old backups go by <code>--keep-daily 7 --keep-weekly 4</code>, in both folders.</li><li><code>--backup-warn-hours 26</code>: when a database&#39;s newest good backup is older, the log says <code>WARNING: the last good backup of &#39;x&#39; is 30 hours old ...</code> once an hour. Watch for it (<code>journalctl -u kdb | grep WARNING</code>).</li><li>The console&#39;s health panel shows the schedule, the next backup and a <code>(!)</code> when the last one failed. <code>/api/info</code> has the full status in <code>backup_schedule</code>.</li></ul>
+<hr>
+<h2 id="part-d-rights-on-tables">Part D: rights on tables</h2>
+<p>The roles of chapter 16 give rights on a whole database. Table rights change that for one table:</p>
+<pre><code class="language-sql">CREATE USER app WITH PASSWORD &#39;App-password-long-42&#39;;
+GRANT write ON DATABASE shop TO app;
+REVOKE UPDATE, DELETE ON TABLE ledger FROM app;      -- the ledger only grows
+
+CREATE USER auditor WITH PASSWORD &#39;Auditor-password-17&#39;;
+GRANT SELECT ON TABLE ledger TO auditor;             -- reads one table, nothing else
+SHOW USERS;</code></pre>
+<pre><code class="language-text">name    | role  | grants     | created | changed | table_grants                     | two_factor
+--------+-------+------------+---------+---------+----------------------------------+-----------
+app     | none  | shop=write | ...     | ...     | shop.ledger: -UPDATE -DELETE     | false
+auditor | none  | NULL       | ...     | ...     | shop.ledger: +SELECT             | false</code></pre>
+<p>Now <code>app</code> gets <code>DELETE on table &#39;ledger&#39; was revoked for user &#39;app&#39; (REVOKE DELETE ON TABLE ledger)</code> (HTTP 403, SQLSTATE <code>42501</code>), and <code>auditor</code> can read <code>ledger</code> but gets 403 for every other table, also inside subqueries and joins.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>Does</th></tr></thead><tbody><tr><td><code>GRANT SELECT, INSERT, UPDATE, DELETE, ALL ON TABLE t TO u</code></td><td>adds rights on one table of the current database</td></tr><tr><td><code>REVOKE ... ON TABLE t FROM u</code></td><td>takes rights away on that table, even when the role has them</td></tr><tr><td><code>GRANT DEFAULT ON TABLE t TO u</code></td><td>the role decides again for that table</td></tr></tbody></table></div>
+<ul><li>Rights are checked <strong>once per statement</strong>, before it runs (and before the result cache). There is no cost per row.</li><li>They count for <code>/exec</code>, <code>/exp</code>, <code>/cursor</code>, the line protocol (<code>INSERT</code>) and the PostgreSQL port.</li><li><code>DROP TABLE</code> removes the table rights of that table; <code>RENAME TABLE</code> moves them. A new table with an old name does not get old rights.</li><li><code>CALL</code> and triggers run their statements without table rights (only admins create procedures and triggers).</li><li>A view is a table for rights: <code>GRANT SELECT ON TABLE cheap_prices TO u</code> lets <code>u</code> read what the view shows.</li><li><strong><code>REVOKE &lt;role&gt; ON DATABASE</code></strong> takes away exactly that grant. <code>REVOKE read ON DATABASE shop FROM app</code> does <strong>not</strong> remove a <code>write</code> grant; it says <code>user &#39;app&#39; keeps role write ... Nothing was revoked</code>. Use <code>REVOKE write</code> or <code>REVOKE ALL</code>.</li></ul>
+<hr>
+<h2 id="part-e-stronger-logins">Part E: stronger logins</h2>
+<h3 id="the-password-rule">The password rule</h3>
+<p>A new password of a database user must have <strong>at least 12 characters</strong> (letters of any language count as one each) and must not be the user name. Old passwords keep working. For programs, use 20 or more random characters.</p>
+<h3 id="two-factor-login">Two-factor login</h3>
+<p>For people who use the console (especially admins):</p>
+<pre><code class="language-sql">ALTER USER admin ENABLE TOTP;</code></pre>
+<pre><code class="language-text">user  | otpauth_uri                                                                                 | secret
+------+---------------------------------------------------------------------------------------------+---------------------------------
+admin | otpauth://totp/KDB:admin?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&amp;issuer=KDB&amp;algorithm=SHA1&amp;... | JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP
+two-factor login is on for user &#39;admin&#39;: add the otpauth URI (or the secret) to an authenticator app now; it is shown only once</code></pre>
+<p>Put the secret into Google Authenticator, Microsoft Authenticator, Aegis or 1Password <strong>now</strong> (it is shown only once). From then on:</p>
+<ul><li>The console&#39;s login box asks for the <strong>6-digit code</strong> after a right password.</li><li>Programs send it to <code>POST /api/login</code> as <code>{&quot;user&quot;: &quot;admin&quot;, &quot;password&quot;: &quot;...&quot;, &quot;code&quot;: &quot;492039&quot;}</code>.</li><li>A code works once. Wrong codes count as failed logins (after 5, the address must wait).</li><li>HTTP Basic and the PostgreSQL port cannot ask for a code, so they refuse this user. Programs use their own users without two-factor login.</li><li><code>ALTER USER admin DISABLE TOTP</code> turns it off. A lost phone: stop the server and run <code>kdb user reset-2fa admin</code>.</li></ul>
+<h3 id="other-login-protection">Other login protection</h3>
+<ul><li><strong>Lockouts</strong> (5 failures for a user from one address) are in the audit log as <code>lockout</code>.</li><li><strong>A new token for every login.</strong> When a login request still carries an old login (cookie or Bearer token), the old one ends. A token somebody planted in a browser before the login is worthless afterwards.</li></ul>
+<hr>
+<h2 id="part-f-mistakes">Part F: mistakes</h2>
+<h3 id="update-or-delete-without-where">UPDATE or DELETE without WHERE</h3>
+<pre><code class="language-sh">kdb serve ... --safe-updates</code></pre>
+<pre><code class="language-sql">UPDATE accounts SET balance = 0;</code></pre>
+<pre><code class="language-text">error: safe updates are on: an UPDATE without WHERE would change every row of &#39;accounts&#39;. Add a WHERE (WHERE true changes every row on purpose), or turn safe updates off for this session: SET safe_updates = off</code></pre>
+<p>Each session can switch: <code>SET safe_updates = off</code> (or on) in SQL, <code>X-KDB-Safe-Updates: off</code> over HTTP, <code>SET safe_updates = off</code> on the PostgreSQL port.</p>
+<h3 id="a-read-only-database">A read-only database</h3>
+<pre><code class="language-sql">ALTER DATABASE market_2025 SET READ ONLY;</code></pre>
+<p>Now every change of <code>market_2025</code> is refused (<code>the database is read-only (...)</code>, HTTP 403, SQLSTATE <code>25006</code>); reads, backups and checks work. The setting is kept in the data folder and holds after a restart. <code>ALTER DATABASE market_2025 SET READ WRITE</code> undoes it. A read-only database cannot be dropped.</p>
+<p><code>kdb serve --read-only</code> makes the whole server read-only: all databases, no new databases, no user changes. Use it for a report server that works on a copy of the data.</p>
+<h3 id="drop-table-by-mistake">DROP TABLE by mistake</h3>
+<p><code>DROP TABLE</code> does not remove the rows at once. The table goes into the <strong>trash</strong> for 7 days:</p>
+<pre><code class="language-sql">DROP TABLE ledger;
+SHOW DROPPED TABLES;
+UNDROP TABLE ledger;</code></pre>
+<pre><code class="language-text">table &#39;ledger&#39; dropped; UNDROP TABLE ledger brings it back within 7 days
+name   | dropped                  | removed_after            | rows  | stored_as
+-------+--------------------------+--------------------------+-------+------------------------------
+ledger | 2026-09-12T10:50:12.004Z | 2026-09-19T10:50:12.004Z | 48210 | _dropped_1789217412004_ledger
+table &#39;ledger&#39; is back, with 48210 row(s)</code></pre>
+<ul><li>Dropping takes no time: nothing is copied. A new table and indexes with the same names can be made at once (app migrations keep working).</li><li><code>UNDROP TABLE</code> brings back the newest table of that name with its rows and indexes (not its table rights).</li><li>After <code>--trash-days</code> (7) the server removes it for good. <code>DROP TABLE _dropped_..._ledger</code> removes one at once.</li><li>A table with named <code>UNIQUE</code> or <code>PRIMARY KEY</code> constraints (PostgreSQL style) is dropped for good at once for now.</li><li><code>DROP DATABASE</code> already moved whole databases to <code>data/_trash</code> (chapter 1); that stays.</li></ul>
+<hr>
+<h2 id="part-g-encryption-of-the-files">Part G: encryption of the files</h2>
+<p>Not built yet. Today whoever can read the data folder or a backup can read the data: protect them with file permissions (chapter 16) and keep backups private. The plan (AES-256-GCM per block with AES-NI, a key file or the OS key store, the log and backups encrypted too, key rotation, about 3-8% slower cold reads and no change for queries on loaded data) is in docs/design/encryption-at-rest.md. It comes after the versioning work, because it changes the bytes on disk.</p>
+<hr>
+<h2 id="vps-checklist">VPS checklist</h2>
+<p>Add this to the checklist of chapter 16:</p>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>Why</th></tr></thead><tbody><tr><td><code>--backup-schedule &quot;daily 10:15&quot;</code> (16:00 in Nepal, +05:45, on a UTC VPS) and <code>--backup-copy</code> on a second disk or mounted storage</td><td>backups happen even when you forget</td></tr><tr><td><code>journalctl -u kdb | grep -E &quot;WARNING|FAILED&quot;</code> in a daily mail or monitor</td><td>a broken backup is noticed</td></tr><tr><td><code>--statement-timeout 30s</code>, <code>--max-result-memory 256MB</code> on a 1-2 GB VPS</td><td>one report cannot freeze the app</td></tr><tr><td><code>--max-queries-per-user</code> above your app&#39;s pool size</td><td>a loop in a script cannot take every thread</td></tr><tr><td><code>ALTER TABLE ... SET AUDIT ON</code> for accounts, ledger, orders, portfolio</td><td>every money change has who and when</td></tr><tr><td><code>REVOKE UPDATE, DELETE ON TABLE ledger FROM app</code></td><td>even a bug in the app cannot rewrite history</td></tr><tr><td><code>ALTER USER &lt;admin&gt; ENABLE TOTP</code> for every person</td><td>a stolen password is not enough</td></tr><tr><td><code>--safe-updates</code></td><td>no <code>UPDATE</code> without <code>WHERE</code> by accident</td></tr><tr><td><code>SHOW AUDIT WHERE event IN (&#39;lockout&#39;, &#39;denied&#39;)</code> now and then</td><td>see who tries</td></tr><tr><td>old years: <code>ALTER DATABASE ... SET READ ONLY</code></td><td>closed books stay closed</td></tr></tbody></table></div>
+<p>Example <code>systemd</code> line:</p>
+<pre><code class="language-ini">ExecStart=/usr/local/bin/kdb serve --data-dir /srv/kdb/data --backups /srv/kdb/backups --backup-schedule &quot;daily 10:15&quot; --backup-copy /mnt/backup/kdb --statement-timeout 30s --max-result-memory 256MB --safe-updates --audit-keep-days 2000</code></pre>
+<hr>
+<h2 id="what-it-costs">What it costs</h2>
+<p>Measured on the development PC (Intel i9-14900HX, Windows 11), same data, runs mixed so that other work on the PC hits both sides. &quot;On&quot; is <code>kdb serve</code> with its defaults (60 s timeout, memory and group limits, 32 statements per user); &quot;off&quot; is the same program with <code>--statement-timeout 0 --max-result-memory 0 --max-groups 0 --max-queries-per-user 0</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Test</th><th>Off (or before)</th><th>On (after)</th></tr></thead><tbody><tr><td>line protocol, 8 clients x 200,000 rows</td><td>before: 2.21, 2.13, 1.96 million rows/s</td><td>2.21, 2.26, 2.16 million rows/s</td></tr><tr><td><code>SELECT count(*), sum(volume)</code> over 1.1 million rows, no result cache (server time, 3 runs)</td><td>153 µs</td><td>154 µs</td></tr><tr><td><code>GROUP BY symbol</code>, no cache</td><td>1,384 µs</td><td>1,306 µs</td></tr><tr><td><code>LATEST ON</code>, no cache</td><td>394 µs</td><td>385 µs</td></tr><tr><td>5,000 rows to JSON, no cache</td><td>1,605 µs</td><td>1,593 µs</td></tr><tr><td><code>SELECT count(*)+sum</code>, with the result cache (round trip, 1,000 runs, 3 times)</td><td>0.12, 0.11, 0.12 ms</td><td>0.12, 0.11, 0.11 ms</td></tr><tr><td><code>kdb_bench</code> weekly candles of all 527 symbols (first run)</td><td>before: 354, 380 ms</td><td>335, 348 ms</td></tr><tr><td>100 INSERTs of 1,000 rows into an accounts table</td><td>audit off: 1.40, 1.46 s</td><td><code>SET AUDIT ON</code>: 1.61, 1.92 s</td></tr></tbody></table></div>
+<p>The differences are smaller than the noise between two runs. Only <code>SET AUDIT ON</code> costs something: about 15-30% on the writes of that table.</p>
+<ul><li><strong>No per-row cost</strong> in scans: the timeout flag is read once per 16,384 rows in the row engine and once per batch in the column engine; a watchdog thread sets it, so the check never reads the clock.</li><li>Tables without <code>SET AUDIT ON</code>: one <code>if</code> per commit.</li><li>Table rights: nothing for users without table rights; one short walk over the statement for users with them.</li><li><code>SHOW AUDIT</code> and the audit writer run on their own thread, never in the request.</li></ul>
+<hr>
+<h2 id="limits">Limits</h2>
+<ul><li>Security events are written every 200 ms: a crash can lose the events of that moment (data-change audit rows are never lost: same transaction).</li><li>A server on one folder path (<code>kdb serve D:\kdb\market</code>) has no security audit log (it has no <code>_system</code>). Data-change audit works there.</li><li>The audit log is not signed: a person who can change the data files can change it too. Keep the data folder private and copy backups off the server.</li><li>Table rights: no column rights (masking of columns in results is not built), no row rights. <code>CALL</code> and triggers ignore table rights.</li><li>Two-factor login is only for HTTP logins (console, <code>/api/login</code>). HTTP Basic and the PostgreSQL port refuse two-factor users.</li><li>The statement timeout does not stop a single very long step that has no rows in between (for example sorting one huge result); memory limits usually stop such a query first.</li><li><code>kdb sql</code>, <code>kdb shell</code> and library apps have no timeouts or limits.</li><li>The trash keeps tables with named <code>UNIQUE</code>/<code>PRIMARY KEY</code> constraints only after the constraint work supports renaming them; such tables are dropped for good now.</li><li>Older KDB programs refuse a database with audited tables, and a data folder with table rights, two-factor users or read-only settings (they would ignore them). Update every <code>kdb</code> program first.</li><li>No encryption of the files yet (Part G).</li></ul>
+<hr>
+<p>Next: <a href="known-limitations.html">Known limitations</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/21-protection.md">This page as markdown</a>.</footer>
+</body>
+</html>

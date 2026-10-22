@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queries across databases - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Read a table of another database on the same server as database.table - in SELECT, JOIN, subqueries and INSERT ... SELECT.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/cross-database-queries.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cross-database-queries.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="queries-across-databases">Queries across databases</h1>
+<blockquote><p>Read a table of another database on the same server as database.table - in SELECT, JOIN, subqueries and INSERT ... SELECT.</p></blockquote>
+<ul><li>Category: Databases &amp; folders</li><li>Keywords: cross-database, cross database, other database, another database, database.table, db.table, otherdb.table, reference data, shared tables, copy a table between databases, join two databases, INSERT INTO ... SELECT from another database, dblink, linked server, three-part name, changes only the database it runs in</li><li>See also: <a href="databases.html">Databases and the data folder</a>, <a href="joins.html">Joins</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="table-rights.html">Table rights - GRANT ON TABLE</a>, <a href="procedure-language.html#execute">The procedure language (execute)</a></li></ul>
+<p>One KDB server holds many <a href="databases.html">databases</a>. A query can read a table of <strong>another database</strong> on the same server. Write the database name, a dot and the table name: <code>refdata.companies</code>.</p>
+<p>A real setup: one database <code>refdata</code> holds the company list. Every app database reads it from there instead of keeping its own copy.</p>
+<p><strong>Example: Company names from a shared reference database</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE refdata;
+USE refdata;
+CREATE TABLE companies (symbol STRING PRIMARY KEY, name STRING, sector STRING);
+INSERT INTO companies VALUES (&#39;CITY&#39;, &#39;City Bank&#39;, &#39;Bank&#39;), (&#39;HYDRO&#39;, &#39;River Hydro&#39;, &#39;Energy&#39;), (&#39;MART&#39;, &#39;Metro Mart&#39;, &#39;Retail&#39;);</code></pre>
+<pre><code class="language-sql">CREATE TABLE trades (id LONG PRIMARY KEY, symbol STRING, qty LONG);
+INSERT INTO trades VALUES (1, &#39;CITY&#39;, 100), (2, &#39;HYDRO&#39;, 40), (3, &#39;CITY&#39;, 25);
+SELECT t.id, t.symbol, c.name, t.qty
+FROM trades t JOIN refdata.companies c ON t.symbol = c.symbol
+ORDER BY t.id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trades (</code></p>
+<pre><code class="language-text">table &#39;trades&#39; created</code></pre>
+<p><code>INSERT INTO trades VALUES (1, &#39;CITY&#39;, 100), (2, &#39;HYDRO&#39;, 40), (3, &#39;CITY&#39;, 25)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT t.id, t.symbol, c.name, t.qty FROM trades AS t JOIN refdata.companies AS c ON t.symbol = c.sy</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (STRING)</th><th>name (STRING)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>City Bank</td><td>100</td></tr><tr><td>2</td><td>HYDRO</td><td>River Hydro</td><td>40</td></tr><tr><td>3</td><td>CITY</td><td>City Bank</td><td>25</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="names">Name a table of another database</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">database.table
+database.public.table
+&quot;database&quot;.&quot;table&quot;</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Means</th></tr></thead><tbody><tr><td><code>companies</code></td><td>the table in the database you are using</td></tr><tr><td><code>refdata.companies</code></td><td>the table <code>companies</code> of the database <code>refdata</code></td></tr><tr><td><code>refdata.public.companies</code></td><td>the same; PostgreSQL apps write the schema <code>public</code></td></tr><tr><td><code>demo.companies</code>, when you use <code>demo</code></td><td>your own database: the same as <code>companies</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Database names ignore upper and lower case, like everywhere in KDB.</li><li>With no alias, the table name is the alias: <code>SELECT companies.name FROM refdata.companies</code>.</li><li>It works over HTTP, the PostgreSQL port, <code>kdb shell</code>, <code>kdb sql --data-dir</code> and the web console. A <code>Database</code> opened on its own, without the server&#39;s databases, gives an error.</li></ul></li></ul>
+<h2 id="what-works">What works</h2>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>Example</th></tr></thead><tbody><tr><td><code>SELECT</code></td><td><code>SELECT * FROM refdata.companies</code></td></tr><tr><td><code>JOIN</code>, <code>LEFT JOIN</code>, <code>CROSS JOIN</code>, <code>ASOF JOIN</code></td><td><code>FROM trades t JOIN refdata.companies c ON t.symbol = c.symbol</code></td></tr><tr><td>subqueries: <code>IN</code>, <code>EXISTS</code>, a value, <code>FROM (SELECT ...)</code></td><td><code>WHERE symbol IN (SELECT symbol FROM refdata.companies)</code></td></tr><tr><td><code>WITH</code></td><td><code>WITH banks AS (SELECT * FROM refdata.companies WHERE sector = &#39;Bank&#39;) ...</code></td></tr><tr><td><code>INSERT INTO t SELECT ...</code></td><td>copies rows from the other database into this one</td></tr><tr><td><code>CREATE TABLE t AS SELECT ...</code></td><td>makes a copy in this database</td></tr><tr><td><code>UPDATE</code> / <code>DELETE</code> with a subquery</td><td><code>DELETE FROM trades WHERE symbol NOT IN (SELECT symbol FROM refdata.companies)</code></td></tr><tr><td>views, procedures, triggers, <a href="procedure-language.html#execute">EXECUTE</a></td><td>the other table is read each time they run</td></tr></tbody></table></div>
+<p><strong>Example: Copy the banks into this database, and count trades of banks</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE refdata;
+USE refdata;
+CREATE TABLE companies (symbol STRING PRIMARY KEY, name STRING, sector STRING);
+INSERT INTO companies VALUES (&#39;CITY&#39;, &#39;City Bank&#39;, &#39;Bank&#39;), (&#39;HYDRO&#39;, &#39;River Hydro&#39;, &#39;Energy&#39;), (&#39;LAKE&#39;, &#39;Lake Bank&#39;, &#39;Bank&#39;);</code></pre>
+<pre><code class="language-sql">CREATE TABLE trades (id LONG PRIMARY KEY, symbol STRING, qty LONG);
+INSERT INTO trades VALUES (1, &#39;CITY&#39;, 100), (2, &#39;HYDRO&#39;, 40), (3, &#39;LAKE&#39;, 25);
+CREATE TABLE banks (symbol STRING PRIMARY KEY, name STRING);
+INSERT INTO banks SELECT symbol, name FROM refdata.companies WHERE sector = &#39;Bank&#39;;
+SELECT count(*) AS bank_trades, sum(qty) AS bank_qty
+FROM trades WHERE symbol IN (SELECT symbol FROM refdata.companies WHERE sector = &#39;Bank&#39;);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trades (</code></p>
+<pre><code class="language-text">table &#39;trades&#39; created</code></pre>
+<p><code>INSERT INTO trades VALUES (1, &#39;CITY&#39;, 100), (2, &#39;HYDRO&#39;, 40), (3, &#39;LAKE&#39;, 25)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>CREATE TABLE banks (</code></p>
+<pre><code class="language-text">table &#39;banks&#39; created</code></pre>
+<p><code>INSERT INTO banks SELECT symbol, name FROM refdata.companies WHERE sector = &#39;Bank&#39;</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT count(*) AS bank_trades, sum(qty) AS bank_qty FROM trades WHERE symbol IN (SELECT symbol FROM</code></p>
+<div class="table-wrap"><table><thead><tr><th>bank_trades (LONG)</th><th>bank_qty (LONG)</th></tr></thead><tbody><tr><td>2</td><td>125</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="writes">Changes stay in your database</h2>
+<p>A statement changes only the database it runs in. <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> of <code>otherdb.table</code> are refused. To change the other database, run the statement there (<code>USE refdata</code>, or <code>db=refdata</code> over HTTP). From there, your database&#39;s tables can be read as <code>yourdb.table</code>.</p>
+<p><strong>Example: Writing into another database is refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE refdata;
+USE refdata;
+CREATE TABLE companies (symbol STRING PRIMARY KEY, name STRING, sector STRING);</code></pre>
+<pre><code class="language-sql">INSERT INTO refdata.companies VALUES (&#39;NEW&#39;, &#39;New Company&#39;, &#39;Bank&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 1: INSERT of table &#39;refdata.companies&#39; is not allowed: a statement changes only the database it runs in (&#39;demo&#39;). Run it in database &#39;refdata&#39; (USE refdata), where the tables of &#39;demo&#39; can be read as demo.&lt;table&gt;</code></p>
+<p><strong>Example: A database that is not there</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM nowhere.companies;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 15: database &#39;nowhere&#39; does not exist (SHOW DATABASES lists them) (in nowhere.companies)</code></p>
+<h2 id="rights">Rights</h2>
+<p>The other table is checked with <strong>that</strong> database&#39;s rights.</p>
+<div class="table-wrap"><table><thead><tr><th>To read <code>refdata.companies</code> a user needs</th><th></th></tr></thead><tbody><tr><td>role <code>read</code> on <code>refdata</code></td><td>or <code>GRANT SELECT ON TABLE companies</code> made in <code>refdata</code></td></tr><tr><td>no <code>REVOKE SELECT ON TABLE companies</code> in <code>refdata</code></td><td>a revoke there wins over the role</td></tr><tr><td>role <code>admin</code> on <code>refdata</code></td><td>only for <code>_audit_log</code> and dropped tables</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> the user also needs the usual rights in the database the statement runs in, for example <code>write</code> for an <code>INSERT ... SELECT</code>. See <a href="users-and-roles.html">users and roles</a> and <a href="table-rights.html">table rights</a>.</li></ul>
+<h2 id="speed">Speed</h2>
+<p>A <code>SELECT</code> that reads only tables of <strong>one</strong> other database, and uses nothing of yours (no table, view, saved function or type of your database), is sent to that database whole. It runs there as if you had sent it yourself: <code>SELECT count(*) FROM market.prices</code> is answered from the saved row counts and copies no row, and a <code>GROUP BY</code> or <code>SAMPLE BY</code> over years runs next to the data. The answer is the same.</p>
+<p>Any other statement reads the other table into your database first. Your conditions go with the read, so it skips partitions, uses the column engine and sends only the rows that match.</p>
+<div class="table-wrap"><table><thead><tr><th>Condition</th><th>Goes to the other database</th></tr></thead><tbody><tr><td><code>WHERE</code> of a query with only that table</td><td>yes</td></tr><tr><td><code>WHERE p.time &gt;= ...</code> in a join, written as <code>alias.column</code></td><td>yes</td></tr><tr><td>a bare column name in a join (<code>WHERE time &gt;= ...</code>)</td><td>no: it may belong to another table</td></tr><tr><td><code>ON c.sector = &#39;Bank&#39;</code> of a <code>JOIN</code> or <code>LEFT JOIN</code></td><td>yes</td></tr><tr><td><code>WHERE</code> on the right table of a <code>LEFT JOIN</code>, or of an <code>ASOF JOIN</code></td><td>no: it would change the result</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>When a statement also uses your database (a join with your table, for example), the matching rows come over to your database, then the join, <code>GROUP BY</code> and the rest run here.</li><li>In a join, write <code>alias.column</code> in <code>WHERE</code>, so a time range reaches the other table.</li><li>A change in the other database shows at once: a statement sent there whole is kept only in that database&#39;s <a href="performance-tips.html">result cache</a>, which a write there clears, and other results with its tables are never kept.</li></ul></li></ul>
+<p><strong>Example: One day of prices from another database: only that day&#39;s partition is read</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE market;
+USE market;
+CREATE TABLE prices (time TIMESTAMP, symbol STRING, close DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO prices VALUES (&#39;2026-09-09T10:00:00Z&#39;, &#39;CITY&#39;, 510.0), (&#39;2026-09-10T10:00:00Z&#39;, &#39;CITY&#39;, 512.5), (&#39;2026-09-10T10:00:00Z&#39;, &#39;HYDRO&#39;, 88.2);</code></pre>
+<pre><code class="language-sql">CREATE TABLE holdings (symbol STRING PRIMARY KEY, qty LONG);
+INSERT INTO holdings VALUES (&#39;CITY&#39;, 100), (&#39;HYDRO&#39;, 50);
+SELECT h.symbol, h.qty * p.close AS value
+FROM holdings h JOIN market.prices p ON h.symbol = p.symbol
+WHERE p.time &gt;= &#39;2026-09-10&#39; AND p.time &lt; &#39;2026-09-11&#39;
+ORDER BY h.symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE holdings (</code></p>
+<pre><code class="language-text">table &#39;holdings&#39; created</code></pre>
+<p><code>INSERT INTO holdings VALUES (&#39;CITY&#39;, 100), (&#39;HYDRO&#39;, 50)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT h.symbol, h.qty * p.close AS value FROM holdings AS h JOIN market.prices AS p ON h.symbol = p</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>value (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>51250</td></tr><tr><td>HYDRO</td><td>4410</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="locks">Locks</h2>
+<ul><li>A statement reads the other database&#39;s tables <strong>before</strong> it takes the lock of its own database. So a statement never waits for two databases at once, and two databases that read each other at the same time do not wait for each other.</li><li>Reading is like any other reader of that database: it sees committed rows only, and an open <code>BEGIN ... COMMIT</code> there does not make it wait.</li><li>Inside a procedure, trigger or <code>EXECUTE</code>, your database is already locked. Then the read waits at most <code>lock_timeout_ms</code> (5 seconds by default) for a long writer of the other database, and fails with <code>database is busy ... Try again</code>.</li><li>The rows are read when the statement starts. Transactions do not span databases: a <code>ROLLBACK</code> here does not touch the other database.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cross-database-queries.md">This page as markdown</a>.</footer>
+</body>
+</html>

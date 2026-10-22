@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Views - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Save a query with a name, and select from it like a table.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/views.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/views.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="views">Views</h1>
+<blockquote><p>Save a query with a name, and select from it like a table.</p></blockquote>
+<ul><li>Category: Views</li><li>Keywords: VIEW, VIEWS, CREATE VIEW, CACHED, CACHED VIEW, CREATE CACHED VIEW, REFRESH, REFRESH ON COMMIT, REFRESH VIEW, REFRESH MATERIALIZED VIEW, CREATE MATERIALIZED VIEW, DROP MATERIALIZED VIEW, REFRESH ON INSERT, SAMPLE BY view, REFRESH MATERIALIZED VIEW CONCURRENTLY, materialized_views(), views(), candles from ticks, REFRESH IMMEDIATE, WITH BASE, continuous aggregate, incremental refresh, summary table, DROP VIEW, SHOW VIEWS, IF NOT EXISTS, IF EXISTS, saved query, virtual table, materialized view, CREATE OR REPLACE VIEW, OR REPLACE, ALTER VIEW, change a view, kept the old definition</li><li>See also: <a href="select.html#from">SELECT (from)</a>, <a href="union-subqueries.html#from-subquery">UNION and subqueries (from-subquery)</a>, <a href="sample-by.html#sample-by">SAMPLE BY (sample-by)</a>, <a href="explain.html#explain">EXPLAIN (explain)</a>, <a href="users-and-roles.html">Users and roles</a></li></ul>
+<p>A <strong>view</strong> is a saved <code>SELECT</code> with a name. You use the name in <code>FROM</code> like a table. Every time you select from the view, KDB runs its query again, so the view always shows the newest rows.</p>
+<ul><li>Use views for queries you type often: weekly candles, a broker report, the list of active app users.</li><li>A view does not store rows (a <a href="#cached-view">cached view</a> keeps its result). You cannot <code>INSERT</code>, <code>UPDATE</code> or <code>DELETE</code> through a view.</li><li>A view and a table cannot have the same name.</li><li><code>CREATE VIEW</code>, <code>ALTER VIEW</code> and <code>DROP VIEW</code> need the <code>admin</code> role, and they cannot be used inside <code>BEGIN</code> ... <code>COMMIT</code>.</li></ul>
+<p><strong>Example: Weekly candles of a Sunday-to-Thursday trading week, as a view</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE VIEW candles_1w AS
+SELECT time, symbol,
+       first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close,
+       sum(volume) AS volume
+FROM ochl_day
+SAMPLE BY 1w WEEK START SUNDAY;
+
+SELECT * FROM candles_1w WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-30&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE VIEW candles_1w AS SELECT time, symbol, first(open) AS open, max(high) AS high, min(low) AS l</code></p>
+<pre><code class="language-text">view &#39;candles_1w&#39; created</code></pre>
+<p><code>SELECT * FROM candles_1w WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-30&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-30T00:00:00.000Z</td><td>VOLT</td><td>172.5</td><td>177.3</td><td>167.3</td><td>176</td><td>368150</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>VOLT</td><td>174.2</td><td>192.1</td><td>172.4</td><td>191.2</td><td>486760</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="create-view">CREATE VIEW</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] VIEW name AS SELECT ...
+CREATE VIEW IF NOT EXISTS name AS SELECT ...
+CREATE [OR REPLACE] VIEW name AS (SELECT ...)</code></pre>
+<p>Saves the query under <code>name</code>. The query can be any <code>SELECT</code>: joins, <code>WHERE</code>, <code>GROUP BY</code>, <code>SAMPLE BY</code>, <code>LATEST ON</code>, window functions, subqueries, <code>UNION ALL</code>, <code>ORDER BY</code> and <code>LIMIT</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>OR REPLACE</code></td><td>when a view with this name is already there, it gets the <strong>new</strong> query. Otherwise the view is created.</td></tr><tr><td><code>IF NOT EXISTS</code></td><td>when a view with this name is already there, <strong>nothing changes</strong>: the old query stays, even if you sent a different one. No error.</td></tr><tr><td><code>name</code></td><td>the view name; like table names it does not care about upper or lower case</td></tr><tr><td><code>AS SELECT ...</code></td><td>the query. The QuestDB form with brackets, <code>AS (SELECT ...)</code>, also works</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the message <code>view &#39;name&#39; created</code>, <code>view &#39;name&#39; replaced</code> (with <code>OR REPLACE</code>), or <code>view &#39;name&#39; already exists; kept the old definition</code> (with <code>IF NOT EXISTS</code>). Over the PostgreSQL port the last one also comes as a NOTICE.</li><li><strong>Notes:</strong>
+<ul><li><strong>To change a view, use <code>CREATE OR REPLACE VIEW</code> or <a href="#alter-view">ALTER VIEW</a>, not <code>IF NOT EXISTS</code>.</strong> An app that runs <code>CREATE VIEW IF NOT EXISTS</code> at startup keeps the first query forever.</li><li><code>OR REPLACE</code> and <code>IF NOT EXISTS</code> cannot be used together.</li><li>KDB checks the query when you create the view. A query with an error is refused: <code>the view&#39;s query does not work: ...</code>. A new query may not read the view it replaces.</li><li>The check reads <strong>no rows</strong>: every table is read as if it were empty, so a view over a table of any size is created at once and never stops at a memory limit. Unknown tables, columns and functions are found by the check. A problem that only the data shows (too many groups, too many rows to keep) comes when the view is read.</li><li>Give every computed column a name with <code>AS</code>. Otherwise the column is called by its expression, like <code>count(*)</code>.</li><li>A name used by a table is refused: <code>a table named &#39;...&#39; already exists</code>. <code>CREATE TABLE</code> with the name of a view is refused too.</li><li>Without <code>OR REPLACE</code> or <code>IF NOT EXISTS</code>, a name that is already a view is refused.</li><li>A view can use other views (at most 16 levels deep).</li><li>The query is saved as KDB wrote it back (see <a href="views.html#show-views">SHOW VIEWS</a>), not with your spaces and line breaks.</li></ul></li></ul>
+<p><strong>Example: A broker report: buy and sell amount per broker per day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE VIEW broker_daily AS
+SELECT date, broker, round(sum(bought), 2) AS bought, round(sum(sold), 2) AS sold
+FROM (
+  SELECT date, buyer AS broker, amount AS bought, 0 AS sold FROM trade_log
+  UNION ALL
+  SELECT date, seller AS broker, 0 AS bought, amount AS sold FROM trade_log
+) t
+GROUP BY date, broker;
+
+SELECT d.date, b.name, d.bought, d.sold
+FROM broker_daily d JOIN brokers b ON b.id = d.broker
+WHERE d.date IN &#39;2026-09-10&#39;
+ORDER BY d.bought DESC;</code></pre>
+<p>Result:</p>
+<p><code>CREATE VIEW broker_daily AS SELECT date, broker, round(sum(bought), 2) AS bought, round(sum(sold), 2</code></p>
+<pre><code class="language-text">view &#39;broker_daily&#39; created</code></pre>
+<p><code>SELECT d.date, b.name, d.bought, d.sold FROM broker_daily AS d JOIN brokers AS b ON b.id = d.broker </code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>name (STRING)</th><th>bought (DOUBLE)</th><th>sold (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>Online Securities</td><td>960370</td><td>213210</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>Imperial Securities</td><td>695950</td><td>592210</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>Northgate Securities</td><td>260190</td><td>501500</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>Keystone Securities</td><td>239420</td><td>486650</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>Vision Securities</td><td>205450</td><td>567810</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: QuestDB style with brackets, and IF NOT EXISTS: the second query is not used</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE VIEW IF NOT EXISTS banks AS (SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;);
+CREATE VIEW IF NOT EXISTS banks AS (SELECT symbol FROM securities);
+SELECT * FROM banks;</code></pre>
+<p>Result:</p>
+<p><code>CREATE VIEW IF NOT EXISTS banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;</code></p>
+<pre><code class="language-text">view &#39;banks&#39; created</code></pre>
+<p><code>CREATE VIEW IF NOT EXISTS banks AS SELECT symbol FROM securities</code></p>
+<pre><code class="language-text">view &#39;banks&#39; already exists; kept the old definition</code></pre>
+<p><code>SELECT * FROM banks</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: CREATE OR REPLACE VIEW gives the view a new query</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>
+<pre><code class="language-sql">CREATE OR REPLACE VIEW banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;;
+SELECT * FROM banks;</code></pre>
+<p>Result:</p>
+<p><code>CREATE OR REPLACE VIEW banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;</code></p>
+<pre><code class="language-text">view &#39;banks&#39; replaced</code></pre>
+<p><code>SELECT * FROM banks</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Active users of an app</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id LONG PRIMARY KEY, username STRING, plan STRING, last_login TIMESTAMP);
+INSERT INTO app_users VALUES
+  (1, &#39;sita&#39;, &#39;pro&#39;, &#39;2026-09-10T14:05:00+05:45&#39;),
+  (2, &#39;ram&#39;, &#39;free&#39;, &#39;2026-06-01T09:00:00+05:45&#39;),
+  (3, &#39;gita&#39;, &#39;pro&#39;, NULL);</code></pre>
+<pre><code class="language-sql">CREATE VIEW active_users AS
+SELECT id, username, plan, last_login FROM app_users
+WHERE last_login &gt;= &#39;2026-08-01&#39;;
+
+SELECT * FROM active_users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE VIEW active_users AS SELECT id, username, plan, last_login FROM app_users WHERE last_login &gt;=</code></p>
+<pre><code class="language-text">view &#39;active_users&#39; created</code></pre>
+<p><code>SELECT * FROM active_users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>username (STRING)</th><th>plan (STRING)</th><th>last_login (TIMESTAMP)</th></tr></thead><tbody><tr><td>1</td><td>sita</td><td>pro</td><td>2026-09-10T08:20:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The query is checked when the view is made</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE VIEW bad_view AS SELECT symbol, clsoe FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>the view&#39;s query does not work: line 1, column 40: unknown column &#39;clsoe&#39; (table &#39;ochl_day&#39; has: time symbol open high low close volume)</code></p>
+<p><strong>Example: A second view with the same name</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol, name FROM securities;</code></pre>
+<p>Result:</p>
+<p>Error: <code>view &#39;banks&#39; already exists; to change its query use CREATE OR REPLACE VIEW or ALTER VIEW banks AS ..., or DROP VIEW it first</code></p>
+<p><strong>Example: A table already has this name</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE VIEW brokers AS SELECT id, name FROM brokers WHERE id &lt; 40;</code></pre>
+<p>Result:</p>
+<p>Error: <code>a table named &#39;brokers&#39; already exists</code></p>
+<h2 id="alter-view">ALTER VIEW</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER VIEW name AS SELECT ...
+ALTER VIEW name AS (SELECT ...)</code></pre>
+<p>Gives a view that is already there a new query. It is the same as <code>CREATE OR REPLACE VIEW</code>, except that the view <strong>must</strong> exist, and a <a href="#cached-view">cached view</a> stays cached (with its <code>REFRESH ON COMMIT</code>).</p>
+<ul><li><strong>Returns:</strong> <code>view &#39;name&#39; altered</code> (a cached view adds <code>(N row(s) cached)</code>).</li><li><strong>Notes:</strong>
+<ul><li>No such view: <code>view &#39;name&#39; does not exist; ALTER VIEW changes a view that is there (use CREATE VIEW)</code>.</li><li>Only the <code>AS</code> form is supported: there is no <code>ALTER VIEW ... RENAME TO</code> or <code>OWNER TO</code>.</li></ul></li></ul>
+<p><strong>Example: Add a column to a view</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>
+<pre><code class="language-sql">ALTER VIEW banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;;
+SELECT * FROM banks;</code></pre>
+<p>Result:</p>
+<p><code>ALTER VIEW banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;</code></p>
+<pre><code class="language-text">view &#39;banks&#39; altered</code></pre>
+<p><code>SELECT * FROM banks</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: ALTER VIEW needs a view that exists</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">ALTER VIEW banks AS SELECT symbol FROM securities;</code></pre>
+<p>Result:</p>
+<p>Error: <code>view &#39;banks&#39; does not exist; ALTER VIEW changes a view that is there (use CREATE VIEW)</code></p>
+<h2 id="select-from-view">Selecting from a view</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM view_name [alias] [JOIN ...] [WHERE ...] [SAMPLE BY ...] [GROUP BY ...] ...</code></pre>
+<p>A view name works in <code>FROM</code> and in joins, like a table. Its columns are the columns of the view&#39;s query.</p>
+<ul><li><strong>Returns:</strong> the rows of the view&#39;s query, then filtered, grouped and sorted by your query.</li><li><strong>Notes:</strong>
+<ul><li>The view&#39;s query runs every time. Parts of your <code>WHERE</code> that are safe to move go <strong>into</strong> the view&#39;s query, so it reads fewer rows and partitions (see <a href="#where-pushdown">WHERE on a view</a>). The rest is applied after the view&#39;s query.</li><li>When the view has a <code>TIMESTAMP</code> column, you can use <code>SAMPLE BY</code> and <code>LATEST ON</code> on the view.</li><li>When a table, column or other view that the view uses is dropped, the view stays, but selecting from it fails: <code>view &#39;name&#39;: ... does not exist</code>.</li><li><code>SHOW COLUMNS FROM view</code> does not work (it is for tables). Use <code>SELECT * FROM view LIMIT 1</code>.</li><li><code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> on a view fail with <code>table &#39;...&#39; does not exist</code>.</li></ul></li></ul>
+<p><strong>Example: New rows show up at once: the query runs every time</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW city_trades AS SELECT date, transaction_id, quantity, rate FROM trade_log WHERE symbol = &#39;CITY&#39;;</code></pre>
+<pre><code class="language-sql">SELECT count(*) AS trades FROM city_trades;
+INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09-10&#39;, 100033, &#39;CITY&#39;, 58, 1, 30, 519.0);
+SELECT count(*) AS trades FROM city_trades;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS trades FROM city_trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT count(*) AS trades FROM city_trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Monthly candles made from a view of CITY&#39;s daily closes</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW city_daily AS SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39;;</code></pre>
+<pre><code class="language-sql">SELECT time, first(close) AS first_close, last(close) AS last_close FROM city_daily SAMPLE BY 1M;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>first_close (DOUBLE)</th><th>last_close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>542.2</td><td>542.4</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>507.9</td><td>505.7</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>504.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A WHERE on the view goes into the view&#39;s query</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW day_closes AS SELECT time, symbol, close FROM ochl_day;</code></pre>
+<pre><code class="language-sql">SELECT time, symbol, close FROM day_closes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;
+EXPLAIN SELECT time, symbol, close FROM day_closes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT time, symbol, close FROM day_closes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>EXPLAIN SELECT time, symbol, close FROM day_closes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>view day_closes passes its rows through: push 2 condition(s) into its query, which runs as the statement</td></tr><tr><td>scan table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h3 id="where-pushdown">WHERE on a view</h3>
+<p>A condition of your <code>WHERE</code> also runs <strong>inside</strong> the view (or a <code>FROM (SELECT ...)</code> subquery) when that cannot change the result. Then the view builds only the rows you asked for: a weekly candle view filtered to one symbol builds that symbol&#39;s weeks, not every symbol&#39;s. <code>EXPLAIN</code> shows it as <code>push N condition(s) into view name</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>A condition on a view column is moved in when the column is</th><th>Example</th></tr></thead><tbody><tr><td>a plain column of the view</td><td><code>SELECT time, symbol, close FROM ochl_day</code></td></tr><tr><td>a <code>GROUP BY</code> or <code>SAMPLE BY</code> key (not the time column)</td><td><code>symbol</code> in <code>SELECT time, symbol, sum(volume) ... SAMPLE BY 1w</code></td></tr><tr><td>in <code>PARTITION BY</code> of every window function</td><td><code>symbol</code> in <code>lag(close) OVER (PARTITION BY symbol ORDER BY time)</code></td></tr><tr><td>a <code>LATEST ON ... PARTITION BY</code> column</td><td><code>symbol</code> in <code>LATEST ON time PARTITION BY symbol</code></td></tr></tbody></table></div>
+<p>It stays outside (the view runs in full first) when:</p>
+<ul><li>the condition uses an aggregate result (<code>volume &gt; 1000</code> on <code>sum(volume) AS volume</code>), a function, a subquery or the <code>SAMPLE BY</code> time column;</li><li>the view has <code>LIMIT</code>, <code>FILL</code>, <code>ALIGN TO FIRST OBSERVATION</code>, <code>DISTINCT ON</code>, <code>UNION</code> or <code>WITH</code>, or a window function without that column in <code>PARTITION BY</code>.</li></ul>
+<p><strong>Joins.</strong> A view whose query joins views or subqueries takes a condition on one of its plain columns too (<code>d.time AS time</code>), and passes it on to the views it joins. In a query with a join, each view or subquery takes the conditions on its own columns (<code>WHERE d.time = &#39;2026-10-15&#39;</code> goes into <code>d</code>), and an <code>ON d.time = t.time</code> carries a condition on <code>d.time</code> over to <code>t</code>, as <code>t.time = &#39;2026-10-15&#39;</code>. So a join of two daily views read for one day builds one day of each, not every day. This is done for <code>JOIN</code>, <code>LEFT JOIN</code> and <code>CROSS JOIN</code> without <code>USING</code>. The right side of a <code>LEFT JOIN</code> takes only the carried conditions: a test like <code>b.n IS NULL</code> is true on the rows the join fills with NULL, so it stays outside.</p>
+<p>A condition on a plain column of a <strong>window</strong> query that cannot move in front of the windows (<code>time = ...</code> when the windows are <code>PARTITION BY symbol</code>) still runs inside it, right <strong>after</strong> the window values are worked out: <code>lag()</code> still sees the rows before, but only the rows you keep are made. <code>EXPLAIN</code> shows it as <code>push N condition(s) into subquery name after its windows</code>. This happens when every column of the window query is a plain column, or a <code>row_number</code>, <code>rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code>, <code>first_value</code> or <code>last_value</code> of a column (<code>lag</code> without a default value).</p>
+<p><strong>lag() and a time range.</strong> When every window function of the view is <code>lag(x)</code> or <code>lag(x, 1)</code>, all over the same <code>PARTITION BY</code> and <code>ORDER BY time</code>, and your <code>WHERE</code> gives the time a lower end (<code>time = &#39;2026-10-15&#39;</code>, <code>time &gt;= ...</code>, <code>time &gt; ...</code>, <code>BETWEEN</code>), the window gets only the rows of that range and, for each partition, its last row before the range. Those rows are read first: the range&#39;s rows, then for each of their partitions its last time before the range (<code>max(time)</code>, over the 8 days before it, the 16 before those, and so on, the last few partitions looked for by their key values alone), then the rows at those times, a few days per read, each read narrowed to the keys that end there (since 2026-10-17). The day&#39;s <code>lag()</code> values are the same as over all rows, and what the window holds does not grow with the table: on 2 years of trades a day of a broker-by-symbol view took 0.4 s instead of 2.2 s and about 1 GB. <code>EXPLAIN</code> says <code>the rows of view v&#39;s windows read first: the time range and each partition&#39;s last row before it, for lag (N rows)</code>. <code>KDB_NO_LAG_ROWS=1</code> reads every row of those days instead.</p>
+<p>A condition like <code>rn &lt;= 5</code> (also <code>rn &lt; 6</code>, <code>rn = 1</code>, <code>5 &gt;= rn</code>) on a <code>row_number</code>, <code>rank</code> or <code>dense_rank</code> column is a <strong>rank limit</strong>: the window query drops every row above the limit as soon as the ranks are known. With <code>row_number()</code> it also orders only the first 5 rows of each partition instead of all of them. The usual top-N-per-group query gets fast this way: <code>SELECT symbol, sum(qty) FROM (SELECT symbol, qty, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY qty DESC) AS rn FROM t WHERE ...) WHERE rn &lt;= 5 GROUP BY symbol</code>. <code>EXPLAIN</code> shows it as <code>push 1 rank limit(s) into subquery</code>.</p>
+<p><strong>A view joined to a table, then grouped</strong> (since 2026-10-17). A <code>GROUP BY</code> over a view (or subquery) joined to a table, such as the turnover per broker and sector of a daily view joined to a sector map, groups the view first by the columns the rest of the query reads of it (its <code>GROUP BY</code>, <code>ON</code> and <code>WHERE</code> columns), and joins those groups: <code>SELECT d.broker, s.sector, sum(d.amt) FROM daily d JOIN sector s ON d.symbol = s.symbol GROUP BY d.broker, s.sector</code> adds up the view per broker and symbol, which a grouped view folds into its own grouping, so a year of the daily view is never built. Only <code>sum</code>, <code>min</code> and <code>max</code> of the view&#39;s own columns, every column written with its source&#39;s name (<code>d.amt</code>), an <code>INNER</code> or <code>LEFT JOIN</code> of two sources. A year of 006&#39;s broker-sector read: 9.3 s and 2.6 GB -&gt; 0.37 s. <code>EXPLAIN</code> says <code>aggregates over a joined view: the view grouped first</code>. <code>KDB_NO_GROUP_BELOW_JOIN=1</code> turns it off.</p>
+<p><strong>Only the sums you read.</strong> When a view or <code>FROM (SELECT ...)</code> subquery has <code>GROUP BY</code>, a <code>sum</code>, <code>count</code> or <code>avg</code> column of it that your query never names is not worked out at all. A daily view with six sums, read for two of them, adds up two: less time, and less memory for the groups.</p>
+<p>The result is always the same as without moving; only the time changes.</p>
+<p><strong>A long time range in parts</strong> (since 2026-10-16). A <code>GROUP BY</code> over a view (or a <code>FROM (SELECT ...)</code> subquery) for many days, such as a year of a window view summed per symbol, runs the view <strong>a few days at a time</strong> when the time column passes through every step of the view: it is a key of every <code>GROUP BY</code>, in the <code>PARTITION BY</code> of every window, and comes from the time column of a time-series table partitioned by time. Each part is the view with <code>time &gt;= a AND time &lt; b</code> moved inside as above, and its rows go straight into your <code>GROUP BY</code>; no window partition and no group can reach across two parts, so the answer is the same. A part holds whole partitions, as many as keep it well under <code>--max-result-memory</code> (about 8 KB of memory per row for a view with windows or joins, 512 bytes without); a partition bigger than that (a month of a materialized view) is cut into parts of whole days. A view that joins (since 2026-10-17) is split too when the time is a column of one of its sources (<code>d.time AS time</code>) and reaches each other source through an <code>ON d.time = t.time</code>, or that source is a small table without a time column (a sector map); after its first part such a view&#39;s parts are sized by what that part held. So a range far bigger than the memory limit is answered: 006&#39;s pump-and-dump filter over 5 months of 10M trades took 18 s where it stopped at <code>max_result_memory</code> before, and its OTM filter (the daily filter joined with a sum of itself) over a year 4.4 s where it ran out of memory. With 2 or more CPUs, two parts run at the same time (since 2026-10-17): the next part is worked out while this one runs or hands its rows on, and the rows still go on in time order, so the answer is the same to the last digit. At 2 CPUs a year of 006&#39;s OTM filter over materialized views took 2.0 s instead of 4.3 s, and two years of its Mkt hit view 32 s instead of 63 s. <code>KDB_NO_SPLIT_LANES=1</code> runs one part at a time. A range that fits in one part runs as before. <code>KDB_NO_TIME_SPLIT=1</code> turns it off.</p>
+<p><strong>Example: Weekly candles of one symbol: only CITY&#39;s weeks are built</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW weekly AS SELECT time, symbol, first(open) AS open, last(close) AS close, sum(volume) AS volume
+FROM ochl_day SAMPLE BY 1w;</code></pre>
+<pre><code class="language-sql">SELECT * FROM weekly WHERE symbol = &#39;CITY&#39;;
+EXPLAIN SELECT * FROM weekly WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT * FROM weekly WHERE symbol = &#39;CITY&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-22T00:00:00.000Z</td><td>CITY</td><td>540.3</td><td>542.2</td><td>85290</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>CITY</td><td>540.6</td><td>542.4</td><td>169800</td></tr><tr><td>2026-08-17T00:00:00.000Z</td><td>CITY</td><td>505</td><td>507.9</td><td>125050</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>CITY</td><td>508.3</td><td>503.1</td><td>571260</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>CITY</td><td>502.5</td><td>499</td><td>518540</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>CITY</td><td>497.3</td><td>504.9</td><td>516910</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><code>EXPLAIN SELECT * FROM weekly WHERE symbol = &#39;CITY&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>view weekly passes its rows through: push 1 condition(s) into its query, which runs as the statement</td></tr><tr><td>scan table ochl_day (2 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>build 5 of 7 stored column(s) per row: time, symbol, open, close, volume</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>sample by SAMPLE BY 1w</td></tr><tr><td>group by 1 key(s), 3 aggregate(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: A condition on an aggregate stays outside</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW weekly_volume AS SELECT time, symbol, sum(volume) AS volume FROM ochl_day SAMPLE BY 1w;</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT * FROM weekly_volume WHERE volume &gt; 1000;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan result of weekly_volume (18 rows)</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (reads a subquery or view result)</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Day change % of every symbol: lag() sees the day before, only one day of rows is made</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, prev, round((close - prev) / prev * 100, 2) AS change_pct
+FROM (SELECT symbol, time, close, lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev
+      FROM ochl_day WHERE time &gt;= &#39;2026-09-01&#39;) d
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;
+EXPLAIN SELECT symbol, close, prev FROM (SELECT symbol, time, close, lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev FROM ochl_day WHERE time &gt;= &#39;2026-09-01&#39;) d WHERE time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol, close, prev, round((close - prev) / prev * 100, 2) AS change_pct FROM (SELECT symbol,</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>prev (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>504.6</td><td>0.06</td></tr><tr><td>COAST</td><td>376.1</td><td>380.1</td><td>-1.05</td></tr><tr><td>VOLT</td><td>191.2</td><td>187.3</td><td>2.08</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>EXPLAIN SELECT symbol, close, prev FROM (SELECT symbol, time, close, lag(close) OVER (PARTITION BY s</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan result of d (3 rows)</td></tr><tr><td>push 1 condition(s) into subquery d after its windows</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (reads a subquery or view result)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Latest live price per symbol, from a view</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW live_today AS SELECT timestamp, symbol, ltp, pct_change FROM live_data WHERE timestamp IN &#39;2026-09-10&#39;;</code></pre>
+<pre><code class="language-sql">SELECT symbol, ltp, pct_change FROM live_today LATEST ON timestamp PARTITION BY symbol ORDER BY pct_change DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>2.71</td></tr><tr><td>TELCO</td><td>897.7</td><td>1.9</td></tr><tr><td>COAST</td><td>401.9</td><td>0.7</td></tr><tr><td>VOLT</td><td>184</td><td>-0.86</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The table under a view was dropped</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE watchlist (symbol STRING PRIMARY KEY, note STRING);
+CREATE VIEW my_watchlist AS SELECT symbol, note FROM watchlist;
+DROP TABLE watchlist;</code></pre>
+<pre><code class="language-sql">SELECT * FROM my_watchlist;</code></pre>
+<p>Result:</p>
+<p>Error: <code>view &#39;my_watchlist&#39;: line 1, column 26: table or view &#39;watchlist&#39; does not exist</code></p>
+<p><strong>Example: A view cannot be changed with INSERT</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>
+<pre><code class="language-sql">INSERT INTO banks VALUES (&#39;HARBOR&#39;, &#39;Harbor Bank Limited&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;banks&#39; does not exist</code></p>
+<h2 id="cached-view">CREATE CACHED VIEW</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] CACHED VIEW name AS SELECT ... [REFRESH ON COMMIT]
+CREATE CACHED VIEW IF NOT EXISTS name AS SELECT ... [REFRESH ON COMMIT]
+CREATE [OR REPLACE] CACHED VIEW name AS (SELECT ...) [REFRESH ON COMMIT]</code></pre>
+<p><code>OR REPLACE</code> and <code>IF NOT EXISTS</code> work as for <a href="#create-view">CREATE VIEW</a>. A replaced cached view computes its rows again at once.</p>
+<p>A cached (materialized) view runs its query once and <strong>keeps the rows</strong>. Selecting from it reads the kept rows, so a slow <code>GROUP BY</code> over a big table is paid once, not on every read.</p>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>When the rows are made new</th></tr></thead><tbody><tr><td><code>CREATE CACHED VIEW ...</code></td><td>at <code>CREATE</code>, and when you run <a href="#refresh-view">REFRESH VIEW</a></td></tr><tr><td><code>CREATE CACHED VIEW ... REFRESH ON COMMIT</code></td><td>at the first read after a commit changed a table the view reads: <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>POST /write</code>, <code>POST /imp</code>, and rows written by triggers</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>view &#39;name&#39; created (N row(s) cached)</code>.</li><li><strong>Notes:</strong>
+<ul><li>The kept rows live in memory. After a restart they are made again at the first read.</li><li>A <code>WHERE</code> on the view filters the kept rows; it does not run the view&#39;s query again.</li><li><code>REFRESH ON COMMIT</code> is only allowed with <code>CACHED</code>. On a normal view it is an error.</li><li><code>SHOW VIEWS</code> lists a cached view with kind <code>materialized</code>, and <code>ON COMMIT</code> in <code>refresh</code> when it has <code>REFRESH ON COMMIT</code>.</li><li>A view whose query fails (a table was dropped) gives the same error as a normal view.</li></ul></li></ul>
+<p><strong>Example: Trades per symbol as a cached view</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE CACHED VIEW trades_per_symbol AS
+SELECT symbol, count(*) AS trades, sum(quantity) AS shares FROM trade_log GROUP BY symbol
+REFRESH ON COMMIT;
+
+SELECT * FROM trades_per_symbol ORDER BY trades DESC, symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE CACHED VIEW trades_per_symbol AS SELECT symbol, count(*) AS trades, sum(quantity) AS shares F</code></p>
+<pre><code class="language-text">view &#39;trades_per_symbol&#39; created (4 row(s) cached)</code></pre>
+<p><code>SELECT * FROM trades_per_symbol ORDER BY trades DESC, symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>shares (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>2420</td></tr><tr><td>COAST</td><td>11</td><td>3070</td></tr><tr><td>TELCO</td><td>6</td><td>2770</td></tr><tr><td>VOLT</td><td>4</td><td>400</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Without REFRESH ON COMMIT the rows stay until REFRESH VIEW</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE CACHED VIEW city_trade_count AS SELECT count(*) AS trades FROM trade_log WHERE symbol = &#39;CITY&#39;;</code></pre>
+<pre><code class="language-sql">SELECT trades FROM city_trade_count;
+INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09-10&#39;, 100034, &#39;CITY&#39;, 58, 1, 30, 519.0);
+SELECT trades FROM city_trade_count;
+REFRESH VIEW city_trade_count;
+SELECT trades FROM city_trade_count;</code></pre>
+<p>Result:</p>
+<p><code>SELECT trades FROM city_trade_count</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT trades FROM city_trade_count</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>REFRESH VIEW city_trade_count</code></p>
+<pre><code class="language-text">view &#39;city_trade_count&#39; refreshed: 1 row(s)</code></pre>
+<p><code>SELECT trades FROM city_trade_count</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: With REFRESH ON COMMIT a new trade shows at the next read</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE CACHED VIEW city_trade_live AS SELECT count(*) AS trades FROM trade_log WHERE symbol = &#39;CITY&#39; REFRESH ON COMMIT;</code></pre>
+<pre><code class="language-sql">SELECT trades FROM city_trade_live;
+INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09-10&#39;, 100035, &#39;CITY&#39;, 58, 1, 30, 519.0);
+SELECT trades FROM city_trade_live;</code></pre>
+<p>Result:</p>
+<p><code>SELECT trades FROM city_trade_live</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT trades FROM city_trade_live</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: REFRESH ON COMMIT needs CACHED</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE VIEW trades_per_symbol AS
+SELECT symbol, count(*) AS trades FROM trade_log GROUP BY symbol
+REFRESH ON COMMIT;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 3, column 1: REFRESH ON COMMIT is only for cached views; expected CREATE CACHED VIEW trades_per_symbol AS ...</code></p>
+<h2 id="materialized-view">CREATE MATERIALIZED VIEW</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW [IF NOT EXISTS] name
+    [PARTITION BY DAY | MONTH | YEAR] [TTL n DAYS | ...] [REFRESH ON INSERT | REFRESH IMMEDIATE] [WITH BASE table]
+    [INCREMENTAL] [KEY (column)] [LOOKBACK &#39;time span&#39;]
+    AS SELECT time_bucket, ..., aggregates [, window calls] FROM table [WHERE ...] GROUP BY time_bucket, ... [HAVING ...]
+CREATE MATERIALIZED VIEW name [KEY (column)] [LOOKBACK &#39;time span&#39;]
+    AS SELECT time, ..., window calls FROM table [WHERE ...]
+CREATE MATERIALIZED VIEW [IF NOT EXISTS] name [options]
+    AS ( SELECT time, ..., aggregates FROM table [WHERE ...] SAMPLE BY interval [ALIGN TO CALENDAR ...] )
+    [TIMESTAMP(time)] [PARTITION BY DAY | MONTH | YEAR] [TTL n DAYS | ...]
+REFRESH MATERIALIZED VIEW [CONCURRENTLY] name [WITH DATA]
+REFRESH MATERIALIZED VIEW name FULL | INCREMENTAL | RANGE FROM &#39;time&#39; TO &#39;time&#39; | FOR &#39;time&#39; [TO &#39;time&#39;]
+DROP MATERIALIZED VIEW [IF EXISTS] name</code></pre>
+<p>A materialized view is a <strong>real table</strong> that holds the result of a <code>GROUP BY</code> or <code>SAMPLE BY</code> query. Reading it is a plain table read: fast, and a <code>WHERE</code> on its time column skips partitions. The second form is QuestDB&#39;s: candles from ticks.</p>
+<p>It stays up to date by itself. After each commit that changes rows of its table, a background thread computes again <strong>only the time buckets those rows fall in</strong> and writes only the view rows that changed. A tick at 10:04:31 makes a <code>SAMPLE BY 1m</code> view compute the 10:04 minute again, not the day. The commit does not wait for it, and readers and writers of other tables go on while it runs. Writers of the view&#39;s own table wait only while the new rows are computed, not while they are written into the view. Changes are applied in commit order. A <strong>read of the view waits</strong> until the view holds every commit made before the read (at most 2 seconds, usually a few milliseconds), so a candle read right after a tick includes that tick. Inside an open transaction the read takes the rows the view has.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>PARTITION BY</code></td><td>the view&#39;s own partitions. Default: the table&#39;s partitioning, or coarser when the time bucket needs it. With <code>SAMPLE BY</code>, QuestDB&#39;s rule: under an hour <code>DAY</code>, under a day <code>MONTH</code>, else <code>YEAR</code>. <code>HOUR</code> and <code>WEEK</code> are not supported</td></tr><tr><td><code>TTL</code></td><td>drop old partitions of the view (see <a href="alter-table.html#set-ttl">SET TTL</a>)</td></tr><tr><td><code>REFRESH ON INSERT</code>, <code>REFRESH IMMEDIATE</code></td><td>optional; every materialized view is refreshed after inserts, updates and deletes. <code>REFRESH MANUAL</code>, <code>EVERY</code> and <code>PERIOD</code> are not supported</td></tr><tr><td><code>WITH BASE table</code></td><td>QuestDB: the table the view is refreshed from. It must be the table the query reads</td></tr><tr><td><code>TIMESTAMP(time)</code></td><td>QuestDB: the view&#39;s time column. It must be the time bucket</td></tr><tr><td>time bucket</td><td>with <code>GROUP BY</code>: the table&#39;s time column, <code>to_date(time)</code>, or <code>date_trunc(&#39;year&#39; | &#39;quarter&#39; | &#39;month&#39; | &#39;day&#39; | &#39;hour&#39; | &#39;minute&#39; | &#39;second&#39;, time)</code>. With <code>SAMPLE BY</code>: the table&#39;s time column in <code>SELECT</code>, which holds the start of each bucket</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Refresh</th><th>What it does</th></tr></thead><tbody><tr><td><code>REFRESH MATERIALIZED VIEW v</code>, <code>... FULL</code></td><td>drops every row of the view and writes them all again (a view too big for that: part by part, see the notes)</td></tr><tr><td><code>... CONCURRENTLY v</code></td><td>computes every row, compares, and writes only the rows that differ. Readers keep reading the old rows until it commits (a view too big for that: part by part)</td></tr><tr><td><code>... INCREMENTAL</code></td><td>now, what the background thread would do next: the buckets that changes of the table made stale</td></tr><tr><td><code>... RANGE FROM &#39;a&#39; TO &#39;b&#39;</code></td><td>the buckets that hold the times <code>a</code> to <code>b</code>, by difference</td></tr><tr><td><code>... FOR &#39;a&#39; [TO &#39;b&#39;]</code></td><td>the view partitions that hold <code>a</code> to <code>b</code>, by difference</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>materialized view &#39;name&#39; created with N row(s), PARTITION BY DAY</code>.</li><li><strong>Notes:</strong>
+<ul><li>The query must read <strong>one</strong> time-series table and <code>GROUP BY</code> a time bucket (or, with window calls, show the table&#39;s rows with their time column). The bucket must also be a column of the view.</li><li><strong>The key.</strong> A view that groups by a <code>SYMBOL</code> column of its table (and shows it) has a key: a change marks its time bucket for that symbol only, and the refresh computes only those symbols there. <code>KEY (column)</code> names the key yourself (one of the columns the view groups by). <code>INCREMENTAL</code> may be written; every materialized view is incremental.</li><li><strong>Moving windows.</strong> A view may use window calls that look back a fixed distance: <code>lag(x, n)</code>, <code>sma(x, n)</code>, <code>pct_change(x, n)</code>, or an aggregate over <code>ROWS BETWEEN n PRECEDING AND CURRENT ROW</code> or <code>RANGE &#39;5 days&#39; PRECEDING</code>. Every window must <code>PARTITION BY</code> the same column (the key) or none, and <code>ORDER BY</code> the view&#39;s time. A change at time t then computes its key again <strong>from t to the end</strong>, reading first the rows the windows look back over (the n earlier rows of that key, wherever they are, so weekends and holidays never cut a window short). <code>LOOKBACK &#39;120 days&#39;</code> makes it read at least that much more history. Refused, saying why: <code>ema</code>, <code>rsi</code>, <code>atr</code>, <code>cumsum</code> and ranks (they depend on every earlier row), <code>lead</code> and <code>FOLLOWING</code> (later rows), and a window without a frame (it reads every earlier row).</li><li>Refused, with a message that says why: joins, subqueries, <code>WITH</code>, <code>UNION</code>, <code>LATEST ON</code>, <code>DISTINCT</code>, <code>ORDER BY</code>, <code>LIMIT</code>, window calls other than those above, <code>now()</code> and <code>random()</code>, <code>date_trunc(&#39;week&#39;, ...)</code> (a week can cross a month end), and <code>SAMPLE BY</code> with <code>FILL</code> or <code>ALIGN TO FIRST OBSERVATION</code> (a bucket would depend on the buckets around it).</li><li>The time bucket is always on the <strong>UTC</strong> clock: a <code>&#39;day&#39;</code> bucket is a UTC day, even after <code>SET TIME ZONE</code> or with <code>kdb serve --timezone</code>. The view is rebuilt one UTC partition at a time, and a Nepal day (18:15 UTC to 18:15 UTC) would span two.</li><li><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> and <code>TRUNCATE</code> on the view are refused. Change the table instead.</li><li><code>DROP PARTITION</code> and <code>TTL</code> on the <strong>table</strong> do not remove rows from the view. A daily summary can outlive the raw trades. <code>TRUNCATE</code> of the table empties the view.</li><li>The table cannot be dropped or renamed while a view reads it.</li><li>How far behind a view is shows in <code>GET /api/stats</code> under <code>materialized_views</code> (<code>lag_ms</code>, <code>pending_ranges</code>, <code>pending_partitions</code>, <code>last_error</code>), and in <code>SELECT * FROM materialized_views()</code>: <code>refresh_base_table_txn = base_table_txn</code> once the view holds every commit of its table.</li><li>An insert, an <code>UPDATE</code> and a <code>DELETE</code> mark only the buckets of the rows they change (an <code>UPDATE</code> that changes a row&#39;s time marks its old and its new bucket). A delete that comes from a foreign key action marks the whole partition it touches; the refresh then compares that partition and still writes only what differs.</li><li>A refresh locks the view and its table like an <code>INSERT</code>. With <code>kdb serve --snapshot-reads on</code>, readers of the view read its rows before the refresh and do not wait.</li><li><strong>A bulk load is refreshed once it pauses.</strong> While a table takes a stream of big writes (100,000 rows or more within a second, as <code>POST /write</code> with 100k-row bodies from several senders), its views are not refreshed between the requests: each refresh would hold the table for its query, which the loaders then wait for, and compute days the next requests change again. The views catch up in one refresh once no write request is running and none came for 0.3 s, at once when a query reads the view (it waits for that refresh as always), and at the latest 2 minutes after the oldest change. Single rows and small batches are refreshed right away, as before.</li><li><code>SHOW CREATE TABLE name</code> gives the <code>CREATE MATERIALIZED VIEW</code> statement. <code>SHOW VIEWS</code> lists it with kind <code>materialized</code> and refresh <code>ON INSERT</code>.</li><li>A restart or a power cut never loses a refresh: what was waiting is refreshed after the database opens.</li><li><code>materialized_views()</code> lists the materialized views with QuestDB&#39;s columns (<code>view_name</code>, <code>refresh_type</code>, <code>base_table_name</code>, <code>view_status</code>, ...) and KDB&#39;s own after them: <code>rows</code>, <code>disk_bytes</code>, <code>last_refresh_took_ms</code>, <code>refreshes</code> (since the database opened), <code>pending_ranges</code>, <code>pending_partitions</code>, <code>full_refresh_pending</code> and <code>lag_ms</code>. <code>views()</code> lists the plain views. To build a view again from nothing: <code>REFRESH MATERIALIZED VIEW name FULL</code>.</li><li><strong>A view too big to rebuild in one piece</strong> (<code>FULL</code>, <code>CONCURRENTLY</code>, or the full rebuild after a restart) is rebuilt <strong>part by part</strong>: a few partitions of the table at a time, each part by difference and committed on its own, so the rebuild holds one part in memory, whatever the size of the table. That happens when the view has more rows than one query may make groups (<code>max_groups</code>) or keep (<code>max_result_memory</code>), or when the one-piece rebuild is stopped by the memory limit. Then the message ends in <code>, N written</code>, and while it runs a reader may see some parts rebuilt and others not yet (each part whole). A view that fits is rebuilt in one piece, as before: a reader sees all the old rows or all the new ones.</li><li><strong>A <code>REFRESH</code> that fails leaves the view as it was</strong>: its rows stay, <code>view_status</code> stays <code>valid</code>, and only the statement gets the error. <code>invalid</code> (with <code>invalidation_reason</code>) means the background refresh that keeps the view up to date failed; it is tried again.</li></ul></li></ul>
+<p><strong>Example: Daily turnover per symbol, kept up to date</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW daily_symbol AS
+SELECT date, symbol, count(*) AS trades, sum(quantity) AS shares, round(sum(amount), 2) AS turnover
+FROM trade_log
+GROUP BY date, symbol;
+
+SELECT * FROM daily_symbol WHERE date IN &#39;2026-09-10&#39; ORDER BY turnover DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<p><code>CREATE MATERIALIZED VIEW daily_symbol REFRESH ON INSERT AS SELECT date, symbol, count(*) AS trades, </code></p>
+<pre><code class="language-text">materialized view &#39;daily_symbol&#39; created with 7 row(s), PARTITION BY DAY</code></pre>
+<p><code>SELECT * FROM daily_symbol WHERE date IN &#39;2026-09-10&#39; ORDER BY turnover DESC LIMIT 3</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>shares (LONG)</th><th>turnover (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>9</td><td>2850</td><td>1139340</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>TELCO</td><td>4</td><td>770</td><td>678260</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>7</td><td>910</td><td>469830</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A broker summary per month; a new trade shows after the refresh</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW broker_month AS
+SELECT date_trunc(&#39;month&#39;, date) AS month, buyer AS broker, sum(quantity) AS bought
+FROM trade_log GROUP BY month, broker;</code></pre>
+<pre><code class="language-sql">INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09-10&#39;, 100036, &#39;CITY&#39;, 58, 1, 1000, 519.0);
+REFRESH MATERIALIZED VIEW broker_month FOR &#39;2026-09-10&#39;;
+SELECT month, broker, bought FROM broker_month WHERE broker = 58;
+SHOW CREATE TABLE broker_month;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES (&#39;2026-09</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>REFRESH MATERIALIZED VIEW broker_month FOR &#39;2026-09-10&#39;</code></p>
+<pre><code class="language-text">materialized view &#39;broker_month&#39; refreshed: 5 row(s) from 2026-09-01T00:00:00.000Z to 2026-10-01T00:00:00.000Z, 2 written</code></pre>
+<p><code>SELECT month, broker, bought FROM broker_month WHERE broker = 58</code></p>
+<div class="table-wrap"><table><thead><tr><th>month (TIMESTAMP)</th><th>broker (INT)</th><th>bought (LONG)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>58</td><td>2960</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SHOW CREATE TABLE broker_month</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE MATERIALIZED VIEW broker_month PARTITION BY MONTH REFRESH ON INSERT AS SELECT date_trunc(&#39;month&#39;, date) AS month, buyer AS broker, sum(quantity) AS bought FROM trade_log GROUP BY month, broker</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: One-minute candles from ticks (QuestDB form)</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW live_1m AS (
+  SELECT timestamp, symbol, first(ltp) AS o, max(ltp) AS h, min(ltp) AS l, last(ltp) AS c, sum(ltv) AS v
+  FROM live_data SAMPLE BY 1m
+) PARTITION BY DAY;</code></pre>
+<pre><code class="language-sql">INSERT INTO live_data (timestamp, symbol, ltp, ltv) VALUES (&#39;2026-09-10T11:05:30+05:45&#39;, &#39;CITY&#39;, 514.5, 30);
+REFRESH MATERIALIZED VIEW live_1m INCREMENTAL;
+SELECT * FROM live_1m WHERE symbol = &#39;CITY&#39; ORDER BY timestamp;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO live_data (timestamp, symbol, ltp, ltv) VALUES (&#39;2026-09-10T11:05:30+05:45&#39;, &#39;CITY&#39;, 514</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>REFRESH MATERIALIZED VIEW live_1m INCREMENTAL</code></p>
+<pre><code class="language-text">materialized view &#39;live_1m&#39; refreshed incrementally: 2 row(s) changed</code></pre>
+<p><code>SELECT * FROM live_1m WHERE symbol = &#39;CITY&#39; ORDER BY timestamp</code></p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>o (DOUBLE)</th><th>h (DOUBLE)</th><th>l (DOUBLE)</th><th>c (DOUBLE)</th><th>v (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>513</td><td>514.5</td><td>513</td><td>514.5</td><td>80</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>CITY</td><td>515.6</td><td>515.6</td><td>515.6</td><td>515.6</td><td>20</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>527.1</td><td>527.1</td><td>527.1</td><td>527.1</td><td>20</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Materialized views and plain views in the catalog</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW live_1h AS (SELECT timestamp, symbol, last(ltp) AS c FROM live_data SAMPLE BY 1h);
+CREATE VIEW city_live AS SELECT * FROM live_data WHERE symbol = &#39;CITY&#39;;</code></pre>
+<pre><code class="language-sql">SELECT view_name, refresh_type, base_table_name, view_status FROM materialized_views();
+SELECT view_name, view_status FROM views();</code></pre>
+<p>Result:</p>
+<p><code>SELECT view_name, refresh_type, base_table_name, view_status FROM materialized_views()</code></p>
+<div class="table-wrap"><table><thead><tr><th>view_name (STRING)</th><th>refresh_type (STRING)</th><th>base_table_name (STRING)</th><th>view_status (STRING)</th></tr></thead><tbody><tr><td>live_1h</td><td>immediate</td><td>live_data</td><td>valid</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT view_name, view_status FROM views()</code></p>
+<div class="table-wrap"><table><thead><tr><th>view_name (STRING)</th><th>view_status (STRING)</th></tr></thead><tbody><tr><td>city_live</td><td>valid</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Moving averages kept up to date: a corrected close recomputes that symbol from that day on</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE closes (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO closes VALUES (&#39;2026-09-01&#39;, &#39;NABIL&#39;, 500), (&#39;2026-09-02&#39;, &#39;NABIL&#39;, 510), (&#39;2026-09-03&#39;, &#39;NABIL&#39;, 505),
+  (&#39;2026-09-04&#39;, &#39;NABIL&#39;, 520), (&#39;2026-09-07&#39;, &#39;NABIL&#39;, 530), (&#39;2026-09-01&#39;, &#39;HDL&#39;, 900), (&#39;2026-09-02&#39;, &#39;HDL&#39;, 910);
+CREATE MATERIALIZED VIEW close_ma KEY (symbol) AS
+  SELECT time, symbol, close,
+         avg(close) OVER (PARTITION BY symbol ORDER BY time ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS ma3,
+         lag(close, 1) OVER (PARTITION BY symbol ORDER BY time) AS prev
+  FROM closes;
+UPDATE closes SET close = 515 WHERE symbol = &#39;NABIL&#39; AND time = &#39;2026-09-03&#39;;
+REFRESH MATERIALIZED VIEW close_ma INCREMENTAL;</code></pre>
+<pre><code class="language-sql">SELECT * FROM close_ma WHERE symbol = &#39;NABIL&#39; ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>ma3 (DOUBLE)</th><th>prev (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>NABIL</td><td>500</td><td>500</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>NABIL</td><td>510</td><td>505</td><td>500</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>NABIL</td><td>515</td><td>508.333333333333</td><td>510</td></tr><tr><td>2026-09-04T00:00:00.000Z</td><td>NABIL</td><td>520</td><td>515</td><td>515</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>NABIL</td><td>530</td><td>521.666666666667</td><td>520</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Rebuild while readers keep reading (PostgreSQL)</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW live_5m AS (SELECT timestamp, symbol, sum(ltv) AS v FROM live_data SAMPLE BY 5m);</code></pre>
+<pre><code class="language-sql">REFRESH MATERIALIZED VIEW CONCURRENTLY live_5m;
+REFRESH MATERIALIZED VIEW live_5m FULL;</code></pre>
+<p>Result:</p>
+<p><code>REFRESH MATERIALIZED VIEW CONCURRENTLY live_5m</code></p>
+<pre><code class="language-text">materialized view &#39;live_5m&#39; refreshed: 12 row(s), 0 written</code></pre>
+<p><code>REFRESH MATERIALIZED VIEW live_5m FULL</code></p>
+<pre><code class="language-text">materialized view &#39;live_5m&#39; refreshed: 12 row(s)</code></pre>
+<p><strong>Example: FILL cannot be kept bucket by bucket</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW gaps AS (SELECT timestamp, last(ltp) AS c FROM live_data SAMPLE BY 1m FILL(PREV));</code></pre>
+<p>Result:</p>
+<p>Error: <code>materialized view &#39;gaps&#39; cannot be refreshed partition by partition: SAMPLE BY with FILL is not supported (a filled bucket depends on the buckets around it); use FILL in a query of the view</code></p>
+<p><strong>Example: A view needs a time bucket in GROUP BY</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW per_symbol AS SELECT symbol, count(*) AS trades FROM trade_log GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<p>Error: <code>materialized view &#39;per_symbol&#39; cannot be refreshed partition by partition: GROUP BY needs a time bucket of &#39;date&#39;: the column itself, to_date(date) or date_trunc(&#39;day&#39; | &#39;month&#39; | &#39;year&#39; | &#39;hour&#39; | ..., date)</code></p>
+<p><strong>Example: Rows of a view come only from its query</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW daily_count AS SELECT date, count(*) AS trades FROM trade_log GROUP BY date;</code></pre>
+<pre><code class="language-sql">DELETE FROM daily_count;</code></pre>
+<p>Result:</p>
+<p>Error: <code>&#39;daily_count&#39; is a materialized view: its rows come from its query. Change the rows of its table instead, or run REFRESH MATERIALIZED VIEW daily_count</code></p>
+<h2 id="refresh-view">REFRESH VIEW</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">REFRESH VIEW name
+REFRESH MATERIALIZED VIEW name</code></pre>
+<p>Runs the query of a <a href="#cached-view">cached view</a> again and keeps the new rows.</p>
+<ul><li><strong>Returns:</strong> <code>view &#39;name&#39; refreshed: N row(s)</code>.</li><li><strong>Notes:</strong>
+<ul><li>It needs the <code>admin</code> role, and it cannot be used inside <code>BEGIN</code> ... <code>COMMIT</code>.</li><li><code>MATERIALIZED</code> is optional; PostgreSQL writes it.</li><li>A view made with <code>REFRESH ON COMMIT</code> does not need it, but it does no harm.</li><li>For a <a href="#materialized-view">materialized view</a> it rebuilds the view from its table; see there for <code>CONCURRENTLY</code>, <code>FULL</code>, <code>INCREMENTAL</code> and <code>RANGE</code>.</li></ul></li></ul>
+<p><strong>Example: Make a cached view new after loading trades</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE CACHED VIEW shares_per_symbol AS SELECT symbol, sum(quantity) AS shares FROM trade_log GROUP BY symbol;</code></pre>
+<pre><code class="language-sql">REFRESH VIEW shares_per_symbol;
+SELECT * FROM shares_per_symbol ORDER BY shares DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<p><code>REFRESH VIEW shares_per_symbol</code></p>
+<pre><code class="language-text">view &#39;shares_per_symbol&#39; refreshed: 4 row(s)</code></pre>
+<p><code>SELECT * FROM shares_per_symbol ORDER BY shares DESC LIMIT 3</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th></tr></thead><tbody><tr><td>COAST</td><td>3070</td></tr><tr><td>TELCO</td><td>2770</td></tr><tr><td>CITY</td><td>2420</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A normal view has nothing to refresh</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>
+<pre><code class="language-sql">REFRESH VIEW banks;</code></pre>
+<p>Result:</p>
+<p>Error: <code>view &#39;banks&#39; is not a cached view: it runs its query on every read, so there is nothing to refresh</code></p>
+<h2 id="drop-view">DROP VIEW</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP VIEW [IF EXISTS] name</code></pre>
+<p>Removes the view. The tables and rows it reads are not touched.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>IF EXISTS</code></td><td>no error when there is no such view</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>view &#39;name&#39; dropped</code>, or <code>view &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong>
+<ul><li><code>DROP VIEW</code> does not check whether another view uses this view. That other view fails the next time it is used.</li><li><code>DROP VIEW</code> only drops views. For a table, use <code>DROP TABLE</code> (see <a href="create-table.html">create-table</a>).</li></ul></li></ul>
+<p><strong>Example: Drop a view, then drop it again safely</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>
+<pre><code class="language-sql">DROP VIEW banks;
+DROP VIEW IF EXISTS banks;
+SHOW VIEWS;</code></pre>
+<p>Result:</p>
+<p><code>DROP VIEW banks</code></p>
+<pre><code class="language-text">view &#39;banks&#39; dropped</code></pre>
+<p><code>DROP VIEW IF EXISTS banks</code></p>
+<pre><code class="language-text">view &#39;banks&#39; does not exist</code></pre>
+<p><code>SHOW VIEWS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>query (STRING)</th><th>kind (STRING)</th><th>refresh (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><strong>Example: No such view</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">DROP VIEW banks;</code></pre>
+<p>Result:</p>
+<p>Error: <code>view &#39;banks&#39; does not exist</code></p>
+<p><strong>Example: Dropping a view that another view uses</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW broker_names AS SELECT id, name FROM brokers;
+CREATE VIEW big_brokers AS SELECT name FROM broker_names WHERE id &gt; 40;</code></pre>
+<pre><code class="language-sql">DROP VIEW broker_names;
+SELECT * FROM big_brokers;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">view &#39;broker_names&#39; dropped</code></pre>
+<p>Error: <code>view &#39;big_brokers&#39;: line 1, column 18: table or view &#39;broker_names&#39; does not exist</code></p>
+<h2 id="show-views">SHOW VIEWS</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW VIEWS</code></pre>
+<p>Lists the views of the current database.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the view name, as it was written in <code>CREATE VIEW</code></td></tr><tr><td><code>query</code></td><td>the saved <code>SELECT</code>, as KDB writes it back</td></tr><tr><td><code>kind</code></td><td><code>simple</code>, <code>complex</code> or <code>materialized</code> (see <a href="#view-kinds">kinds of views</a>)</td></tr><tr><td><code>refresh</code></td><td><code>ON COMMIT</code> for a cached view made with <code>REFRESH ON COMMIT</code>, <code>ON INSERT</code> for a <a href="#materialized-view">materialized view</a>, else NULL</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per view, sorted by name; no rows when there are no views.</li><li><strong>Notes:</strong> views are not listed by <code>SHOW TABLES</code>. The web console shows the same list, split by kind, under <strong>Views</strong> on the left.</li></ul>
+<p><strong>Example: The views of the database, their queries and kinds</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;;
+CREATE CACHED VIEW trades_per_symbol AS (SELECT symbol, count(*) AS trades FROM trade_log GROUP BY symbol) REFRESH ON COMMIT;</code></pre>
+<pre><code class="language-sql">SHOW VIEWS;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>query (STRING)</th><th>kind (STRING)</th><th>refresh (STRING)</th></tr></thead><tbody><tr><td>banks</td><td>SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;</td><td>simple</td><td>NULL</td></tr><tr><td>trades_per_symbol</td><td>SELECT symbol, count(*) AS trades FROM trade_log GROUP BY symbol</td><td>materialized</td><td>ON COMMIT</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="view-kinds">Simple, complex and materialized views</h2>
+<p><code>SHOW VIEWS</code> puts every view into one of three kinds. The kind is worked out from the view&#39;s query; you do not write it.</p>
+<div class="table-wrap"><table><thead><tr><th>Kind</th><th>What the query does</th><th>Example</th></tr></thead><tbody><tr><td><code>simple</code></td><td>reads <strong>one</strong> table (or view) and works one row at a time: picks columns, computes values from one row, filters with <code>WHERE</code>, sorts</td><td><code>SELECT symbol, name FROM securities WHERE sector = &#39;Energy&#39;</code></td></tr><tr><td><code>complex</code></td><td>anything more: <code>JOIN</code>, <code>GROUP BY</code>, <code>HAVING</code>, <code>SAMPLE BY</code>, <code>LATEST ON</code>, <code>DISTINCT</code>, <code>UNION</code>, <code>WITH</code>, an aggregate such as <code>count(*)</code>, a window function (<code>OVER</code>), or a subquery</td><td><code>SELECT symbol, count(*) FROM trade_log GROUP BY symbol</code></td></tr><tr><td><code>materialized</code></td><td>made with <code>CREATE CACHED VIEW</code>, whatever its query is</td><td><code>CREATE CACHED VIEW ... REFRESH ON COMMIT</code></td></tr></tbody></table></div>
+<ul><li>In a <strong>simple</strong> view each row is one row of the table, so it is quick and easy to follow.</li><li>A <strong>complex</strong> view makes new rows (one per group, per candle, per joined pair). Put a <code>WHERE</code> on the columns it groups by, or on its time column, to keep it fast.</li><li>A <strong>materialized</strong> view keeps its result, so reading it is quick however slow its query is. Its rows are made new by <a href="#refresh-view">REFRESH VIEW</a>, or after each commit with <code>REFRESH ON COMMIT</code> (see <a href="#cached-view">CREATE CACHED VIEW</a>).</li></ul>
+<p><strong>Example: One view of each kind</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE VIEW hydro AS SELECT symbol, name FROM securities WHERE sector = &#39;Energy&#39;;
+CREATE VIEW trades_with_names AS
+SELECT f.symbol, s.name, f.quantity FROM trade_log f JOIN securities s ON s.symbol = f.symbol;
+CREATE CACHED VIEW shares_per_symbol AS
+SELECT symbol, sum(quantity) AS shares FROM trade_log GROUP BY symbol
+REFRESH ON COMMIT;</code></pre>
+<pre><code class="language-sql">SHOW VIEWS;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>query (STRING)</th><th>kind (STRING)</th><th>refresh (STRING)</th></tr></thead><tbody><tr><td>hydro</td><td>SELECT symbol, name FROM securities WHERE sector = &#39;Energy&#39;</td><td>simple</td><td>NULL</td></tr><tr><td>shares_per_symbol</td><td>SELECT symbol, sum(quantity) AS shares FROM trade_log GROUP BY symbol</td><td>materialized</td><td>ON COMMIT</td></tr><tr><td>trades_with_names</td><td>SELECT f.symbol, s.name, f.quantity FROM trade_log AS f JOIN securities AS s ON s.symbol = f.symbol</td><td>complex</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/views.md">This page as markdown</a>.</footer>
+</body>
+</html>

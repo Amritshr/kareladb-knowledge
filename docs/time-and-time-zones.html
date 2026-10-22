@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time and time zones - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="How KDB stores times (UTC milliseconds), how to write a local time with its offset (like +05:45), the session&#39;s time zone (SET TIME ZONE, --timezone), time zone names, and time ranges with IN &#39;...&#39;.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/time-and-time-zones.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/time-and-time-zones.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="time-and-time-zones">Time and time zones</h1>
+<blockquote><p>How KDB stores times (UTC milliseconds), how to write a local time with its offset (like +05:45), the session&#39;s time zone (SET TIME ZONE, --timezone), time zone names, and time ranges with IN &#39;...&#39;.</p></blockquote>
+<ul><li>Category: Time-series</li><li>Keywords: time, times, UTC, Z, time zone, timezone, summer time, daylight saving, DST, America/New_York, Europe/London, tzdata, zoneinfo, KDB_ZONEINFO, SET TIME ZONE, SHOW TIME ZONE, --timezone, KDB_TIMEZONE, CURRENT_DATE, today, local time, zone offset, NPT, Nepal time, +05:45, Asia/Kathmandu, Asia/Katmandu, Asia/Kolkata, IST, GMT, daylight saving, TIMESTAMP, DATE, milliseconds, microseconds, epoch, time format, date format, ISO 8601, IN &#39;interval&#39;, time range, interval, trading hours, 20700000, to_char, market open, market close</li><li>See also: <a href="sample-by.html#time-zone">SAMPLE BY (time-zone)</a>, <a href="where.html#in-interval">WHERE (in-interval)</a>, <a href="where.html#between">WHERE (between)</a>, <a href="partitions-and-dedup.html#partition-by">Partitions, SORT BY and DEDUP KEY (partition-by)</a>, <a href="functions-date-time.html">Date and time functions</a>, <a href="operators.html#arithmetic">Operators (arithmetic)</a>, <a href="column-types.html">Column types</a></li></ul>
+<p>KDB keeps every time in <strong>UTC</strong> (world time, the time at longitude 0). A local time is UTC plus or minus an offset: New York in summer is <code>-04:00</code>, Tokyo is <code>+09:00</code>. Most examples here use Nepal time (NPT), which is <strong>5 hours 45 minutes ahead</strong> of UTC and has no daylight saving time. So 11:00 in Kathmandu is 05:15 UTC.</p>
+<p>Three rules cover almost everything:</p>
+<ol><li>When you <strong>write</strong> a local time, add its zone offset, for example <code>+05:45</code>: <code>&#39;2026-09-10T11:00:00+05:45&#39;</code>.</li><li>A time <strong>without</strong> a zone is UTC: <code>&#39;2026-09-10 11:00:00&#39;</code> is 11:00 UTC, which is 16:45 in Nepal.</li><li>KDB always <strong>shows</strong> times in UTC, with a <code>Z</code> at the end.</li></ol>
+<p>To make <code>CURRENT_DATE</code>, <code>::date</code>, <code>date_trunc</code> and <code>EXTRACT</code> work on the Nepal clock, set the <a href="#session-time-zone">session&#39;s time zone</a>: <code>SET TIME ZONE &#39;Asia/Kathmandu&#39;</code>, or start the server with <code>--timezone Asia/Kathmandu</code>.</p>
+<p><strong>Example: A trading day: 11:00 to 15:00 Nepal time is 05:15 to 09:15 UTC</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT min(time) AS first_minute, max(time) AS last_minute, count(*) AS minutes
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-10T11:00:00+05:45&#39; AND time &lt; &#39;2026-09-10T15:00:00+05:45&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_minute (TIMESTAMP)</th><th>last_minute (TIMESTAMP)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T09:14:00.000Z</td><td>240</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="storage">Storage</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">TIMESTAMP    milliseconds since 1970-01-01 00:00:00 UTC
+DATE         days since 1970-01-01</code></pre>
+<p>A <code>TIMESTAMP</code> column holds one number: milliseconds since the start of 1970 in UTC. It does not keep the time zone you wrote. A <code>DATE</code> column holds only a day, with no time and no zone.</p>
+<ul><li><strong>Returns:</strong> a <code>TIMESTAMP</code> is shown as <code>2026-09-10T05:15:00.000Z</code>, a <code>DATE</code> as <code>2026-09-10</code>.</li><li><strong>NULL:</strong> a time can be <code>NULL</code> (no value).</li><li><strong>Notes:</strong>
+<ul><li>Milliseconds only. More digits after the second are <strong>cut</strong>: <code>.1234567</code> becomes <code>.123</code>. QuestDB keeps microseconds; KDB does not.</li><li>Partitions (the files of a time-series table) are made by the <strong>UTC</strong> date. See <a href="partitions-and-dedup.html#partition-by">PARTITION BY</a>.</li><li><code>ROUND 1d</code> on a column cuts times to the UTC day when a row is written (<a href="create-table.html">create-table</a>). <code>ROUND 1d TIME ZONE &#39;Asia/Kathmandu&#39;</code> cuts to Nepal midnight instead (<a href="sample-by.html#time-zone">TIME ZONE</a>).</li><li>Adding a number to a <code>TIMESTAMP</code> adds milliseconds; <code>TIMESTAMP - TIMESTAMP</code> gives milliseconds. Adding a number to a <code>DATE</code> adds days (<a href="operators.html#arithmetic">operators</a>).</li></ul></li></ul>
+<p><strong>Example: The same moment written three ways is one stored value</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE time_test (time TIMESTAMP, note STRING) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO time_test VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;Nepal time with +05:45&#39;),
+  (&#39;2026-09-10T05:15:00Z&#39;,      &#39;UTC with Z&#39;),
+  (1789017300000,               &#39;milliseconds since 1970&#39;),
+  (&#39;2026-09-10T05:15:00.1234567Z&#39;, &#39;seven digits: cut to milliseconds&#39;);</code></pre>
+<pre><code class="language-sql">SELECT time, note FROM time_test;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>note (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>Nepal time with +05:45</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>UTC with Z</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>milliseconds since 1970</td></tr><tr><td>2026-09-10T05:15:00.123Z</td><td>seven digits: cut to milliseconds</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Milliseconds between two times, and one minute later</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10T09:15:00Z&#39; AS TIMESTAMP) - CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP) AS ms_open,
+       (CAST(&#39;2026-09-10T09:15:00Z&#39; AS TIMESTAMP) - CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP)) / 3600000 AS hours_open,
+       CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) + 60000 AS one_minute_later;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>ms_open (LONG)</th><th>hours_open (DOUBLE)</th><th>one_minute_later (TIMESTAMP)</th></tr></thead><tbody><tr><td>14400000</td><td>4</td><td>2026-09-10T05:16:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A DATE column: days, no time</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE holidays (day DATE, name STRING) TIMESERIES(day) PARTITION BY YEAR;
+INSERT INTO holidays VALUES (&#39;2026-10-20&#39;, &#39;Dashain&#39;), (&#39;2026-11-08&#39;, &#39;Tihar&#39;);</code></pre>
+<pre><code class="language-sql">SELECT day, day + 1 AS next_day, CAST(day AS TIMESTAMP) AS as_timestamp, name FROM holidays;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th><th>next_day (DATE)</th><th>as_timestamp (TIMESTAMP)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>2026-10-20</td><td>2026-10-21</td><td>2026-10-20T00:00:00.000Z</td><td>Dashain</td></tr><tr><td>2026-11-08</td><td>2026-11-09</td><td>2026-11-08T00:00:00.000Z</td><td>Tihar</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="time-text">Time text</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&#39;YYYY-MM-DD&#39;
+&#39;YYYY-MM-DD HH:MM[:SS[.fff]]&#39;
+&#39;YYYY-MM-DDTHH:MM[:SS[.fff]]&#39;
+&#39;...Z&#39;  |  &#39;...+HH:MM&#39;  |  &#39;...+HHMM&#39;  |  &#39;...-HH:MM&#39;
+number  (milliseconds since 1970, UTC)</code></pre>
+<p>KDB reads a time from text in these forms. It reads them in <code>INSERT</code>, <code>UPDATE</code>, <code>CAST</code>, and when text is compared with a time column in <code>WHERE</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>KDB reads it as</th></tr></thead><tbody><tr><td><code>&#39;2026-09-10&#39;</code></td><td>00:00 UTC of that day</td></tr><tr><td><code>&#39;2026-09-10 11:00&#39;</code> or <code>&#39;2026-09-10T11:00:00&#39;</code></td><td>11:00 <strong>UTC</strong> (not Nepal time!)</td></tr><tr><td><code>&#39;2026-09-10T11:00:00Z&#39;</code></td><td>11:00 UTC</td></tr><tr><td><code>&#39;2026-09-10T11:00:00+05:45&#39;</code> or <code>&#39;...+0545&#39;</code></td><td>11:00 Nepal time = 05:15 UTC</td></tr><tr><td><code>&#39;2026-09-10T11:00:00-03:00&#39;</code></td><td>11:00 at UTC-3 = 14:00 UTC</td></tr><tr><td><code>&#39;2026-09-10T11:00:00.250Z&#39;</code></td><td>with milliseconds</td></tr><tr><td><code>1789017300000</code></td><td>milliseconds since 1970 (UTC)</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> stays <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>The year has 4 digits; month, day, hour, minute and second have <strong>2 digits</strong>. <code>&#39;2026-9-10&#39;</code> and <code>&#39;10/09/2026&#39;</code> are errors.</li><li><code>T</code> or one space goes between the date and the time. No space before the zone: <code>&#39;... 11:00:00 +05:45&#39;</code> is an error.</li><li>The date must exist: <code>&#39;2026-02-30&#39;</code> and hour <code>24</code> are errors.</li><li>Only in <code>IN &#39;...&#39;</code> can the text stop after the year or month (<code>&#39;2026-09&#39;</code>). In <code>&gt;=</code>, <code>&lt;</code>, <code>=</code> and <code>BETWEEN</code> the text needs at least the day.</li><li>Newer KDB builds also read <code>&#39;+05:45:00&#39;</code> (with seconds), which PostgreSQL drivers send.</li><li>Change other formats in your program before you send them.</li></ul></li></ul>
+<p><strong>Example: Many spellings of a time</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10&#39; AS TIMESTAMP) AS date_only,
+       CAST(&#39;2026-09-10 11:00&#39; AS TIMESTAMP) AS no_zone_is_utc,
+       CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) AS nepal,
+       CAST(&#39;2026-09-10T11:00:00+0545&#39; AS TIMESTAMP) AS nepal_no_colon,
+       CAST(&#39;2026-09-10T11:00:00-03:00&#39; AS TIMESTAMP) AS brazil,
+       CAST(1789017300000 AS TIMESTAMP) AS from_ms;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>date_only (TIMESTAMP)</th><th>no_zone_is_utc (TIMESTAMP)</th><th>nepal (TIMESTAMP)</th><th>nepal_no_colon (TIMESTAMP)</th><th>brazil (TIMESTAMP)</th><th>from_ms (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>2026-09-10T11:00:00.000Z</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T14:00:00.000Z</td><td>2026-09-10T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Text compared with a time column is read as a time</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-08&#39; AND time &lt; &#39;2026-09-11&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Month and day need two digits</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT time, close FROM ochl_day WHERE time &gt;= &#39;2026-9-1&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 45: cannot compare TIMESTAMP &#39;2025-12-28T00:00:00.000Z&#39; with STRING &#39;2026-9-1&#39;</code></p>
+<p><strong>Example: Day/month/year is not a time</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;10/09/2026&#39;, &#39;CITY&#39;, 1, 1, 1, 1, 1);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;time&#39; (TIMESTAMP): &#39;10/09/2026&#39; is not a time like &#39;2026-09-11 11:00:00&#39; (UTC) or &#39;2026-09-11T11:00:00+05:45&#39;</code></p>
+<p><strong>Example: Seconds in the zone, as PostgreSQL drivers send it</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10T11:00:00+05:45:00&#39; AS TIMESTAMP) AS a;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="nepal-time">A local time: Nepal +05:45</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&#39;YYYY-MM-DDTHH:MM:SS+05:45&#39;
+time + 20700000                          -- the Nepal clock time, still marked Z
+SAMPLE BY interval TIME ZONE &#39;Asia/Kathmandu&#39;
+to_char(time, &#39;YYYY-MM-DD HH24:MI&#39;, &#39;Asia/Kathmandu&#39;)</code></pre>
+<p>The examples use Nepal Standard Time, UTC + 5 hours 45 minutes, all year; any other fixed offset works the same way. 5 h 45 min is <strong>20,700,000 milliseconds</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Sample market event</th><th>Nepal time</th><th>UTC</th></tr></thead><tbody><tr><td>Market opens</td><td>11:00</td><td>05:15</td></tr><tr><td>Market closes</td><td>15:00</td><td>09:15</td></tr><tr><td>Nepal midnight</td><td>00:00</td><td>18:15 of the day before</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li><strong>The most common mistake:</strong> a local time written without its offset (here <code>+05:45</code>). KDB reads it as UTC, and the row is 5 h 45 min wrong. Fix bad rows with <code>UPDATE t SET time = time - 20700000 WHERE ...</code> (check the DEDUP KEY first).</li><li><code>hour()</code>, <code>day()</code>, <code>date_trunc()</code> and <code>is_trading_day()</code> work on the <a href="#session-time-zone">session&#39;s time zone</a>, which is <strong>UTC</strong> unless you set one. <code>time IN &#39;...&#39;</code> is always UTC. For the Nepal hour in a UTC session write <code>hour(to_timezone(time, &#39;Asia/Kathmandu&#39;))</code>. For Nepal days: <code>time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;</code>, <code>date_trunc(&#39;day&#39;, time, &#39;Asia/Kathmandu&#39;)</code> (<a href="functions-date-time.html#date_trunc">date functions</a>).</li><li><code>time + 20700000</code> shows the Nepal clock, but the result still ends with <code>Z</code>. Use it only for showing or for <code>hour()</code>, never to store.</li><li>For candles on the Nepal clock use <a href="sample-by.html#time-zone">SAMPLE BY ... TIME ZONE</a>.</li><li>The whole trading day of the sample data (05:15 to 09:15 UTC) is inside one UTC day, so <code>time IN &#39;2026-09-10&#39;</code> finds exactly one trading day.</li><li><code>to_char(t, format, &#39;Asia/Kathmandu&#39;)</code> makes Nepal-time text; it is in newer KDB builds (<a href="functions-date-time.html">date and time functions</a>).</li></ul></li></ul>
+<p><strong>Example: Trades between 11:00 and 11:05 Nepal time</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39;
+  AND time &gt;= &#39;2026-09-10T11:00:00+05:45&#39;
+  AND time &lt;  &#39;2026-09-10T11:05:00+05:45&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>504.4</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>CITY</td><td>504.6</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>CITY</td><td>504.2</td></tr><tr><td>2026-09-10T05:18:00.000Z</td><td>CITY</td><td>504.4</td></tr><tr><td>2026-09-10T05:19:00.000Z</td><td>CITY</td><td>504.5</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The mistake: Nepal time without +05:45 finds nothing</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows_found
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-10 11:00:00&#39; AND time &lt; &#39;2026-09-10 11:05:00&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows_found (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Volume per Nepal clock hour</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT hour(time + 20700000) AS npt_hour, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+GROUP BY hour(time + 20700000)
+ORDER BY npt_hour;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>npt_hour (LONG)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>11</td><td>47020</td></tr><tr><td>12</td><td>41230</td></tr><tr><td>13</td><td>46180</td></tr><tr><td>14</td><td>48610</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Show a time as Nepal time text</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT timestamp, to_char(timestamp, &#39;YYYY-MM-DD HH24:MI&#39;, &#39;Asia/Kathmandu&#39;) AS nepal_time
+FROM live_data
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>nepal_time (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>2026-09-10 11:05</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>2026-09-10 13:00</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>2026-09-10 14:59</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Fix rows that were written without +05:45</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-09-10 11:00:00&#39;, &#39;CITY&#39;, 510), (&#39;2026-09-10 11:01:00&#39;, &#39;CITY&#39;, 511);</code></pre>
+<pre><code class="language-sql">SELECT time, price FROM ticks;
+UPDATE ticks SET time = time - 20700000 WHERE time IN &#39;2026-09-10&#39;;
+SELECT time, price FROM ticks;</code></pre>
+<p>Result:</p>
+<p><code>SELECT time, price FROM ticks</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T11:00:00.000Z</td><td>510</td></tr><tr><td>2026-09-10T11:01:00.000Z</td><td>511</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>UPDATE ticks SET time = time - 20700000 WHERE time IN &#39;2026-09-10&#39;</code></p>
+<pre><code class="language-text">2 row(s) updated</code></pre>
+<p><code>SELECT time, price FROM ticks</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>510</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>511</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="session-time-zone">The session&#39;s time zone: SET TIME ZONE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SET TIME ZONE &#39;Asia/Kathmandu&#39;      -- also: SET timezone = &#39;Asia/Kathmandu&#39;, SET TIME ZONE &#39;+05:45&#39;
+SET TIME ZONE LOCAL                 -- back to the server&#39;s zone (also DEFAULT, RESET TIME ZONE)
+SHOW TIME ZONE                      -- also SHOW timezone, current_setting(&#39;TimeZone&#39;)
+kdb serve --timezone Asia/Kathmandu -- the server&#39;s zone: env KDB_TIMEZONE, kdb.conf &quot;timezone&quot;; else the computer&#39;s
+ALTER USER asha SET timezone = &#39;Asia/Kathmandu&#39; -- one user&#39;s zone: their sessions start on it
+X-KDB-Time-Zone: Asia/Kathmandu     -- HTTP header: the zone for one request</code></pre>
+<p>Times are still <strong>stored</strong> in UTC. The time zone only decides on which <strong>day</strong> and at which <strong>clock time</strong> a stored moment falls. A session starts with its user&#39;s zone when an admin gave the user one (<a href="users-and-roles.html#user-timezone">ALTER USER ... SET timezone</a>), else the server&#39;s: <code>kdb serve --timezone</code>, else <strong>the computer&#39;s own zone</strong> (<code>SHOW TIME ZONE</code> says which; a container without a zone is UTC). <code>SET TIME ZONE</code> changes it for the rest of the session: a PostgreSQL connection, an HTTP session (<code>X-KDB-Session</code>), or the rest of one <code>/exec</code> request.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>In a UTC session</th><th>With <code>SET TIME ZONE &#39;Asia/Kathmandu&#39;</code></th></tr></thead><tbody><tr><td><code>CURRENT_DATE</code></td><td>today in UTC</td><td>today in Nepal</td></tr><tr><td><code>LOCALTIMESTAMP</code>, <code>LOCALTIME</code>, <code>CURRENT_TIME</code></td><td>UTC clock</td><td>Nepal clock</td></tr><tr><td><code>t::date</code>, <code>CAST(t AS DATE)</code>, <code>to_date(t)</code></td><td>UTC day</td><td>Nepal day</td></tr><tr><td><code>date_trunc(&#39;day&#39;, t)</code></td><td>UTC midnight</td><td>Nepal midnight (18:15 UTC the day before)</td></tr><tr><td><code>EXTRACT(hour FROM t)</code>, <code>hour(t)</code>, <code>day(t)</code>, <code>day_of_week(t)</code></td><td>UTC</td><td>Nepal clock</td></tr><tr><td><code>to_char(t, format)</code></td><td>UTC</td><td>Nepal clock</td></tr><tr><td>a <code>DATE</code> compared with a <code>TIMESTAMP</code>: <code>t &gt;= CURRENT_DATE</code></td><td>UTC midnight</td><td>Nepal midnight</td></tr><tr><td><code>now()::text</code> over PostgreSQL</td><td><code>... +00</code></td><td><code>... +05:45</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>SHOW TIME ZONE</code> gives one row with the column <code>TimeZone</code>.</li><li><strong>NULL:</strong> not affected.</li><li><strong>Notes:</strong>
+<ul><li>What stays in UTC: how times are stored and shown in results (<code>...Z</code>), <code>now()</code>, time text without an offset (<code>&#39;2026-09-10 11:00&#39;</code> is still 11:00 UTC), <code>time IN &#39;...&#39;</code>, <code>SAMPLE BY</code> (add <code>TIME ZONE</code> to it), partitions, and the buckets of a <a href="views.html#materialized-view">materialized view</a>.</li><li>A zone written in a call wins: <code>date_trunc(&#39;day&#39;, t, &#39;UTC&#39;)</code> and <code>to_char(t, format, &#39;UTC&#39;)</code> keep UTC.</li><li>A value that is already a clock time is not moved again: <code>now() AT TIME ZONE &#39;Asia/Kathmandu&#39;</code>, <code>to_timezone(...)</code> and <code>LOCALTIMESTAMP</code>.</li><li>Zones with summer time (<code>&#39;America/New_York&#39;</code>, <code>&#39;Europe/London&#39;</code>) work too: each moment is shown on the offset in force at that moment (<a href="#summer-time">summer time</a>).</li><li>The PostgreSQL port tells the driver the zone (<code>TimeZone</code>) when it connects and after each <code>SET TIME ZONE</code>. With <code>--pg-timestamptz</code>, <code>TIMESTAMP</code> columns are sent as text on the session&#39;s clock, like <code>2026-09-10 11:00:00+05:45</code>.</li><li><code>--timezone</code> also sets the clock of timer and backup schedules: <code>daily 15:10</code> runs at 15:10 on that clock. Without it, schedules use the machine&#39;s clock (UTC in a container).</li><li>An <code>+05:45</code> offset means 5 h 45 min <strong>ahead</strong> of UTC, as everywhere in KDB. (PostgreSQL reads <code>SET TIME ZONE &#39;+05:45&#39;</code> the other way round.)</li></ul></li></ul>
+<p><strong>Example: Logins per UTC day and per Nepal day: 18:30 UTC is 00:15 the next day in Nepal</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE logins (time TIMESTAMP, user_name STRING) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO logins VALUES (&#39;2026-09-09T18:00:00Z&#39;, &#39;asha&#39;), (&#39;2026-09-09T18:30:00Z&#39;, &#39;bikash&#39;), (&#39;2026-09-10T03:00:00Z&#39;, &#39;chandra&#39;);</code></pre>
+<pre><code class="language-sql">SELECT time::date AS utc_day, count(*) AS logins FROM logins GROUP BY 1 ORDER BY 1;
+SET TIME ZONE &#39;Asia/Kathmandu&#39;;
+SELECT time::date AS nepal_day, count(*) AS logins FROM logins GROUP BY 1 ORDER BY 1;</code></pre>
+<p>Result:</p>
+<p><code>SELECT CAST(time AS DATE) AS utc_day, count(*) AS logins FROM logins GROUP BY 1 ORDER BY 1</code></p>
+<div class="table-wrap"><table><thead><tr><th>utc_day (DATE)</th><th>logins (LONG)</th></tr></thead><tbody><tr><td>2026-09-09</td><td>2</td></tr><tr><td>2026-09-10</td><td>1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SET timezone = &#39;Asia/Kathmandu&#39;</code></p>
+<pre><code class="language-text">the time zone of this session is Asia/Kathmandu; times are still stored as UTC</code></pre>
+<p><code>SELECT CAST(time AS DATE) AS nepal_day, count(*) AS logins FROM logins GROUP BY 1 ORDER BY 1</code></p>
+<div class="table-wrap"><table><thead><tr><th>nepal_day (DATE)</th><th>logins (LONG)</th></tr></thead><tbody><tr><td>2026-09-09</td><td>1</td></tr><tr><td>2026-09-10</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Today, the clock and the text of now() on the Nepal clock</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SET TIME ZONE &#39;Asia/Kathmandu&#39;;
+SELECT CURRENT_DATE AS today_in_nepal, LOCALTIMESTAMP AS nepal_clock, now() AS utc_now,
+       now()::text AS as_text, current_setting(&#39;TimeZone&#39;) AS zone;
+SHOW TIME ZONE;</code></pre>
+<p>Result:</p>
+<p><code>SET timezone = &#39;Asia/Kathmandu&#39;</code></p>
+<pre><code class="language-text">the time zone of this session is Asia/Kathmandu; times are still stored as UTC</code></pre>
+<p><code>SELECT current_date() AS today_in_nepal, localtimestamp() AS nepal_clock, now() AS utc_now, CAST(now</code></p>
+<div class="table-wrap"><table><thead><tr><th>today_in_nepal (DATE)</th><th>nepal_clock (TIMESTAMP)</th><th>utc_now (TIMESTAMP)</th><th>as_text (STRING)</th><th>zone (STRING)</th></tr></thead><tbody><tr><td>2026-10-22</td><td>2026-10-22T11:29:30.621Z</td><td>2026-10-22T05:44:30.621Z</td><td>2026-10-22 11:29:30.621+05:45</td><td>Asia/Kathmandu</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SHOW timezone</code></p>
+<div class="table-wrap"><table><thead><tr><th>TimeZone (STRING)</th></tr></thead><tbody><tr><td>Asia/Kathmandu</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A day on the Nepal clock: DATE &#39;2026-09-10&#39; stands for Nepal midnight, 18:15 UTC on the 9th</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE logins (time TIMESTAMP, user_name STRING) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO logins VALUES (&#39;2026-09-09T18:00:00Z&#39;, &#39;asha&#39;), (&#39;2026-09-09T18:30:00Z&#39;, &#39;bikash&#39;), (&#39;2026-09-10T03:00:00Z&#39;, &#39;chandra&#39;);</code></pre>
+<pre><code class="language-sql">SET TIME ZONE &#39;Asia/Kathmandu&#39;;
+SELECT time, user_name, to_char(time, &#39;YYYY-MM-DD HH24:MI&#39;) AS nepal_clock
+FROM logins WHERE time &gt;= DATE &#39;2026-09-10&#39; AND time &lt; DATE &#39;2026-09-11&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SET timezone = &#39;Asia/Kathmandu&#39;</code></p>
+<pre><code class="language-text">the time zone of this session is Asia/Kathmandu; times are still stored as UTC</code></pre>
+<p><code>SELECT time, user_name, to_char(time, &#39;YYYY-MM-DD HH24:MI&#39;) AS nepal_clock FROM logins WHERE time &gt;=</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>user_name (STRING)</th><th>nepal_clock (STRING)</th></tr></thead><tbody><tr><td>2026-09-09T18:30:00.000Z</td><td>bikash</td><td>2026-09-10 00:15</td></tr><tr><td>2026-09-10T03:00:00.000Z</td><td>chandra</td><td>2026-09-10 08:45</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: New York in summer and in winter: noon UTC is 08:00 in July and 07:00 in January</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SET TIME ZONE &#39;America/New_York&#39;;
+SELECT to_char(TIMESTAMP &#39;2026-07-01 12:00:00&#39;, &#39;HH24:MI&#39;) AS july, to_char(TIMESTAMP &#39;2026-01-15 12:00:00&#39;, &#39;HH24:MI&#39;) AS january;</code></pre>
+<p>Result:</p>
+<p><code>SET timezone = &#39;America/New_York&#39;</code></p>
+<pre><code class="language-text">the time zone of this session is America/New_York; times are still stored as UTC</code></pre>
+<p><code>SELECT to_char(CAST(&#39;2026-07-01 12:00:00&#39; AS TIMESTAMP), &#39;HH24:MI&#39;) AS july, to_char(CAST(&#39;2026-01-1</code></p>
+<div class="table-wrap"><table><thead><tr><th>july (STRING)</th><th>january (STRING)</th></tr></thead><tbody><tr><td>08:00</td><td>07:00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="time-zone-names">Time zone names</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&#39;UTC&#39; | &#39;GMT&#39; | &#39;Z&#39; | &#39;Etc/UTC&#39;
+&#39;Asia/Kathmandu&#39; | &#39;Asia/Katmandu&#39; | &#39;NPT&#39;
+&#39;Asia/Kolkata&#39; | &#39;Asia/Calcutta&#39; | &#39;IST&#39; | &#39;Asia/Colombo&#39;
+&#39;Asia/Dhaka&#39; | &#39;Asia/Thimphu&#39; | &#39;Asia/Karachi&#39; | &#39;Asia/Dubai&#39;
+&#39;Asia/Bangkok&#39; | &#39;Asia/Jakarta&#39; | &#39;Asia/Shanghai&#39; | &#39;Asia/Hong_Kong&#39;
+&#39;Asia/Singapore&#39; | &#39;Asia/Taipei&#39; | &#39;Asia/Tokyo&#39; | &#39;Asia/Seoul&#39;
+&#39;+HH:MM&#39; | &#39;-HH:MM&#39;</code></pre>
+<p>The zone names KDB knows, for <code>SET TIME ZONE</code>, <code>kdb serve --timezone</code>, <code>SAMPLE BY ... TIME ZONE</code>, <code>time IN &#39;...&#39; TIME ZONE</code>, <code>ROUND ... TIME ZONE</code>, <code>date_trunc(unit, t, zone)</code>, <code>timestamp_floor</code>, <code>to_timezone</code>, <code>to_utc</code> and <code>to_char</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Offset from UTC</th></tr></thead><tbody><tr><td><code>UTC</code>, <code>GMT</code>, <code>Z</code>, <code>Etc/UTC</code></td><td>+00:00</td></tr><tr><td><code>Asia/Kathmandu</code>, <code>Asia/Katmandu</code>, <code>NPT</code></td><td><strong>+05:45</strong></td></tr><tr><td><code>Asia/Kolkata</code>, <code>Asia/Calcutta</code>, <code>IST</code>, <code>Asia/Colombo</code></td><td>+05:30</td></tr><tr><td><code>Asia/Dhaka</code>, <code>Asia/Thimphu</code></td><td>+06:00</td></tr><tr><td><code>Asia/Karachi</code></td><td>+05:00</td></tr><tr><td><code>Asia/Dubai</code></td><td>+04:00</td></tr><tr><td><code>Asia/Bangkok</code>, <code>Asia/Jakarta</code></td><td>+07:00</td></tr><tr><td><code>Asia/Shanghai</code>, <code>Asia/Hong_Kong</code>, <code>Asia/Singapore</code>, <code>Asia/Taipei</code></td><td>+08:00</td></tr><tr><td><code>Asia/Tokyo</code>, <code>Asia/Seoul</code></td><td>+09:00</td></tr><tr><td><code>&#39;+05:45&#39;</code>, <code>&#39;-03:00&#39;</code>, ...</td><td>that offset (2-digit hours 00-23, minutes 00-59)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Names do not care about case: <code>&#39;asia/kathmandu&#39;</code> works.</li><li>The names above have a <strong>fixed</strong> offset and need nothing more. Every other name of the IANA time zone list (<code>&#39;Europe/London&#39;</code>, <code>&#39;America/New_York&#39;</code>, <code>&#39;Australia/Sydney&#39;</code>, ...) works too, with its summer time: see <a href="#summer-time">summer time</a>.</li><li><code>IST</code> here means India Standard Time.</li></ul></li></ul>
+<p><strong>Example: The same hour buckets with a name and with an offset</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, count(*) AS minutes FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39; SAMPLE BY 1h TIME ZONE &#39;npt&#39;;
+
+SELECT time, count(*) AS minutes FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39; SAMPLE BY 1h TIME ZONE &#39;+05:45&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT time, count(*) AS minutes FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39; S</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>60</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>56</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>60</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>60</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SELECT time, count(*) AS minutes FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39; S</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>60</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>56</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>60</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>60</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="summer-time">Zones with summer time</h2>
+<p>A zone with <strong>summer time</strong> (daylight saving time) has two offsets a year: New York is <code>-05:00</code> in winter and <code>-04:00</code> in summer. KDB takes the rules from the IANA time zone files that every Linux keeps (package <code>tzdata</code>), so each moment gets the offset that was in force at that moment, in any year.</p>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>A zone with summer time</th></tr></thead><tbody><tr><td><code>SET TIME ZONE</code>, <code>kdb serve --timezone</code>, <code>X-KDB-Time-Zone</code></td><td>yes: <code>CURRENT_DATE</code>, <code>::date</code>, <code>date_trunc</code>, <code>EXTRACT</code>, <code>to_char</code>, a <code>DATE</code> met by a <code>TIMESTAMP</code></td></tr><tr><td><code>t AT TIME ZONE &#39;zone&#39;</code>, <code>to_timezone</code>, <code>to_utc</code></td><td>yes</td></tr><tr><td><code>SAMPLE BY ... TIME ZONE &#39;zone&#39;</code></td><td>yes: a day bucket is 23 or 25 hours on the days the clocks change</td></tr><tr><td><a href="calendars.html">calendars</a> <code>TIME ZONE</code></td><td>yes</td></tr><tr><td><code>ROUND ... TIME ZONE</code>, <code>time IN &#39;...&#39; TIME ZONE</code>, the zone argument of <code>date_trunc(unit, t, zone)</code>, <code>to_char(t, format, zone)</code>, <code>timestamp_floor</code></td><td>not yet: fixed offsets only (an error says so)</td></tr></tbody></table></div>
+<ul><li><strong>Where the files are:</strong> KDB looks in <code>KDB_ZONEINFO</code>, <code>TZDIR</code>, <code>/usr/share/zoneinfo</code>, then a <code>zoneinfo</code> folder next to the program. The Docker image has them. Without them a zone with summer time is an error that says where KDB looked; fixed zones always work.</li><li><strong>A time that happens twice</strong> (the hour after the clocks go back) is the first of the two; <strong>a time that never happens</strong> (the hour skipped when they go forward) is read with the offset from before the change, as in PostgreSQL.</li></ul>
+<p><strong>Example: Day buckets in New York around the March change: 8 March is 23 hours long</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE TABLE ticks_ny (time TIMESTAMP, v INT) TIMESERIES(time);
+INSERT INTO ticks_ny VALUES (&#39;2026-03-08T04:30:00Z&#39;, 1), (&#39;2026-03-08T06:00:00Z&#39;, 1), (&#39;2026-03-09T03:30:00Z&#39;, 1), (&#39;2026-03-09T04:30:00Z&#39;, 1);
+SELECT time AS day_starts_utc, count() AS ticks FROM ticks_ny SAMPLE BY 1d TIME ZONE &#39;America/New_York&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ticks_ny (</code></p>
+<pre><code class="language-text">table &#39;ticks_ny&#39; created</code></pre>
+<p><code>INSERT INTO ticks_ny VALUES (&#39;2026-03-08T04:30:00Z&#39;, 1), (&#39;2026-03-08T06:00:00Z&#39;, 1), (&#39;2026-03-09T0</code></p>
+<pre><code class="language-text">4 row(s) inserted</code></pre>
+<p><code>SELECT time AS day_starts_utc, count() AS ticks FROM ticks_ny SAMPLE BY 1d TIME ZONE &#39;America/New_Yo</code></p>
+<div class="table-wrap"><table><thead><tr><th>day_starts_utc (TIMESTAMP)</th><th>ticks (LONG)</th></tr></thead><tbody><tr><td>2026-03-07T05:00:00.000Z</td><td>1</td></tr><tr><td>2026-03-08T05:00:00.000Z</td><td>2</td></tr><tr><td>2026-03-09T04:00:00.000Z</td><td>1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: AT TIME ZONE: noon UTC on the New York clock, summer and winter</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT TIMESTAMPTZ &#39;2026-07-01 12:00:00+00&#39; AT TIME ZONE &#39;America/New_York&#39; AS july,
+       TIMESTAMPTZ &#39;2026-01-15 12:00:00+00&#39; AT TIME ZONE &#39;America/New_York&#39; AS january;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>july (TIMESTAMP)</th><th>january (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-07-01T08:00:00.000Z</td><td>2026-01-15T07:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An offset needs two digits for the hour</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT time, count(*) FROM ochl_minutes SAMPLE BY 1h TIME ZONE &#39;+5:45&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>offset &#39;+5:45&#39; must look like &#39;00:15&#39;, &#39;+05:45&#39; or &#39;-03:00&#39;</code></p>
+<h2 id="in-interval">IN &#39;interval&#39; for time ranges</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">time_column [NOT] IN &#39;YYYY&#39;
+time_column [NOT] IN &#39;YYYY-MM&#39;
+time_column [NOT] IN &#39;YYYY-MM-DD&#39;
+time_column [NOT] IN &#39;YYYY-MM-DDTHH[:MM[:SS]]&#39;
+time_column [NOT] IN &#39;...+HH:MM&#39;</code></pre>
+<p><code>time IN &#39;2026-09&#39;</code> is true for every time <strong>inside</strong> that month. The text says how big the range is: a year, a month, a day, an hour, a minute or a second. It is the easy way to filter a time-series table by time, and KDB then reads only the partitions of that range.</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>Range (start included, end not included)</th></tr></thead><tbody><tr><td><code>time IN &#39;2026&#39;</code></td><td>2026-01-01 00:00 UTC to 2027-01-01 00:00 UTC</td></tr><tr><td><code>time IN &#39;2026-09&#39;</code></td><td>the whole month of September 2026 (UTC)</td></tr><tr><td><code>time IN &#39;2026-09-10&#39;</code></td><td>the whole UTC day</td></tr><tr><td><code>time IN &#39;2026-09-10T11&#39;</code></td><td>the hour 11:00 to 12:00 UTC</td></tr><tr><td><code>time IN &#39;2026-09-10T11:05&#39;</code></td><td>one minute</td></tr><tr><td><code>time IN &#39;2026-09-10+05:45&#39;</code></td><td>the whole <strong>Nepal</strong> day (18:15 UTC the day before, to 18:15 UTC)</td></tr><tr><td><code>time IN &#39;2026-09-10T12+05:45&#39;</code></td><td>the hour 12:00 to 13:00 Nepal time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TRUE</code> or <code>FALSE</code>. <code>NOT IN &#39;...&#39;</code> is true outside the range.</li><li><strong>NULL:</strong> a <code>NULL</code> time gives <code>NULL</code>, so the row is not kept.</li><li><strong>Notes:</strong>
+<ul><li>Without an offset the range is in <strong>UTC</strong>. With <code>+05:45</code> it is in Nepal time: the same text, one more part.</li><li>It works for <code>TIMESTAMP</code> and <code>DATE</code> columns. For a <code>DATE</code>, a day that touches the range counts.</li><li>Better than <code>BETWEEN</code> for whole days: <code>time BETWEEN &#39;2026-09-07&#39; AND &#39;2026-09-09&#39;</code> <strong>includes</strong> the end moment <code>2026-09-09T00:00:00</code> and nothing later on that day.</li><li>QuestDB&#39;s forms with <code>;</code> work too: <code>&#39;2026-09-10;1d&#39;</code> stretches the end by a day, and <code>&#39;2026-09-10T05:15;4h;1d;5&#39;</code> repeats a window five days in a row. See <a href="where.html#interval-lists">WHERE</a>.</li><li>The left side must be a time: <code>symbol IN &#39;2026&#39;</code> is an error. For a list of values write <code>IN (&#39;a&#39;, &#39;b&#39;)</code> (<a href="where.html#in-interval">WHERE</a>).</li></ul></li></ul>
+<p><strong>Example: A month, a day, an hour</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS days_in_sept FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09&#39;;
+SELECT count(*) AS minutes_on_the_10th FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;
+SELECT count(*) AS minutes_12_to_13_npt FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10T12+05:45&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS days_in_sept FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>days_in_sept (LONG)</th></tr></thead><tbody><tr><td>8</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS minutes_on_the_10th FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-</code></p>
+<div class="table-wrap"><table><thead><tr><th>minutes_on_the_10th (LONG)</th></tr></thead><tbody><tr><td>240</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS minutes_12_to_13_npt FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09</code></p>
+<div class="table-wrap"><table><thead><tr><th>minutes_12_to_13_npt (LONG)</th></tr></thead><tbody><tr><td>60</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: One minute on the Nepal clock</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, open, close
+FROM ochl_minutes
+WHERE time IN &#39;2026-09-10T11:00+05:45&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>504.6</td><td>504.4</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>COAST</td><td>380.1</td><td>380</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: BETWEEN &#39;2026-09-09&#39; AND &#39;2026-09-10&#39; misses the trading hours of the 10th</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS with_between FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time BETWEEN &#39;2026-09-09&#39; AND &#39;2026-09-10&#39;;
+
+SELECT count(*) AS two_whole_days FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-09&#39; AND time &lt; &#39;2026-09-11&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS with_between FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time BETWEEN &#39;2026-09-0</code></p>
+<div class="table-wrap"><table><thead><tr><th>with_between (LONG)</th></tr></thead><tbody><tr><td>240</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS two_whole_days FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-09&#39; </code></p>
+<div class="table-wrap"><table><thead><tr><th>two_whole_days (LONG)</th></tr></thead><tbody><tr><td>476</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Everything except one day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows_not_on_the_10th FROM ochl_minutes WHERE time NOT IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows_not_on_the_10th (LONG)</th></tr></thead><tbody><tr><td>480</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Not a time range</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT count(*) FROM ochl_day WHERE time IN &#39;2026-09-10 to 2026-09-11&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 42: &#39;2026-09-10 to 2026-09-11&#39; is not a time range like &#39;2026-09&#39;, &#39;2026-09-11&#39;, &#39;2026-09-11;1d&#39; or &#39;2026-09-11T10:00;30m;1d;5&#39;</code></p>
+<p><strong>Example: The left side must be a time</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT count(*) FROM ochl_day WHERE symbol IN &#39;2026&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 44: IN &#39;...&#39; needs a time or date on the left</code></p>
+<h2 id="output">Times in results</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">TIMESTAMP  -&gt;  YYYY-MM-DDTHH:MM:SS.fffZ
+DATE       -&gt;  YYYY-MM-DD</code></pre>
+<p>Every time in a result is shown in <strong>UTC</strong>, with 3 digits of milliseconds and a <code>Z</code>. The web console, <code>kdb sql</code>, the HTTP API and the PostgreSQL protocol all get UTC times.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>Your program changes UTC to Nepal time for the screen (for example in Go: <code>t.In(time.FixedZone(&quot;NPT&quot;, 20700))</code>).</li><li><code>SAMPLE BY ... TIME ZONE</code> buckets are also shown in UTC: the Nepal hour 11:00 is <code>05:15:00.000Z</code>.</li><li><code>now()</code> is the current UTC time. It is the same value in the whole statement.</li><li>Over the PostgreSQL protocol a <code>TIMESTAMP</code> is sent as <code>timestamp without time zone</code> (the value is UTC) unless the server runs with <code>--pg-timestamptz</code>. With it, the text is on the <a href="#session-time-zone">session&#39;s clock</a> with its offset.</li></ul></li></ul>
+<p><strong>Example: Live snapshots were written in Nepal time; they come back in UTC</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT timestamp, symbol, ltp
+FROM live_data
+WHERE symbol = &#39;TELCO&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>TELCO</td><td>860.5</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>TELCO</td><td>869</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>TELCO</td><td>897.7</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: now() and a DATE</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT now() &gt; &#39;2026-01-01&#39; AS is_after_new_year, CAST(&#39;2026-09-10T20:00:00+05:45&#39; AS DATE) AS utc_date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>is_after_new_year (BOOL)</th><th>utc_date (DATE)</th></tr></thead><tbody><tr><td>true</td><td>2026-09-10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/time-and-time-zones.md">This page as markdown</a>.</footer>
+</body>
+</html>

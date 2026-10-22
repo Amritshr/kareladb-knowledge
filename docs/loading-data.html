@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loading many rows - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Load thousands or millions of rows: multi-row INSERT, SQL files, CSV files (POST /imp, COPY), the line protocol and the C++ InsertRows API, with speed tips.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/loading-data.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/loading-data.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="loading-many-rows">Loading many rows</h1>
+<blockquote><p>Load thousands or millions of rows: multi-row INSERT, SQL files, CSV files (POST /imp, COPY), the line protocol and the C++ InsertRows API, with speed tips.</p></blockquote>
+<ul><li>Category: Writing data</li><li>Keywords: bulk load, bulk insert, import, batch insert, load data, load file, SQL file, pipe, stdin, kdb sql -, CSV, CSV import, export CSV, --format csv, migrate, migration, QuestDB export, csv-to-sql.ps1, line protocol, ILP, POST /write, POST /imp, COPY, COPY FROM STDIN, pgx CopyFrom, InsertRows, C++ API, InsertMode, InsertRequest, fast insert, speed, sync-commits, disk full, 507, trigger slows load, going back, back to QuestDB, back to PostgreSQL, export-since.mjs, roll back migration, export new rows, shadow period, dual-write, compare QuestDB, compare.mjs, _shadow_diffs, nightly compare</li><li>See also: <a href="insert.html">INSERT</a>, <a href="performance-tips.html">Performance tips</a>, <a href="line-protocol.html">Line protocol (POST /write)</a>, <a href="cli-sql-and-shell.html">kdb sql and kdb shell</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a></li></ul>
+<p>A daily import can be tens of thousands of rows: trades, minute candles, sensor readings or log lines. There are several ways to load them. All of them check the same rules as <code>INSERT</code> (types, keys, <code>NOT NULL</code>, <code>REFERENCES</code>, <code>CHECK</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>Good for</th><th>Speed</th></tr></thead><tbody><tr><td><a href="#multi-row-insert">Multi-row INSERT</a></td><td>scripts and apps</td><td>good: one commit per statement</td></tr><tr><td><a href="#sql-files">SQL file with <code>kdb sql &lt;db&gt; -</code></a></td><td>a file on the same PC, server stopped</td><td>good</td></tr><tr><td><a href="#csv">CSV file</a> with <code>POST /imp</code></td><td>data from Excel, QuestDB or another database</td><td>fast: one request</td></tr><tr><td><a href="#csv"><code>COPY ... FROM STDIN</code></a> on the PostgreSQL port</td><td>Go, Python or psql programs</td><td>fast</td></tr><tr><td><a href="#http">HTTP <code>POST /exec</code></a></td><td>while <code>kdb serve</code> runs</td><td>good</td></tr><tr><td><a href="#line-protocol">Line protocol <code>POST /write</code></a></td><td>live feeds, many rows from programs</td><td>fastest over HTTP</td></tr><tr><td><a href="#insert-rows">C++ <code>InsertRows</code></a></td><td>a program that has KDB inside</td><td>fastest</td></tr></tbody></table></div>
+<p>The golden rule: <strong>use <code>INSERT OR REPLACE</code> with a <code>DEDUP KEY</code> or <code>PRIMARY KEY</code></strong>. Then a file can be loaded again after an error, and you never get double rows.</p>
+<p><strong>Example: The same batch loaded twice: still 3 rows</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume DOUBLE)
+  TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO ochl_day VALUES
+  (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507.0, 500.7, 504.9, 183040),
+  (&#39;2026-09-10&#39;, &#39;COAST&#39;,  380.1, 382.0, 373.2, 376.1, 186200),
+  (&#39;2026-09-10&#39;, &#39;VOLT&#39;, 185.6, 192.1, 184.2, 191.2, 41470);
+INSERT OR REPLACE INTO ochl_day VALUES
+  (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507.0, 500.7, 504.9, 183040),
+  (&#39;2026-09-10&#39;, &#39;COAST&#39;,  380.1, 382.0, 373.2, 376.1, 186200),
+  (&#39;2026-09-10&#39;, &#39;VOLT&#39;, 185.6, 192.1, 184.2, 191.2, 41470);
+SELECT count(*) AS rows FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507.0, 500.7, 504.9, 183040), (</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507.0, 500.7, 504.9, 183040), (</code></p>
+<pre><code class="language-text">0 row(s) inserted, 3 replaced</code></pre>
+<p><code>SELECT count(*) AS rows FROM ochl_day</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th></tr></thead><tbody><tr><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="multi-row-insert">Multi-row INSERT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT [OR REPLACE | OR IGNORE] INTO table (column, ...) VALUES
+  (...), (...), (...), ...;</code></pre>
+<p>Put many rows in one statement. Every statement is <strong>one commit</strong> (one write to the log and one wait for the disk), so 5,000 rows in one <code>INSERT</code> are far faster than 5,000 <code>INSERT</code>s.</p>
+<ul><li>Use about <strong>1,000 to 5,000 rows</strong> per statement. Much bigger statements only use more memory.</li><li>One statement is all or nothing. When a row is bad, the message says <code>row N:</code> and nothing of that statement is saved; statements before it stay saved.</li><li><strong>Notes:</strong> write a column list: then the load still works after <code>ALTER TABLE ... ADD COLUMN</code>. See <a href="performance-tips.html#bulk-insert">performance tips</a> for measured speeds.</li></ul>
+<p><strong>Example: Trades for the trade log in one statement</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (34, &#39;Vision Securities&#39;), (45, &#39;Imperial Securities&#39;), (58, &#39;Northgate Securities&#39;);
+CREATE TABLE trade_log (date TIMESTAMP ROUND 1d, transaction_id LONG, symbol SYMBOL, buyer INT REFERENCES brokers(id), seller INT REFERENCES brokers(id), quantity LONG, rate DOUBLE, amount DOUBLE AS (quantity * rate))
+  TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, transaction_id);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES
+  (&#39;2026-09-10&#39;, 100009, &#39;COAST&#39;,  34, 45, 50,  400.0),
+  (&#39;2026-09-10&#39;, 100010, &#39;CITY&#39;, 1,  45, 50,  517.0),
+  (&#39;2026-09-10&#39;, 100011, &#39;VOLT&#39;, 1,  58, 50,  184.0),
+  (&#39;2026-09-10&#39;, 100012, &#39;VOLT&#39;, 58, 45, 200, 184.0);
+SELECT count(*) AS trades, sum(amount) AS turnover FROM trade_log;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUE</code></p>
+<pre><code class="language-text">4 row(s) inserted</code></pre>
+<p><code>SELECT count(*) AS trades, sum(amount) AS turnover FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th><th>turnover (DOUBLE)</th></tr></thead><tbody><tr><td>4</td><td>91850</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: One bad row in a batch: the message names the row</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (45, &#39;Imperial Securities&#39;);
+CREATE TABLE trades (id LONG PRIMARY KEY, buyer INT REFERENCES brokers(id), quantity LONG);</code></pre>
+<pre><code class="language-sql">INSERT INTO trades VALUES (1, 1, 100), (2, 45, 50), (3, 77, 10), (4, 1, 20);</code></pre>
+<p>Result:</p>
+<p>Error: <code>row 3: column &#39;buyer&#39; = &#39;77&#39; has no matching row in brokers(id)</code></p>
+<h2 id="sql-files">SQL files: kdb sql &lt;db&gt; -</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">Get-Content load.sql -Raw -Encoding UTF8 | kdb sql database -      (PowerShell)
+kdb sql database - &lt; load.sql                                     (cmd.exe, bash)</code></pre>
+<p>Write the statements into a <code>.sql</code> file, then send the file into <code>kdb sql</code>. The <code>-</code> means &quot;read the SQL from the pipe&quot;. KDB runs the statements one by one and stops at the first error.</p>
+<ul><li><code>kdb sql</code> opens the database files directly, so <code>kdb serve</code> must <strong>not</strong> run on the same database. While the server runs, send the file over <a href="#http">HTTP</a>.</li><li>Save the file as UTF-8. In Windows PowerShell 5.1, run <code>$OutputEncoding = New-Object System.Text.UTF8Encoding $false</code> first, or text in other languages becomes <code>?</code>.</li><li>Check the exit code: <code>0</code> all statements ran, <code>1</code> an error (the output shows which statement).</li><li><strong>Notes:</strong> a big file is read into memory first. For millions of rows, split it: one file per day or month. More in <a href="cli-sql-and-shell.html#stdin">kdb sql</a>.</li></ul>
+<p><strong>Command line: A small SQL file piped into kdb sql</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb sql market -
+&gt; INSERT OR REPLACE INTO ochl_day VALUES
+&gt;   (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 508.2, 91000),
+&gt;   (&#39;2026-09-13&#39;, &#39;COAST&#39;,  376.0, 379.9, 374.0, 378.5, 120500);
+&gt; SELECT time, symbol, close FROM ochl_day WHERE time IN &#39;2026-09-13&#39;;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">2 row(s) inserted
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-13T00:00:00.000Z | CITY   | 508.2
+2026-09-13T00:00:00.000Z | COAST  | 378.5
+(2 rows, 0.2 ms)</code></pre>
+<pre><code class="language-powershell"># A real file (not run here). Load the tables in order: parents (brokers) before children (trade_log).
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Get-Content brokers.sql -Raw -Encoding UTF8 | kdb sql market -
+Get-Content trade_log_2026-09-10.sql -Raw -Encoding UTF8 | kdb sql market -
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<h2 id="csv">CSV files</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /imp?name=&lt;table&gt;&amp;db=&lt;database&gt;        body: the CSV file       (kdb serve running)
+COPY table FROM STDIN (FORMAT csv)                                    (the PostgreSQL port)
+CSV file  -&gt;  INSERT OR REPLACE statements  -&gt;  kdb sql database -    (server stopped)
+kdb sql database &quot;SELECT ...&quot; --format csv &gt; file.csv                 (export)</code></pre>
+<p>There are three ways to load a CSV file:</p>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>How</th></tr></thead><tbody><tr><td><a href="http-import.html">POST /imp</a></td><td>send the file to the running server. It is QuestDB&#39;s import route: it can make the table from the file, and it upserts like the line protocol. One request is one transaction</td></tr><tr><td><code>COPY table FROM STDIN</code></td><td>on the <a href="postgres-protocol.html">PostgreSQL port</a>: psql <code>\copy</code>, pgx <code>CopyFrom</code>, psycopg <code>copy</code>. Text, CSV and binary format. One <code>COPY</code> is one transaction</td></tr><tr><td>SQL statements</td><td>convert the CSV into <code>INSERT OR REPLACE</code> statements and pipe them into <code>kdb sql</code>. The tutorial has a script: <code>docs/tutorial/examples/10-migrating-from-questdb/csv-to-sql.ps1</code> (<a href="../tutorial/10-migrating-from-questdb.html">chapter 10</a>)</td></tr></tbody></table></div>
+<p>Rules for converting a CSV row into SQL values:</p>
+<div class="table-wrap"><table><thead><tr><th>CSV value</th><th>SQL value</th></tr></thead><tbody><tr><td>looks like a number: <code>512.4</code>, <code>182390</code></td><td>the number, without quotes</td></tr><tr><td>empty</td><td><code>NULL</code></td></tr><tr><td>anything else: symbols, names, times</td><td>text in single quotes, with every <code>&#39;</code> written twice: <code>&#39;City&#39;&#39;s&#39;</code></td></tr><tr><td>a local time without a zone</td><td>add its offset (for example <code>+05:45</code>) before loading</td></tr></tbody></table></div>
+<ul><li>Write one <code>INSERT OR REPLACE</code> per 1,000 to 5,000 CSV rows.</li><li>To <strong>export</strong> a table as CSV, use <code>--format csv</code>; the first line is the header.</li><li><strong>Notes:</strong> QuestDB times with 6 digits after the second (<code>.000000Z</code>) are fine: KDB keeps milliseconds.</li></ul>
+<pre><code class="language-powershell"># Convert (not run here): one INSERT OR REPLACE per 5000 rows, then load.
+.\csv-to-sql.ps1 -Csv trade_log.csv -Table trade_log -Out trade_log.sql -BatchSize 5000
+Get-Content trade_log.sql -Raw -Encoding UTF8 | kdb sql market -</code></pre>
+<p><strong>Command line: Export daily candles as CSV</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb sql market &quot;SELECT time, symbol, open, high, low, close, volume FROM ochl_day WHERE time IN &#39;2026-09-10&#39; ORDER BY symbol&quot; --format csv</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">time,symbol,open,high,low,close,volume
+2026-09-10T00:00:00.000Z,CITY,504.6,507,500.7,504.9,183040
+2026-09-10T00:00:00.000Z,COAST,380.1,382,373.2,376.1,186200
+2026-09-10T00:00:00.000Z,VOLT,185.6,192.1,184.2,191.2,41470</code></pre>
+<h2 id="http">Over HTTP: POST /exec</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /exec?db=&lt;database&gt;
+body: the SQL text (many statements allowed)</code></pre>
+<p>While <code>kdb serve</code> runs, send the same SQL text in the body of <code>POST /exec</code>. It works like <code>kdb sql</code>: the statements run one by one, and the answer says which statement failed.</p>
+<ul><li>The body may be up to <strong>64 MB</strong>; split bigger files.</li><li><strong>Notes:</strong> for many small writes from many clients, start the server with <code>--sync-commits batch</code> (<a href="performance-tips.html#sync-commits">performance tips</a>). Details in <a href="http-exec.html">POST /exec</a>.</li></ul>
+<p><strong>HTTP: Load two candles over HTTP</strong></p>
+<pre><code class="language-http">POST /exec?db=demo
+
+CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE, volume DOUBLE) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);
+INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.9, 183040), (&#39;2026-09-10&#39;, &#39;COAST&#39;, 376.1, 186200);</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE, volume DOUBLE) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);\nINSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.9, 183040), (&#39;2026-09-10&#39;, &#39;COAST&#39;, 376.1, 186200);&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;CREATE TABLE ochl_day (\n  time TIMESTAMP ROUND 1d,\n  symbol SYMBOL,\n  close DOUBLE,\n  volume DOUBLE\n) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;table &#39;ochl_day&#39; created&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 17780}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.9, 183040), (&#39;2026-09-10&#39;, &#39;COAST&#39;, 376.1, 186200)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 2,
+      &quot;message&quot;: &quot;2 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 2004}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 54, &quot;execute_us&quot;: 19784}
+}</code></pre>
+<h2 id="line-protocol">Line protocol: POST /write</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /write?db=&lt;database&gt;&amp;precision=ms
+table,tag=value field=value,field=value timestamp</code></pre>
+<p>The InfluxDB line protocol, as QuestDB accepts it: one row per line. It is the fastest way to send many rows to a running server. Rows are always <strong>upserted</strong> (like <code>INSERT OR REPLACE</code>), and the whole request is one transaction.</p>
+<ul><li>A table that is not there is made from the lines, as QuestDB does (role <code>ddl</code>; <a href="line-protocol.html#new-tables">new tables</a>). Tags fill <code>SYMBOL</code> and <code>STRING</code> columns; the timestamp fills the time column.</li><li><strong>Notes:</strong> everything about the format, the precision and the errors is in <a href="line-protocol.html">line protocol</a>.</li></ul>
+<p><strong>HTTP: Two minute candles with the line protocol, then a check</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE ochl_minutes (time TIMESTAMP ROUND 1m, symbol SYMBOL, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume DOUBLE) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (symbol, time);</code></pre>
+<pre><code class="language-http">POST /write?db=demo&amp;precision=ms
+
+ochl_minutes,symbol=CITY open=504.6,high=504.9,low=504.5,close=504.8,volume=1200 1789017600000
+ochl_minutes,symbol=COAST open=380.1,high=380.4,low=379.8,close=380.2,volume=900 1789017600000
+###
+GET /exec?db=demo&amp;query=SELECT%20time,%20symbol,%20close,%20volume%20FROM%20ochl_minutes</code></pre>
+<p>Response:</p>
+<p><code>POST /write?db=demo&amp;precision=ms</code></p>
+<p>HTTP 204</p>
+<p><code>GET /exec?db=demo&amp;query=SELECT%20time,%20symbol,%20close,%20volume%20FROM%20ochl_minutes</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT time, symbol, close, volume FROM ochl_minutes&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT time, symbol, close, volume FROM ochl_minutes&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;volume&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-10T05:20:00.000Z&quot;, &quot;CITY&quot;, 504.8, 1200],
+        [&quot;2026-09-10T05:20:00.000Z&quot;, &quot;COAST&quot;, 380.2, 900]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 79, &quot;execute_us&quot;: 112}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+    {&quot;name&quot;: &quot;volume&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;2026-09-10T05:20:00.000Z&quot;, &quot;CITY&quot;, 504.8, 1200],
+    [&quot;2026-09-10T05:20:00.000Z&quot;, &quot;COAST&quot;, 380.2, 900]
+  ],
+  &quot;count&quot;: 2,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 79, &quot;execute_us&quot;: 112}
+}</code></pre>
+<h2 id="insert-rows">C++ API: InsertRows</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">Status Database::InsertRows(const std::string&amp; table,
+                            const std::vector&lt;std::string&gt;&amp; columns,
+                            const std::vector&lt;Value&gt;&amp; values,
+                            InsertMode mode = InsertMode::kError,
+                            InsertSummary* summary = nullptr);
+Status Database::InsertRows(const std::vector&lt;InsertRequest&gt;&amp; requests, InsertSummary* summary = nullptr);</code></pre>
+<p>A program that has KDB inside (see <code>src/db/database.h</code>) can insert rows <strong>without SQL</strong>: no text to build or parse.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code></td><td>the table name</td></tr><tr><td><code>columns</code></td><td>the column names; empty = every stored column in table order</td></tr><tr><td><code>values</code></td><td>row after row: <code>columns.size()</code> values per row (<code>Value::Int</code>, <code>Value::Double</code>, <code>Value::String</code>, <code>Value::Bool</code>, <code>Value::Null</code>)</td></tr><tr><td><code>mode</code></td><td><code>kError</code> (like <code>INSERT</code>), <code>kReplace</code> (like <code>INSERT OR REPLACE</code>), <code>kIgnore</code> (like <code>INSERT OR IGNORE</code>), <code>kUpsert</code> (same result as <code>kReplace</code>, faster, does not count replaced rows apart)</td></tr><tr><td><code>summary</code></td><td>gets <code>inserted</code>, <code>replaced</code>, <code>skipped</code>, <code>upserted</code>, and the request and row of an error</td></tr></tbody></table></div>
+<ul><li>Values are converted like <code>INSERT</code> values: an integer for a <code>TIMESTAMP</code> column is Unix milliseconds, text is parsed (<code>&#39;2026-09-10T11:00:00+05:45&#39;</code>), a <code>DECIMAL</code> can be given as text.</li><li>All rules apply: <code>NOT NULL</code>, <code>DEFAULT</code>, <code>AUTO</code>, <code>REFERENCES</code>, keys, <code>CHECK</code>, triggers.</li><li>The version with many <code>InsertRequest</code>s writes <strong>all requests as one transaction</strong>: every row, or none. Rows of earlier requests count for keys and <code>REFERENCES</code> of later requests.</li><li><strong>Returns:</strong> <code>Status</code>; <code>ok()</code> when all rows were written, else <code>message()</code> starts with <code>row N:</code> for an error about one row.</li></ul>
+<pre><code class="language-cpp">#include &quot;db/database.h&quot;
+
+std::unique_ptr&lt;kdb::Database&gt; db;
+kdb::Status s = kdb::Database::Open(&quot;D:/kdb-data/market&quot;, kdb::DatabaseOptions(), &amp;db);
+
+// Two minute candles: time, symbol, close, volume.
+std::vector&lt;kdb::Value&gt; values = {
+    kdb::Value::String(&quot;2026-09-10T11:05:00+05:45&quot;), kdb::Value::String(&quot;CITY&quot;), kdb::Value::Double(504.8), kdb::Value::Int(1200),
+    kdb::Value::Int(1789017660000),                  kdb::Value::String(&quot;COAST&quot;),  kdb::Value::Double(380.2), kdb::Value::Int(900),
+};
+kdb::InsertSummary summary;
+s = db-&gt;InsertRows(&quot;ochl_minutes&quot;, {&quot;time&quot;, &quot;symbol&quot;, &quot;close&quot;, &quot;volume&quot;}, values,
+                   kdb::InsertMode::kReplace, &amp;summary);
+if (!s.ok()) std::printf(&quot;error: %s\n&quot;, s.message().c_str());
+else std::printf(&quot;%llu inserted, %llu replaced\n&quot;, (unsigned long long)summary.inserted, (unsigned long long)summary.replaced);</code></pre>
+<h2 id="speed">Speed tips</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">many rows per statement  +  INSERT OR REPLACE  +  load in time order  +  keys before, indexes after</code></pre>
+<p>What makes loading fast:</p>
+<div class="table-wrap"><table><thead><tr><th>Tip</th><th>Why</th></tr></thead><tbody><tr><td>1,000 to 5,000 rows per <code>INSERT</code></td><td>one commit per statement instead of one per row</td></tr><tr><td>one <code>kdb sql &lt;db&gt; -</code> run or one HTTP request for many statements</td><td>no new process or connection per statement</td></tr><tr><td>load in <strong>time order</strong>, one day or month at a time</td><td>rows go to the end of few partitions</td></tr><tr><td>a good <code>PARTITION BY</code> (see <a href="partitions-and-dedup.html">partitions</a>)</td><td>small partitions for big daily data, big ones for small data</td></tr><tr><td>create indexes <strong>after</strong> a big first import</td><td>every index is updated for every row</td></tr><tr><td><code>REFERENCES</code> and <code>UNIQUE</code> only where needed</td><td>they look up every new row</td></tr><tr><td><code>--sync-commits batch</code> for live feeds</td><td>commits are put on disk together every 10 ms (<a href="cli-serve.html">kdb serve</a>)</td></tr><tr><td>the line protocol or <code>InsertRows</code> for programs</td><td>no SQL text to build and parse</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> do not wrap a load of millions of rows in <code>BEGIN ... COMMIT</code>: a transaction keeps the old version of every changed row in memory (at most 10 million). Plain statements are saved one by one. Load the parent tables (brokers) before the child tables (trade_log).</li><li><strong>Notes:</strong> an immediate <code>INSERT</code> <a href="triggers.html">trigger</a> on a table makes the loads into <strong>that</strong> table go row by row, several times slower. A trigger on another table does not slow it. For a table loaded in bulk, make the trigger <a href="triggers.html#deferred">DEFERRED</a>: it then runs after the load, once per request.</li><li><strong>Notes:</strong> a line protocol or <code>/imp</code> load is fastest into a day with no rows yet, or into a table whose <code>DEDUP KEY</code> holds every <code>SORT BY</code> column. A table with no <code>DEDUP KEY</code> loads just as fast. Details: <a href="partitions-and-dedup.html#load-dedup">how loads find duplicates</a>.</li><li><strong>Notes:</strong> loads into different tables run at the same time; loads into one table take turns. A load that waits more than 5 s for a table gets <code>table &#39;x&#39; is busy: ...</code> (HTTP 503) and writes nothing: send it again.</li><li><strong>Notes:</strong> KDB keeps 64 MB of the disk free. Below that a write is refused with HTTP 507 (<code>disk full</code>; SQLSTATE <code>53100</code> on the PostgreSQL port) and nothing is written; free some space (<a href="databases.html#purge-trash">PURGE TRASH</a>) and send it again. If the disk fills up in the middle of writing the log anyway, the write gets 507 too and reads go on; writes work again once space is freed. Rows already confirmed are safe in both cases.</li></ul>
+<p><strong>Example: Check a load: rows, first and last time, total volume</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_minutes (time TIMESTAMP ROUND 1m, symbol SYMBOL, close DOUBLE, volume DOUBLE) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (symbol, time);
+INSERT OR REPLACE INTO ochl_minutes VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 504.4, 960), (&#39;2026-09-10T11:01:00+05:45&#39;, &#39;CITY&#39;, 504.6, 700),
+  (&#39;2026-09-10T11:02:00+05:45&#39;, &#39;CITY&#39;, 504.2, 150), (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;COAST&#39;, 380.2, 900);</code></pre>
+<pre><code class="language-sql">SELECT symbol, count(*) AS rows, min(time) AS first, max(time) AS last, sum(volume) AS volume
+FROM ochl_minutes WHERE time IN &#39;2026-09-10&#39;
+GROUP BY symbol ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>rows (LONG)</th><th>first (TIMESTAMP)</th><th>last (TIMESTAMP)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>3</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T05:17:00.000Z</td><td>1810</td></tr><tr><td>COAST</td><td>1</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T05:15:00.000Z</td><td>900</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="go-back">Going back to QuestDB or PostgreSQL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">node tools/go-back/export-since.mjs --url &lt;kdb url&gt; --token &lt;token&gt; --db &lt;database&gt; --since &lt;switch time&gt;
+     [--tables a,b] [--out &lt;folder&gt;] [--questdb &lt;url&gt;] [--with-relational]</code></pre>
+<p>Your app moved from QuestDB or PostgreSQL to KDB, and you want to go back. The old database still has everything up to the switch. This script exports only what KDB got <strong>after</strong> it, so the old database can catch up. It needs Node 18 or newer and nothing else. It is in the KDB source, in <code>tools/go-back/</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>--url</code></td><td>the KDB server</td><td><code>KDB_URL</code></td></tr><tr><td><code>--token</code></td><td>the token or an <a href="api-tokens.html">API key</a> with <code>read</code></td><td><code>KDB_TOKEN</code></td></tr><tr><td><code>--db</code></td><td>the database</td><td>required</td></tr><tr><td><code>--since</code></td><td>the switch time. Rows with a time <strong>after</strong> it are exported. <code>2026-09-20T00:00:00Z</code>, or with an offset: <code>2026-09-20T05:45:00+05:45</code></td><td>required</td></tr><tr><td><code>--tables</code></td><td>only these tables, comma separated</td><td>every time-series table</td></tr><tr><td><code>--out</code></td><td>the folder for the files</td><td><code>go-back-&lt;db&gt;</code></td></tr><tr><td><code>--questdb</code></td><td>the QuestDB address written into <code>load-questdb.sh</code></td><td><code>http://localhost:9000</code></td></tr><tr><td><code>--with-relational</code></td><td>also export tables without a time column, whole</td><td>skipped</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>File</th><th>What it is</th></tr></thead><tbody><tr><td><code>&lt;table&gt;.csv</code></td><td>the new rows of one table, ordered by time, with a header line (<a href="http-exec.html#get-exp">GET /exp</a> CSV: times in UTC)</td></tr><tr><td><code>load-postgres.sql</code></td><td>one psql <code>\copy</code> per table, in one transaction: <code>psql &quot;&lt;connection&gt;&quot; -v ON_ERROR_STOP=1 -f load-postgres.sql</code></td></tr><tr><td><code>load-questdb.sh</code></td><td>one <code>curl ... /imp</code> per table: <code>sh load-questdb.sh</code></td></tr></tbody></table></div>
+<ul><li><strong>How it finds the new rows:</strong> every table with a designated time column (<code>TIMESERIES(time)</code>) gives the rows with a time after <code>--since</code>. A table without one cannot say which rows are new: it is skipped and named, or exported whole with <code>--with-relational</code>.</li><li><strong>Big tables:</strong> the script asks <code>/exp</code> for at most 1,000,000 rows per request (its default), so it splits the time range until each part fits, and writes all parts into one file. A table without a time column is read in pages of 1,000,000 rows, ordered by its primary key (or by every column when it has none). If its row count changes during the export, the script stops with an error instead of writing a file that does not match the table.</li><li><strong>Run it from the folder</strong> it wrote: the load scripts name the CSV files without a path.</li><li><strong>Notes:</strong>
+<ul><li>Rows <strong>changed</strong> or <strong>deleted</strong> in KDB after the switch are not in the export: only rows whose time is after the switch are. If the app updates old rows, export those tables whole with <code>--tables</code> and <code>--with-relational</code>, or compare them.</li><li>Computed columns (<code>amount DOUBLE AS (quantity * rate)</code>) are exported as values. If the PostgreSQL table makes that column itself (<code>GENERATED ALWAYS AS ... STORED</code>), remove it from the <code>\copy</code> column list and from the CSV.</li><li>PostgreSQL: the tables must exist. A row whose key is already there makes the whole load fail; load into a copy of the table and <code>INSERT ... ON CONFLICT DO NOTHING</code> from it instead.</li><li>QuestDB: <code>/imp</code> adds the rows, and makes a missing table with the same time column and partitioning. A QuestDB table with <code>DEDUP UPSERT KEYS</code> can take the same file twice without doubles.</li><li>Stop the writes to KDB first (or <a href="protection.html#read-only">set it read-only</a>), so no row arrives after the export.</li></ul></li></ul>
+<pre><code class="language-bash">node tools/go-back/export-since.mjs --url http://127.0.0.1:9900 --token &quot;$KDB_TOKEN&quot; --db market --since 2026-09-09T12:00:00Z
+cd go-back-market
+sh load-questdb.sh                                               # back to QuestDB
+psql &quot;postgres://app@localhost/app&quot; -v ON_ERROR_STOP=1 -f load-postgres.sql   # or back to PostgreSQL</code></pre>
+<p>On the <a href="sample-data.html">sample data</a> it prints:</p>
+<pre><code class="language-text">live_data: 12 row(s) after 2026-09-09T12:00:00Z -&gt; go-back-market/live_data.csv
+ochl_day: 3 row(s) after 2026-09-09T12:00:00Z -&gt; go-back-market/ochl_day.csv
+ochl_minutes: 476 row(s) after 2026-09-09T12:00:00Z -&gt; go-back-market/ochl_minutes.csv
+trade_log: 24 row(s) after 2026-09-09T12:00:00Z -&gt; go-back-market/trade_log.csv
+4 table(s), 515 row(s) in go-back-market; load with load-postgres.sql or load-questdb.sh
+skipped (no time column, so no &quot;since&quot;; add --with-relational to export them whole): brokers, securities</code></pre>
+<p>and <code>load-questdb.sh</code> holds lines like:</p>
+<pre><code class="language-bash">curl -sS -F data=@ochl_day.csv &quot;http://localhost:9000/imp?name=ochl_day&amp;overwrite=false&amp;fmt=json&amp;timestamp=time&amp;partitionBy=YEAR&quot;</code></pre>
+<h2 id="shadow-compare">Shadow period: compare QuestDB and KDB</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">node tools/shadow/compare.mjs --db &lt;database&gt; [--kdb &lt;kdb url&gt;] [--questdb &lt;questdb url&gt;]
+     [--since &lt;time&gt;] [--until &lt;time&gt;] [--tables a,b] [--sum a,b] [--symbol &lt;column&gt;]
+     [--nightly [--at HH:MM] [--days N]] [--listen &lt;port&gt;]</code></pre>
+<p>Before the switch, run the app against both databases for a few weeks: it writes every row to QuestDB <strong>and</strong> to KDB (dual-write). This script checks that the two hold the same data. It needs Node 18 or newer and nothing else. It is in the KDB source, in <code>tools/shadow/</code>.</p>
+<p>For every table and every UTC day it compares, on both sides:</p>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>Meaning</th></tr></thead><tbody><tr><td>day</td><td>the row count, the first and last time, and the sums of the price and volume columns</td></tr><tr><td>symbol</td><td>the row count and sums per symbol, every day (two symbols can be off in opposite ways and still give the same day total)</td></tr><tr><td>minute</td><td>only where a day or a symbol differs: the row count and sums per minute, so you see <strong>which minute</strong> lost or changed a row</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>--kdb</code></td><td>the KDB server. The token is read from the <code>KDB_TOKEN</code> environment variable only (never a flag, so it is not seen in a process list). It needs <code>read</code>, and <code>write</code> to log the differences</td><td><code>KDB_URL</code>, then <code>http://127.0.0.1:9900</code></td></tr><tr><td><code>--db</code></td><td>the KDB database</td><td>required</td></tr><tr><td><code>--questdb</code></td><td>QuestDB&#39;s HTTP address (its <code>/exec</code>)</td><td><code>http://localhost:9000</code></td></tr><tr><td><code>--since</code>, <code>--until</code></td><td>the time compared: from <code>--since</code> up to, not including, <code>--until</code>. A date alone is 00:00 UTC; <code>--until now</code> takes in today</td><td>yesterday (UTC)</td></tr><tr><td><code>--tables</code></td><td>only these tables</td><td>every KDB time-series table</td></tr><tr><td><code>--sum</code></td><td>the columns to sum</td><td><code>price</code>, <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, <code>volume</code>, <code>qty</code>, <code>quantity</code>, <code>amount</code>, <code>turnover</code> (those the table has)</td></tr><tr><td><code>--symbol</code></td><td>the column to split by; <code>none</code> for no split</td><td>the table&#39;s first <code>SYMBOL</code> column</td></tr><tr><td><code>--report-dir</code></td><td>the folder for the report</td><td><code>reports</code></td></tr><tr><td><code>--diff-table</code></td><td>the KDB table for the differences; <code>--no-log</code> writes none</td><td><code>_shadow_diffs</code></td></tr><tr><td><code>--max-minutes</code></td><td>at most this many differing minutes per symbol and day</td><td><code>100</code></td></tr><tr><td><code>--tolerance</code></td><td>how far two sums may be apart, relative: the two servers add numbers in another order</td><td><code>1e-9</code></td></tr></tbody></table></div>
+<ul><li><strong>What you get:</strong> one line per table, a dated report <code>reports/&lt;date&gt;_&lt;time&gt;_shadow-compare_&lt;db&gt;.md</code>, and one row per difference in <code>_shadow_diffs</code> (<code>run</code>, <code>tbl</code>, <code>day</code>, <code>level</code> = <code>day</code>/<code>symbol</code>/<code>minute</code>/<code>table</code>, <code>symbol</code>, <code>minute</code>, <code>what</code>, <code>questdb</code>, <code>kdb</code>). The exit code is <code>0</code> when all is the same, <code>3</code> when something differs, <code>1</code> on an error.</li><li><strong>Times:</strong> QuestDB keeps microseconds and KDB milliseconds, so times are compared to the millisecond.</li><li><strong>A table missing on one side</strong> is one <code>table</code> / <code>error</code> row; the other tables are still compared.</li><li><strong>Rows still arriving:</strong> compare whole days that are over (the default), or the newest rows may be on one side and not yet on the other.</li></ul>
+<pre><code class="language-bash">export KDB_TOKEN=...                      # the token, in the environment
+node tools/shadow/compare.mjs --kdb http://127.0.0.1:9900 --db market --questdb http://localhost:9000 --since 2026-09-20</code></pre>
+<pre><code class="language-text">ticks: 2 day(s), 8 row(s) in QuestDB, 7 in KDB, 5 difference(s)
+5 difference(s); report reports/2026-10-02_0200_shadow-compare_market.md; 5 row(s) in _shadow_diffs</code></pre>
+<pre><code class="language-sql">-- Which minutes differ, newest run first
+SELECT run, tbl, day, symbol, minute, what, questdb, kdb
+FROM _shadow_diffs WHERE level = &#39;minute&#39; ORDER BY run DESC, tbl, minute;</code></pre>
+<h3 id="shadow-nightly">Every night</h3>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>How</th></tr></thead><tbody><tr><td>keep it running</td><td><code>--nightly</code> compares once now, then every day at <code>--at</code> (UTC, default <code>02:00</code>) the last <code>--days</code> full days (default 1)</td></tr><tr><td>cron (Linux)</td><td><code>15 2 * * * cd /opt/kdb-src &amp;&amp; KDB_TOKEN=... node tools/shadow/compare.mjs --db market &gt;&gt; shadow.log 2&gt;&amp;1</code></td></tr><tr><td>Windows Task Scheduler</td><td>a daily task that runs <code>node tools\shadow\compare.mjs --db market</code>, with <code>KDB_TOKEN</code> set for that user</td></tr><tr><td>a KDB <a href="timers.html">timer</a></td><td>start the script with <code>--listen 9890</code>. Then <code>GET /run</code> starts a compare of yesterday (or <code>?since=...&amp;until=...</code>) and answers at once; <code>GET /last</code> shows the last result. A timer calls it with <a href="http-functions.html">http_get</a>, once that host is allowed</td></tr></tbody></table></div>
+<pre><code class="language-text">POST /api/timers
+Content-Type: application/json
+
+{&quot;name&quot;: &quot;shadow_compare&quot;, &quot;schedule&quot;: &quot;daily 02:15&quot;,
+ &quot;sql&quot;: &quot;SELECT http_get(&#39;http://host.docker.internal:9890/run&#39;)&quot;}</code></pre>
+<p>Start the script first with <code>--listen 9890 --listen-host 0.0.0.0</code> (KDB in Docker reaches the PC as <code>host.docker.internal</code>; allow that host in <code>http_functions</code>). <code>--listen</code> has no login of its own: keep it on <code>127.0.0.1</code> (the default) unless KDB runs in Docker, and then only on a private network.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/loading-data.md">This page as markdown</a>.</footer>
+</body>
+</html>

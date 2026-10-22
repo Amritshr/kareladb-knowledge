@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volatility indicators and bands - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="How much the price moves: true range, ATR in percent, Bollinger bands, Keltner and Donchian channels.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-indicators-volatility.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators-volatility.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="volatility-indicators-and-bands">Volatility indicators and bands</h1>
+<blockquote><p>How much the price moves: true range, ATR in percent, Bollinger bands, Keltner and Donchian channels.</p></blockquote>
+<ul><li>Category: Functions — technical indicators</li><li>Keywords: volatility, bands, channel, envelope, breakout, squeeze, true range, TR, TRANGE, normalized ATR, NATR, ATR percent, Bollinger bands, Bollinger, BBANDS, BB, upper band, lower band, middle band, %B, percent b, bandwidth, band width, Bollinger squeeze, Keltner channel, Keltner, KC, Donchian channel, Donchian, price channel, turtle, 20-day high, stop loss, position size, stock market</li><li>See also: <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-indicators-momentum.html">Momentum indicators</a>, <a href="functions-indicators-trend.html">Trend indicators</a>, <a href="functions-indicators-volume.html">Volume indicators</a>, <a href="functions-returns-risk.html#volatility">Returns and risk (volatility)</a>, <a href="functions-window.html">Window and series functions</a></li></ul>
+<p><strong>Volatility</strong> is how much the price moves up and down. A share whose price jumps 3% a day is more volatile (more risky) than a share that moves 0.5% a day. Volatility tells you nothing about the direction.</p>
+<p>Traders use volatility to:</p>
+<ul><li>put a <strong>stop-loss</strong> (a price where you sell to stop a bigger loss) far enough away that normal moves do not hit it;</li><li>draw <strong>bands</strong> (or channels) around the price. A band is a line above and a line below the price. When the price leaves a band, something unusual happens: a <strong>breakout</strong> (a strong move out of the normal range).</li></ul>
+<p>These functions are <strong>series functions</strong>, like <a href="functions-indicators.html">sma and atr</a>. The same rules apply:</p>
+<ul><li><strong>Order:</strong> without <code>OVER</code>, all result rows are one series in time order. With <strong>many symbols</strong>, always write <code>OVER (PARTITION BY symbol ORDER BY time)</code>.</li><li><strong>Period:</strong> <code>n</code> is how many candles the indicator looks back, a whole number of 1 or more.</li><li><strong>WHERE runs first</strong>, and candles made with <code>SAMPLE BY</code> must be made in a subquery: see the rules in <a href="functions-indicators.html">technical indicators</a>.</li><li><strong>Warm-up:</strong> at the start of a series there are not enough candles yet, and the result is <code>NULL</code>:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Function (default periods)</th><th>First value on candle</th><th>NULL candles at the start</th></tr></thead><tbody><tr><td><code>trange(high, low, close)</code></td><td>2</td><td>1</td></tr><tr><td><code>natr(high, low, close, n)</code> (n = 14)</td><td>n + 1</td><td>n</td></tr><tr><td><code>bb_upper</code>, <code>bb_middle</code>, <code>bb_lower</code>, <code>bb_percent_b</code>, <code>bb_width</code> <code>(x, n)</code> (n = 20)</td><td>n</td><td>n - 1</td></tr><tr><td><code>kc_middle(high, low, close, n)</code> (n = 20)</td><td>n</td><td>n - 1</td></tr><tr><td><code>kc_upper</code>, <code>kc_lower</code> <code>(high, low, close, n, mult, atr_n)</code> (20, 2, 10)</td><td>the bigger of n and atr_n + 1</td><td>one less</td></tr><tr><td><code>dc_upper</code>, <code>dc_middle</code>, <code>dc_lower</code> <code>(high, low, n)</code> (n = 20)</td><td>n</td><td>n - 1</td></tr></tbody></table></div>
+<ul><li><strong>NULL prices:</strong> <code>trange</code>, the Bollinger bands and the Donchian channel look at a window of candles: a NULL makes the windows that hold it <code>NULL</code>, and then the values come back. <code>natr</code> and the Keltner channel are built step by step (like <code>ema</code> and <code>atr</code>): one NULL makes this and <strong>every later</strong> value <code>NULL</code>. Leave NULL candles out with <code>WHERE</code>.</li><li><strong>Same as TA-Lib:</strong> <code>trange</code>, <code>natr</code> and the Bollinger bands give the same numbers as TA-Lib (TRANGE, NATR, BBANDS with a simple moving average).</li><li><strong>Returns</strong> <code>DOUBLE</code>. Use <code>round(x, 2)</code> for prices.</li></ul>
+<p><strong>Example: Bollinger bands, ATR in percent and the 20-minute channel of CITY (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, lower_band, middle_band, upper_band, natr14, low_20, high_20
+FROM (SELECT time, close,
+             round(bb_lower(close, 20, 2), 2) AS lower_band,
+             round(bb_middle(close, 20, 2), 2) AS middle_band,
+             round(bb_upper(close, 20, 2), 2) AS upper_band,
+             round(natr(high, low, close, 14), 3) AS natr14,
+             dc_lower(high, low, 20) AS low_20,
+             dc_upper(high, low, 20) AS high_20
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>lower_band (DOUBLE)</th><th>middle_band (DOUBLE)</th><th>upper_band (DOUBLE)</th><th>natr14 (DOUBLE)</th><th>low_20 (DOUBLE)</th><th>high_20 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>504.1</td><td>504.97</td><td>505.84</td><td>0.122</td><td>503.9</td><td>506.1</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>504.04</td><td>504.95</td><td>505.85</td><td>0.12</td><td>503.9</td><td>506.1</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>504.04</td><td>504.94</td><td>505.84</td><td>0.121</td><td>503.9</td><td>506.1</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>504.03</td><td>504.94</td><td>505.84</td><td>0.122</td><td>503.9</td><td>506.1</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>504.08</td><td>504.98</td><td>505.87</td><td>0.13</td><td>503.9</td><td>506.1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="trange">trange, true_range</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">trange(high, low, close)
+true_range(high, low, close)
+trange(high, low, close) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>true range</strong> of one candle: the biggest of <code>high - low</code>, <code>|high - previous close|</code> and <code>|low - previous close|</code>. It is how far the price really moved in that candle, a <strong>gap</strong> included (a gap is when a candle opens far away from the previous close). <code>true_range</code> is the same function. The <a href="functions-indicators.html#atr">atr</a> is the average of the true range.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close (the previous candle&#39;s close is used)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, in the same unit as the prices.</li><li><strong>NULL:</strong> <code>NULL</code> for the first candle (it has no previous close). A NULL <code>high</code> or <code>low</code> makes only that candle <code>NULL</code>. When the previous close is NULL, only <code>high - low</code> is used.</li><li><strong>Notes:</strong> there is no period. The same as TA-Lib TRANGE. The result can show rounding digits (<code>9.80000000000001</code>): use <code>round(x, 2)</code>.</li></ul>
+<p><strong>Example: A gap counts: COAST on 9 September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, high, low, prev_close, round(high - low, 2) AS high_minus_low, true_range
+FROM (SELECT time, high, low,
+             lag(close) AS prev_close,
+             round(trange(high, low, close), 2) AS true_range
+      FROM ochl_day
+      WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-03&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>prev_close (DOUBLE)</th><th>high_minus_low (DOUBLE)</th><th>true_range (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-03T00:00:00.000Z</td><td>373.6</td><td>364.1</td><td>NULL</td><td>9.5</td><td>NULL</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>378.5</td><td>372.5</td><td>373.2</td><td>6</td><td>6</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>381.1</td><td>373.2</td><td>375.4</td><td>7.9</td><td>7.9</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>380.2</td><td>374.7</td><td>379.2</td><td>5.5</td><td>5.5</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>398.8</td><td>379.2</td><td>377.2</td><td>19.6</td><td>21.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>382</td><td>373.2</td><td>380.1</td><td>8.8</td><td>8.8</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Plain 5-day average of the true range against Wilder&#39;s ATR</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, true_range,
+       round(avg(true_range) OVER (ORDER BY time ROWS 4 PRECEDING), 2) AS avg_5,
+       atr5
+FROM (SELECT time,
+             round(trange(high, low, close), 2) AS true_range,
+             round(atr(high, low, close, 5), 2) AS atr5
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>true_range (DOUBLE)</th><th>avg_5 (DOUBLE)</th><th>atr5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>5.1</td><td>5.1</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>9.4</td><td>7.25</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>6.4</td><td>6.97</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>2.9</td><td>5.95</td><td>NULL</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>3.6</td><td>5.48</td><td>5.48</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>4.3</td><td>5.32</td><td>5.24</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>5.3</td><td>4.5</td><td>5.26</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>5.6</td><td>4.34</td><td>5.32</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>5.8</td><td>4.92</td><td>5.42</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>11.5</td><td>6.5</td><td>6.64</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>8.9</td><td>7.42</td><td>7.09</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>6.6</td><td>7.68</td><td>6.99</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>7.8</td><td>8.12</td><td>7.15</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>7.9</td><td>8.54</td><td>7.3</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: high, low and close are all needed</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT trange(high, low) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: function &#39;trange&#39; takes 3 argument(s), got 2</code></p>
+<h2 id="natr">natr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">natr(high, low, close)
+natr(high, low, close, n)
+natr(high, low, close, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>normalized ATR</strong>: the <a href="functions-indicators.html#atr">atr</a> divided by the close, times 100. So it is the ATR in <strong>percent</strong> of the price. With <code>natr</code> you can compare a 500-dollar share with a 180-dollar share: <code>1.5</code> means the price moves about 1.5% in one candle. The same as TA-Lib NATR.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the ATR period; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, a percent.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles. A close of <code>0</code> gives <code>NULL</code>. <strong>Careful:</strong> a NULL <code>high</code>, <code>low</code> or <code>close</code> makes this and every later value of the series <code>NULL</code>.</li><li><strong>Notes:</strong> <code>natr(high, low, close, n)</code> is <code>atr(high, low, close, n) / close * 100</code> of the same candle.</li></ul>
+<p><strong>Example: Which share moves most? 5-day NATR on the last day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, natr5
+FROM (SELECT time, symbol, close,
+             round(natr(high, low, close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS natr5
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY natr5 DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>natr5 (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>191.2</td><td>3.82</td></tr><tr><td>COAST</td><td>376.1</td><td>2.58</td></tr><tr><td>CITY</td><td>504.9</td><td>1.45</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A stop-loss 2 × NATR percent below the close is the same as 2 × ATR</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, round(natr5, 2) AS natr5,
+       round(close * (1 - 2 * natr5 / 100), 1) AS stop_from_natr,
+       round(close - 2 * atr5, 1) AS stop_from_atr
+FROM (SELECT time, symbol, close,
+             natr(high, low, close, 5) OVER (PARTITION BY symbol ORDER BY time) AS natr5,
+             atr(high, low, close, 5) OVER (PARTITION BY symbol ORDER BY time) AS atr5
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>natr5 (DOUBLE)</th><th>stop_from_natr (DOUBLE)</th><th>stop_from_atr (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>1.45</td><td>490.2</td><td>490.2</td></tr><tr><td>COAST</td><td>376.1</td><td>2.58</td><td>356.7</td><td>356.7</td></tr><tr><td>VOLT</td><td>191.2</td><td>3.82</td><td>176.6</td><td>176.6</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: NATR 14 of COAST&#39;s one-minute candles (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, natr14
+FROM (SELECT time, close, round(natr(high, low, close), 4) AS natr14
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>natr14 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>0.1513</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>0.1526</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>0.1522</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>0.1477</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>0.1508</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="bb_upper">bb_upper, bb_middle, bb_lower</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">bb_upper(x)    bb_upper(x, n)    bb_upper(x, n, mult)
+bb_middle(x)   bb_middle(x, n)   bb_middle(x, n, mult)
+bb_lower(x)    bb_lower(x, n)    bb_lower(x, n, mult)
+bb_upper(x, n, mult) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The three <strong>Bollinger bands</strong>. The middle band is the <a href="functions-indicators.html#sma">sma</a> of the last <code>n</code> prices. The upper band is the middle band plus <code>mult</code> × the <strong>standard deviation</strong> of those prices (a number for how far the prices are from their average); the lower band is the middle band minus the same amount. When the price jumps around, the bands get wide; when the market is quiet, they get narrow.</p>
+<p>With <code>mult</code> 2, most closes stay between the bands. A close <strong>above the upper band</strong> is a strong move up (a breakout), or a sign that the price went too far and may come back. A close below the lower band is the same, downward.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles; default <code>20</code></td></tr><tr><td><code>mult</code></td><td>number</td><td>how many standard deviations away; default <code>2</code> (<code>2.5</code> is allowed)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. A NULL value makes the <code>n</code> results whose window holds it <code>NULL</code>; after that the bands come back.</li><li><strong>Notes:</strong>
+<ul><li>The standard deviation divides by <code>n</code> (population), like John Bollinger and TA-Lib BBANDS.</li><li><code>bb_middle</code> is the same as <code>sma(x, n)</code>. It takes <code>mult</code> too, so you can copy the same arguments to all three.</li><li>With a small <code>n</code> the close cannot leave the bands: with <code>n</code> of 5 or less and <code>mult</code> 2, it is always inside. Use the usual <code>n</code> of 20, or a smaller <code>mult</code>.</li></ul></li></ul>
+<p><strong>Example: 4-day bands of CITY with mult 1.5: is the close inside?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, lower_band, middle_band, upper_band,
+       CASE WHEN upper_band IS NULL THEN NULL
+            WHEN close &gt; upper_band THEN &#39;above&#39;
+            WHEN close &lt; lower_band THEN &#39;below&#39;
+            ELSE &#39;inside&#39; END AS place
+FROM (SELECT time, close,
+             round(bb_lower(close, 4, 1.5), 2) AS lower_band,
+             round(bb_middle(close, 4, 1.5), 2) AS middle_band,
+             round(bb_upper(close, 4, 1.5), 2) AS upper_band
+      FROM ochl_day
+      WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>lower_band (DOUBLE)</th><th>middle_band (DOUBLE)</th><th>upper_band (DOUBLE)</th><th>place (STRING)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>507.81</td><td>511.18</td><td>514.54</td><td>inside</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>506.16</td><td>510.68</td><td>515.19</td><td>below</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>502.15</td><td>508.88</td><td>515.6</td><td>inside</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>501.34</td><td>506.98</td><td>512.61</td><td>inside</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>501.96</td><td>504.28</td><td>506.59</td><td>inside</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>496.79</td><td>501.9</td><td>507.01</td><td>below</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>495.08</td><td>500.6</td><td>506.12</td><td>inside</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>495.61</td><td>498.93</td><td>502.24</td><td>inside</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>496.49</td><td>498</td><td>499.51</td><td>inside</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>497.37</td><td>498.28</td><td>499.18</td><td>inside</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>495.84</td><td>499.95</td><td>504.06</td><td>above</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>496.39</td><td>501.43</td><td>506.46</td><td>inside</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Breakouts: the minutes where the close crosses above the upper band (20, 2)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, round(upper_band, 3) AS upper_band
+FROM (SELECT time, symbol, close, upper_band,
+             lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close,
+             lag(upper_band) OVER (PARTITION BY symbol ORDER BY time) AS prev_upper
+      FROM (SELECT time, symbol, close,
+                   bb_upper(close, 20, 2) OVER (PARTITION BY symbol ORDER BY time) AS upper_band
+            FROM ochl_minutes
+            WHERE time IN &#39;2026-09-10&#39;) a) b
+WHERE close &gt; upper_band AND prev_close &lt;= prev_upper
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>upper_band (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:42:00.000Z</td><td>CITY</td><td>505.7</td><td>505.579</td></tr><tr><td>2026-09-10T06:03:00.000Z</td><td>COAST</td><td>380.9</td><td>380.614</td></tr><tr><td>2026-09-10T06:24:00.000Z</td><td>CITY</td><td>506.4</td><td>506.264</td></tr><tr><td>2026-09-10T07:26:00.000Z</td><td>CITY</td><td>503.1</td><td>503.087</td></tr><tr><td>2026-09-10T07:35:00.000Z</td><td>COAST</td><td>378.8</td><td>378.617</td></tr><tr><td>2026-09-10T07:41:00.000Z</td><td>CITY</td><td>503.6</td><td>503.6</td></tr><tr><td>2026-09-10T07:43:00.000Z</td><td>CITY</td><td>503.7</td><td>503.7</td></tr><tr><td>2026-09-10T08:21:00.000Z</td><td>CITY</td><td>504.2</td><td>504.179</td></tr><tr><td>2026-09-10T08:28:00.000Z</td><td>COAST</td><td>378</td><td>377.938</td></tr><tr><td>2026-09-10T08:39:00.000Z</td><td>CITY</td><td>506.3</td><td>506.298</td></tr><tr><td>2026-09-10T08:42:00.000Z</td><td>CITY</td><td>506.9</td><td>506.823</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<p><strong>Example: Wider bands with mult 3</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(bb_lower(close, 5, 2), 2) AS lower_2,
+       round(bb_lower(close, 5, 3), 2) AS lower_3,
+       round(bb_upper(close, 5, 2), 2) AS upper_2,
+       round(bb_upper(close, 5, 3), 2) AS upper_3
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-03&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>lower_2 (DOUBLE)</th><th>lower_3 (DOUBLE)</th><th>upper_2 (DOUBLE)</th><th>upper_3 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>172.38</td><td>168.3</td><td>188.7</td><td>192.78</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>173.38</td><td>168.28</td><td>193.78</td><td>198.88</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: mult must be a number</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT bb_upper(close, 20, &#39;two&#39;) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: bb_upper: the factor must be a number, got &#39;two&#39;</code></p>
+<h2 id="bb_percent_b">bb_percent_b</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">bb_percent_b(x)
+bb_percent_b(x, n)
+bb_percent_b(x, n, mult)
+bb_percent_b(x, n, mult) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>%B</strong> (&quot;percent B&quot;) says where the price is between the Bollinger bands: <code>(x - lower band) / (upper band - lower band)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>%B</th><th>The price is</th></tr></thead><tbody><tr><td>more than <code>1</code></td><td>above the upper band</td></tr><tr><td><code>1</code></td><td>on the upper band</td></tr><tr><td><code>0.5</code></td><td>on the middle band</td></tr><tr><td><code>0</code></td><td>on the lower band</td></tr><tr><td>less than <code>0</code></td><td>below the lower band</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles; default <code>20</code></td></tr><tr><td><code>mult</code></td><td>number</td><td>how many standard deviations; default <code>2</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and when the bands are equal (all <code>n</code> prices are the same). A NULL value makes the windows that hold it <code>NULL</code>.</li><li><strong>Notes:</strong> one number instead of three lines: easy to use in <code>WHERE</code> or <code>CASE</code>.</li></ul>
+<p><strong>Example: Where is VOLT inside its 5-day bands?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, pct_b,
+       CASE WHEN pct_b &gt; 1 THEN &#39;above the bands&#39;
+            WHEN pct_b &lt; 0 THEN &#39;below the bands&#39;
+            WHEN pct_b &gt;= 0.5 THEN &#39;upper half&#39;
+            ELSE &#39;lower half&#39; END AS zone
+FROM (SELECT time, close, round(bb_percent_b(close, 5), 3) AS pct_b
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>pct_b (DOUBLE)</th><th>zone (STRING)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>NULL</td><td>lower half</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>NULL</td><td>lower half</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>NULL</td><td>lower half</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>NULL</td><td>lower half</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>0.192</td><td>lower half</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>0.248</td><td>lower half</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>0.271</td><td>lower half</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>0.022</td><td>lower half</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>0.439</td><td>lower half</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>0.895</td><td>upper half</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>0.906</td><td>upper half</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>0.639</td><td>upper half</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>0.837</td><td>upper half</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>0.914</td><td>upper half</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>0.874</td><td>upper half</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: %B of both symbols at the last minute (20, 2)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, pct_b
+FROM (SELECT time, symbol, close,
+             round(bb_percent_b(close) OVER (PARTITION BY symbol ORDER BY time), 3) AS pct_b
+      FROM ochl_minutes) t
+WHERE time = &#39;2026-09-10T09:14:00Z&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>pct_b (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>0.46</td></tr><tr><td>COAST</td><td>376.1</td><td>0.901</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="bb_width">bb_width</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">bb_width(x)
+bb_width(x, n)
+bb_width(x, n, mult)
+bb_width(x, n, mult) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>Bollinger band width</strong>: <code>(upper band - lower band) / middle band</code>. It is how far apart the bands are, as a part of the price. <code>0.02</code> means the bands are 2% of the price apart. Very small widths are a <strong>squeeze</strong>: the market is quiet, and traders wait for a big move to start.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles; default <code>20</code></td></tr><tr><td><code>mult</code></td><td>number</td><td>how many standard deviations; default <code>2</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and when the middle band is <code>0</code>. A NULL value makes the windows that hold it <code>NULL</code>.</li><li><strong>Notes:</strong> a part, not a percent: multiply by 100 for percent.</li></ul>
+<p><strong>Example: The quietest minutes of COAST: the smallest band width</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(bb_width(close) * 100, 3) AS width_pct
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39;
+ORDER BY width_pct
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>width_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T08:04:00.000Z</td><td>378</td><td>0.229</td></tr><tr><td>2026-09-10T08:03:00.000Z</td><td>377.8</td><td>0.24</td></tr><tr><td>2026-09-10T06:01:00.000Z</td><td>380.3</td><td>0.246</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Daily 5-day band width of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       round(bb_width(close, 5) OVER (PARTITION BY symbol ORDER BY time), 4) AS width
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-01&#39;
+ORDER BY time DESC, symbol
+LIMIT 9;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>width (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>0.0252</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>0.019</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>0.1111</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>0.0207</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>0.0266</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>0.0904</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>0.0074</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>0.0368</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>0.084</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<h2 id="kc_upper">kc_upper, kc_lower</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kc_upper(high, low, close)
+kc_upper(high, low, close, n)
+kc_upper(high, low, close, n, mult)
+kc_upper(high, low, close, n, mult, atr_n)
+kc_lower(high, low, close, n, mult, atr_n)
+kc_upper(high, low, close, n, mult, atr_n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>Keltner channel</strong>: a middle line, the <a href="functions-indicators.html#ema">ema</a> of the close, and two lines <code>mult</code> × <a href="functions-indicators.html#atr">atr</a> above and below it. It looks like the Bollinger bands, but the width comes from the ATR, so it changes more smoothly. A close above the upper line shows a strong up trend; a close below the lower line a strong down trend.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the EMA period; default <code>20</code></td></tr><tr><td><code>mult</code></td><td>number</td><td>how many ATRs away; default <code>2</code></td></tr><tr><td><code>atr_n</code></td><td>whole number, 1 or more</td><td>the ATR period; default <code>10</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> the first value is on candle <code>n</code> or candle <code>atr_n + 1</code>, whichever comes later (candle 20 with the defaults). <strong>Careful:</strong> a NULL <code>high</code>, <code>low</code> or <code>close</code> makes this and every later value of the series <code>NULL</code>.</li><li><strong>Notes:</strong> the middle line is <a href="functions-indicators-volatility.html#kc_middle">kc_middle</a>. The EMA starts with the SMA of the first <code>n</code> closes and the ATR is Wilder&#39;s, like <code>ema</code> and <code>atr</code>.</li></ul>
+<p><strong>Example: Keltner channel of CITY&#39;s one-minute candles (the last 5 minutes)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, kc_low, kc_mid, kc_high
+FROM (SELECT time, close,
+             round(kc_lower(high, low, close), 2) AS kc_low,
+             round(kc_middle(high, low, close), 2) AS kc_mid,
+             round(kc_upper(high, low, close), 2) AS kc_high
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>kc_low (DOUBLE)</th><th>kc_mid (DOUBLE)</th><th>kc_high (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>503.83</td><td>505.06</td><td>506.28</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>503.87</td><td>505.07</td><td>506.27</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>503.87</td><td>505.07</td><td>506.27</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>503.87</td><td>505.1</td><td>506.32</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>503.82</td><td>505.16</td><td>506.5</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The squeeze: Bollinger bands inside the Keltner channel</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS minutes, count_if(bb_high &lt; kc_high AND bb_low &gt; kc_low) AS squeeze_minutes
+FROM (SELECT symbol,
+             bb_upper(close) OVER (PARTITION BY symbol ORDER BY time) AS bb_high,
+             bb_lower(close) OVER (PARTITION BY symbol ORDER BY time) AS bb_low,
+             kc_upper(high, low, close) OVER (PARTITION BY symbol ORDER BY time) AS kc_high,
+             kc_lower(high, low, close) OVER (PARTITION BY symbol ORDER BY time) AS kc_low
+      FROM ochl_minutes) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>minutes (LONG)</th><th>squeeze_minutes (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>480</td><td>242</td></tr><tr><td>COAST</td><td>476</td><td>171</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The first value: candle 5 (n = 3, atr_n = 4)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(kc_upper(high, low, close, 3, 2, 4), 2) AS kc_high,
+       round(kc_lower(high, low, close, 3, 2, 4), 2) AS kc_low
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>kc_high (DOUBLE)</th><th>kc_low (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>391</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>384.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>379.8</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>373</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>367.1</td><td>389.81</td><td>356.41</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>372.4</td><td>390.88</td><td>354.63</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="kc_middle">kc_middle</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kc_middle(high, low, close)
+kc_middle(high, low, close, n)
+kc_middle(high, low, close, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The middle line of the <a href="functions-indicators-volatility.html#kc_upper">Keltner channel</a>: the <code>n</code>-candle <a href="functions-indicators.html#ema">ema</a> of the close.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high (read, but not used in the value)</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low (read, but not used in the value)</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the EMA period; default <code>20</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. <strong>Careful:</strong> a NULL <code>high</code>, <code>low</code> or <code>close</code> makes this and every later value <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>ema(close, n)</code> when no price is NULL. It takes <code>high</code> and <code>low</code> so the three Keltner functions can have the same first arguments.</li></ul>
+<p><strong>Example: kc_middle is the EMA of the close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(kc_middle(high, low, close, 5), 3) AS kc_mid,
+       round(ema(close, 5), 3) AS ema5
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time
+LIMIT 7;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>kc_mid (DOUBLE)</th><th>ema5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>510.12</td><td>510.12</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>507.78</td><td>507.78</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>507.087</td><td>507.087</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<h2 id="dc_upper">dc_upper, dc_middle, dc_lower</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">dc_upper(high, low)    dc_upper(high, low, n)
+dc_middle(high, low)   dc_middle(high, low, n)
+dc_lower(high, low)    dc_lower(high, low, n)
+dc_upper(high, low, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>Donchian channel</strong>: <code>dc_upper</code> is the highest high of the last <code>n</code> candles, <code>dc_lower</code> the lowest low, and <code>dc_middle</code> is halfway between them. This candle is one of the <code>n</code>.</p>
+<p>When the price goes above the highest high of the last 20 candles, it is a <strong>breakout</strong>. The famous &quot;turtle traders&quot; bought such breakouts and sold when the price fell below the lowest low of the last 10 candles.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many candles; default <code>20</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. A NULL <code>high</code> or <code>low</code> makes the <code>n</code> results whose window holds it <code>NULL</code>; after that the channel comes back.</li><li><strong>Notes:</strong>
+<ul><li><code>dc_upper(high, low, n)</code> is like <code>max(high) OVER (... ROWS n-1 PRECEDING)</code>, but it waits until it has <code>n</code> candles.</li><li>Because this candle is inside the window, the close can never be above <code>dc_upper</code> of the same candle. To find a breakout, compare the close with the <strong>previous</strong> candle&#39;s value: <code>lag(...)</code> in an outer query.</li></ul></li></ul>
+<p><strong>Example: 5-day channel of VOLT, and max(high) over the same rows</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, high, low,
+       dc_lower(high, low, 5) AS low_5,
+       dc_middle(high, low, 5) AS middle_5,
+       dc_upper(high, low, 5) AS high_5,
+       max(high) OVER (ORDER BY time ROWS 4 PRECEDING) AS max_high_5
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time
+LIMIT 7;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>low_5 (DOUBLE)</th><th>middle_5 (DOUBLE)</th><th>high_5 (DOUBLE)</th><th>max_high_5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>182.6</td><td>178.2</td><td>NULL</td><td>NULL</td><td>NULL</td><td>182.6</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>183.6</td><td>178.5</td><td>NULL</td><td>NULL</td><td>NULL</td><td>183.6</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>182.2</td><td>172.8</td><td>NULL</td><td>NULL</td><td>NULL</td><td>183.6</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>178.4</td><td>172</td><td>NULL</td><td>NULL</td><td>NULL</td><td>183.6</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>175.9</td><td>173</td><td>172</td><td>177.8</td><td>183.6</td><td>183.6</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>174.2</td><td>170.6</td><td>170.6</td><td>177.1</td><td>183.6</td><td>183.6</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>175.6</td><td>171.3</td><td>170.6</td><td>176.4</td><td>182.2</td><td>182.2</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<p><strong>Example: Turtle breakout: the close is above the high of the previous 20 minutes</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, prev_high_20
+FROM (SELECT time, symbol, close,
+             lag(high_20) OVER (PARTITION BY symbol ORDER BY time) AS prev_high_20
+      FROM (SELECT time, symbol, close,
+                   dc_upper(high, low, 20) OVER (PARTITION BY symbol ORDER BY time) AS high_20
+            FROM ochl_minutes
+            WHERE time IN &#39;2026-09-10&#39;) a) b
+WHERE close &gt; prev_high_20
+ORDER BY time
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>prev_high_20 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:42:00.000Z</td><td>CITY</td><td>505.7</td><td>505.6</td></tr><tr><td>2026-09-10T05:43:00.000Z</td><td>CITY</td><td>506</td><td>505.7</td></tr><tr><td>2026-09-10T05:44:00.000Z</td><td>CITY</td><td>506.5</td><td>506.2</td></tr><tr><td>2026-09-10T06:03:00.000Z</td><td>COAST</td><td>380.9</td><td>380.7</td></tr><tr><td>2026-09-10T06:04:00.000Z</td><td>COAST</td><td>381</td><td>380.9</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>COAST</td><td>381.5</td><td>381.4</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: The period must be 1 or more</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT dc_upper(high, low, 0) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: dc_upper: the period must be a whole number of rows (1 or more)</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators-volatility.md">This page as markdown</a>.</footer>
+</body>
+</html>

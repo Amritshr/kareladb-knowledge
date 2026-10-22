@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UPDATE and DELETE - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/update-delete.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/update-delete.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="update-and-delete">UPDATE and DELETE</h1>
+<blockquote><p>Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.</p></blockquote>
+<ul><li>Category: Writing data</li><li>Keywords: update, change rows, modify, SET, delete, remove rows, delete rows, WHERE, all rows, RETURNING, fix bad data, wrong data, correct data, undo, rollback, TRUNCATE, TRUNCATE TABLE, RESTART IDENTITY, CONTINUE IDENTITY, empty a table, delete all rows, the update would create a second row, row(s) updated, row(s) deleted, safe workflow, UPDATE FROM, FROM other table, update from another table, DELETE USING</li><li>See also: <a href="insert.html">INSERT</a>, <a href="transactions.html">Transactions</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="constraints.html">Constraints</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="where.html">WHERE</a></li></ul>
+<p><code>UPDATE</code> changes values in rows that are already there. <code>DELETE</code> removes rows. Both take a <code>WHERE</code> condition that says <strong>which</strong> rows. Like <code>INSERT</code>, one statement is all or nothing, and it is saved as soon as KDB says <code>updated</code> or <code>deleted</code>.</p>
+<p><strong>Warning:</strong> without <code>WHERE</code>, <code>UPDATE</code> changes <strong>every row</strong> and <code>DELETE</code> removes <strong>every row</strong>. Before a big change, run <code>SELECT count(*)</code> with the same <code>WHERE</code> and check the number.</p>
+<p><strong>Example: Make every VOLT daily volume of 2026-09 ten percent bigger: count first, then change</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows FROM ochl_day WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09&#39;;
+UPDATE ochl_day SET volume = round(volume * 1.1) WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS rows FROM ochl_day WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th></tr></thead><tbody><tr><td>8</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>UPDATE ochl_day SET volume = round(volume * 1.1) WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09&#39;</code></p>
+<pre><code class="language-text">8 row(s) updated</code></pre>
+<h2 id="update">UPDATE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">UPDATE table SET column = expression [, column = expression ...] [WHERE condition] [RETURNING ...]</code></pre>
+<p>Sets new values in every row where <code>condition</code> is true. The expression can use the <strong>old</strong> values of the same row: <code>balance = balance - 250.50</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>SET column = expression</code></td><td>the new value; each column at most once</td></tr><tr><td><code>WHERE condition</code></td><td>which rows; without it: <strong>all</strong> rows. See <a href="where.html">WHERE</a></td></tr><tr><td><code>RETURNING</code></td><td>give the changed rows back; see <a href="#returning">RETURNING</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>N row(s) updated</code> (also <code>0 row(s) updated</code>: no row matched, not an error).</li><li>New values are converted to the column type and every <a href="constraints.html">constraint</a> is checked.</li><li>An <code>UPDATE</code> may change a key or the time column; KDB moves the row (also to another partition). It refuses to make a duplicate: <code>the update would create a second row with ...</code>.</li><li><strong>Notes:</strong> a computed column cannot be set. A <strong>subquery works</strong> in <code>SET</code> and in <code>WHERE</code>. A <code>DECIMAL</code> result with too many decimal places is refused; use <code>round(x, 2)</code>.</li></ul>
+<h3 id="update-from">UPDATE ... FROM</h3>
+<p>Syntax:</p>
+<pre><code class="language-sql">UPDATE table SET column = expression FROM other_table [alias] [, ...] WHERE join_condition
+UPDATE table SET column = expression FROM (SELECT ...) alias WHERE join_condition</code></pre>
+<p>Takes the new values from <strong>another table</strong> or from a subquery (PostgreSQL style). <code>FROM</code> can list more than one table, or a <code>JOIN</code>.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>The <code>WHERE</code> must join the rows: <code>WHERE trade_log.id = fix.id</code>. Without it, <strong>every</strong> row of the table is updated.</li><li>When a column name is in both tables, write <code>table.column</code> (or <code>alias.column</code>), also on the right side of <code>SET</code>. Otherwise: <code>column &#39;price&#39; is in more than one table</code>.</li><li>The table being updated can have an alias too: <code>UPDATE trade_log t SET ... WHERE t.id = f.id</code>.</li><li><code>RETURNING</code> works. For <code>DELETE</code> the same idea is written <code>DELETE FROM table USING other_table WHERE ...</code>.</li></ul></li></ul>
+<p><strong>Example: Copy corrected prices from another table</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (id LONG PRIMARY KEY, symbol SYMBOL, price DOUBLE);
+CREATE TABLE price_fix (id LONG PRIMARY KEY, price DOUBLE);
+INSERT INTO trade_log VALUES (1, &#39;ACME&#39;, 10.5), (2, &#39;CITY&#39;, 20.0), (3, &#39;VOLT&#39;, 30.0);
+INSERT INTO price_fix VALUES (1, 11.0), (3, 33.0);</code></pre>
+<pre><code class="language-sql">UPDATE trade_log SET price = f.price FROM price_fix f WHERE trade_log.id = f.id RETURNING id, symbol, price;
+SELECT * FROM trade_log ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE trade_log SET price = f.price FROM price_fix AS f WHERE trade_log.id = f.id RETURNING id, sym</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>ACME</td><td>11</td></tr><tr><td>3</td><td>VOLT</td><td>33</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<pre><code class="language-text">2 row(s) updated</code></pre>
+<p><code>SELECT * FROM trade_log ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>ACME</td><td>11</td></tr><tr><td>2</td><td>CITY</td><td>20</td></tr><tr><td>3</td><td>VOLT</td><td>33</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: UPDATE ... FROM a subquery</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (id LONG PRIMARY KEY, symbol SYMBOL, price DOUBLE);
+CREATE TABLE price_fix (id LONG, price DOUBLE);
+INSERT INTO trade_log VALUES (1, &#39;ACME&#39;, 10.5), (2, &#39;CITY&#39;, 20.0), (3, &#39;VOLT&#39;, 30.0);
+INSERT INTO price_fix VALUES (1, 11.0), (1, 12.0), (3, 33.0);</code></pre>
+<pre><code class="language-sql">UPDATE trade_log SET price = s.last_price
+FROM (SELECT id, max(price) AS last_price FROM price_fix GROUP BY id) s
+WHERE trade_log.id = s.id;
+SELECT * FROM trade_log ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE trade_log SET price = s.last_price FROM (SELECT id, max(price) AS last_price FROM price_fix G</code></p>
+<pre><code class="language-text">2 row(s) updated</code></pre>
+<p><code>SELECT * FROM trade_log ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>ACME</td><td>12</td></tr><tr><td>2</td><td>CITY</td><td>20</td></tr><tr><td>3</td><td>VOLT</td><td>33</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Take 250.50 from an account and give it to another</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000.00), (2, &#39;Sita&#39;, 0.00);</code></pre>
+<pre><code class="language-sql">UPDATE accounts SET balance = balance - 250.50 WHERE id = 1;
+UPDATE accounts SET balance = balance + 250.50 WHERE id = 2;
+SELECT id, owner, balance FROM accounts ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE accounts SET balance = balance - 250.50 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>UPDATE accounts SET balance = balance + 250.50 WHERE id = 2</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT id, owner, balance FROM accounts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>Ram</td><td>749.50</td></tr><tr><td>2</td><td>Sita</td><td>250.50</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Edit a forum post and mark it edited</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, author STRING NOT NULL, body STRING NOT NULL, edited BOOL NOT NULL DEFAULT FALSE);
+INSERT INTO posts (author, body) VALUES (&#39;ram&#39;, &#39;CITY dividend looks god.&#39;), (&#39;sita&#39;, &#39;I agree.&#39;);</code></pre>
+<pre><code class="language-sql">UPDATE posts SET body = &#39;CITY dividend looks good.&#39;, edited = TRUE WHERE id = 1;
+SELECT id, author, body, edited FROM posts ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE posts SET body = &#39;CITY dividend looks good.&#39;, edited = TRUE WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT id, author, body, edited FROM posts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>body (STRING)</th><th>edited (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>CITY dividend looks good.</td><td>true</td></tr><tr><td>2</td><td>sita</td><td>I agree.</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Round the TELCO live prices (many columns at once)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">UPDATE live_data SET ltp = round(ltp, 0), point_change = round(point_change, 0) WHERE symbol = &#39;TELCO&#39;;
+SELECT timestamp, symbol, ltp, point_change FROM live_data WHERE symbol = &#39;TELCO&#39;;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE live_data SET ltp = round(ltp, 0), point_change = round(point_change, 0) WHERE symbol = &#39;TELC</code></p>
+<pre><code class="language-text">3 row(s) updated</code></pre>
+<p><code>SELECT timestamp, symbol, ltp, point_change FROM live_data WHERE symbol = &#39;TELCO&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>point_change (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>TELCO</td><td>861</td><td>-21</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>TELCO</td><td>869</td><td>-12</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>TELCO</td><td>898</td><td>17</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Moving a candle onto a day that already has one</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE) TIMESERIES(time) DEDUP KEY (symbol, time);
+INSERT INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 507.6), (&#39;2026-09-14&#39;, &#39;CITY&#39;, 511.0);</code></pre>
+<pre><code class="language-sql">UPDATE ochl_day SET time = &#39;2026-09-13&#39; WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-14&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>the update would create a second row with symbol=&#39;CITY&#39;, time=&#39;2026-09-13T00:00:00.000Z&#39; in &#39;ochl_day&#39;</code></p>
+<p><strong>Example: A subquery in UPDATE</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, balance DECIMAL(2));
+INSERT INTO accounts VALUES (1, 10.00), (2, 20.00);</code></pre>
+<pre><code class="language-sql">UPDATE accounts SET balance = (SELECT max(balance) FROM accounts) WHERE id = 1;
+SELECT * FROM accounts ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE accounts SET balance = (SELECT max(balance) FROM accounts) WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT * FROM accounts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>20.00</td></tr><tr><td>2</td><td>20.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="delete">DELETE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DELETE FROM table [WHERE condition] [RETURNING ...]</code></pre>
+<p>Removes every row where <code>condition</code> is true. Without <code>WHERE</code>, it removes <strong>all</strong> rows, but the table stays.</p>
+<ul><li><strong>Returns:</strong> <code>N row(s) deleted</code>.</li><li><strong>Notes:</strong> a row that another table still <a href="constraints.html#references">REFERENCES</a> cannot be deleted, unless that <code>REFERENCES</code> says <code>ON DELETE CASCADE</code> (the pointing rows go too) or <code>ON DELETE SET NULL</code>. There is no <code>DELETE ... LIMIT</code>; a subquery in the <code>WHERE</code> works. To remove whole days, months or years of a time-series table, <a href="alter-table.html#drop-partition">DROP PARTITION</a> is much faster. To empty a whole table, <a href="#truncate">TRUNCATE</a> is much faster. Unlike QuestDB, KDB can delete single rows of a time-series table.</li><li><strong>Whole partitions:</strong> when the <code>WHERE</code> matches <strong>every</strong> row of each partition the <code>DELETE</code> reads - all rows of a table that holds one symbol, or whole months of a <code>PARTITION BY MONTH</code> table - KDB drops those partitions instead of deleting row by row, as <code>DROP PARTITION</code> does: the same rows go, but one log entry is written instead of one per row (239,326 minute bars: 3 ms instead of 300 ms). Inside <code>BEGIN ... COMMIT</code> a <code>ROLLBACK</code> puts them back. KDB checks this by counting: if a single row of those partitions does not match, the <code>DELETE</code> goes row by row as before. In the <a href="change-stream.html">change stream</a> such a <code>DELETE</code> is one <code>ddl</code> row (<code>ALTER TABLE ... DROP PARTITION ...</code>), not a <code>delete</code> row per row. <code>KDB_NO_DELETE_DROP=1</code> turns it off.</li></ul>
+<p><strong>Example: Delete the trades of broker 34 on 2026-09-09</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS trades FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34);
+DELETE FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34);
+SELECT count(*) AS trades FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34);</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS trades FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34)</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>DELETE FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34)</code></p>
+<pre><code class="language-text">4 row(s) deleted</code></pre>
+<p><code>SELECT count(*) AS trades FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34)</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Remove app sessions that have ended</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE sessions (token STRING PRIMARY KEY, user_id LONG NOT NULL, expires TIMESTAMP NOT NULL);
+INSERT INTO sessions VALUES (&#39;a1&#39;, 1, &#39;2026-09-01T00:00:00Z&#39;), (&#39;b2&#39;, 2, &#39;2026-09-30T00:00:00Z&#39;), (&#39;c3&#39;, 1, &#39;2026-08-15T00:00:00Z&#39;);</code></pre>
+<pre><code class="language-sql">DELETE FROM sessions WHERE expires &lt; &#39;2026-09-11T00:00:00Z&#39;;
+SELECT token, user_id, expires FROM sessions;</code></pre>
+<p>Result:</p>
+<p><code>DELETE FROM sessions WHERE expires &lt; &#39;2026-09-11T00:00:00Z&#39;</code></p>
+<pre><code class="language-text">2 row(s) deleted</code></pre>
+<p><code>SELECT token, user_id, expires FROM sessions</code></p>
+<div class="table-wrap"><table><thead><tr><th>token (STRING)</th><th>user_id (LONG)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>b2</td><td>2</td><td>2026-09-30T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Delete bars by a list of (symbol, day) keys</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE bars (time TIMESTAMP ROUND 1d TIME ZONE &#39;Asia/Kathmandu&#39;, symbol SYMBOL, close DOUBLE)
+  TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (symbol, time);
+INSERT INTO bars VALUES (&#39;2026-07-01T00:00:00+05:45&#39;, &#39;CITY&#39;, 500), (&#39;2026-08-02T00:00:00+05:45&#39;, &#39;CITY&#39;, 505),
+  (&#39;2026-09-10T00:00:00+05:45&#39;, &#39;CITY&#39;, 512), (&#39;2026-09-10T00:00:00+05:45&#39;, &#39;COAST&#39;, 376);</code></pre>
+<pre><code class="language-sql">-- Only the July and September partitions are read, and only these keys in them.
+DELETE FROM bars WHERE (symbol, time) IN ((&#39;CITY&#39;, &#39;2026-07-01T00:00:00+05:45&#39;), (&#39;COAST&#39;, &#39;2026-09-10T00:00:00+05:45&#39;));
+SELECT symbol, to_char(time, &#39;YYYY-MM-DD&#39;, &#39;Asia/Kathmandu&#39;) AS nepal_day, close FROM bars ORDER BY time, symbol;</code></pre>
+<p>Result:</p>
+<p><code>DELETE FROM bars WHERE (symbol, time) IN ((&#39;CITY&#39;, &#39;2026-07-01T00:00:00+05:45&#39;), (&#39;COAST&#39;, &#39;2026-09-</code></p>
+<pre><code class="language-text">2 row(s) deleted</code></pre>
+<p><code>SELECT symbol, to_char(time, &#39;YYYY-MM-DD&#39;, &#39;Asia/Kathmandu&#39;) AS nepal_day, close FROM bars ORDER BY </code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>nepal_day (STRING)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-08-02</td><td>505</td></tr><tr><td>CITY</td><td>2026-09-10</td><td>512</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Remove all rows, keep the table</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE import_staging (symbol SYMBOL, close DOUBLE);
+INSERT INTO import_staging VALUES (&#39;CITY&#39;, 504.9), (&#39;COAST&#39;, 376.1);</code></pre>
+<pre><code class="language-sql">DELETE FROM import_staging;
+SELECT count(*) AS rows FROM import_staging;</code></pre>
+<p>Result:</p>
+<p><code>DELETE FROM import_staging</code></p>
+<pre><code class="language-text">2 row(s) deleted</code></pre>
+<p><code>SELECT count(*) AS rows FROM import_staging</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A broker with trades cannot be deleted</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">DELETE FROM brokers WHERE id = 58;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot remove brokers(id) = &#39;58&#39;: table &#39;trade_log&#39; column &#39;buyer&#39; still refers to it (foreign key &#39;trade_log_buyer_fkey&#39;)</code></p>
+<h2 id="truncate">TRUNCATE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">TRUNCATE [TABLE] table [, table ...] [RESTART IDENTITY | CONTINUE IDENTITY] [CASCADE | RESTRICT]</code></pre>
+<p>Empties tables and keeps them: their columns, indexes, triggers and rights stay. It drops the table&#39;s files, as <a href="alter-table.html#drop-partition">DROP PARTITION</a> does, instead of deleting row by row. So it takes the same short time for ten rows or a hundred million.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table, ...</code></td><td>one or more tables (not views)</td></tr><tr><td><code>RESTART IDENTITY</code></td><td><a href="constraints.html#auto">AUTO</a> ids start again at 1</td></tr><tr><td><code>CONTINUE IDENTITY</code></td><td>AUTO ids go on from where they were (the default)</td></tr><tr><td><code>CASCADE</code></td><td>also empty the tables whose <code>REFERENCES</code> point at these tables</td></tr><tr><td><code>RESTRICT</code></td><td>the default: refuse when another table points at one of them</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>N table(s) truncated (M row(s) removed)</code>, with <code>, AUTO ids start again at 1</code> for <code>RESTART IDENTITY</code>.</li><li><strong>Rights:</strong> the same as <code>DELETE</code> on each table, also on the tables <code>CASCADE</code> reaches.</li><li><strong>Notes:</strong>
+<ul><li>A table that another table <code>REFERENCES</code> is emptied only together with it: name both, or add <code>CASCADE</code>.</li><li>No row triggers run, as in PostgreSQL. A <a href="views.html#materialized-view">materialized view</a> of the table is emptied too.</li><li>Not inside <code>BEGIN ... COMMIT</code> or a procedure: it cannot be undone. Use <code>DELETE FROM t</code> there; <code>ROLLBACK</code> undoes that.</li><li>The old files go to the database&#39;s <code>_trash</code> folder and are removed after an hour, or at once with <a href="databases.html#purge-trash">PURGE TRASH</a>. To empty every table of a test database, see <a href="databases.html#truncate-all-tables">TRUNCATE ALL TABLES</a>.</li><li><code>ONLY</code> and <code>*</code> after a name (PostgreSQL table inheritance) are read and change nothing.</li><li>The two options can come in either order: <code>CASCADE RESTART IDENTITY</code> works the same as <code>RESTART IDENTITY CASCADE</code>.</li><li><code>_audit_log</code> cannot be emptied, and a dropped table in the <a href="trash.html">trash</a> cannot be truncated.</li></ul></li></ul>
+<p><strong>Example: Empty a staging table before the next import</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE import_staging (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO import_staging VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.9), (&#39;2026-09-11&#39;, &#39;COAST&#39;, 376.1);</code></pre>
+<pre><code class="language-sql">TRUNCATE import_staging;
+SELECT count(*) AS rows FROM import_staging;</code></pre>
+<p>Result:</p>
+<p><code>TRUNCATE TABLE import_staging</code></p>
+<pre><code class="language-text">1 table(s) truncated (2 row(s) removed)</code></pre>
+<p><code>SELECT count(*) AS rows FROM import_staging</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Brokers and the trades that point at them, ids from 1 again</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY AUTO, buyer INT REFERENCES brokers(id), qty LONG);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (45, &#39;Imperial Securities&#39;);
+INSERT INTO trades (buyer, qty) VALUES (1, 10), (45, 20);</code></pre>
+<pre><code class="language-sql">TRUNCATE TABLE brokers CASCADE RESTART IDENTITY;
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;);
+INSERT INTO trades (buyer, qty) VALUES (58, 5);
+SELECT id, buyer, qty FROM trades;</code></pre>
+<p>Result:</p>
+<p><code>TRUNCATE TABLE brokers RESTART IDENTITY CASCADE</code></p>
+<pre><code class="language-text">2 table(s) truncated (4 row(s) removed, AUTO ids start again at 1)</code></pre>
+<p><code>INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO trades (buyer, qty) VALUES (58, 5)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, buyer, qty FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>buyer (INT)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>1</td><td>58</td><td>5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Another table points at it</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY AUTO, buyer INT REFERENCES brokers(id));</code></pre>
+<pre><code class="language-sql">TRUNCATE brokers;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot truncate &#39;brokers&#39;: table &#39;trades&#39; has a foreign key to it (trades_buyer_fkey); truncate both in one statement, or add CASCADE</code></p>
+<p><strong>Example: Not inside a transaction</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE notes (id INT PRIMARY KEY, body STRING);</code></pre>
+<pre><code class="language-sql">BEGIN;
+TRUNCATE notes;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">transaction started</code></pre>
+<p>Error: <code>TRUNCATE cannot be used inside a transaction or a procedure: KDB cannot undo it. COMMIT or ROLLBACK first, or use DELETE FROM table, which ROLLBACK undoes (the transaction was rolled back)</code></p>
+<h2 id="returning">RETURNING</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">UPDATE ... [WHERE ...] RETURNING expression [[AS] alias], ... | *
+DELETE FROM ... [WHERE ...] RETURNING expression [[AS] alias], ... | *</code></pre>
+<p>Gives rows back like a <code>SELECT</code>: for <code>UPDATE</code> the rows <strong>after</strong> the change, for <code>DELETE</code> the rows as they <strong>were</strong> before they were removed.</p>
+<ul><li><strong>Returns:</strong> the rows, then <code>N row(s) updated</code> or <code>N row(s) deleted</code>.</li><li><strong>Notes:</strong> use it to show the new balance to the user, or to keep a copy of deleted rows in your app log. If the <code>RETURNING</code> list has an error, nothing is changed. See also <a href="insert.html#returning">INSERT ... RETURNING</a>.</li></ul>
+<p><strong>Example: Withdraw money and get the new balance in one statement</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000.00);</code></pre>
+<pre><code class="language-sql">UPDATE accounts SET balance = balance - 250.50 WHERE id = 1 RETURNING id, owner, balance;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>Ram</td><td>749.50</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><strong>Example: Delete old news and see what was removed</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE news (id LONG PRIMARY KEY AUTO, title STRING NOT NULL, published_at TIMESTAMP NOT NULL);
+INSERT INTO news (title, published_at) VALUES
+  (&#39;Old IPO notice&#39;, &#39;2025-01-10T10:00:00+05:45&#39;),
+  (&#39;City Bank profit rises 18%&#39;, &#39;2026-08-01T11:00:00+05:45&#39;);</code></pre>
+<pre><code class="language-sql">DELETE FROM news WHERE published_at &lt; &#39;2026-01-01&#39; RETURNING id, title;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Old IPO notice</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<h2 id="fix-safely">Fix wrong rows safely</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">1. SELECT count(*) ... WHERE condition        -- look, count
+2. BACKUP DATABASE  (or kdb backup)           -- a way back
+3. DELETE FROM ... WHERE condition            -- the same WHERE
+4. INSERT OR REPLACE INTO ... VALUES (...)    -- the correct rows
+5. SELECT ... WHERE condition                 -- check</code></pre>
+<p>Bad data happens: a wrong file is imported, a price is ten times too big, a day is loaded twice. Use these steps.</p>
+<ul><li>Use the <strong>same <code>WHERE</code></strong> in every step. The number of deleted rows must be the number you counted.</li><li>To try a change first, wrap it in <code>BEGIN</code> ... <code>ROLLBACK</code>: you see the result, and nothing is saved. When it looks right, run it again with <code>COMMIT</code> (<a href="transactions.html">transactions</a>).</li><li><strong>Notes:</strong> if something went badly wrong (an <code>UPDATE</code> without <code>WHERE</code>), do not fix it row by row: restore the backup to the time before the mistake with <code>kdb restore --until</code> (<a href="backup-and-safety.html">backup and safety</a>). Times that are 5:45 hours wrong (a local time written without its offset, here <code>+05:45</code>) can be fixed with <code>UPDATE t SET time = time - 20700000 WHERE ...</code> (20700000 ms = 5 h 45 min); check the <code>DEDUP KEY</code> first.</li></ul>
+<p><strong>Example: A bad import made COAST minute prices ten times too big: find, delete, load again, check</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">UPDATE ochl_minutes SET open = open * 10, high = high * 10, low = low * 10, close = close * 10
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<pre><code class="language-sql">SELECT count(*) AS rows, min(low) AS min_low, max(high) AS max_high FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;
+DELETE FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;
+INSERT OR REPLACE INTO ochl_minutes VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;COAST&#39;, 380.1, 380.4, 379.8, 380.2, 900),
+  (&#39;2026-09-10T11:01:00+05:45&#39;, &#39;COAST&#39;, 380.2, 380.5, 380.0, 380.3, 650);
+SELECT time, symbol, open, high, low, close, volume FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS rows, min(low) AS min_low, max(high) AS max_high FROM ochl_minutes WHERE symbol =</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th><th>min_low (DOUBLE)</th><th>max_high (DOUBLE)</th></tr></thead><tbody><tr><td>236</td><td>3732</td><td>3820</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>DELETE FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;</code></p>
+<pre><code class="language-text">236 row(s) deleted</code></pre>
+<p><code>INSERT OR REPLACE INTO ochl_minutes VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;COAST&#39;, 380.1, 380.4, 379.</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT time, symbol, open, high, low, close, volume FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND tim</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>COAST</td><td>380.1</td><td>380.4</td><td>379.8</td><td>380.2</td><td>900</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>COAST</td><td>380.2</td><td>380.5</td><td>380</td><td>380.3</td><td>650</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p>To replace <strong>all</strong> rows of one symbol (prices adjusted for a bonus share, say), load the new rows into a table with the same columns first, then swap them in one transaction. Readers see the old rows or the new ones, never an empty chart. When the symbol fills its partitions, the <code>DELETE</code> drops them and the <code>INSERT</code> copies the new table&#39;s partitions whole: 239,326 minute bars take about 0.1 s.</p>
+<p><strong>Example: Re-adjust one symbol&#39;s whole history in one transaction</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE city_min (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY YEAR SORT BY (symbol, time) DEDUP KEY (symbol, time);
+CREATE TABLE city_adj (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY YEAR SORT BY (symbol, time) DEDUP KEY (symbol, time);
+INSERT INTO city_min VALUES (&#39;2025-12-31T09:00:00Z&#39;, &#39;CITY&#39;, 500), (&#39;2026-09-10T09:00:00Z&#39;, &#39;CITY&#39;, 520);
+INSERT INTO city_adj SELECT time, symbol, round(close * 0.95, 2) FROM city_min;</code></pre>
+<pre><code class="language-sql">BEGIN;
+DELETE FROM city_min WHERE symbol = &#39;CITY&#39;;
+INSERT INTO city_min SELECT time, symbol, close FROM city_adj;
+COMMIT;
+SELECT time, symbol, close FROM city_min ORDER BY time;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>DELETE FROM city_min WHERE symbol = &#39;CITY&#39;</code></p>
+<pre><code class="language-text">2 row(s) deleted</code></pre>
+<p><code>INSERT INTO city_min SELECT time, symbol, close FROM city_adj</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 3 change(s) saved</code></pre>
+<p><code>SELECT time, symbol, close FROM city_min ORDER BY time</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-31T09:00:00.000Z</td><td>CITY</td><td>475</td></tr><tr><td>2026-09-10T09:00:00.000Z</td><td>CITY</td><td>494</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Try an UPDATE, look, and roll it back</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000.00), (2, &#39;Sita&#39;, 500.00);</code></pre>
+<pre><code class="language-sql">BEGIN;
+UPDATE accounts SET balance = balance * 2;
+SELECT id, owner, balance FROM accounts ORDER BY id;
+ROLLBACK;
+SELECT id, owner, balance FROM accounts ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>UPDATE accounts SET balance = balance * 2</code></p>
+<pre><code class="language-text">2 row(s) updated</code></pre>
+<p><code>SELECT id, owner, balance FROM accounts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>Ram</td><td>2000.00</td></tr><tr><td>2</td><td>Sita</td><td>1000.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>ROLLBACK</code></p>
+<pre><code class="language-text">transaction rolled back: 1 change(s) undone</code></pre>
+<p><code>SELECT id, owner, balance FROM accounts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>Ram</td><td>1000.00</td></tr><tr><td>2</td><td>Sita</td><td>500.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Nepal times stored without +05:45: move them back 5 h 45 min</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_data (timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(timestamp) DEDUP KEY (timestamp, symbol);
+INSERT INTO live_data VALUES (&#39;2026-09-10 11:05:00&#39;, &#39;CITY&#39;, 513.0), (&#39;2026-09-10 14:59:00&#39;, &#39;CITY&#39;, 527.1);</code></pre>
+<pre><code class="language-sql">UPDATE live_data SET timestamp = timestamp - 20700000 WHERE symbol = &#39;CITY&#39; AND timestamp IN &#39;2026-09-10&#39;;
+SELECT timestamp, symbol, ltp FROM live_data;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE live_data SET timestamp = timestamp - 20700000 WHERE symbol = &#39;CITY&#39; AND timestamp IN &#39;2026-0</code></p>
+<pre><code class="language-text">2 row(s) updated</code></pre>
+<p><code>SELECT timestamp, symbol, ltp FROM live_data</code></p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>513</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>527.1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/update-delete.md">This page as markdown</a>.</footer>
+</body>
+</html>

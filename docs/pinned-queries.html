@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinned queries - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Pin a SELECT so its result is always ready in the result cache - computed when the database opens, never pushed out, computed again after a write.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/pinned-queries.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/pinned-queries.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="pinned-queries">Pinned queries</h1>
+<blockquote><p>Pin a SELECT so its result is always ready in the result cache - computed when the database opens, never pushed out, computed again after a write.</p></blockquote>
+<ul><li>Category: HTTP API</li><li>Keywords: pin, pinned query, pinned statement, pins, keep a result ready, warm cache, preload, dashboard slow query, GET /api/pins, POST /api/pins, DELETE /api/pins, _pinned_queries, cache_pinned</li><li>See also: <a href="performance-tips.html#result-cache">Performance tips (result-cache)</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="timers.html">Timers</a>, <a href="indexes.html#warm">Indexes (warm)</a>, <a href="console-monitor.html">Monitor panel (memory, processor, caches)</a></li></ul>
+<p>A <strong>pinned query</strong> is a <code>SELECT</code> the server keeps ready. Pin the slow question a dashboard asks on every load, and from then on every request for it is answered from the <a href="performance-tips.html#result-cache">result cache</a>:</p>
+<ul><li>It is computed <strong>when the database opens</strong>, right after the indexes are <a href="indexes.html#warm">built at open</a>, before anyone asks.</li><li>It is <strong>never pushed out</strong> of the result cache by other results, and it may take up to <strong>three quarters</strong> of the cache (an ordinary result is kept only up to a quarter).</li><li>After a <strong>write</strong> to a table it reads, the server computes it again by itself once the database has been quiet for half a second, so the next request finds it fresh. On a database that is written all the time and is never quiet, it does so at the latest two seconds after the first write that made the result old. A request that comes before that computes it, as any query would.</li><li>Pins are saved in the table <code>_pinned_queries</code> of the hidden <code>_system</code> database (like <a href="timers.html">timers</a>), or of the served database when <code>kdb serve</code> runs on one folder, so they survive restarts and are part of every backup.</li></ul>
+<p>The rules of the cache still apply: the statement must be one cacheable <code>SELECT</code> of this database (no <code>now()</code>, no random functions, no other database), and the <strong>row limit is part of the key</strong>: pin it with the <code>max_rows</code> the requests use (<code>/exec</code> sends 10,000 unless <code>limit=</code> says otherwise; the console sends 10,000).</p>
+<p>A pin is saved code that later runs by itself, without a rights check: only a server <strong>admin</strong> can pin or unpin, and every change is written to the <a href="audit-log.html">audit log</a> (event <code>pin</code>).</p>
+<p>Pins are a feature of <code>kdb serve</code>. A server started without them answers <code>/api/pins</code> with 404.</p>
+<h2 id="get-api-pins">GET /api/pins</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /api/pins[?db=&lt;name&gt;]</code></pre>
+<p>The pins of one database (the default database without <code>db=</code>). Needs read rights on the database.</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>database</code>, <code>sql</code>, <code>max_rows</code>, <code>enabled</code></td><td>the pin as saved</td></tr><tr><td><code>created_ms</code>, <code>created_by</code></td><td>when it was saved and by whom; empty = the token</td></tr><tr><td><code>open</code></td><td>the database is open now; the fields below are live only then</td></tr><tr><td><code>cached</code>, <code>cached_bytes</code></td><td>its result is in the cache right now, and its size</td></tr><tr><td><code>last_run_ms</code>, <code>last_ok</code>, <code>last_error</code></td><td>the last time the server computed it by itself (at open, or after a write); <code>last_ok</code> is <code>null</code> before the first</td></tr><tr><td><code>error</code></td><td>why the database refused the pin when it was applied (a column that no longer exists, for example); empty when it took it</td></tr></tbody></table></div>
+<p><code>now_ms</code> at the top is the server&#39;s clock. <code>GET /api/stats</code> shows <code>cache_pinned</code> per database: how many pinned results are in the cache now.</p>
+<h2 id="post-api-pins">POST /api/pins</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /api/pins[?db=&lt;name&gt;]
+Content-Type: application/json
+
+{&quot;sql&quot;: &quot;SELECT ...&quot;, &quot;max_rows&quot;: 10000, &quot;enabled&quot;: true}</code></pre>
+<p>Pins a statement, or replaces the pin with the same SQL. Returns the pin.</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>sql</code></td><td>one <code>SELECT</code>, at most 64 KB</td></tr><tr><td><code>max_rows</code></td><td>optional, 1 to 1,000,000 (default 10,000): the row limit the requests use</td></tr><tr><td><code>enabled</code></td><td>optional (default <code>true</code>); <code>false</code> keeps the pin saved without applying it</td></tr></tbody></table></div>
+<p>A statement that is not one <code>SELECT</code>, does not parse, or reads another database is a 400 that says so. So is a <code>max_rows</code> out of range.</p>
+<p><strong>HTTP: Pin the totals a dashboard shows on every load</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE trades (id LONG PRIMARY KEY, symbol SYMBOL, qty LONG, price DOUBLE);
+INSERT INTO trades VALUES (1, &#39;CITY&#39;, 100, 510.5), (2, &#39;CITY&#39;, 50, 512), (3, &#39;VOLT&#39;, 200, 301);</code></pre>
+<pre><code class="language-http">POST /api/pins
+Content-Type: application/json
+
+{&quot;sql&quot;: &quot;SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol&quot;}
+###
+GET /api/pins</code></pre>
+<p>Response:</p>
+<p><code>POST /api/pins</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;sql&quot;: &quot;SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol&quot;,
+  &quot;max_rows&quot;: 10000,
+  &quot;enabled&quot;: true,
+  &quot;created_ms&quot;: 1792647859769,
+  &quot;created_by&quot;: &quot;&quot;,
+  &quot;open&quot;: true,
+  &quot;cached&quot;: false,
+  &quot;cached_bytes&quot;: 0,
+  &quot;last_run_ms&quot;: 1792647859769,
+  &quot;last_ok&quot;: true,
+  &quot;last_error&quot;: &quot;&quot;,
+  &quot;error&quot;: &quot;&quot;
+}</code></pre>
+<p><code>GET /api/pins</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;now_ms&quot;: 1792647859811,
+  &quot;pins&quot;: [
+    {
+      &quot;database&quot;: &quot;demo&quot;,
+      &quot;sql&quot;: &quot;SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol&quot;,
+      &quot;max_rows&quot;: 10000,
+      &quot;enabled&quot;: true,
+      &quot;created_ms&quot;: 1792647859769,
+      &quot;created_by&quot;: &quot;&quot;,
+      &quot;open&quot;: true,
+      &quot;cached&quot;: false,
+      &quot;cached_bytes&quot;: 0,
+      &quot;last_run_ms&quot;: 1792647859769,
+      &quot;last_ok&quot;: true,
+      &quot;last_error&quot;: &quot;&quot;,
+      &quot;error&quot;: &quot;&quot;
+    }
+  ]
+}</code></pre>
+<p><strong>HTTP: Only one SELECT can be pinned</strong></p>
+<pre><code class="language-http">POST /api/pins
+Content-Type: application/json
+
+{&quot;sql&quot;: &quot;DELETE FROM trades&quot;}</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;a pinned statement is one SELECT&quot;}</code></pre>
+<h2 id="delete-api-pins">DELETE /api/pins</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DELETE /api/pins[?db=&lt;name&gt;]
+Content-Type: application/json
+
+{&quot;sql&quot;: &quot;SELECT ...&quot;}</code></pre>
+<p>Removes the pin with that SQL (also <code>?sql=&lt;url-encoded SQL&gt;</code>). Returns <code>{&quot;deleted&quot;: true}</code>. Its cached result stays until the cache needs the room, like any other. An unknown pin is a 404; a request without the SQL is a 400.</p>
+<p><strong>HTTP: Unpin it</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE trades (id LONG PRIMARY KEY, symbol SYMBOL, qty LONG);</code></pre>
+<pre><code class="language-http">POST /api/pins
+Content-Type: application/json
+
+{&quot;sql&quot;: &quot;SELECT symbol, sum(qty) FROM trades GROUP BY symbol&quot;}
+###
+DELETE /api/pins
+Content-Type: application/json
+
+{&quot;sql&quot;: &quot;SELECT symbol, sum(qty) FROM trades GROUP BY symbol&quot;}</code></pre>
+<p>Response:</p>
+<p><code>POST /api/pins</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;sql&quot;: &quot;SELECT symbol, sum(qty) FROM trades GROUP BY symbol&quot;,
+  &quot;max_rows&quot;: 10000,
+  &quot;enabled&quot;: true,
+  &quot;created_ms&quot;: 1792647859798,
+  &quot;created_by&quot;: &quot;&quot;,
+  &quot;open&quot;: true,
+  &quot;cached&quot;: false,
+  &quot;cached_bytes&quot;: 0,
+  &quot;last_run_ms&quot;: 1792647859799,
+  &quot;last_ok&quot;: true,
+  &quot;last_error&quot;: &quot;&quot;,
+  &quot;error&quot;: &quot;&quot;
+}</code></pre>
+<p><code>DELETE /api/pins</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;deleted&quot;: true}</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/pinned-queries.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup, check, repair and restore - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="How KDB keeps your data safe, how to make and test backups, and how to get the data back after damage or a mistake.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/backup-and-safety.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/backup-and-safety.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="backup-check-repair-and-restore">Backup, check, repair and restore</h1>
+<blockquote><p>How KDB keeps your data safe, how to make and test backups, and how to get the data back after damage or a mistake.</p></blockquote>
+<ul><li>Category: Backup, check, repair, restore</li><li>Keywords: backup, backups, CHECKPOINT, checkpoint now, settle after a load, restore, point-in-time restore, PITR, point-in-time window, restore drill, monthly restore, test restore, restore while running, online restore, /api/restore, swap database, /api/databases/swap, wal_archive_mb, undo, bad import, UPDATE without WHERE, verify, verified backup, hard links, retention, keep daily, keep weekly, prune, daily backup, Task Scheduler, cron, damage, disk failure, safety, --hard-links, --keep-daily, --keep-weekly, --logs-from, --until, backup.kdb, /api/backup, /api/check, Backup now, Check now, disk full, 507, 53100, no space, out of memory, ENOMEM, Cannot allocate memory, 53200, try again, compressed log, compressed_log, log compression, WAL compression, KDB_WAL_COMPRESS, packed log records, kdb_wal_packed_input_bytes_total</li><li>See also: <a href="cli-maintenance.html">kdb info, check, repair, dump-file</a>, <a href="data-formats.html">How KDB stores data</a>, <a href="cli-serve.html">kdb serve</a>, <a href="transactions.html">Transactions</a>, <a href="http-server-info.html">Health, info, check and backup over HTTP</a></li></ul>
+<p>KDB is built so that a crash, a power cut or a bad disk block never gives you wrong data without telling you.
+But only <strong>backups on another disk</strong> protect you from a dead disk or a big mistake (a wrong <code>UPDATE</code>, a bad import).
+This page shows how to make backups, check them, and restore from them.</p>
+<p>Most commands here need the database <strong>closed</strong> (no <code>kdb serve</code>, no <code>kdb shell</code> on it). With a running server, use <code>BACKUP DATABASE</code>, the console&#39;s <strong>Backup now</strong>, <code>POST /api/backup</code> and <code>POST /api/check</code>, and <a href="#restore-online">restore while the server runs</a>.</p>
+<h2 id="protection">How KDB protects your data</h2>
+<div class="table-wrap"><table><thead><tr><th>Danger</th><th>What KDB does</th></tr></thead><tbody><tr><td>Power cut or crash while writing</td><td>Every change goes into the <strong>log</strong> (WAL, write-ahead log) first. The log is on the disk before KDB says &quot;done&quot;. At the next start KDB replays the log.</td></tr><tr><td>A file only half written</td><td>Data files are <strong>never changed</strong>. KDB writes a new version, checks it, and then switches to it.</td></tr><tr><td>A bad bit on the disk</td><td>Every block of every file has a <strong>checksum</strong> (CRC32C, a short number made from the bytes). KDB notices one wrong bit and names the file and block.</td></tr><tr><td>A damaged data file</td><td>The <strong>repair ladder</strong>: the previous version of the file plus the log, then a copy from a backup plus the log. See <a href="cli-maintenance.html#kdb-repair">kdb repair</a>.</td></tr><tr><td>A damaged list of files</td><td>The list (the <strong>manifest</strong>) is saved <strong>twice</strong>. One good copy is always left.</td></tr><tr><td>A mistake (wrong UPDATE, bad import)</td><td><strong>Point-in-time restore</strong>: a backup plus the log, up to the second before the mistake. See <a href="#restore-online">restore while running</a> and <a href="#kdb-restore">kdb restore</a>.</td></tr><tr><td>The whole disk dies</td><td>Only backups on another disk help.</td></tr><tr><td>The disk is full</td><td>KDB stops accepting writes when less than 64 MB is free, so nothing is left half written. See <a href="#disk-full">when the disk is full</a>.</td></tr></tbody></table></div>
+<p>More details: <a href="data-formats.html">data formats</a> and <a href="../tutorial/09-backup-and-safety.html">chapter 9</a>.</p>
+<h2 id="compressed-log">The log is compressed</h2>
+<p>A commit has to wait until its log records are on the disk. For a big commit (a whole-history rewrite of one symbol: <code>DELETE</code> 240,000 rows and <code>INSERT ... SELECT</code> them again) that is tens of MB, and the wait for the disk was most of the commit&#39;s time. Since 2026-10-02 KDB packs such records before it writes them.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>How</th></tr></thead><tbody><tr><td>which commits</td><td>those whose log records hold <strong>64 KB or more</strong>; smaller commits are written exactly as before, so they cost nothing extra</td></tr><tr><td>how much smaller</td><td>about <strong>a third</strong> of the bytes for candle rows and deletes (measured: 44 MB of log became 14 MB)</td></tr><tr><td>how fast</td><td>packing runs on up to 8 threads (at most half the CPUs); measured on that rewrite, its <code>COMMIT</code> took 41 ms instead of 89 ms</td></tr><tr><td>never bigger</td><td>a group of records that does not get smaller (random bytes) is written as before</td></tr><tr><td>safe</td><td>every record inside is checked again (its checksum) when it is read; a torn end after a power cut is found as before</td></tr><tr><td>encrypted databases</td><td>the records are packed first, then <a href="encryption.html">encrypted</a></td></tr><tr><td>everything that reads the log</td><td>recovery, <code>kdb check</code>, backups and restore, <a href="standby.html">standby copies</a>, <a href="change-stream.html">change streams</a> and <code>AS OF</code> read packed records like any others</td></tr><tr><td>watch it</td><td><code>/metrics</code>: <code>kdb_wal_packed_input_bytes_total</code> (what the records would have taken) and <code>kdb_wal_packed_output_bytes_total</code> (what was written)</td></tr><tr><td>turn it off</td><td><code>KDB_WAL_COMPRESS=off</code> in the environment of <code>kdb serve</code> (or any <code>kdb</code> command)</td></tr></tbody></table></div>
+<p>Packed records are a stored-format feature (<code>compressed_log</code>, see <a href="versions.html">versions</a>): a KDB from before 2026-10-02 refuses them as &quot;needs a newer KDB&quot;, never as damage. <a href="versions.html#downgrade">kdb downgrade</a> to such a KDB turns packing off by itself while it works, so it leaves no packed record that the older KDB would have to read.</p>
+<h2 id="disk-full">When the disk is full</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">HTTP:        507 Insufficient Storage   (/exec: {&quot;error&quot;: ...}; POST /write: {&quot;code&quot;: &quot;disk full&quot;, &quot;message&quot;: ..., ...})
+PostgreSQL:  SQLSTATE 53100 (disk_full)</code></pre>
+<p>KDB looks at the free space of the data disk before it writes, at most once a second. Below <strong>64 MB</strong> free it refuses the write with <code>only N MB free on disk; KDB pauses writes below 64 MB so nothing is half-written</code>. A write the disk itself refuses (it filled up in between) gets the same HTTP code and SQLSTATE, with the system&#39;s message.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>What happens</th></tr></thead><tbody><tr><td>the refused write</td><td>nothing of it is saved; the whole request or transaction is rolled back</td></tr><tr><td>reads</td><td>go on as usual</td></tr><tr><td>the database</td><td>is not damaged and needs no repair</td></tr><tr><td>later writes</td><td>work again as soon as there is room; no restart is needed</td></tr></tbody></table></div>
+<ul><li>Free room: delete old backups on that disk, empty the <a href="trash.html">trash</a>, drop old partitions, or move the data folder to a bigger disk (the <a href="console-settings.html">Settings page</a>).</li><li>A loader should treat 507 like 503: wait, then send the same request again. It was not applied.</li><li>One exception: when the disk fills while the log is being flushed, the 507 message says <code>The rows of this write are applied in memory and reach the log once disk space is freed</code>. Those rows are already there (reads show them) and are saved once space is back. For a table with a key, sending them again is harmless; for a table without one, do not send them again.</li></ul>
+<h2 id="out-of-memory">When the system is short of memory</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">HTTP:        503 Service Unavailable, Retry-After: 1   (not applied: send it again)
+HTTP:        500, no Retry-After   (&quot;... The rows of this write are applied in memory ...&quot;: do not send it again)
+PostgreSQL:  SQLSTATE 53200 (out_of_memory)</code></pre>
+<p>Sometimes the operating system refuses a write to a file for a moment: <code>Cannot allocate memory</code> (ENOMEM). A Docker VM whose memory is full of file cache does this. It is not a broken disk, and since 2026-10-02 KDB treats it so:</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>What happens</th></tr></thead><tbody><tr><td>a read, write or truncate of a file</td><td>tried again after a short pause, for about 2 s, before it counts as failed</td></tr><tr><td>a write to the log</td><td>undone and tried again, for about 3 s more</td></tr><tr><td>a write that still fails</td><td>gets 503 with <code>Retry-After</code> (it was not applied: send it again in a moment); the database does <strong>not</strong> stop and needs no reopen</td></tr><tr><td>reads, <code>/health</code></td><td>go on as usual</td></tr><tr><td>later writes</td><td>work again by themselves when memory is back</td></tr></tbody></table></div>
+<ul><li>One exception, as with a full disk: when the shortage hits the shared flush of the log, the rows are already in the table. That answer is <strong>500 without <code>Retry-After</code></strong>, and its message says <code>The rows of this write are applied in memory</code>. Reads show those rows, and KDB writes them to the log as soon as it can. Do not send them again to a table without a key: it would hold them twice.</li><li><code>kdb_io_retries_total</code> in <a href="http-server-info.html#metrics">/metrics</a> counts the calls that were tried again.</li></ul>
+<h2 id="backup-database">BACKUP DATABASE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">BACKUP DATABASE</code></pre>
+<p>Makes a backup of the current database <strong>while it stays open</strong>, then reads the whole backup again to check it.
+It works in <code>kdb serve</code> (console, <code>POST /exec</code>), in <code>kdb shell</code> and in <code>kdb sql</code>, when there is a backup folder. <code>kdb serve</code> always has one unless it is started with <code>--backups off</code> (<code>_backups</code> in the data folder, <code>_backups/&lt;folder name&gt;</code> next to a folder served by its path, or <code>--backups &lt;dir&gt;</code>; see <a href="backup-schedule.html#backup-settings">where the settings come from</a>). <code>kdb shell</code> and <code>kdb sql</code> need <code>--backups &lt;dir&gt;</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Result column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>backup</code></td><td>The new backup folder. Its name is the <strong>UTC</strong> time: <code>20260911-081906-660</code>.</td></tr><tr><td><code>files</code></td><td>Data files in the backup</td></tr><tr><td><code>bytes</code></td><td>Size of the backup</td></tr><tr><td><code>log_lsn</code></td><td>The backup holds every change up to this log position</td></tr></tbody></table></div>
+<ul><li><strong>Deletes old backups:</strong> after a good backup it keeps the newest backup of each of the last 7 days and of the last 4 weeks, and deletes the rest of that folder.</li><li>In a server with a data folder, a database backs up into <code>&lt;dir&gt;/&lt;database name&gt;</code>.</li><li>Needs the <code>admin</code> role when the server has users.</li><li>Without a backup folder (<code>kdb sql</code> without <code>--backups</code>, or a server started with <code>--backups off</code>): <code>no backup folder is set</code>.</li><li>A server with a <a href="backup-schedule.html#backup-command">copy command</a> copies each new backup off the server.</li></ul>
+<p><strong>Command line: In kdb shell, started with a backup folder</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb shell market --backups backups
+&gt; BACKUP DATABASE;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; backup                      | files | bytes  | log_lsn
+----------------------------+-------+--------+--------
+backups/20261022-054329-910 |     9 | 194519 |      30
+(1 row, 25.8 ms)
+backup created and verified
+kdb&gt;</code></pre>
+<p><strong>Example: No backup folder was given</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">BACKUP DATABASE;</code></pre>
+<p>Result:</p>
+<p>Error: <code>no backup folder is set; start KDB with a backup folder (for example --backups D:/kdb_backups)</code></p>
+<h2 id="check-table">CHECK TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CHECK TABLE &lt;table&gt;</code></pre>
+<p>Reads every block of every data file and every log record, and checks the checksums. It changes nothing.</p>
+<ul><li><strong>Result:</strong> a column <code>problem</code> with one row per problem (no rows when all is well), and the message <code>OK: no damage found in N files</code> or <code>N problem(s) found</code>.</li><li><strong>It always checks the whole database</strong>, whatever table you name. The name is not even checked.</li><li>The same as <code>.check</code> in <code>kdb shell</code>, <strong>Check now</strong> in the console, <code>POST /api/check</code>, and <a href="cli-maintenance.html#kdb-check">kdb check</a> for a closed database.</li><li>Needs the <code>admin</code> role when the server has users.</li></ul>
+<p><strong>Example: Check the database</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CHECK TABLE ochl_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>problem (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<pre><code class="language-text">OK: no damage found in 14 files</code></pre>
+<h2 id="checkpoint">CHECKPOINT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CHECKPOINT</code></pre>
+<p>Writes every change of the current database that waits in memory (and in the log) to its data files, and answers only when that is done. It is PostgreSQL&#39;s <code>CHECKPOINT</code>. A benchmark or a loader sends it after a bulk load, so that what comes next does not run beside the background writing of that load.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>How</th></tr></thead><tbody><tr><td>a checkpoint already running</td><td>it waits for that one to end first, then writes what is still waiting</td></tr><tr><td>nothing waiting</td><td>answers at once: <code>nothing to write: every change is in the files already</code> (no file is written)</td></tr><tr><td>readers</td><td>go on while the files are written; writers wait until it is done</td></tr><tr><td>the answer</td><td>no rows; the message <code>checkpoint done: every change is in the files</code>. Over the PostgreSQL port the command tag is <code>CHECKPOINT</code></td></tr><tr><td>where</td><td>HTTP <code>POST /exec</code>, the PostgreSQL port, the console, <code>kdb shell</code></td></tr><tr><td>rights</td><td>the <code>ddl</code> role (or <code>admin</code>) when the server has users, as for <code>COMPRESS TABLE</code></td></tr></tbody></table></div>
+<ul><li>Send it <strong>alone</strong>: <code>CHECKPOINT; SELECT 1</code> is refused with <code>CHECKPOINT runs alone</code>.</li><li>Not inside a transaction block: after <code>BEGIN</code> it is refused (SQLSTATE <code>25001</code>); <code>COMMIT</code> or <code>ROLLBACK</code> first.</li><li>Your changes are safe without it: every commit is in the log on the disk before KDB answers. <code>CHECKPOINT</code> only moves the work of writing the data files to a moment you choose. See <a href="data-formats.html">data formats</a> for when KDB checkpoints by itself.</li><li>On a read-only database there is nothing to write, and it answers at once.</li></ul>
+<p><strong>Example: Write out what a load left waiting</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CHECKPOINT;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">checkpoint done: every change is in the files</code></pre>
+<h2 id="kdb-backup">kdb backup</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb backup &lt;db&gt; &lt;backups-dir&gt; [--hard-links] [--keep-daily N] [--keep-weekly N] [--data-dir &lt;folder&gt;]</code></pre>
+<p>Makes a backup of a <strong>closed</strong> database into a new folder inside <code>&lt;backups-dir&gt;</code>, then reads the whole backup again. Only then it prints <code>backup created and verified</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;db&gt;</code></td><td>A database name in the data folder, or a folder path</td><td>required</td></tr><tr><td><code>&lt;backups-dir&gt;</code></td><td>The folder for backups. It is created when missing. For a database <strong>name</strong>, the backup goes to <code>&lt;backups-dir&gt;/&lt;name&gt;</code>.</td><td>required</td></tr><tr><td><code>--hard-links</code></td><td>Hard links instead of copies for the data files: very fast, no extra space, but <strong>no protection</strong> from disk damage (see below). The log files are always copied.</td><td>copies</td></tr><tr><td><code>--keep-daily N</code></td><td>After the backup, keep the newest backup of each of the last <code>N</code> days</td><td>7 (when only <code>--keep-weekly</code> is given)</td></tr><tr><td><code>--keep-weekly N</code></td><td>After the backup, keep the newest backup of each of the last <code>N</code> weeks (weeks start on Sunday, UTC)</td><td>4 (when only <code>--keep-daily</code> is given)</td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code> = the backup is made and verified. <code>1</code> = error (for example <code>the database is open in another program</code>). <code>2</code> = damage (the backup failed its check).</li><li><strong>Without <code>--keep-daily</code> and <code>--keep-weekly</code> nothing is deleted.</strong> With one of them, backups that no rule keeps are deleted, and each one prints <code>removed old backup ...</code>. The newest backup is always kept. Days count only days that have a backup.</li><li><strong>Backup folder names are UTC time</strong>: <code>20260911-081906-660</code> = 2026-09-11 08:19:06.660 UTC = 14:04 in Nepal (+05:45).</li><li>Inside: <code>backup.kdb</code> (the list, written last), <code>files/</code> (the data files) and <code>wal/</code> (the log needed). A folder whose name ends in <code>.partial</code> is an unfinished backup; it is never used.</li><li><strong>Put the backups on another disk</strong> (<code>E:\kdb_backups</code>). One broken disk must not destroy both.</li><li><strong>Hard links</strong> share the same disk sectors as the database. If the disk goes bad, both are lost. Use them only as an extra undo point before a big import, never as the only backup.</li><li>A running server has the database open, so <code>kdb backup</code> fails with <code>the database is open in another program. Stop it first, or run BACKUP DATABASE in that server&#39;s console or API.</code></li><li><strong>Watch the path:</strong> <code>kdb backup</code> on a folder that does not exist makes a new empty database there and backs it up (<code>0 files</code>) with exit code <code>0</code>. Check the output of a scheduled backup.</li></ul>
+<p><strong>Command line: A daily backup that keeps 7 daily and 4 weekly backups</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb backup market backups --keep-daily 7 --keep-weekly 4
+kdb backups backups</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb backup market backups --keep-daily 7 --keep-weekly 4</code></p>
+<pre><code class="language-text">backup created and verified: backups/20261022-054330-059
+  9 files, 190.0 KB, log up to 30</code></pre>
+<p><code>&gt; kdb backups backups</code></p>
+<pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
+20261022-054330-059    2026-10-22 11:28:30       9   190.0 KB           30
+1 backups</code></pre>
+<p><strong>Command line: Three backups, but keep only the newest of today</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb backup market backups
+kdb backup market backups
+kdb backup market backups --keep-daily 1 --keep-weekly 1
+kdb backups backups</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb backup market backups</code></p>
+<pre><code class="language-text">backup created and verified: backups/20261022-054330-082
+  9 files, 190.0 KB, log up to 30</code></pre>
+<p><code>&gt; kdb backup market backups</code></p>
+<pre><code class="language-text">backup created and verified: backups/20261022-054330-142
+  9 files, 190.0 KB, log up to 30</code></pre>
+<p><code>&gt; kdb backup market backups --keep-daily 1 --keep-weekly 1</code></p>
+<pre><code class="language-text">backup created and verified: backups/20261022-054330-217
+  9 files, 190.0 KB, log up to 30
+removed old backup backups/20261022-054330-142
+removed old backup backups/20261022-054330-082</code></pre>
+<p><code>&gt; kdb backups backups</code></p>
+<pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
+20261022-054330-217    2026-10-22 11:28:30       9   190.0 KB           30
+1 backups</code></pre>
+<p><strong>Command line: Hard links: a fast undo point before a big import</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb backup market before-import --hard-links</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">backup created and verified: before-import/20261022-054330-104
+  9 files, 190.0 KB, log up to 30</code></pre>
+<p><strong>Command line: A database name in the data folder backs up into a sub-folder</strong></p>
+<pre><code class="language-bash">kdb shell
+&gt; CREATE DATABASE reports;
+&gt; USE reports;
+&gt; CREATE TABLE daily (day DATE PRIMARY KEY, trades LONG);
+kdb backup reports backups
+kdb backups backups/reports</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb shell</code></p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on default (data folder ./kdb-data)
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; database &#39;reports&#39; created
+kdb&gt; using database &#39;reports&#39;
+kdb&gt; table &#39;daily&#39; created
+kdb&gt;</code></pre>
+<p><code>&gt; kdb backup reports backups</code></p>
+<pre><code class="language-text">backup created and verified: backups/reports/20261022-054330-184
+  1 files, 427 B, log up to 2</code></pre>
+<p><code>&gt; kdb backups backups/reports</code></p>
+<pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
+20261022-054330-184    2026-10-22 11:28:30       1      427 B            2
+1 backups</code></pre>
+<h2 id="kdb-backups">kdb backups</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb backups &lt;backups-dir&gt;</code></pre>
+<p>Lists the finished backups in a folder, <strong>newest first</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>BACKUP</code></td><td>Folder name (UTC time)</td></tr><tr><td><code>CREATED</code></td><td>When it was made, in the <strong>local time</strong> of this computer</td></tr><tr><td><code>FILES</code>, <code>SIZE</code></td><td>Data files and total size (data and log)</td></tr><tr><td><code>LOG LSN</code></td><td>The backup holds every change up to this log position</td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code>; <code>1</code> when the folder does not exist.</li><li>Unfinished (<code>.partial</code>) and unreadable folders are not listed. It does <strong>not</strong> check the backups: use <a href="#kdb-verify-backup">kdb verify-backup</a>.</li><li>For a database name in the data folder, list <code>&lt;backups-dir&gt;/&lt;name&gt;</code>.</li></ul>
+<p><strong>Command line</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb backup market backups
+kdb backups backups</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb backup market backups</code></p>
+<pre><code class="language-text">backup created and verified: backups/20261022-054330-179
+  9 files, 190.0 KB, log up to 30</code></pre>
+<p><code>&gt; kdb backups backups</code></p>
+<pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
+20261022-054330-179    2026-10-22 11:28:30       9   190.0 KB           30
+1 backups</code></pre>
+<p><strong>Command line: A folder that does not exist</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb backups no-such-folder</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: Not found: list &#39;no-such-folder&#39;: Windows error 3</code></pre>
+<p>exit code 1</p>
+<h2 id="kdb-verify-backup">kdb verify-backup</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb verify-backup &lt;backup-dir&gt;</code></pre>
+<p>Reads <strong>one</strong> whole backup again: every data file and block against its checksum, every log file, and that the log reaches the end the backup promises.</p>
+<ul><li><strong>Exit code:</strong> <code>0</code> = <code>OK: backup is intact</code>. <code>2</code> = problems, one <code>PROBLEM:</code> line each. A folder that is not a backup also gives <code>2</code>.</li><li><code>&lt;backup-dir&gt;</code> is one backup folder, like <code>E:\kdb_backups\20260911-081906-660</code>, not the folder of all backups.</li><li>A backup you never tested is not a backup. Verify old backups now and then, and do a test restore once a month.</li></ul>
+<p>The help build cannot know the name of a new backup folder, so this is real output from <a href="../tutorial/09-backup-and-safety.html">chapter 9</a>:</p>
+<pre><code class="language-powershell">$newest = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
+kdb verify-backup &quot;backups\$($newest.Name)&quot;
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">OK: backup is intact
+exit code: 0</code></pre>
+<p><strong>Command line: The folder of all backups is not one backup</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb backup market backups
+kdb verify-backup backups</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb backup market backups</code></p>
+<pre><code class="language-text">backup created and verified: backups/20261022-054330-268
+  9 files, 190.0 KB, log up to 30</code></pre>
+<p><code>&gt; kdb verify-backup backups</code></p>
+<pre><code class="language-text">PROBLEM: backup.kdb: open &#39;backups/backup.kdb&#39;: Windows error 2
+error: Corruption: backup.kdb: open &#39;backups/backup.kdb&#39;: Windows error 2</code></pre>
+<p>exit code 2</p>
+<h2 id="kdb-restore">kdb restore</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb restore &lt;backup-dir&gt; &lt;new-folder&gt; [--logs-from &lt;old-db-folder&gt;] [--until &quot;YYYY-MM-DD HH:MM[:SS]&quot;]</code></pre>
+<p>Makes a <strong>new</strong> database folder from a backup. The old database is not touched.</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;backup-dir&gt;</code></td><td>One backup folder (<code>backups\20260911-081906-660</code>)</td><td>required</td></tr><tr><td><code>&lt;new-folder&gt;</code></td><td>The new database folder. It must not exist, or be empty.</td><td>required</td></tr><tr><td><code>--logs-from &lt;old-db-folder&gt;</code></td><td>Also take the <strong>newer log</strong> from the old database, so changes made <strong>after</strong> the backup come back too</td><td>only the backup</td></tr><tr><td><code>--until &quot;YYYY-MM-DD HH:MM[:SS]&quot;</code></td><td>Replay the log only up to this time, in the <strong>local time</strong> of this computer. Changes made in that second are included.</td><td>the end of the log</td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code> = restored. <code>1</code> = error (the target is not empty, a wrong <code>--until</code>). <code>2</code> = the backup is damaged (<code>pick another one</code>). A wrong backup path gives the same message and <code>2</code>.</li><li><strong>First it verifies the backup.</strong> Every copied file is checked again.</li><li><code>--until</code> earlier than the backup itself is refused: <code>this backup already contains changes made after the requested time; pick an older backup</code>.</li><li><code>--logs-from</code> only uses a log of the <strong>same</strong> database and history; another database&#39;s log is ignored with a note.</li><li>The log is replayed the first time the new database is opened. Run <code>kdb check &lt;new-folder&gt;</code> before you use it.</li><li>A restored database has no older file versions yet; they appear again as data changes.</li><li><code>&lt;new-folder&gt;</code> is a folder path. To use it as a database in the data folder, restore into <code>&lt;data folder&gt;\&lt;name&gt;</code>.</li></ul>
+<p><strong>A story: an UPDATE without WHERE.</strong> At about 14:05 someone ran <code>UPDATE ochl_day SET close = 0</code>. The newest backup was from 14:04. Restore the backup, add the newer log from the old database, and stop one second before the mistake. Real commands and output from <a href="../tutorial/09-backup-and-safety.html">chapter 9</a> (the help build cannot run this, because it cannot know the backup&#39;s folder name):</p>
+<pre><code class="language-powershell">$backup = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
+kdb restore &quot;backups\$($backup.Name)&quot; market-restored --logs-from market --until &quot;2026-09-11 14:05:10&quot;
+kdb sql market-restored &quot;SELECT time, symbol, close FROM ochl_day WHERE time &gt;= &#39;2026-09-10&#39; ORDER BY symbol, time&quot;</code></pre>
+<pre><code class="language-text">stopped at the requested time: changes after LSN 36 are not restored
+restored 9 data files from backups\20260911-142715-556 plus 1 newer log segments; the log (up to LSN 36) is replayed on first open
+restored into market-restored
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T00:00:00.000Z | CITY  | 504.9
+2026-09-13T00:00:00.000Z | CITY  | 508.2
+2026-09-14T00:00:00.000Z | CITY  |   511
+2026-09-10T00:00:00.000Z | COAST   | 376.1
+2026-09-10T00:00:00.000Z | VOLT  | 191.2
+(5 rows, 0.2 ms)</code></pre>
+<p>The prices are back. The row of 2026-09-14 was added <strong>after</strong> the backup but <strong>before</strong> the mistake, and it is there too.</p>
+<p>Then switch over: stop the server, rename <code>market</code> to <code>market-broken</code> and <code>market-restored</code> to <code>market</code>, start the server. Keep <code>market-broken</code> until you are sure. With a running server, <a href="#restore-online">restore while running</a> does all of this without a stop.</p>
+<p>A target folder that is not empty (real output from chapter 9):</p>
+<pre><code class="language-text">error: Already exists: restore target is not empty: market-restored</code></pre>
+<p><strong>Command line: --until must be a local time like 2026-09-11 14:30</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb restore backups/20260911-081906-660 market-restored --until &quot;11.09.2026 14:30&quot;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: --until must look like &quot;2026-09-11 14:30&quot; or &quot;2026-09-11 14:30:15&quot;</code></pre>
+<p>exit code 1</p>
+<p><strong>Command line: Not a backup folder</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb restore no-such-backup market-restored</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: Corruption: the backup is damaged; pick another one
+  backup.kdb: open &#39;no-such-backup/backup.kdb&#39;: Windows error 3</code></pre>
+<p>exit code 2</p>
+<h2 id="restore-online">Restore while the server runs</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /api/restore            {&quot;database&quot;: &quot;market&quot;, &quot;as&quot;: &quot;market_check&quot;, &quot;until&quot;: &quot;2026-09-24 14:05:09&quot;}
+POST /api/databases/swap     {&quot;database&quot;: &quot;market&quot;, &quot;with&quot;: &quot;market_check&quot;}</code></pre>
+<p>The same as <code>kdb restore</code>, without stopping anything:</p>
+<ol><li><strong>Restore</strong> a backup of <code>market</code> into a <strong>new</strong> database <code>market_check</code>. <code>market</code> keeps running and is not touched.</li><li><strong>Check</strong> <code>market_check</code>: run a few queries, <code>CHECK TABLE</code>.</li><li><strong>Swap</strong>: <code>market</code> gets the restored data, <code>market_check</code> the data <code>market</code> had. Users, rights and settings (read-only, dialect, old log, timers, pins) stay with the name <code>market</code>.</li><li>Drop <code>market_check</code> when you are sure.</li></ol>
+<div class="table-wrap"><table><thead><tr><th><code>until</code></th><th>What comes back</th></tr></thead><tbody><tr><td>not given</td><td>the backup as it was</td></tr><tr><td>a time (<code>2026-09-24 14:05:09</code>, UTC unless it ends in <code>Z</code> or <code>+05:45</code>), or <code>until_ms</code></td><td>the backup, then <code>market</code>&#39;s own log up to that time: <strong>point in time</strong></td></tr><tr><td><code>latest</code></td><td>the backup, then all of <code>market</code>&#39;s log: a copy as of now</td></tr></tbody></table></div>
+<ul><li>The newest backup made before <code>until</code> is used, or name one with <code>&quot;backup&quot;: &quot;20260924-120000-000&quot;</code>.</li><li>In the console: <strong>Health</strong> &gt; <strong>Restore a backup</strong>, then <strong>Swap in</strong>.</li><li>The swap needs both databases unused: an open PostgreSQL connection or session on either gives <code>in use</code>; close it and try again.</li><li>Details: <a href="http-server-info.html#api-restore">POST /api/restore</a> and <a href="http-server-info.html#api-swap">POST /api/databases/swap</a>.</li></ul>
+<h3 id="pitr-window">How far back a point in time can go</h3>
+<p>A restore to a time starts from a backup made <strong>before</strong> it and replays the database&#39;s log from there. The log older than the data files is kept in <code>wal_archive</code>, up to its size limit (<code>wal_archive_mb</code>, 1 GB per database by default; <a href="console-settings.html#wal-archive">Settings</a>). When the oldest kept log starts after a backup ended, that backup can only be restored as it was.</p>
+<p><code>GET /api/backups</code> says how far back you can go now:</p>
+<p>Syntax:</p>
+<pre><code class="language-sql">&quot;point_in_time&quot;: {&quot;possible&quot;: true, &quot;from&quot;: &quot;2026-09-23T10:00:00.000Z&quot;, &quot;from_backup&quot;: &quot;20260923-100000-000&quot;, ...}</code></pre>
+<ul><li><code>from</code> is the earliest time you can restore to; anything from there to now works.</li><li><code>possible: false</code> with <code>why</code>: the kept log does not reach the newest backup. Make a backup now, and raise <code>wal_archive_mb</code> or back up more often.</li><li>Rule of thumb: <code>wal_archive_mb</code> must hold the log written between <strong>two</strong> backups. A database that writes 300 MB of log a day and backs up daily needs at least 300 MB; 100 MB gives a point in time only for the last few hours.</li></ul>
+<h2 id="restore-drill">A monthly restore drill</h2>
+<p>A backup you never restored is a hope, not a backup. Once a month, with the server running:</p>
+<div class="table-wrap"><table><thead><tr><th>Step</th><th>How</th><th>Pass when</th></tr></thead><tbody><tr><td>1. restore the newest backup into a new name</td><td><code>POST /api/restore {&quot;database&quot;:&quot;market&quot;,&quot;as&quot;:&quot;drill_2026_09&quot;}</code> (or <strong>Health</strong> &gt; <strong>Restore a backup</strong>)</td><td><code>&quot;opened&quot;: true</code></td></tr><tr><td>2. check it</td><td><code>POST /api/check?db=drill_2026_09</code></td><td><code>&quot;ok&quot;: true</code></td></tr><tr><td>3. compare</td><td><code>SELECT count(*)</code> of the main tables in both, and the newest row time</td><td>the counts match the backup&#39;s time</td></tr><tr><td>4. a point in time</td><td>the same with <code>&quot;until&quot;</code> an hour ago</td><td>it opens, rows up to that hour</td></tr><tr><td>5. the copy off the server</td><td>copy one backup back from the remote (rclone, S3) into the backup folder and restore it</td><td>it restores</td></tr><tr><td>6. clean up</td><td><code>DROP DATABASE drill_2026_09</code></td><td></td></tr><tr><td>7. write it down</td><td>date, backup used, time taken</td><td></td></tr></tbody></table></div>
+<p>Time step 1: that is how long a real restore takes. If <code>point_in_time</code> says <code>possible: false</code>, raise <code>wal_archive_mb</code>.</p>
+<p><strong>HTTP: Step 1 and 6 of a drill: restore the newest backup, then drop the copy</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /api/backup
+###
+POST /api/restore
+Content-Type: application/json
+
+{&quot;as&quot;: &quot;drill_check&quot;}
+###
+POST /exec?db=drill_check
+Content-Type: text/plain
+
+SELECT count(*) FROM ochl_day
+###
+DELETE /api/databases/drill_check</code></pre>
+<p>Response:</p>
+<p><code>POST /api/backup</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;name&quot;: &quot;20261022-054330-492&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261022-054330-492&quot;,
+  &quot;created_ms&quot;: 1792647810492,
+  &quot;created&quot;: &quot;2026-10-22T05:43:30.492Z&quot;,
+  &quot;end_lsn&quot;: 30,
+  &quot;checkpoint_lsn&quot;: 30,
+  &quot;files&quot;: 9,
+  &quot;bytes&quot;: 194519
+}</code></pre>
+<p><code>POST /api/restore</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;database&quot;: &quot;drill_check&quot;,
+  &quot;source&quot;: &quot;demo&quot;,
+  &quot;backup&quot;: {
+    &quot;name&quot;: &quot;20261022-054330-492&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261022-054330-492&quot;,
+    &quot;created_ms&quot;: 1792647810492,
+    &quot;created&quot;: &quot;2026-10-22T05:43:30.492Z&quot;,
+    &quot;end_lsn&quot;: 30,
+    &quot;checkpoint_lsn&quot;: 30,
+    &quot;files&quot;: 9,
+    &quot;bytes&quot;: 194519
+  },
+  &quot;until_ms&quot;: null,
+  &quot;used_log&quot;: false,
+  &quot;opened&quot;: true,
+  &quot;open_error&quot;: &quot;&quot;,
+  &quot;notes&quot;: [
+    &quot;restored 9 data files from ./backups/demo/20261022-054330-492; the log (up to LSN 30) is replayed on first open&quot;
+  ],
+  &quot;took_ms&quot;: 31,
+  &quot;next&quot;: &quot;check &#39;drill_check&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;drill_check\&quot;} to put it in place, or DROP DATABASE drill_check&quot;
+}</code></pre>
+<p><code>POST /exec?db=drill_check</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) FROM ochl_day&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) FROM ochl_day&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;count(*)&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [57]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 175}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;count(*)&quot;, &quot;type&quot;: &quot;LONG&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [57]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 175}
+}</code></pre>
+<p><code>DELETE /api/databases/drill_check</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;name&quot;: &quot;drill_check&quot;,
+  &quot;dropped&quot;: true,
+  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792647810562-drill_check&quot;
+}</code></pre>
+<h2 id="daily-plan">A daily backup plan</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">after the market closes:  kdb backup &lt;db&gt; &lt;other disk&gt; --keep-daily 7 --keep-weekly 4
+right after:               kdb check &lt;db&gt;
+once a week:               copy the newest backup to a third place
+once a month:              a restore drill (below), then a few queries</code></pre>
+<p>The plan below is for market data that stops arriving at 15:00 local time (the examples use Nepal time and a Sunday-to-Thursday trading week, as on some exchanges). For logs, sensor readings or an app, pick the quietest hour of your own day. Do this every working day:</p>
+<div class="table-wrap"><table><thead><tr><th>When (local time)</th><th>What</th><th>How</th></tr></thead><tbody><tr><td>after 15:00, when imports are done</td><td>Backup to <strong>another disk</strong></td><td><code>kdb backup</code> (server stopped) or <code>POST /api/backup</code> (server running). Keep 7 daily + 4 weekly.</td></tr><tr><td>right after the backup</td><td>Check the database</td><td><code>kdb check</code> or <code>POST /api/check</code>. Exit code <code>2</code> or <code>&quot;ok&quot;:false</code>: act now.</td></tr><tr><td>every day</td><td>Read the log of the backup script</td><td></td></tr><tr><td>after each backup</td><td>Copy it to a third place (another PC, NAS, cloud)</td><td><a href="backup-schedule.html#backup-command">--backup-command</a>, or <code>robocopy</code>, <code>rsync</code> or your backup tool</td></tr><tr><td>once a month</td><td><strong>Test restore</strong> and run a few queries</td><td>the <a href="#restore-drill">restore drill</a>, or <code>kdb restore &lt;backup&gt; D:\restore-test</code>, then <code>kdb sql D:\restore-test &quot;SELECT count(*) FROM ochl_day&quot;</code></td></tr><tr><td>before a big import or a schema change</td><td>An extra backup</td><td><code>kdb backup ... --hard-links</code> is fine here</td></tr></tbody></table></div>
+<p><strong>The script</strong> (Windows PowerShell; save as <code>D:\kdb-work\daily-backup.ps1</code>; not run here):</p>
+<pre><code class="language-powershell"># daily-backup.ps1 - backup and check after the market closes. Use full paths in a scheduled task.
+$Kdb     = &quot;D:\KDB\build\bin\kdb.exe&quot;
+$Data    = &quot;D:\kdb\market&quot;
+$Backups = &quot;E:\kdb_backups&quot;
+$Log     = &quot;D:\kdb-work\backup-log.txt&quot;
+
+Add-Content $Log &quot;---- $(Get-Date -Format &#39;yyyy-MM-dd HH:mm:ss&#39;)&quot;
+
+$out = &amp; $Kdb backup $Data $Backups --keep-daily 7 --keep-weekly 4 2&gt;&amp;1 | ForEach-Object { &quot;$_&quot; }
+$code = $LASTEXITCODE
+Add-Content $Log $out
+if ($code -ne 0) { Add-Content $Log &quot;BACKUP FAILED (exit code $code)&quot;; exit $code }
+
+$out = &amp; $Kdb check $Data 2&gt;&amp;1 | ForEach-Object { &quot;$_&quot; }
+$code = $LASTEXITCODE
+Add-Content $Log $out
+if ($code -ne 0) { Add-Content $Log &quot;CHECK FOUND A PROBLEM (exit code $code)&quot;; exit $code }</code></pre>
+<p><strong>Windows Task Scheduler</strong>, Sunday to Thursday at 15:30 (run PowerShell as Administrator; not run here):</p>
+<pre><code class="language-powershell">$action  = New-ScheduledTaskAction -Execute &quot;powershell.exe&quot; `
+             -Argument &quot;-NoProfile -ExecutionPolicy Bypass -File D:\kdb-work\daily-backup.ps1&quot; `
+             -WorkingDirectory &quot;D:\kdb-work&quot;
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday,Monday,Tuesday,Wednesday,Thursday -At 15:30
+Register-ScheduledTask -TaskName &quot;KDB daily backup&quot; -Action $action -Trigger $trigger
+Start-ScheduledTask -TaskName &quot;KDB daily backup&quot;     # test it once, then read the log</code></pre>
+<p><strong>Linux cron</strong> (<code>crontab -e</code>; Sunday=0 to Thursday=4, computer time; not run here):</p>
+<pre><code class="language-bash">30 15 * * 0-4  /usr/local/bin/kdb backup /srv/kdb/data/market /mnt/backup/kdb --keep-daily 7 --keep-weekly 4 &gt;&gt; /var/log/kdb-backup.log 2&gt;&amp;1 &amp;&amp; /usr/local/bin/kdb check /srv/kdb/data/market &gt;&gt; /var/log/kdb-backup.log 2&gt;&amp;1</code></pre>
+<p><strong>If <code>kdb serve</code> runs all day</strong>, let the server do it: <code>--backups E:\kdb_backups --backup-schedule &quot;daily 15:30&quot; --backup-copy F:\kdb_copy</code> makes, checks and copies a backup of every database each day, with no script (see <a href="backup-schedule.html">backups on a schedule</a>). To do it from a script instead, ask the server. It keeps 7 daily and 4 weekly backups by itself (not run here):</p>
+<pre><code class="language-powershell">$r = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/api/backup?db=market&quot;
+$c = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/api/check?db=market&quot;
+if (-not $c.ok) { &quot;CHECK FOUND A PROBLEM: $($c.problems -join &#39;; &#39;)&quot;; exit 2 }</code></pre>
+<p>With <code>--token</code> or users, add <code>-Headers @{ Authorization = &quot;Bearer &lt;token&gt;&quot; }</code> (see <a href="http-login.html">HTTP login</a>).</p>
+<h2 id="after-damage">After damage: what to do</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">1. stop       2. copy the folder       3. kdb check &lt;db&gt;
+4. kdb repair &lt;db&gt; --backups &lt;dir&gt;     5. kdb check &lt;db&gt;
+6. if still damaged: kdb restore &lt;newest backup&gt; &lt;new folder&gt; --logs-from &lt;db&gt;</code></pre>
+<p>Messages like <code>failed its checksum</code>, <code>DAMAGED</code>, <code>the end of the log is damaged</code>, or exit code <code>2</code>:</p>
+<ol><li><strong>Stop</strong> the server and every program that uses the database.</li><li><strong>Copy</strong> the whole database folder to a safe place (<code>Copy-Item D:\kdb\market E:\damaged-copy -Recurse</code>). Then nothing you try can make it worse.</li><li><code>kdb check &lt;db&gt;</code> to see what is damaged.</li><li><code>kdb repair &lt;db&gt; --backups &lt;backups-dir&gt;</code>. It uses the previous file version, then the backups, and replays the log. See <a href="cli-maintenance.html#kdb-repair">kdb repair</a>.</li><li><code>kdb check &lt;db&gt;</code> again. When it says <code>OK: no damage found</code>, start the server again.</li><li>If the repair says <code>Some damage could not be repaired</code>: <code>kdb restore &lt;newest backup&gt; &lt;new folder&gt; --logs-from &lt;db&gt;</code>, check the new folder, and switch folders.</li><li>If needed log records are damaged and no backup has them: <code>kdb restore ... --logs-from</code> keeps everything up to the damage. <code>kdb repair &lt;db&gt; --accept-log-loss</code> is the <strong>last</strong> choice: it opens the database and the changes in the damaged part are lost.</li><li>Find out <strong>why</strong>: disk errors in the Windows Event Viewer, a failing SSD (<code>smartctl</code>). Replace bad hardware.</li></ol>
+<ul><li>After a crash or a killed server, <code>last shutdown: not clean</code> is normal: KDB replays the log, and confirmed changes are not lost. That is not damage.</li><li>A write that the crash cut in half at the very end of the log is dropped by itself, as if the power had gone a moment earlier.</li></ul>
+<p><strong>Command line: Steps 3 to 5 on a healthy database</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb check market
+kdb repair market --backups backups
+kdb check market</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb check market</code></p>
+<pre><code class="language-text">checked 14 files (76.1 KB) and 1 log segments
+OK: no damage found</code></pre>
+<p><code>&gt; kdb repair market --backups backups</code></p>
+<pre><code class="language-text">manifest copy: a, last shutdown: clean
+replayed 0 transactions after LSN 30, last LSN 30
+
+Nothing to repair.</code></pre>
+<p><code>&gt; kdb check market</code></p>
+<pre><code class="language-text">checked 14 files (76.1 KB) and 1 log segments
+OK: no damage found</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/backup-and-safety.md">This page as markdown</a>.</footer>
+</body>
+</html>

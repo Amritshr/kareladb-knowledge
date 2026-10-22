@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finance and price functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Money math like Excel (interest, loan EMI, NPV, IRR, XIRR, CAGR), price ticks and pivot points for traders.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-finance.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-finance.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="finance-and-price-functions">Finance and price functions</h1>
+<blockquote><p>Money math like Excel (interest, loan EMI, NPV, IRR, XIRR, CAGR), price ticks and pivot points for traders.</p></blockquote>
+<ul><li>Category: Functions — math</li><li>Keywords: finance, money, interest, loan, EMI, monthly installment, installment, loan payment, future value, present value, number of periods, net present value, internal rate of return, XNPV, XIRR, return on investment, compound annual growth rate, CAGR, compound interest, savings, SIP, fixed deposit, cash flow, discount rate, Excel, tick size, price tick, round to tick, stock exchange, pivot points, support, resistance, floor pivots, fibonacci, camarilla, woodie, accounting</li><li>See also: <a href="functions-math.html">Math functions</a>, <a href="functions-returns-risk.html">Returns and risk</a>, <a href="functions-date-time.html#fiscal_year">Date and time functions (fiscal_year)</a>, <a href="functions-aggregate.html">Aggregate functions</a>, <a href="functions-indicators.html">Technical indicators</a></li></ul>
+<p>These functions do the money math that people usually do in Excel: interest, loan installments, the value of future money today, and the yearly return of an investment. There are also two tools for traders: <strong>price ticks</strong> and <strong>pivot points</strong>.</p>
+<ul><li><strong>Rates are fractions:</strong> 8% is <code>0.08</code>, not <code>8</code>. A result like <code>0.0777</code> means 7.77%.</li><li><strong>Periods must match the rate.</strong> For a monthly installment, use the monthly rate (<code>0.12 / 12</code>) and the number of months (<code>5 * 12</code>).</li><li><strong>Sign rule (like Excel):</strong> money that <strong>goes out</strong> of your pocket is <strong>negative</strong>, money that <strong>comes in</strong> is <strong>positive</strong>. When you take a loan of 1,000,000, the bank gives you money (<code>+1000000</code>), and <code>pmt</code> gives the installment you pay back as a negative number.</li><li>A <code>NULL</code> argument gives <code>NULL</code>. A result that is not a real number (no answer exists) is also <code>NULL</code>, not an error.</li><li>The functions are <strong>scalar</strong> (one row in, one value out), except <code>xnpv</code> and <code>xirr</code>, which are <strong>aggregates</strong>: they read the cash flows of many rows (<a href="functions-aggregate.html">aggregate functions</a>).</li><li><strong>Returns</strong> <code>DOUBLE</code>. Use <code>round(x, 2)</code> for dollars and cents.</li></ul>
+<p>The sample data of this page (fixture <code>analysis-finance</code>, made-up numbers) has <code>cash_flows</code> (money out and in of two investments, with dates), <code>loans</code> and <code>invoices</code>.</p>
+<p><strong>Example: The monthly EMI of every loan, and the interest paid in total</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT purpose, principal, annual_rate, years,
+       round(-pmt(annual_rate / 12, years * 12, principal), 2) AS monthly_emi,
+       round(-pmt(annual_rate / 12, years * 12, principal) * years * 12 - principal, 2) AS total_interest
+FROM loans
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>purpose (STRING)</th><th>principal (DOUBLE)</th><th>annual_rate (DOUBLE)</th><th>years (INT)</th><th>monthly_emi (DOUBLE)</th><th>total_interest (DOUBLE)</th></tr></thead><tbody><tr><td>Home loan</td><td>5000000</td><td>0.105</td><td>20</td><td>49918.99</td><td>6980558.64</td></tr><tr><td>Car loan</td><td>1800000</td><td>0.12</td><td>7</td><td>31774.92</td><td>869093.2</td></tr><tr><td>Education loan</td><td>800000</td><td>0.09</td><td>5</td><td>16606.68</td><td>196401.05</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Yearly return of two investments from their dated cash flows</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT project, count(*) AS cash_flows, sum(amount) AS money_gained,
+       round(xirr(amount, flow_date) * 100, 2) AS yearly_return_pct
+FROM cash_flows
+GROUP BY project
+ORDER BY project;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>project (STRING)</th><th>cash_flows (LONG)</th><th>money_gained (DOUBLE)</th><th>yearly_return_pct (DOUBLE)</th></tr></thead><tbody><tr><td>SOLAR_ROOF</td><td>10</td><td>107000</td><td>7.77</td></tr><tr><td>VOLT_SHARES</td><td>4</td><td>18700</td><td>3.8</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="cagr">cagr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cagr(start_value, end_value, years)</code></pre>
+<p>The <strong>compound annual growth rate</strong>: the same yearly growth that turns <code>start_value</code> into <code>end_value</code> in <code>years</code> years. If a share went from 400 to 505 in 3 years, it grew about 8.08% <strong>every year</strong> on average (not 26.25% / 3). The formula is <code>(end / start) ^ (1 / years) - 1</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>start_value</code></td><td>number</td><td>the value at the start, more than 0</td></tr><tr><td><code>end_value</code></td><td>number</td><td>the value at the end, 0 or more</td></tr><tr><td><code>years</code></td><td>number</td><td>how many years between them, more than 0; a fraction like <code>0.7</code> is fine</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, a fraction per year (<code>0.08</code> is 8% a year).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, when <code>start_value</code> is 0 or less, when <code>end_value</code> is below 0, and when <code>years</code> is 0 or less.</li><li><strong>Notes:</strong> a value that falls to <code>0</code> gives <code>-1</code> (you lost everything). For years between two dates, use <code>datediff(&#39;d&#39;, from, to) / 365.0</code>.</li></ul>
+<p><strong>Example</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(cagr(400, 505, 3), 4) AS share_growth, round(cagr(100000, 146932.81, 5), 4) AS deposit, cagr(100, 0, 2) AS lost_all, cagr(0, 50, 2) AS bad_start;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>share_growth (DOUBLE)</th><th>deposit (DOUBLE)</th><th>lost_all (DOUBLE)</th><th>bad_start (STRING)</th></tr></thead><tbody><tr><td>0.0808</td><td>0.08</td><td>-1</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Yearly growth of each share from its first to its last close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, first_close, last_close, days,
+       round(cagr(first_close, last_close, days / 365.0) * 100, 2) AS cagr_pct
+FROM (SELECT symbol, first(close) AS first_close, last(close) AS last_close,
+             datediff(&#39;d&#39;, min(time), max(time)) AS days
+      FROM ochl_day
+      GROUP BY symbol) t
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>first_close (DOUBLE)</th><th>last_close (DOUBLE)</th><th>days (LONG)</th><th>cagr_pct (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>542.2</td><td>504.9</td><td>256</td><td>-9.66</td></tr><tr><td>COAST</td><td>424.8</td><td>376.1</td><td>256</td><td>-15.94</td></tr><tr><td>VOLT</td><td>191.7</td><td>191.2</td><td>256</td><td>-0.37</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Yearly growth of two mutual funds over two years</strong> (sample data: analysis-market)</p>
+<pre><code class="language-sql">SELECT fund, first(nav) AS start_nav, last(nav) AS end_nav,
+       round(cagr(first(nav), last(nav), 23 / 12.0) * 100, 2) AS cagr_pct
+FROM fund_nav
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>start_nav (DOUBLE)</th><th>end_nav (DOUBLE)</th><th>cagr_pct (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>10</td><td>12.18</td><td>10.84</td></tr><tr><td>INCOME</td><td>10</td><td>10.78</td><td>4</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="compound_interest">compound_interest</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">compound_interest(principal, rate, years)
+compound_interest(principal, rate, years, times_per_year)</code></pre>
+<p>The <strong>interest</strong> you earn when interest is added to the money again and again (compounding), so later interest is also paid on earlier interest. It gives only the interest, not the total: add <code>principal</code> for the final amount.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>principal</code></td><td>number</td><td>the money you put in</td></tr><tr><td><code>rate</code></td><td>number</td><td>the yearly interest rate as a fraction (<code>0.08</code> for 8%)</td></tr><tr><td><code>years</code></td><td>number</td><td>how many years; a fraction like <code>0.5</code> is fine</td></tr><tr><td><code>times_per_year</code></td><td>number</td><td>how often interest is added in a year; default <code>1</code>. <code>4</code> = every quarter, <code>12</code> = every month</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>: <code>principal × ((1 + rate / times_per_year) ^ (times_per_year × years) - 1)</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>times_per_year</code> of 0 or less is an error. More compounding gives a little more interest.</li></ul>
+<p><strong>Example: Interest on 100,000 at 8% for 5 years: yearly, quarterly and monthly</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(compound_interest(100000, 0.08, 5), 2) AS yearly,
+       round(compound_interest(100000, 0.08, 5, 4), 2) AS quarterly,
+       round(compound_interest(100000, 0.08, 5, 12), 2) AS monthly,
+       round(100000 + compound_interest(100000, 0.08, 5), 2) AS final_amount;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>yearly (DOUBLE)</th><th>quarterly (DOUBLE)</th><th>monthly (DOUBLE)</th><th>final_amount (DOUBLE)</th></tr></thead><tbody><tr><td>46932.81</td><td>48594.74</td><td>48984.57</td><td>146932.81</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Interest must be added at least once a year</strong> (sample data: analysis-finance; shows an error)</p>
+<pre><code class="language-sql">SELECT compound_interest(100000, 0.08, 5, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: compound_interest: the number of times per year must be more than 0</code></p>
+<h2 id="fv">fv</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">fv(rate, periods, payment)
+fv(rate, periods, payment, present_value)
+fv(rate, periods, payment, present_value, type)</code></pre>
+<p>The <strong>future value</strong>: how much money you have after <code>periods</code> periods, when you save <code>payment</code> every period and/or put in <code>present_value</code> at the start, with interest <code>rate</code> per period. The same as Excel <code>FV</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>rate</code></td><td>number</td><td>interest per period as a fraction (monthly: <code>0.12 / 12</code>)</td></tr><tr><td><code>periods</code></td><td>number</td><td>how many periods</td></tr><tr><td><code>payment</code></td><td>number</td><td>money paid in every period; <strong>negative</strong> when you pay it</td></tr><tr><td><code>present_value</code></td><td>number</td><td>money at the start; default <code>0</code>; <strong>negative</strong> when you put it in</td></tr><tr><td><code>type</code></td><td><code>0</code> or <code>1</code></td><td><code>0</code> (default): payments at the <strong>end</strong> of each period; <code>1</code>: at the <strong>start</strong></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. Positive when you get money back at the end.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>type</code> other than 0 or 1 is an error. With <code>rate</code> 0 the result is simply <code>-(present_value + payment × periods)</code>.</li></ul>
+<p><strong>Example: Save 5,000 a month for 10 years at 10% a year (a SIP)</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(fv(0.10 / 12, 120, -5000), 2) AS after_10_years,
+       5000 * 120 AS paid_in,
+       round(fv(0.10 / 12, 120, -5000, 0, 1), 2) AS paying_at_month_start;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>after_10_years (DOUBLE)</th><th>paid_in (LONG)</th><th>paying_at_month_start (DOUBLE)</th></tr></thead><tbody><tr><td>1024224.89</td><td>600000</td><td>1032760.1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A fixed deposit of 100,000 for 5 years at 8% (nothing added every year)</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(fv(0.08, 5, 0, -100000), 2) AS maturity_amount;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>maturity_amount (DOUBLE)</th></tr></thead><tbody><tr><td>146932.81</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pv">pv</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pv(rate, periods, payment)
+pv(rate, periods, payment, future_value)
+pv(rate, periods, payment, future_value, type)</code></pre>
+<p>The <strong>present value</strong>: how much future money is worth <strong>today</strong>. Money later is worth less than money now, because money now can earn interest. The same as Excel <code>PV</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>rate</code></td><td>number</td><td>interest (or discount rate) per period as a fraction</td></tr><tr><td><code>periods</code></td><td>number</td><td>how many periods</td></tr><tr><td><code>payment</code></td><td>number</td><td>money received (positive) or paid (negative) every period</td></tr><tr><td><code>future_value</code></td><td>number</td><td>money at the end; default <code>0</code></td></tr><tr><td><code>type</code></td><td><code>0</code> or <code>1</code></td><td><code>0</code> (default): payments at the end of each period; <code>1</code>: at the start</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. It has the <strong>opposite</strong> sign of the money you get: to receive money later, you pay (negative) today.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>type</code> other than 0 or 1 is an error.</li></ul>
+<p><strong>Example: What is a pension of 20,000 a month for 15 years worth today, at 9% a year?</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(-pv(0.09 / 12, 15 * 12, 20000), 2) AS worth_today, 20000 * 15 * 12 AS paid_in_total;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>worth_today (DOUBLE)</th><th>paid_in_total (LONG)</th></tr></thead><tbody><tr><td>1971868.18</td><td>3600000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How much to put in today to have 500,000 in 4 years at 7%?</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(pv(0.07, 4, 0, 500000), 2) AS deposit_today;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>deposit_today (DOUBLE)</th></tr></thead><tbody><tr><td>-381447.61</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pmt">pmt</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pmt(rate, periods, present_value)
+pmt(rate, periods, present_value, future_value)
+pmt(rate, periods, present_value, future_value, type)</code></pre>
+<p>The <strong>payment</strong> for every period of a loan or a savings plan. For a loan it is the <strong>EMI</strong> (equated monthly installment): the same amount every month that pays back the loan and its interest. The same as Excel <code>PMT</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>rate</code></td><td>number</td><td>interest per period (monthly: yearly rate <code>/ 12</code>)</td></tr><tr><td><code>periods</code></td><td>number</td><td>how many payments (months: years <code>× 12</code>), not 0</td></tr><tr><td><code>present_value</code></td><td>number</td><td>the loan amount you get (positive)</td></tr><tr><td><code>future_value</code></td><td>number</td><td>money left at the end; default <code>0</code>. For a savings goal, use <code>0</code> as <code>present_value</code> and the goal here</td></tr><tr><td><code>type</code></td><td><code>0</code> or <code>1</code></td><td><code>0</code> (default): pay at the end of each period; <code>1</code>: at the start</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, <strong>negative</strong> for money you pay. Use <code>-pmt(...)</code> to show the EMI as a positive number.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>periods</code> of 0 and <code>type</code> other than 0 or 1 are errors. With <code>rate</code> 0 the payment is simply <code>-(present_value + future_value) / periods</code>.</li></ul>
+<p><strong>Example: EMI of a 1,000,000 loan for 5 years at 12% a year</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(pmt(0.12 / 12, 5 * 12, 1000000), 2) AS emi,
+       round(-pmt(0.12 / 12, 5 * 12, 1000000) * 60, 2) AS paid_back_in_total,
+       pmt(0, 12, 120000) AS no_interest;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>emi (DOUBLE)</th><th>paid_back_in_total (DOUBLE)</th><th>no_interest (DOUBLE)</th></tr></thead><tbody><tr><td>-22244.45</td><td>1334666.86</td><td>-10000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Save for a goal: how much a month to have 100,000 in a year at 12%?</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(-pmt(0.01, 12, 0, 100000), 2) AS save_each_month;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>save_each_month (DOUBLE)</th></tr></thead><tbody><tr><td>7884.88</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The EMI table of all loans</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT purpose, principal, round(annual_rate * 100, 2) AS rate_pct, years,
+       round(-pmt(annual_rate / 12, years * 12, principal), 2) AS emi
+FROM loans
+ORDER BY emi DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>purpose (STRING)</th><th>principal (DOUBLE)</th><th>rate_pct (DOUBLE)</th><th>years (INT)</th><th>emi (DOUBLE)</th></tr></thead><tbody><tr><td>Home loan</td><td>5000000</td><td>10.5</td><td>20</td><td>49918.99</td></tr><tr><td>Car loan</td><td>1800000</td><td>12</td><td>7</td><td>31774.92</td></tr><tr><td>Education loan</td><td>800000</td><td>9</td><td>5</td><td>16606.68</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The number of payments cannot be 0</strong> (sample data: analysis-finance; shows an error)</p>
+<pre><code class="language-sql">SELECT pmt(0.01, 0, 100000);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: pmt: the number of periods must not be 0</code></p>
+<h2 id="nper">nper</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">nper(rate, payment, present_value)
+nper(rate, payment, present_value, future_value)
+nper(rate, payment, present_value, future_value, type)</code></pre>
+<p>The <strong>number of periods</strong>: how many payments it takes to pay back a loan (or reach a savings goal) with a fixed <code>payment</code>. The same as Excel <code>NPER</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>rate</code></td><td>number</td><td>interest per period</td></tr><tr><td><code>payment</code></td><td>number</td><td>the payment every period; <strong>negative</strong> when you pay</td></tr><tr><td><code>present_value</code></td><td>number</td><td>the loan amount (positive)</td></tr><tr><td><code>future_value</code></td><td>number</td><td>money left at the end; default <code>0</code></td></tr><tr><td><code>type</code></td><td><code>0</code> or <code>1</code></td><td><code>0</code> (default): pay at the end of each period; <code>1</code>: at the start</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, often with a fraction: <code>47.3</code> months means 47 full payments and a small last one. Use <code>ceil</code> for whole months.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, and when the loan is never paid back (the payment is not bigger than the interest).</li><li><strong>Notes:</strong> <code>type</code> other than 0 or 1 is an error.</li></ul>
+<p><strong>Example: How many months to pay back 1,000,000 at 12% a year, paying 25,000 a month?</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(nper(0.12 / 12, -25000, 1000000), 2) AS months,
+       ceil(nper(0.12 / 12, -25000, 1000000)) AS whole_months,
+       nper(0, -10000, 120000) AS no_interest,
+       nper(0.01, -100, 100000) AS never_paid_back;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>months (DOUBLE)</th><th>whole_months (DOUBLE)</th><th>no_interest (DOUBLE)</th><th>never_paid_back (STRING)</th></tr></thead><tbody><tr><td>51.34</td><td>52</td><td>12</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="npv">npv</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">npv(rate, value1, value2, ...)</code></pre>
+<p>The <strong>net present value</strong>: all future cash flows brought back to today&#39;s value with the discount <code>rate</code>, and added up. A <strong>discount rate</strong> is the yearly return you could get somewhere else (for example from a fixed deposit). When the NPV is <strong>above 0</strong>, the project earns more than that; below 0, less. The same as Excel <code>NPV</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>rate</code></td><td>number</td><td>discount rate per period, more than -1</td></tr><tr><td><code>value1, value2, ...</code></td><td>numbers</td><td>the cash flow at the <strong>end</strong> of period 1, 2, ... (up to 63 values)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>: <code>value1 / (1 + rate) + value2 / (1 + rate)² + ...</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, and when <code>rate</code> is -1 or less.</li><li><strong>Notes:</strong> like Excel, <code>value1</code> is already one period away. Money you pay <strong>today</strong> (period 0) is not discounted: add it outside, <code>-1000000 + npv(rate, ...)</code>. For cash flows on real dates use <a href="#xnpv">xnpv</a>.</li></ul>
+<p><strong>Example: Is a 1,000,000 project with these yearly profits worth it at a 10% discount rate?</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(-1000000 + npv(0.10, 300000, 350000, 400000, 250000), 2) AS npv_at_10_pct,
+       round(-1000000 + npv(0.15, 300000, 350000, 400000, 250000), 2) AS npv_at_15_pct;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>npv_at_10_pct (DOUBLE)</th><th>npv_at_15_pct (DOUBLE)</th></tr></thead><tbody><tr><td>33262.76</td><td>-68535.35</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Careful: the first value is one year away</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(npv(0.10, -1000, 300, 400, 500), 2) AS all_discounted,
+       round(-1000 + npv(0.10, 300, 400, 500), 2) AS today_not_discounted;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>all_discounted (DOUBLE)</th><th>today_not_discounted (DOUBLE)</th></tr></thead><tbody><tr><td>-19.12</td><td>-21.04</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="irr">irr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">irr(value0, value1, value2, ...)</code></pre>
+<p>The <strong>internal rate of return</strong>: the discount rate that makes the NPV of the cash flows exactly <code>0</code>. It is the yearly (or per period) return of the investment. Compare it with a bank rate: an IRR of 12% is better than a deposit at 8%. The same as Excel <code>IRR</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value0</code></td><td>number</td><td>the cash flow <strong>today</strong> (usually the money you invest, negative)</td></tr><tr><td><code>value1, value2, ...</code></td><td>numbers</td><td>the cash flow at the end of period 1, 2, ... (2 to 64 values in total)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, a fraction per period (<code>0.0889</code> is 8.89%).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, and when there is no answer: the values need at least one negative and one positive value.</li><li><strong>Notes:</strong> the periods are equal (years, or months). For cash flows on real dates use <a href="#xirr">xirr</a>. KDB starts looking at 10% and then searches wider.</li></ul>
+<p><strong>Example: Return of a project: invest 1,000,000, get money back for 4 years</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(irr(-1000000, 300000, 350000, 400000, 250000) * 100, 2) AS irr_pct,
+       irr(-1000, 1100) AS ten_pct,
+       irr(100, 200) AS no_negative_value;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>irr_pct (DOUBLE)</th><th>ten_pct (DOUBLE)</th><th>no_negative_value (STRING)</th></tr></thead><tbody><tr><td>11.54</td><td>0.1</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: NPV at the IRR is 0</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(-1000000 + npv(irr(-1000000, 300000, 350000, 400000, 250000), 300000, 350000, 400000, 250000), 6) AS npv_at_irr;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>npv_at_irr (DOUBLE)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="xnpv">xnpv</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">xnpv(rate, amount, date)</code></pre>
+<p>The <strong>net present value of cash flows on real dates</strong>. It is an <strong>aggregate</strong>: every row is one cash flow. Each amount is discounted by the years between its date and the <strong>earliest</strong> date of the group (days / 365), so money on the first date is not discounted. The same as Excel <code>XNPV</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>rate</code></td><td>number</td><td>yearly discount rate as a fraction, more than -1; read from the first row</td></tr><tr><td><code>amount</code></td><td>number</td><td>the cash flow of the row: negative for money out, positive for money in</td></tr><tr><td><code>date</code></td><td><code>DATE</code>, <code>TIMESTAMP</code> or date text</td><td>the day of the cash flow</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, in the money of the earliest date.</li><li><strong>NULL:</strong> rows where <code>amount</code> or <code>date</code> is NULL are skipped. No rows, a NULL <code>rate</code> or a <code>rate</code> of -1 or less give <code>NULL</code>.</li><li><strong>Notes:</strong> the rows can come in any order. Works with <code>GROUP BY</code> (one NPV per project).</li></ul>
+<p><strong>Example: NPV of each investment at a 5% and a 10% discount rate</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT project,
+       round(xnpv(0.05, amount, flow_date), 2) AS xnpv_5_pct,
+       round(xnpv(0.10, amount, flow_date), 2) AS xnpv_10_pct
+FROM cash_flows
+GROUP BY project
+ORDER BY project;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>project (STRING)</th><th>xnpv_5_pct (DOUBLE)</th><th>xnpv_10_pct (DOUBLE)</th></tr></thead><tbody><tr><td>SOLAR_ROOF</td><td>34320.05</td><td>-25132.15</td></tr><tr><td>VOLT_SHARES</td><td>-5423.7</td><td>-25726.21</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The date must be a date</strong> (sample data: analysis-finance; shows an error)</p>
+<pre><code class="language-sql">SELECT xnpv(0.1, amount, memo) FROM cash_flows;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: xnpv: needs a date, got &#39;Buy 1000 VOLT shares at 185&#39;</code></p>
+<h2 id="xirr">xirr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">xirr(amount, date)
+xirr(amount, date, guess)</code></pre>
+<p>The <strong>yearly return of cash flows on real dates</strong>: the rate where <a href="#xnpv">xnpv</a> is <code>0</code>. It is an <strong>aggregate</strong>: every row is one cash flow. Use it for a share you bought, got dividends for, and sold; or for a SIP with payments on different days. The same as Excel <code>XIRR</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>amount</code></td><td>number</td><td>the cash flow: negative for money out (buy), positive for money in (dividend, sell)</td></tr><tr><td><code>date</code></td><td><code>DATE</code>, <code>TIMESTAMP</code> or date text</td><td>the day of the cash flow</td></tr><tr><td><code>guess</code></td><td>number</td><td>where the search starts; default <code>0.1</code> (10%). Rarely needed</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, a fraction per year.</li><li><strong>NULL:</strong> rows where <code>amount</code> or <code>date</code> is NULL are skipped. <code>NULL</code> when there are no rows, and when there is no answer (all amounts have the same sign).</li><li><strong>Notes:</strong> the rows can come in any order. Years are counted as days / 365, like Excel.</li></ul>
+<p><strong>Example: Every cash flow of the VOLT shares, and the yearly return</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT flow_date, amount, memo FROM cash_flows WHERE project = &#39;VOLT_SHARES&#39; ORDER BY flow_date;
+
+SELECT round(xirr(amount, flow_date) * 100, 2) AS yearly_return_pct
+FROM cash_flows
+WHERE project = &#39;VOLT_SHARES&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT flow_date, amount, memo FROM cash_flows WHERE project = &#39;VOLT_SHARES&#39; ORDER BY flow_date</code></p>
+<div class="table-wrap"><table><thead><tr><th>flow_date (DATE)</th><th>amount (DOUBLE)</th><th>memo (STRING)</th></tr></thead><tbody><tr><td>2024-01-15</td><td>-185000</td><td>Buy 1000 VOLT shares at 185</td></tr><tr><td>2024-12-20</td><td>5000</td><td>Cash dividend</td></tr><tr><td>2025-12-18</td><td>7500</td><td>Cash dividend</td></tr><tr><td>2026-09-10</td><td>191200</td><td>Sell 1000 VOLT shares at 191.2</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SELECT round(xirr(amount, flow_date) * 100, 2) AS yearly_return_pct FROM cash_flows WHERE project = </code></p>
+<div class="table-wrap"><table><thead><tr><th>yearly_return_pct (DOUBLE)</th></tr></thead><tbody><tr><td>3.8</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Check: XNPV at the XIRR rate is 0 (the rate comes from a subquery)</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(abs(xnpv(r.rate, c.amount, c.flow_date)), 4) AS xnpv_at_xirr
+FROM cash_flows c
+CROSS JOIN (SELECT xirr(amount, flow_date) AS rate FROM cash_flows WHERE project = &#39;VOLT_SHARES&#39;) r
+WHERE c.project = &#39;VOLT_SHARES&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>xnpv_at_xirr (DOUBLE)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An aggregate cannot be inside another aggregate</strong> (sample data: analysis-finance; shows an error)</p>
+<pre><code class="language-sql">SELECT xnpv(xirr(amount, flow_date), amount, flow_date) FROM cash_flows;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 13: &#39;xirr&#39; is an aggregate and cannot be used inside the aggregate &#39;xnpv&#39;; compute it in a subquery first: SELECT xnpv(x) FROM (SELECT xirr(...) AS x FROM t GROUP BY ...) s</code></p>
+<p><strong>Example: Only money in: no return can be found</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT xirr(amount, flow_date) AS xirr
+FROM cash_flows
+WHERE amount &gt; 0;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>xirr (STRING)</th></tr></thead><tbody><tr><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="round_tick">round_tick, floor_tick, ceil_tick</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">round_tick(price)
+round_tick(price, tick)
+floor_tick(price)
+floor_tick(price, tick)
+ceil_tick(price)
+ceil_tick(price, tick)</code></pre>
+<p>Moves a price to the nearest allowed <strong>tick</strong>. The <strong>tick size</strong> is the smallest step a price can move on the exchange. On some exchanges it is <code>0.1</code>: 512.3 and 512.4 are prices, 512.35 is not. Use these functions for order prices, stop-losses and targets that you compute (like <code>close - 2 × ATR</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Moves the price</th><th>512.37 with tick 0.1</th></tr></thead><tbody><tr><td><code>round_tick</code></td><td>to the nearest tick (a half goes up, away from zero)</td><td><code>512.4</code></td></tr><tr><td><code>floor_tick</code></td><td>down to the tick at or below</td><td><code>512.3</code></td></tr><tr><td><code>ceil_tick</code></td><td>up to the tick at or above</td><td><code>512.4</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>price</code></td><td>number</td><td>the price</td></tr><tr><td><code>tick</code></td><td>number</td><td>the tick size, more than 0; default <code>0.1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, with no more decimals than the tick has (no <code>512.30000000001</code>).</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> a tick of 0 or less is an error. Use <code>floor_tick</code> for a buy limit and a stop-loss of a long position (never above your number), <code>ceil_tick</code> for a sell target.</li></ul>
+<p><strong>Example</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round_tick(512.34) AS a, round_tick(512.35) AS half_up, floor_tick(512.39) AS down, ceil_tick(512.31) AS up,
+       round_tick(512.37, 0.05) AS tick_005, round_tick(512.3, 1) AS whole_dollar;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>half_up (DOUBLE)</th><th>down (DOUBLE)</th><th>up (DOUBLE)</th><th>tick_005 (DOUBLE)</th><th>whole_dollar (DOUBLE)</th></tr></thead><tbody><tr><td>512.3</td><td>512.4</td><td>512.3</td><td>512.4</td><td>512.35</td><td>512</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A stop-loss 2 × ATR below the close, as a price the exchange accepts</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, atr5, round(close - 2 * atr5, 4) AS raw_stop, floor_tick(close - 2 * atr5) AS stop_price
+FROM (SELECT time, symbol, close, atr(high, low, close, 5) OVER (PARTITION BY symbol ORDER BY time) AS atr5
+      FROM ochl_day) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>atr5 (DOUBLE)</th><th>raw_stop (DOUBLE)</th><th>stop_price (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>7.65324002169651</td><td>489.5935</td><td>489.5</td></tr><tr><td>COAST</td><td>376.1</td><td>9.98787632660481</td><td>356.1242</td><td>356.1</td></tr><tr><td>VOLT</td><td>191.2</td><td>7.42858372551475</td><td>176.3428</td><td>176.3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The tick size must be more than 0</strong> (sample data: analysis-finance; shows an error)</p>
+<pre><code class="language-sql">SELECT round_tick(512.34, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: round_tick: the tick size must be more than 0</code></p>
+<h2 id="pivot_point">pivot_point</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pivot_point(high, low, close)
+pivot_point(high, low, close, method)</code></pre>
+<p>The <strong>pivot point</strong> of the next day, made from the high, low and close of one day. Day traders draw it as a line on the chart. When the price is above the pivot, they see the day as strong (bullish); below, weak (bearish). The other lines, <strong>support</strong> (a price where falls often stop) and <strong>resistance</strong> (a price where rises often stop), come from <a href="#pivot_level">pivot_level</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the high of the day (usually yesterday)</td></tr><tr><td><code>low</code></td><td>number</td><td>the low of that day</td></tr><tr><td><code>close</code></td><td>number</td><td>the close of that day</td></tr><tr><td><code>method</code></td><td>text</td><td><code>&#39;classic&#39;</code> (default; <code>&#39;standard&#39;</code> is the same), <code>&#39;fibonacci&#39;</code> (or <code>&#39;fib&#39;</code>), <code>&#39;camarilla&#39;</code> or <code>&#39;woodie&#39;</code> (any case)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>: <code>(high + low + close) / 3</code>; for <code>&#39;woodie&#39;</code> <code>(high + low + 2 × close) / 4</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> an unknown method is an error. Round the result with <a href="#round_tick">round_tick</a> to get a real price.</li></ul>
+<p><strong>Example</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT round(pivot_point(507.0, 500.7, 504.9), 2) AS classic,
+       round(pivot_point(507.0, 500.7, 504.9, &#39;fibonacci&#39;), 2) AS fibonacci,
+       round(pivot_point(507.0, 500.7, 504.9, &#39;woodie&#39;), 3) AS woodie;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>classic (DOUBLE)</th><th>fibonacci (DOUBLE)</th><th>woodie (DOUBLE)</th></tr></thead><tbody><tr><td>504.2</td><td>504.2</td><td>504.375</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pivot_level">pivot_level</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pivot_level(high, low, close, level)
+pivot_level(high, low, close, level, method)</code></pre>
+<p>One line of the <strong>pivot point</strong> system: the pivot <code>&#39;p&#39;</code>, the resistance lines <code>&#39;r1&#39;</code>, <code>&#39;r2&#39;</code>, <code>&#39;r3&#39;</code> above it, or the support lines <code>&#39;s1&#39;</code>, <code>&#39;s2&#39;</code>, <code>&#39;s3&#39;</code> below it. <code>r1</code> and <code>s1</code> are close to the pivot; <code>r3</code> and <code>s3</code> are far away and are only reached on days with big moves.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code>, <code>close</code></td><td>numbers</td><td>the candle of one day (usually yesterday)</td></tr><tr><td><code>level</code></td><td>text</td><td><code>&#39;p&#39;</code> (also <code>&#39;pp&#39;</code>, <code>&#39;pivot&#39;</code>), <code>&#39;r1&#39;</code>, <code>&#39;r2&#39;</code>, <code>&#39;r3&#39;</code>, <code>&#39;s1&#39;</code>, <code>&#39;s2&#39;</code>, <code>&#39;s3&#39;</code>; <code>&#39;camarilla&#39;</code> also has <code>&#39;r4&#39;</code> and <code>&#39;s4&#39;</code> (any case)</td></tr><tr><td><code>method</code></td><td>text</td><td><code>&#39;classic&#39;</code> (default, or <code>&#39;standard&#39;</code>), <code>&#39;fibonacci&#39;</code> (or <code>&#39;fib&#39;</code>), <code>&#39;camarilla&#39;</code>, <code>&#39;woodie&#39;</code></td></tr></tbody></table></div>
+<p>The lines, with <code>P</code> = the pivot and <code>range = high - low</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>R1 / S1</th><th>R2 / S2</th><th>R3 / S3</th><th>R4 / S4</th></tr></thead><tbody><tr><td>classic, woodie</td><td><code>2P - low</code> / <code>2P - high</code></td><td><code>P ± range</code></td><td><code>high + 2(P - low)</code> / <code>low - 2(high - P)</code></td><td>none</td></tr><tr><td>fibonacci</td><td><code>P ± 0.382 × range</code></td><td><code>P ± 0.618 × range</code></td><td><code>P ± range</code></td><td>none</td></tr><tr><td>camarilla</td><td><code>close ± range × 1.1/12</code></td><td><code>close ± range × 1.1/6</code></td><td><code>close ± range × 1.1/4</code></td><td><code>close ± range × 1.1/2</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> a level that the method does not have (like <code>&#39;r4&#39;</code> for classic) and an unknown method are errors. Woodie uses its own pivot <code>(high + low + 2 × close) / 4</code> in the classic formulas.</li></ul>
+<p><strong>Example: Today&#39;s pivot lines for every symbol, from yesterday&#39;s candle</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       round_tick(pivot_level(high, low, close, &#39;s2&#39;)) AS s2,
+       round_tick(pivot_level(high, low, close, &#39;s1&#39;)) AS s1,
+       round_tick(pivot_point(high, low, close)) AS pivot,
+       round_tick(pivot_level(high, low, close, &#39;r1&#39;)) AS r1,
+       round_tick(pivot_level(high, low, close, &#39;r2&#39;)) AS r2
+FROM ochl_day
+WHERE time IN &#39;2026-09-09&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>s2 (DOUBLE)</th><th>s1 (DOUBLE)</th><th>pivot (DOUBLE)</th><th>r1 (DOUBLE)</th><th>r2 (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>498.6</td><td>501.6</td><td>507</td><td>510</td><td>515.4</td></tr><tr><td>COAST</td><td>366.4</td><td>373.3</td><td>386</td><td>392.9</td><td>405.6</td></tr><tr><td>VOLT</td><td>178.4</td><td>182.8</td><td>186.2</td><td>190.6</td><td>194</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Did the price stop at yesterday&#39;s lines? Today&#39;s high and low next to R1 and S1</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, time, low, high, s1, r1,
+       CASE WHEN high &gt;= r1 THEN &#39;broke R1&#39; WHEN low &lt;= s1 THEN &#39;broke S1&#39; ELSE &#39;stayed between&#39; END AS result
+FROM (SELECT time, symbol, low, high,
+             round_tick(pivot_level(prev_high, prev_low, prev_close, &#39;s1&#39;)) AS s1,
+             round_tick(pivot_level(prev_high, prev_low, prev_close, &#39;r1&#39;)) AS r1
+      FROM (SELECT time, symbol, low, high,
+                   lag(high) OVER (PARTITION BY symbol ORDER BY time) AS prev_high,
+                   lag(low) OVER (PARTITION BY symbol ORDER BY time) AS prev_low,
+                   lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
+            FROM ochl_day) c) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>low (DOUBLE)</th><th>high (DOUBLE)</th><th>s1 (DOUBLE)</th><th>r1 (DOUBLE)</th><th>result (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>500.7</td><td>507</td><td>501.6</td><td>510</td><td>broke S1</td></tr><tr><td>COAST</td><td>2026-09-10T00:00:00.000Z</td><td>373.2</td><td>382</td><td>373.3</td><td>392.9</td><td>broke S1</td></tr><tr><td>VOLT</td><td>2026-09-10T00:00:00.000Z</td><td>184.2</td><td>192.1</td><td>182.8</td><td>190.6</td><td>broke R1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The four methods side by side (CITY, 2026-09-10 candle)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT m.method,
+       round(pivot_level(d.high, d.low, d.close, &#39;s1&#39;, m.method), 2) AS s1,
+       round(pivot_level(d.high, d.low, d.close, &#39;p&#39;, m.method), 2) AS pivot,
+       round(pivot_level(d.high, d.low, d.close, &#39;r1&#39;, m.method), 2) AS r1
+FROM ochl_day d
+CROSS JOIN (SELECT &#39;classic&#39; AS method UNION ALL SELECT &#39;fibonacci&#39; UNION ALL SELECT &#39;camarilla&#39; UNION ALL SELECT &#39;woodie&#39;) m
+WHERE d.symbol = &#39;CITY&#39; AND d.time IN &#39;2026-09-10&#39;
+ORDER BY s1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>method (STRING)</th><th>s1 (DOUBLE)</th><th>pivot (DOUBLE)</th><th>r1 (DOUBLE)</th></tr></thead><tbody><tr><td>classic</td><td>501.4</td><td>504.2</td><td>507.7</td></tr><tr><td>woodie</td><td>501.75</td><td>504.38</td><td>508.05</td></tr><tr><td>fibonacci</td><td>501.79</td><td>504.2</td><td>506.61</td></tr><tr><td>camarilla</td><td>504.32</td><td>504.2</td><td>505.48</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Classic pivots have no R4</strong> (sample data: analysis-finance; shows an error)</p>
+<pre><code class="language-sql">SELECT pivot_level(507.0, 500.7, 504.9, &#39;r4&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: pivot_level: level must be p, r1, r2, r3, s1, s2 or s3 for classic pivots, got &#39;r4&#39;</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-finance.md">This page as markdown</a>.</footer>
+</body>
+</html>

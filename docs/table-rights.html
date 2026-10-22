@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table rights - GRANT ON TABLE - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Give a user rights on one table (GRANT SELECT ON TABLE prices), on some of its columns (GRANT SELECT (id, name) ON staff) or on some of its rows (CREATE POLICY), or take some rights of the role away (REVOKE UPDATE, DELETE ON TABLE ledger).">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/table-rights.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/table-rights.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="table-rights-grant-on-table">Table rights - GRANT ON TABLE</h1>
+<blockquote><p>Give a user rights on one table (GRANT SELECT ON TABLE prices), on some of its columns (GRANT SELECT (id, name) ON staff) or on some of its rows (CREATE POLICY), or take some rights of the role away (REVOKE UPDATE, DELETE ON TABLE ledger).</p></blockquote>
+<ul><li>Category: Users &amp; security</li><li>Keywords: table rights, table privileges, per-table grant, column rights, column privileges, GRANT SELECT (, column_privileges, has_column_privilege, hide a column, permissions, GRANT SELECT, GRANT INSERT, REVOKE DELETE, REVOKE UPDATE, PRIVILEGES, DEFAULT, append-only table, ledger rights, read one table, row rights, row-level security, RLS, CREATE POLICY, DROP POLICY, ENABLE ROW LEVEL SECURITY, pg_policies, row_security, multi-tenant, own rows only</li><li>See also: <a href="users-and-roles.html">Users and roles</a>, <a href="audit-log.html">Audit log</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a>, <a href="server-security.html">Keeping kdb serve safe</a></li></ul>
+<p>A user&#39;s <a href="users-and-roles.html#roles">role</a> gives rights on a whole database. Table rights change that for one table of the current database:</p>
+<pre><code class="language-text">allowed = (the role allows it AND it was not revoked on the table) OR it was granted on the table</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Right</th><th>Needed for</th></tr></thead><tbody><tr><td><code>SELECT</code></td><td>reading the table in <code>SELECT</code>, subqueries, <code>JOIN</code>, <code>EXPLAIN</code>, cursors, and <code>RETURNING</code></td></tr><tr><td><code>INSERT</code></td><td><code>INSERT</code>, and the line protocol (<code>POST /write</code>)</td></tr><tr><td><code>UPDATE</code></td><td><code>UPDATE</code></td></tr><tr><td><code>DELETE</code></td><td><code>DELETE</code></td></tr></tbody></table></div>
+<p>They are checked once per statement, before it runs (and before the result cache), never per row.</p>
+<h2 id="grant-on-table">GRANT ... ON TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GRANT SELECT | INSERT | UPDATE | DELETE | ALL [PRIVILEGES] [, ...] ON TABLE &lt;table&gt; TO &lt;user&gt;
+GRANT DEFAULT ON TABLE &lt;table&gt; TO &lt;user&gt;</code></pre>
+<p>Adds rights on one table of the current database (<code>USE</code>). <code>DEFAULT</code> removes every table right of the user on that table: the role decides again.</p>
+<ul><li><strong>Returns:</strong> <code>granted SELECT on table &#39;prices&#39; of database &#39;shop&#39; to user &#39;viewer&#39;</code>.</li><li><strong>Notes:</strong> needs a server admin. Works for views too (a view gives what it shows).</li></ul>
+<p><strong>Example: A user who may only read one table</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER viewer WITH PASSWORD &#39;Viewer-password-42&#39;;
+GRANT SELECT ON TABLE securities TO viewer;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>CREATE USER admin WITH PASSWORD &#39;***&#39; ROLE admin</code></p>
+<pre><code class="language-text">user &#39;admin&#39; created with role admin</code></pre>
+<p><code>CREATE USER viewer WITH PASSWORD &#39;***&#39;</code></p>
+<pre><code class="language-text">user &#39;viewer&#39; created with role none</code></pre>
+<p><code>GRANT SELECT ON TABLE securities TO viewer</code></p>
+<pre><code class="language-text">granted SELECT on table &#39;securities&#39; of database &#39;demo&#39; to user &#39;viewer&#39;</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:29.129Z</td><td>2026-10-22T05:44:29.129Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>viewer</td><td>none</td><td>NULL</td><td>2026-10-22T05:44:29.198Z</td><td>2026-10-22T05:44:29.241Z</td><td>demo.securities: +SELECT</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="revoke-on-table">REVOKE ... ON TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">REVOKE SELECT | INSERT | UPDATE | DELETE | ALL [, ...] ON TABLE &lt;table&gt; FROM &lt;user&gt;</code></pre>
+<p>Takes rights away on one table, even when the role allows them. For an accounting ledger that must only grow: the app&#39;s user has role <code>write</code>, and <code>REVOKE UPDATE, DELETE ON TABLE ledger FROM app</code>.</p>
+<ul><li><strong>Returns:</strong> <code>revoked UPDATE, DELETE on table &#39;ledger&#39; of database &#39;shop&#39; from user &#39;app&#39;</code>. A refused statement gets <code>DELETE on table &#39;ledger&#39; was revoked for user &#39;app&#39;</code> (HTTP 403, SQLSTATE <code>42501</code>).</li><li><strong>Notes:</strong>
+<ul><li><code>DROP TABLE</code> removes the table rights of that table; <code>RENAME TABLE</code> keeps them under the new name. A new table with an old name does not get old rights.</li><li>Views, procedures (<code>CALL</code>) and triggers run without the rights of whoever uses them, like PostgreSQL&#39;s <code>SECURITY DEFINER</code>. So when a <code>ddl</code> user saves one, KDB checks what it reads and changes against that user&#39;s rights: a view of a revoked table, or a procedure that deletes from it, is refused. The same holds for <code>CREATE TABLE ... AS SELECT</code>.</li><li>A statement that reads a second table needs <code>SELECT</code> on it too: <code>INSERT ... SELECT</code>, <code>UPDATE ... FROM</code>, <code>DELETE ... USING</code> and <code>WITH</code>.</li><li>Older KDB programs refuse a data folder with table rights (they would ignore them).</li></ul></li></ul>
+<p><strong>Example: The ledger only grows</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER app WITH PASSWORD &#39;App-password-12345&#39;;
+GRANT write ON DATABASE demo TO app;
+REVOKE UPDATE, DELETE ON TABLE ledger FROM app;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>CREATE USER admin WITH PASSWORD &#39;***&#39; ROLE admin</code></p>
+<pre><code class="language-text">user &#39;admin&#39; created with role admin</code></pre>
+<p><code>CREATE USER app WITH PASSWORD &#39;***&#39;</code></p>
+<pre><code class="language-text">user &#39;app&#39; created with role none</code></pre>
+<p><code>GRANT write ON DATABASE demo TO app</code></p>
+<pre><code class="language-text">user &#39;app&#39; has role write on database &#39;demo&#39;</code></pre>
+<p><code>REVOKE UPDATE, DELETE ON TABLE ledger FROM app</code></p>
+<pre><code class="language-text">revoked UPDATE, DELETE on table &#39;ledger&#39; of database &#39;demo&#39; from user &#39;app&#39;</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:29.156Z</td><td>2026-10-22T05:44:29.156Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>app</td><td>none</td><td>demo=write</td><td>2026-10-22T05:44:29.225Z</td><td>2026-10-22T05:44:29.273Z</td><td>demo.ledger: -UPDATE -DELETE</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A revoked table can not be wrapped in a view</strong> (sample data: query-app; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER migrate WITH PASSWORD &#39;Migrations-only-secret-9&#39; ROLE ddl;
+REVOKE SELECT ON TABLE ledger FROM migrate;</code></pre>
+<pre><code class="language-sql">SET ROLE migrate;
+CREATE VIEW all_ledger AS SELECT * FROM ledger;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">statements now use the rights of user &#39;migrate&#39; (RESET ROLE goes back)</code></pre>
+<p>Error: <code>SELECT on table &#39;ledger&#39; was revoked for user &#39;migrate&#39; (REVOKE SELECT ON TABLE ledger)</code></p>
+<h2 id="column-rights">Column rights</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GRANT SELECT | INSERT | UPDATE | ALL (&lt;column&gt; [, ...]) [, ...] ON [TABLE] &lt;table&gt; TO &lt;user&gt;
+REVOKE SELECT | INSERT | UPDATE | ALL (&lt;column&gt; [, ...]) [, ...] ON [TABLE] &lt;table&gt; FROM &lt;user&gt;</code></pre>
+<p>A right can name columns. Then it is about those columns only. Each right has its own list: <code>GRANT SELECT (id, name), UPDATE (name) ON staff TO clerk</code>.</p>
+<pre><code class="language-text">column allowed = not revoked on the column AND (the table allows it OR it was granted on the column)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>You want</th><th>Write</th></tr></thead><tbody><tr><td>A user who reads only some columns</td><td><code>GRANT SELECT (id, name) ON staff TO temp</code> (no role on the database)</td></tr><tr><td>Hide one column from a role</td><td><code>REVOKE SELECT (salary) ON staff FROM clerk</code></td></tr><tr><td>Let a user change only one column</td><td><code>REVOKE UPDATE ON staff FROM clerk; GRANT UPDATE (name) ON staff TO clerk</code></td></tr><tr><td>Back to the role</td><td><code>GRANT DEFAULT ON TABLE staff TO clerk</code> (removes the table&#39;s column rights too)</td></tr></tbody></table></div>
+<p>Every column a statement names is checked: the <code>SELECT</code> list, <code>WHERE</code>, <code>JOIN ... ON</code>, <code>GROUP BY</code>, <code>HAVING</code>, <code>ORDER BY</code>, subqueries, <code>WITH</code>, <code>RETURNING</code>, the columns an <code>INSERT</code> fills and the columns an <code>UPDATE</code> sets. A refused statement gets <code>permission denied for column &quot;salary&quot; of table &quot;staff&quot;</code> (HTTP 403, SQLSTATE <code>42501</code>).</p>
+<ul><li><strong>Returns:</strong> <code>revoked SELECT on column &#39;salary&#39; of table &#39;staff&#39; of database &#39;hr&#39; from user &#39;clerk&#39;</code>.</li><li><strong>Notes:</strong>
+<ul><li><code>SELECT *</code> (and <code>RETURNING *</code>) reads every column, so it is refused when one of them is not allowed, as in PostgreSQL. Name the columns instead. <code>count(*)</code> reads no column and is fine.</li><li>An <code>INSERT</code> without a column list fills every column: it needs <code>INSERT</code> on all of them.</li><li><code>DELETE</code> takes whole rows, so it cannot name columns.</li><li>A user whose role on the database is <code>admin</code> is never held back by column rights.</li><li>The rights are checked each time a statement runs, also for a prepared statement or a plan kept in the cache.</li><li><code>RENAME COLUMN</code> keeps the rights under the new name; <code>DROP COLUMN</code> removes them.</li><li>A table of another database (<code>otherdb.t</code>) with a column you may not read is refused as a whole; <code>USE</code> that database to read the other columns.</li><li><code>has_column_privilege()</code> and <code>information_schema.column_privileges</code> show the same rights.</li><li>The rights are kept in <code>_system</code>. Older KDB programs refuse a data folder once a column right was granted there (they would ignore it).</li></ul></li></ul>
+<p><strong>Example: An auditor who reads some columns of the ledger</strong> (sample data: query-app)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER auditor WITH PASSWORD &#39;Auditor-password-77&#39;;
+GRANT SELECT (line_id, entry_date, account) ON ledger TO auditor;</code></pre>
+<pre><code class="language-sql">SET ROLE auditor;
+SELECT line_id, account FROM ledger ORDER BY line_id LIMIT 3;</code></pre>
+<p>Result:</p>
+<p><code>SET role = &#39;auditor&#39;</code></p>
+<pre><code class="language-text">statements now use the rights of user &#39;auditor&#39; (RESET ROLE goes back)</code></pre>
+<p><code>SELECT line_id, account FROM ledger ORDER BY line_id LIMIT 3</code></p>
+<div class="table-wrap"><table><thead><tr><th>line_id (INT)</th><th>account (INT)</th></tr></thead><tbody><tr><td>1</td><td>1100</td></tr><tr><td>2</td><td>3000</td></tr><tr><td>3</td><td>1200</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: SELECT * needs every column</strong> (sample data: query-app; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER auditor WITH PASSWORD &#39;Auditor-password-77&#39;;
+GRANT SELECT (line_id, entry_date, account) ON ledger TO auditor;</code></pre>
+<pre><code class="language-sql">SET ROLE auditor;
+SELECT * FROM ledger;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">statements now use the rights of user &#39;auditor&#39; (RESET ROLE goes back)</code></pre>
+<p>Error: <code>permission denied for column &quot;entry_id&quot; of table &quot;ledger&quot;: SELECT * (or RETURNING *) reads every column, and user &#39;auditor&#39; may not SELECT this one; name the columns instead</code></p>
+<p><strong>Example: What the current user may do with each column</strong> (sample data: query-app)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER app WITH PASSWORD &#39;App-password-12345&#39;;
+GRANT write ON DATABASE demo TO app;
+REVOKE SELECT (credit) ON ledger FROM app;</code></pre>
+<pre><code class="language-sql">SET ROLE app;
+SELECT column_name, privilege_type FROM information_schema.column_privileges
+WHERE table_name = &#39;ledger&#39; AND column_name IN (&#39;debit&#39;, &#39;credit&#39;) ORDER BY 1, 2;</code></pre>
+<p>Result:</p>
+<p><code>SET role = &#39;app&#39;</code></p>
+<pre><code class="language-text">statements now use the rights of user &#39;app&#39; (RESET ROLE goes back)</code></pre>
+<p><code>SELECT column_name, privilege_type FROM &quot;information_schema.column_privileges&quot; WHERE table_name = &#39;l</code></p>
+<div class="table-wrap"><table><thead><tr><th>column_name (STRING)</th><th>privilege_type (STRING)</th></tr></thead><tbody><tr><td>credit</td><td>INSERT</td></tr><tr><td>credit</td><td>UPDATE</td></tr><tr><td>debit</td><td>INSERT</td></tr><tr><td>debit</td><td>SELECT</td></tr><tr><td>debit</td><td>UPDATE</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="row-rights">Row rights (row-level security)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE POLICY &lt;name&gt; ON &lt;table&gt; [AS PERMISSIVE] [FOR ALL | SELECT | INSERT | UPDATE | DELETE]
+    [TO &lt;user&gt; | PUBLIC [, ...]] [USING (&lt;condition&gt;)] [WITH CHECK (&lt;condition&gt;)]
+DROP POLICY [IF EXISTS] &lt;name&gt; ON &lt;table&gt;
+ALTER TABLE &lt;table&gt; ENABLE | DISABLE ROW LEVEL SECURITY</code></pre>
+<p>A policy decides which rows of a table a user sees and may change. It acts once the table&#39;s row-level security is on (<code>ENABLE ROW LEVEL SECURITY</code>). Then, for every user who is not an admin of the database:</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>What the policies do</th></tr></thead><tbody><tr><td><code>SELECT</code> (also joins, subqueries, <code>WITH</code>, views, <code>EXPLAIN</code>, <code>CREATE TABLE ... AS</code>)</td><td>only rows where a <code>USING</code> condition is true are read</td></tr><tr><td><code>UPDATE</code>, <code>DELETE</code></td><td>only those rows are changed; others are left alone, without an error</td></tr><tr><td><code>INSERT</code>, and the new version of an updated row</td><td>must pass a <code>WITH CHECK</code> condition (or the <code>USING</code> of a policy without one), else <code>new row violates row-level security policy for table &quot;t&quot;</code> (HTTP 403, SQLSTATE <code>42501</code>)</td></tr></tbody></table></div>
+<p>The policies of a table are joined with <code>OR</code>: one that lets a row in is enough. A table with row-level security on and no policy for the user shows them no rows at all.</p>
+<ul><li><strong>Returns:</strong> <code>policy &#39;own&#39; created on table &#39;orders&#39;</code>; <code>row-level security of table &#39;orders&#39; is on</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs role <code>admin</code> on the database. An admin is never held back by the policies (<code>FORCE ROW LEVEL SECURITY</code> is accepted and changes nothing).</li><li><code>current_user</code> in a condition is the user running the statement, so one policy serves every user.</li><li>A view shows each reader the rows their own policies allow (like PostgreSQL&#39;s <code>security_invoker</code> views).</li><li><code>SET row_security = off</code>: a statement a policy would change fails instead (<code>query would be affected by row-level security policy</code>), as in PostgreSQL. Use it to be sure a dump gets every row.</li><li>Bulk paths that do not run SQL refuse such a table for these users: <code>/cursor</code>, <code>POST /write</code>, <code>/imp</code> and <code>COPY FROM</code>. A <code>DO</code> block is refused too. Use <code>SELECT</code> and <code>INSERT</code>.</li><li>A <code>WITH CHECK</code> condition looks at the one row only (no subqueries).</li><li>Results of these users never come from the result cache, so a cached answer is never shared between users.</li><li><code>RENAME TABLE</code> keeps the policies; <code>DROP TABLE</code> removes them. <code>pg_policies</code>, <code>pg_policy</code> and <code>pg_tables.rowsecurity</code> show them.</li><li>Only <code>PERMISSIVE</code> policies (<code>AS RESTRICTIVE</code> is refused). Statements inside procedures and triggers are not filtered; their <code>WITH CHECK</code> still applies.</li><li>The policies are kept in <code>_system</code>. Older KDB programs refuse a data folder once a policy was made there (they would ignore it).</li></ul></li></ul>
+<p><strong>Example: Each user sees only their own rows</strong> (sample data: query-app)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER ann WITH PASSWORD &#39;Ann-password-12345&#39;;
+GRANT write ON DATABASE demo TO ann;
+CREATE TABLE orders (id INT PRIMARY KEY, owner STRING, amount DOUBLE);
+INSERT INTO orders VALUES (1, &#39;ann&#39;, 10), (2, &#39;bo&#39;, 20), (3, &#39;ann&#39;, 30);
+CREATE POLICY own ON orders TO ann USING (owner = current_user);
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;</code></pre>
+<pre><code class="language-sql">SET ROLE ann;
+SELECT * FROM orders ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>SET role = &#39;ann&#39;</code></p>
+<pre><code class="language-text">statements now use the rights of user &#39;ann&#39; (RESET ROLE goes back)</code></pre>
+<p><code>SELECT * FROM (SELECT * FROM orders WHERE owner = current_user) AS orders ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>ann</td><td>10</td></tr><tr><td>3</td><td>ann</td><td>30</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A row for someone else is refused</strong> (sample data: query-app; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER ann WITH PASSWORD &#39;Ann-password-12345&#39;;
+GRANT write ON DATABASE demo TO ann;
+CREATE TABLE orders (id INT PRIMARY KEY, owner STRING, amount DOUBLE);
+CREATE POLICY own ON orders TO ann USING (owner = current_user);
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;</code></pre>
+<pre><code class="language-sql">SET ROLE ann;
+INSERT INTO orders VALUES (4, &#39;bo&#39;, 5);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">statements now use the rights of user &#39;ann&#39; (RESET ROLE goes back)</code></pre>
+<p>Error: <code>new row violates row-level security policy for table &quot;orders&quot;</code></p>
+<p><strong>Example: The policies of a database</strong> (sample data: query-app)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER ann WITH PASSWORD &#39;Ann-password-12345&#39;;
+CREATE TABLE orders (id INT PRIMARY KEY, owner STRING, amount DOUBLE);
+CREATE POLICY own ON orders TO ann USING (owner = current_user);
+CREATE POLICY big ON orders FOR SELECT TO PUBLIC USING (amount &gt; 100);</code></pre>
+<pre><code class="language-sql">SELECT policyname, cmd, roles, qual FROM pg_policies ORDER BY policyname;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>policyname (STRING)</th><th>cmd (STRING)</th><th>roles (STRING)</th><th>qual (STRING)</th></tr></thead><tbody><tr><td>big</td><td>SELECT</td><td>{public}</td><td>amount &gt; 100</td></tr><tr><td>own</td><td>ALL</td><td>{ann}</td><td>owner = current_user</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="revoke-role">REVOKE role ON DATABASE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">REVOKE read | write | admin ON DATABASE &lt;db&gt; FROM &lt;user&gt;
+REVOKE ALL ON DATABASE &lt;db&gt; FROM &lt;user&gt;</code></pre>
+<p><code>REVOKE &lt;role&gt;</code> takes away exactly a grant of that role. A stronger grant stays: <code>REVOKE read</code> does not remove a <code>write</code> grant (the message says so). <code>REVOKE ALL</code> removes any grant on the database.</p>
+<ul><li><strong>Returns:</strong> <code>user &#39;u&#39; has no grant on database &#39;shop&#39; now</code>, or <code>user &#39;u&#39; keeps role write on database &#39;shop&#39;: REVOKE read takes away only a read grant; use REVOKE write or REVOKE ALL. Nothing was revoked</code>.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/table-rights.md">This page as markdown</a>.</footer>
+</body>
+</html>

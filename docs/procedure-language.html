@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The procedure language - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/procedure-language.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/procedure-language.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="the-procedure-language">The procedure language</h1>
+<blockquote><p>Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body.</p></blockquote>
+<ul><li>Category: Stored procedures</li><li>Keywords: variable, variables, loop, THEN, DO, IN, INTO, OPEN, FOUND, EXECUTE, dynamic SQL, EXECUTE format, USING, INTO STRICT, table name in a variable, sp_executesql, PREPARE, END IF, END WHILE, END FOR, FETCH INTO, OPEN cursor, declared twice, column name wins, WHILE loop ran, body, procedure body, trigger body</li><li>See also: <a href="procedures.html">Stored procedures</a>, <a href="triggers.html">Triggers</a>, <a href="cursors.html">Cursors</a>, <a href="transactions.html">Transactions</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
+<p>These statements work only inside the body (<code>BEGIN ... END</code>) of a <a href="procedures.html">procedure</a> or a <a href="triggers.html">trigger</a>.
+Every statement ends with <code>;</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>What it does</th></tr></thead><tbody><tr><td><code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code></td><td>as usual. A <code>SELECT</code> returns its rows as an extra result of the <code>CALL</code>.</td></tr><tr><td><code>CALL other(...)</code></td><td>runs another procedure (at most 16 levels deep)</td></tr><tr><td><code>SHOW ...</code>, <code>EXPLAIN SELECT ...</code></td><td>as usual; the rows are an extra result</td></tr><tr><td><a href="procedure-language.html#declare"><code>DECLARE name TYPE [DEFAULT expr]</code></a></td><td>makes a variable</td></tr><tr><td><a href="procedure-language.html#set"><code>SET name = expr</code></a></td><td>gives a variable a new value</td></tr><tr><td><a href="procedure-language.html#if"><code>IF ... THEN ... ELSIF ... ELSE ... END IF</code></a></td><td>chooses what to run</td></tr><tr><td><a href="procedure-language.html#while"><code>WHILE cond DO ... END WHILE</code></a></td><td>repeats while a condition is true</td></tr><tr><td><a href="procedure-language.html#for"><code>FOR r IN (SELECT ...) DO ... END FOR</code></a></td><td>runs once for every row of a query</td></tr><tr><td><a href="procedure-language.html#return"><code>RETURN</code></a></td><td>stops the procedure; its changes are kept</td></tr><tr><td><a href="procedure-language.html#raise"><code>RAISE expr</code></a></td><td>stops with an error; <strong>everything is undone</strong></td></tr><tr><td><a href="procedure-language.html#print"><code>PRINT expr</code></a></td><td>adds a line to the <code>print</code> result</td></tr><tr><td><a href="procedure-language.html#execute"><code>EXECUTE text [INTO v, ...] [USING a, ...]</code></a></td><td>runs SQL made while the procedure runs (dynamic SQL)</td></tr><tr><td><a href="procedure-language.html#local-cursors"><code>DECLARE c CURSOR FOR SELECT</code>, <code>OPEN</code>, <code>FETCH ... INTO</code>, <code>CLOSE</code></a></td><td>reads a query one row at a time</td></tr></tbody></table></div>
+<p>Not allowed in a body: <code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>RENAME</code>, <code>BACKUP</code>, <code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code>.</p>
+<p><strong>Example: Brokerage fee of a stock trade, with variables and IF</strong></p>
+<pre><code class="language-sql">CREATE PROCEDURE fee_of(amount_in DECIMAL(2)) AS BEGIN
+  DECLARE rate DOUBLE;
+  DECLARE fee DECIMAL(2);
+  IF amount_in &lt;= 50000 THEN
+    SET rate = 0.0036;
+  ELSIF amount_in &lt;= 500000 THEN
+    SET rate = 0.0033;
+  ELSE
+    SET rate = 0.0027;
+  END IF;
+  SET fee = round(greatest(amount_in * rate, 10), 2);
+  PRINT concat(&#39;amount &#39;, amount_in, &#39;: rate &#39;, rate * 100, &#39;%, fee &#39;, fee);
+END;
+
+CALL fee_of(1500);
+CALL fee_of(258500);
+CALL fee_of(881000);</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE fee_of(amount_in DECIMAL(2)) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;fee_of&#39; created</code></pre>
+<p><code>CALL fee_of(1500)</code></p>
+<pre><code class="language-text">procedure &#39;fee_of&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>amount 1500.00: rate 0.36%, fee 10.00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>CALL fee_of(258500)</code></p>
+<pre><code class="language-text">procedure &#39;fee_of&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>amount 258500.00: rate 0.33%, fee 853.05</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>CALL fee_of(881000)</code></p>
+<pre><code class="language-text">procedure &#39;fee_of&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>amount 881000.00: rate 0.27%, fee 2378.70</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="declare">DECLARE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DECLARE name TYPE
+DECLARE name TYPE DEFAULT expression</code></pre>
+<p>Makes a variable: a named place for one value, like <code>have</code> or <code>total</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the variable name. Upper and lower case are the same.</td></tr><tr><td><code>TYPE</code></td><td>any column type: <code>INT</code>, <code>LONG</code>, <code>DOUBLE</code>, <code>DECIMAL(2)</code>, <code>STRING</code>, <code>SYMBOL</code>, <code>BOOL</code>, <code>DATE</code>, <code>TIMESTAMP</code>, ...</td></tr><tr><td><code>DEFAULT expression</code></td><td>the first value. It may use parameters, earlier variables and a subquery <code>(SELECT ...)</code>. Without <code>DEFAULT</code>, the value is <code>NULL</code>.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Use a variable by its name in any expression: <code>WHERE id = from_id</code>, <code>VALUES (day, total)</code>.</li><li>Parameters are variables too: <code>SET</code> can change them.</li><li>A value is changed to the variable&#39;s type. A value that does not fit is an error (<code>&#39;abc&#39; is not a whole number</code>).</li><li><strong>A column name wins over a variable with the same name.</strong> Inside <code>SELECT ... FROM securities</code>, the name <code>name</code> means the column, not your variable. Give variables names that are not column names.</li><li>A variable lives until the end of the procedure (not only until the end of an <code>IF</code> or loop). A <code>DECLARE</code> inside a loop fails the second time round: <code>variable &#39;x&#39; is declared twice</code>. Declare before the loop.</li><li>Every procedure and trigger already has the variable <code>FOUND</code> (see <a href="procedure-language.html#local-cursors">cursors in a body</a>). You cannot declare it.</li><li><code>DECLARE name CURSOR FOR SELECT ...</code> makes a cursor, not a variable.</li></ul></li></ul>
+<p><strong>Example: Variables of many types, with and without DEFAULT</strong></p>
+<pre><code class="language-sql">CREATE PROCEDURE show_types() AS BEGIN
+  DECLARE qty INT DEFAULT 500;
+  DECLARE rate DOUBLE DEFAULT 514.5;
+  DECLARE amount_npr DECIMAL(2) DEFAULT qty * rate;
+  DECLARE symbol_name SYMBOL DEFAULT &#39;CITY&#39;;
+  DECLARE trade_day DATE DEFAULT &#39;2026-09-10&#39;;
+  DECLARE note STRING;
+  PRINT concat(qty, &#39; x &#39;, rate, &#39; = &#39;, amount_npr, &#39; for &#39;, symbol_name, &#39; on &#39;, trade_day);
+  PRINT coalesce(note, &#39;note is NULL&#39;);
+END;
+CALL show_types();</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE show_types() AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;show_types&#39; created</code></pre>
+<p><code>CALL show_types()</code></p>
+<pre><code class="language-text">procedure &#39;show_types&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>500 x 514.5 = 257250.00 for CITY on 2026-09-10</td></tr><tr><td>note is NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The trap: a column name wins over a variable</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE PROCEDURE count_sector_wrong(name STRING) AS BEGIN
+  SELECT count(*) AS shares FROM securities WHERE sector = name;
+END;
+CREATE PROCEDURE count_sector(wanted STRING) AS BEGIN
+  SELECT count(*) AS shares FROM securities WHERE sector = wanted;
+END;
+CALL count_sector_wrong(&#39;Banking&#39;);
+CALL count_sector(&#39;Banking&#39;);</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE count_sector_wrong(name STRING) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;count_sector_wrong&#39; created</code></pre>
+<p><code>CREATE PROCEDURE count_sector(wanted STRING) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;count_sector&#39; created</code></pre>
+<p><code>CALL count_sector_wrong(&#39;Banking&#39;)</code></p>
+<pre><code class="language-text">procedure &#39;count_sector_wrong&#39; done: 0 row(s) changed</code></pre>
+<p><code>SELECT count(*) AS shares FROM securities WHERE sector = name</code></p>
+<div class="table-wrap"><table><thead><tr><th>shares (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>CALL count_sector(&#39;Banking&#39;)</code></p>
+<pre><code class="language-text">procedure &#39;count_sector&#39; done: 0 row(s) changed</code></pre>
+<p><code>SELECT count(*) AS shares FROM securities WHERE sector = wanted</code></p>
+<div class="table-wrap"><table><thead><tr><th>shares (LONG)</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: DECLARE inside a loop</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i &lt; 3 DO
+    DECLARE doubled INT DEFAULT i * 2;
+    SET i = i + 1;
+  END WHILE;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 4: variable &#39;doubled&#39; is declared twice</code></p>
+<h2 id="set">SET</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SET name = expression
+SET name = (SELECT one_value FROM ...)</code></pre>
+<p>Gives a variable (or a parameter) a new value.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>The variable must be declared first.</li><li><code>SET x = (SELECT ...)</code> takes one value from a query. <strong>No row</strong> gives <code>NULL</code>. <strong>More than one row</strong> is an error: add <code>WHERE</code> or <code>LIMIT 1</code>.</li><li>The value is changed to the variable&#39;s type, like <code>CAST</code>.</li><li>A <code>DECIMAL(2)</code> variable refuses a value with more decimals (<code>1000.105 has more than 2 decimal places</code>). It does not round by itself: use <code>round(value, 2)</code>.</li><li>The query sees the changes made earlier in the same <code>CALL</code>.</li><li><code>UPDATE</code> and <code>DELETE</code> may hold a subquery. Reading the value into a variable with <code>SET</code> first is often clearer, and lets you use it more than once. For many rows, use a <a href="procedure-language.html#for"><code>FOR</code></a> loop.</li></ul></li></ul>
+<p><strong>Example: Read a balance into a variable, then change it</strong></p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);
+
+CREATE PROCEDURE check_balance(account INT) AS BEGIN
+  DECLARE have DECIMAL(2);
+  SET have = (SELECT balance FROM accounts WHERE id = account);
+  PRINT concat(&#39;account &#39;, account, &#39; has &#39;, coalesce(CAST(have AS STRING), &#39;no row: NULL&#39;));
+  SET have = have + round(have * 0.00105, 2);
+  PRINT concat(&#39;with interest: &#39;, have);
+END;
+CALL check_balance(1);
+CALL check_balance(7);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE check_balance(account INT) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;check_balance&#39; created</code></pre>
+<p><code>CALL check_balance(1)</code></p>
+<pre><code class="language-text">procedure &#39;check_balance&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>account 1 has 1000.00</td></tr><tr><td>with interest: 1001.05</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>CALL check_balance(7)</code></p>
+<pre><code class="language-text">procedure &#39;check_balance&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>account 7 has no row: NULL</td></tr><tr><td>with interest:</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A subquery inside UPDATE: use a variable instead</strong></p>
+<pre><code class="language-sql">CREATE TABLE topics (id INT PRIMARY KEY, posts LONG NOT NULL DEFAULT 0);
+CREATE TABLE posts (id LONG PRIMARY KEY, topic_id INT NOT NULL);
+INSERT INTO topics (id) VALUES (1);
+INSERT INTO posts VALUES (1, 1), (2, 1), (3, 1);
+
+CREATE PROCEDURE recount(topic INT) AS BEGIN
+  DECLARE n LONG;
+  SET n = (SELECT count(*) FROM posts WHERE topic_id = topic);
+  UPDATE topics SET posts = n WHERE id = topic;
+END;
+CALL recount(1);
+SELECT * FROM topics;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE topics (</code></p>
+<pre><code class="language-text">table &#39;topics&#39; created</code></pre>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>INSERT INTO topics (id) VALUES (1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO posts VALUES (1, 1), (2, 1), (3, 1)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE recount(topic INT) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;recount&#39; created</code></pre>
+<p><code>CALL recount(1)</code></p>
+<pre><code class="language-text">procedure &#39;recount&#39; done: 1 row(s) changed</code></pre>
+<p><code>SELECT * FROM topics</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>1</td><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The same with the subquery inside UPDATE</strong></p>
+<pre><code class="language-sql">CREATE TABLE topics (id INT PRIMARY KEY, posts LONG NOT NULL DEFAULT 0);
+CREATE TABLE posts (id LONG PRIMARY KEY, topic_id INT NOT NULL);
+INSERT INTO topics (id) VALUES (1);
+INSERT INTO posts VALUES (1, 1), (2, 1), (3, 1);
+
+CREATE PROCEDURE recount(topic INT) AS BEGIN
+  UPDATE topics SET posts = (SELECT count(*) FROM posts WHERE topic_id = topic) WHERE id = topic;
+END;
+CALL recount(1);
+SELECT * FROM topics;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE topics (</code></p>
+<pre><code class="language-text">table &#39;topics&#39; created</code></pre>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>INSERT INTO topics (id) VALUES (1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO posts VALUES (1, 1), (2, 1), (3, 1)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE recount(topic INT) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;recount&#39; created</code></pre>
+<p><code>CALL recount(1)</code></p>
+<pre><code class="language-text">procedure &#39;recount&#39; done: 1 row(s) changed</code></pre>
+<p><code>SELECT * FROM topics</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>1</td><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A variable that is not declared</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  SET total = 1;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 2: variable &#39;total&#39; is not declared (DECLARE total &lt;type&gt; first)</code></p>
+<p><strong>Example: DECIMAL(2) does not round by itself</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  DECLARE have DECIMAL(2) DEFAULT 1000;
+  SET have = have + 0.105;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 3: variable &#39;have&#39; (DECIMAL(2)): 1000.105 has more than 2 decimal places</code></p>
+<p><strong>Example: A query that gives two rows</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, balance DECIMAL(2));
+INSERT INTO accounts VALUES (1, 1000), (2, 0);
+CREATE PROCEDURE p() AS BEGIN
+  DECLARE have DECIMAL(2);
+  SET have = (SELECT balance FROM accounts);
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>INSERT INTO accounts VALUES (1, 1000), (2, 0)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE p() AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 3 col 14: subquery returned 2 rows; a value needs exactly one (add LIMIT 1?)</code></p>
+<h2 id="if">IF, ELSIF, ELSEIF, ELSE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">IF condition THEN
+  statements;
+[ELSIF condition THEN
+  statements;] ...
+[ELSE
+  statements;]
+END IF</code></pre>
+<p>Runs the statements of the <strong>first</strong> condition that is true. When no condition is true, it runs the <code>ELSE</code> part (if there is one).
+<code>ELSEIF</code> is the same as <code>ELSIF</code>.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>The condition must be <code>TRUE</code> or <code>FALSE</code>: <code>IF 1 THEN</code> is an error.</li><li>A <code>NULL</code> condition counts as <strong>false</strong>, like in <code>WHERE</code>.</li><li><code>EXISTS (SELECT ...)</code> and <code>(SELECT ...) &gt; 0</code> work as conditions.</li><li>End it with <code>END IF;</code> (not only <code>END;</code>).</li></ul></li></ul>
+<p><strong>Example: NULL is not true: the ELSE part runs</strong></p>
+<pre><code class="language-sql">CREATE PROCEDURE p(x INT) AS BEGIN
+  IF x &gt; 0 THEN
+    PRINT concat(x, &#39; is positive&#39;);
+  ELSEIF x &lt;= 0 THEN
+    PRINT concat(x, &#39; is zero or negative&#39;);
+  ELSE
+    PRINT &#39;x is NULL: both conditions are not true&#39;;
+  END IF;
+END;
+CALL p(5);
+CALL p(-2);
+CALL p(NULL);</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE p(x INT) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p><code>CALL p(5)</code></p>
+<pre><code class="language-text">procedure &#39;p&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>5 is positive</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>CALL p(-2)</code></p>
+<pre><code class="language-text">procedure &#39;p&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>-2 is zero or negative</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>CALL p(NULL)</code></p>
+<pre><code class="language-text">procedure &#39;p&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>x is NULL: both conditions are not true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A condition with EXISTS</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE PROCEDURE has_trades(wanted SYMBOL, day DATE) AS BEGIN
+  IF EXISTS (SELECT 1 FROM trade_log WHERE symbol = wanted AND date = day) THEN
+    PRINT concat(wanted, &#39; traded on &#39;, day);
+  ELSE
+    PRINT concat(wanted, &#39; did not trade on &#39;, day);
+  END IF;
+END;
+CALL has_trades(&#39;VOLT&#39;, &#39;2026-09-10&#39;);
+CALL has_trades(&#39;VOLT&#39;, &#39;2026-09-09&#39;);</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE has_trades(wanted SYMBOL, day DATE) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;has_trades&#39; created</code></pre>
+<p><code>CALL has_trades(&#39;VOLT&#39;, &#39;2026-09-10&#39;)</code></p>
+<pre><code class="language-text">procedure &#39;has_trades&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>VOLT traded on 2026-09-10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>CALL has_trades(&#39;VOLT&#39;, &#39;2026-09-09&#39;)</code></p>
+<pre><code class="language-text">procedure &#39;has_trades&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>VOLT did not trade on 2026-09-09</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A number is not a condition</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  IF 1 THEN
+    PRINT &#39;yes&#39;;
+  END IF;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 2: the condition 1 must be TRUE or FALSE, but it is 1</code></p>
+<p><strong>Example: END without IF</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p(x INT) AS BEGIN
+  IF x &gt; 0 THEN
+    PRINT &#39;positive&#39;;
+  END;
+END;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 4, column 6: expected IF after END to close the IF that starts at line 2 but found &#39;;&#39;</code></p>
+<h2 id="while">WHILE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">WHILE condition DO
+  statements;
+END WHILE</code></pre>
+<p>Runs the statements again and again, as long as the condition is true. The condition is checked before each round.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>A <code>NULL</code> condition counts as false: the loop stops.</li><li>A loop stops with an error after <strong>10 million rounds</strong>, so a loop that never ends cannot hold the database for ever. The whole <code>CALL</code> is then undone.</li><li><code>RETURN</code> inside the loop stops the whole procedure.</li><li>To read rows one by one, a <a href="procedure-language.html#for"><code>FOR</code></a> loop is shorter.</li></ul></li></ul>
+<p><strong>Example: Savings: how many years until 1 lakh becomes 2 lakh at 8%?</strong></p>
+<pre><code class="language-sql">CREATE PROCEDURE years_to_double(start DECIMAL(2), rate DOUBLE) AS BEGIN
+  DECLARE money DECIMAL(2) DEFAULT start;
+  DECLARE years INT DEFAULT 0;
+  WHILE money &lt; start * 2 DO
+    SET money = round(money * (1 + rate), 2);
+    SET years = years + 1;
+  END WHILE;
+  PRINT concat(years, &#39; years: &#39;, money);
+END;
+CALL years_to_double(100000, 0.08);</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE years_to_double(start DECIMAL(2), rate DOUBLE) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;years_to_double&#39; created</code></pre>
+<p><code>CALL years_to_double(100000, 0.08)</code></p>
+<pre><code class="language-text">procedure &#39;years_to_double&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>10 years: 215892.49</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A loop that never ends is stopped</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE forever() AS BEGIN
+  DECLARE i LONG DEFAULT 0;
+  WHILE true DO
+    SET i = i + 1;
+  END WHILE;
+END;
+CALL forever();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;forever&#39; created</code></pre>
+<p>Error: <code>procedure &#39;forever&#39;, line 3: the WHILE loop ran 10000000 times and was stopped (does its condition ever become false?)</code></p>
+<h2 id="for">FOR</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FOR row_name IN (SELECT ...) DO
+  statements;   -- use row_name.column
+END FOR</code></pre>
+<p>Runs the query once, then runs the statements once for every row. <code>row_name.column</code> is a value of the current row.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>row_name</code></td><td>a name for the current row, like <code>r</code> or <code>c</code></td></tr><tr><td><code>(SELECT ...)</code></td><td>any query, in brackets. Give computed columns a name with <code>AS</code> (<code>sum(volume) AS volume</code>), so you can write <code>r.volume</code>.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>The query runs <strong>once</strong>, before the first round. Changes that the loop makes to the same table do not add rows to the loop.</li><li>A column that the row does not have is an error that lists the columns it has.</li><li>In a trigger, <code>FOR r IN (SELECT ... FROM NEW) DO</code> goes over the changed rows (see <a href="triggers.html#new-old">NEW, OLD</a>).</li><li>FOR loops can be nested; use different row names.</li><li><code>RETURN</code> inside the loop stops the whole procedure.</li></ul></li></ul>
+<p><strong>Example: Market data: daily candles from the trade log</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE PROCEDURE candles_from_trade_log(day DATE) AS BEGIN
+  DECLARE made INT DEFAULT 0;
+  FOR t IN (SELECT symbol, first(rate) AS open, max(rate) AS high, min(rate) AS low,
+                   last(rate) AS close, sum(quantity) AS volume
+            FROM trade_log WHERE date = day GROUP BY symbol) DO
+    INSERT OR REPLACE INTO ochl_day VALUES (day, t.symbol, t.open, t.high, t.low, t.close, t.volume);
+    SET made = made + 1;
+  END FOR;
+  PRINT concat(made, &#39; daily candles made for &#39;, day);
+END;
+
+CALL candles_from_trade_log(&#39;2026-09-09&#39;);
+SELECT time, symbol, open, high, low, close, volume FROM ochl_day
+WHERE time IN &#39;2026-09-09&#39; AND symbol IN (&#39;CITY&#39;, &#39;COAST&#39;, &#39;TELCO&#39;) ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE candles_from_trade_log(day DATE) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;candles_from_trade_log&#39; created</code></pre>
+<p><code>CALL candles_from_trade_log(&#39;2026-09-09&#39;)</code></p>
+<pre><code class="language-text">procedure &#39;candles_from_trade_log&#39; done: 3 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>3 daily candles made for 2026-09-09</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT time, symbol, open, high, low, close, volume FROM ochl_day WHERE time IN &#39;2026-09-09&#39; AND sym</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>515</td><td>517</td><td>513</td><td>517</td><td>1510</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>401</td><td>401</td><td>398.5</td><td>398.5</td><td>220</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>TELCO</td><td>881</td><td>881</td><td>879</td><td>879</td><td>2000</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Month-end interest for every account, one row at a time</strong></p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+CREATE TABLE interest_paid (account INT, amount DECIMAL(2), paid TIMESTAMP DEFAULT now());
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0), (3, &#39;Hari&#39;, 25000);
+
+CREATE PROCEDURE pay_interest(yearly DOUBLE) AS BEGIN
+  DECLARE interest DECIMAL(2);
+  FOR a IN (SELECT id, balance FROM accounts WHERE balance &gt; 0 ORDER BY id) DO
+    SET interest = round(a.balance * yearly / 12, 2);
+    UPDATE accounts SET balance = balance + interest WHERE id = a.id;
+    INSERT INTO interest_paid (account, amount) VALUES (a.id, interest);
+  END FOR;
+END;
+
+CALL pay_interest(0.06);
+SELECT id, owner, balance FROM accounts ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>CREATE TABLE interest_paid (</code></p>
+<pre><code class="language-text">table &#39;interest_paid&#39; created</code></pre>
+<p><code>INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0), (3, &#39;Hari&#39;, 25000)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE pay_interest(yearly DOUBLE) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;pay_interest&#39; created</code></pre>
+<p><code>CALL pay_interest(0.06)</code></p>
+<pre><code class="language-text">procedure &#39;pay_interest&#39; done: 4 row(s) changed</code></pre>
+<p><code>SELECT id, owner, balance FROM accounts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>owner (STRING)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>Ram</td><td>1005.00</td></tr><tr><td>2</td><td>Sita</td><td>0.00</td></tr><tr><td>3</td><td>Hari</td><td>25125.00</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A column the row does not have</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  FOR r IN (SELECT &#39;CITY&#39; AS symbol, 514.5 AS ltp) DO
+    PRINT r.price;
+  END FOR;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 3 col 11: row &#39;r&#39; has no column &#39;price&#39; (it has: symbol ltp)</code></p>
+<h2 id="return">RETURN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">RETURN</code></pre>
+<p>Stops the procedure at once. The statements after it do not run.
+The changes made <strong>before</strong> <code>RETURN</code> are kept (unlike <code>RAISE</code>).</p>
+<ul><li><strong>Notes:</strong> <code>RETURN</code> has no value: a procedure does not return a value. To give something back, use <code>SELECT</code> (an extra result) or <code>PRINT</code>. In a procedure called by another one, <code>RETURN</code> stops only the inner procedure.</li></ul>
+<p><strong>Example: Stop early when there is nothing to do</strong></p>
+<pre><code class="language-sql">CREATE TABLE orders (id INT PRIMARY KEY, status STRING);
+INSERT INTO orders VALUES (1, &#39;open&#39;), (2, &#39;done&#39;);
+
+CREATE PROCEDURE close_open_orders() AS BEGIN
+  IF NOT EXISTS (SELECT 1 FROM orders WHERE status = &#39;open&#39;) THEN
+    PRINT &#39;no open orders&#39;;
+    RETURN;
+  END IF;
+  UPDATE orders SET status = &#39;done&#39; WHERE status = &#39;open&#39;;
+  PRINT &#39;open orders closed&#39;;
+END;
+
+CALL close_open_orders();
+CALL close_open_orders();
+SELECT * FROM orders ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE orders (</code></p>
+<pre><code class="language-text">table &#39;orders&#39; created</code></pre>
+<p><code>INSERT INTO orders VALUES (1, &#39;open&#39;), (2, &#39;done&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE close_open_orders() AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;close_open_orders&#39; created</code></pre>
+<p><code>CALL close_open_orders()</code></p>
+<pre><code class="language-text">procedure &#39;close_open_orders&#39; done: 1 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>open orders closed</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>CALL close_open_orders()</code></p>
+<pre><code class="language-text">procedure &#39;close_open_orders&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>no open orders</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT * FROM orders ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>status (STRING)</th></tr></thead><tbody><tr><td>1</td><td>done</td></tr><tr><td>2</td><td>done</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="raise">RAISE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">RAISE expression</code></pre>
+<p>Stops with an error. The text of the error is the value of the expression.
+<strong>Everything the <code>CALL</code> changed is undone</strong> (and the whole transaction, when the <code>CALL</code> runs inside <code>BEGIN ... COMMIT</code>).
+In a <code>BEFORE</code> trigger, <code>RAISE</code> refuses the change.</p>
+<ul><li><strong>Returns:</strong> the error <code>procedure &#39;name&#39;, line N: &lt;your text&gt;</code> (or <code>trigger &#39;name&#39;, line N: ...</code>). <code>line N</code> is the line in the definition that <a href="procedures.html#show-procedures">SHOW PROCEDURES</a> prints.</li><li><strong>Notes:</strong> the expression can be any value: <code>RAISE &#39;text&#39;</code>, <code>RAISE concat(&#39;account &#39;, id, &#39; is closed&#39;)</code>, even a number. The error&#39;s SQLSTATE is always <code>P0001</code> (you cannot choose another here), and there is no way to catch an error inside the procedure.</li></ul>
+<p><strong>Example: Accounting: never let a balance go below zero</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);
+
+CREATE PROCEDURE withdraw(account INT, amt DECIMAL(2)) AS BEGIN
+  UPDATE accounts SET balance = balance - amt WHERE id = account;
+  IF (SELECT balance FROM accounts WHERE id = account) &lt; 0 THEN
+    RAISE concat(&#39;not enough money in account &#39;, account, &#39; for &#39;, amt);
+  END IF;
+END;
+
+CALL withdraw(1, 400);
+CALL withdraw(1, 700);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE withdraw(account INT, amt DECIMAL(2)) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;withdraw&#39; created</code></pre>
+<p><code>CALL withdraw(1, 400)</code></p>
+<pre><code class="language-text">procedure &#39;withdraw&#39; done: 1 row(s) changed</code></pre>
+<p>Error: <code>procedure &#39;withdraw&#39;, line 4: not enough money in account 1 for 700.00</code></p>
+<p>The first <code>CALL</code> was saved. The second one took 700 first, then <code>RAISE</code> undid it. So Ram has 600:</p>
+<p><strong>Command line: After the RAISE: only the first withdrawal is saved</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);
+CREATE PROCEDURE withdraw(account INT, amt DECIMAL(2)) AS BEGIN
+  UPDATE accounts SET balance = balance - amt WHERE id = account;
+  IF (SELECT balance FROM accounts WHERE id = account) &lt; 0 THEN
+    RAISE concat(&#39;not enough money in account &#39;, account, &#39; for &#39;, amt);
+  END IF;
+END;</code></pre>
+<pre><code class="language-bash">kdb sql market &quot;CALL withdraw(1, 400)&quot;
+kdb sql market &quot;CALL withdraw(1, 700)&quot;
+kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql market &quot;CALL withdraw(1, 400)&quot;</code></p>
+<pre><code class="language-text">procedure &#39;withdraw&#39; done: 1 row(s) changed</code></pre>
+<p><code>&gt; kdb sql market &quot;CALL withdraw(1, 700)&quot;</code></p>
+<pre><code class="language-text">error: procedure &#39;withdraw&#39;, line 4: not enough money in account 1 for 700.00</code></pre>
+<p>exit code 1</p>
+<p><code>&gt; kdb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&quot;</code></p>
+<pre><code class="language-text">id | owner | balance
+---+-------+--------
+ 1 | Ram   |  600.00
+ 2 | Sita  |    0.00
+(2 rows, 0.3 ms)</code></pre>
+<h2 id="print">PRINT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">PRINT expression</code></pre>
+<p>Adds one line to a result called <code>print</code> (one column, <code>output</code>). Use it for messages and for debugging.</p>
+<ul><li><strong>Returns:</strong> after the other results of the <code>CALL</code> (or of the statement that fired a trigger), a result <code>print</code> with all <code>PRINT</code> lines in order.</li><li><strong>Notes:</strong>
+<ul><li>The value is written as text. <code>NULL</code> is written as <code>NULL</code>.</li><li>With <code>CALL ... WITH DEBUG</code>, the lines are in the <code>debug</code> result instead.</li><li>When the <code>CALL</code> fails, the lines from before the error are still returned.</li></ul></li></ul>
+<p><strong>Example: Sign-up report for the app admin</strong></p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, email STRING NOT NULL, created TIMESTAMP DEFAULT now());
+INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;), (&#39;hari@example.com&#39;);
+
+CREATE PROCEDURE signup_report() AS BEGIN
+  PRINT concat(&#39;users: &#39;, (SELECT count(*) FROM app_users));
+  PRINT concat(&#39;newest: &#39;, (SELECT email FROM app_users ORDER BY id DESC LIMIT 1));
+  PRINT NULL;
+  PRINT 3.5;
+END;
+CALL signup_report();</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE app_users (</code></p>
+<pre><code class="language-text">table &#39;app_users&#39; created</code></pre>
+<p><code>INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;), (&#39;hari@example.com&#39;)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE signup_report() AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;signup_report&#39; created</code></pre>
+<p><code>CALL signup_report()</code></p>
+<pre><code class="language-text">procedure &#39;signup_report&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>users: 3</td></tr><tr><td>newest: hari@example.com</td></tr><tr><td>NULL</td></tr><tr><td>3.5</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="execute">EXECUTE (dynamic SQL)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">EXECUTE text;
+EXECUTE text INTO variable, ...;
+EXECUTE text INTO STRICT variable, ...;
+EXECUTE text [INTO ...] USING value, ...;</code></pre>
+<p>Runs SQL that is made while the procedure runs. Use it when a table or column name comes from an argument. It works as in PostgreSQL PL/pgSQL.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>What it does</th></tr></thead><tbody><tr><td><code>text</code></td><td>any expression that gives the SQL text, for example <a href="functions-text.html#format">format</a><code>(...)</code> or <code>&#39;...&#39; || name</code></td></tr><tr><td><code>USING a, b</code></td><td>the values of <code>$1</code>, <code>$2</code>, ... in the text. They go in as <strong>values</strong>, never as SQL.</td></tr><tr><td><code>INTO v, w</code></td><td>puts the first row into the variables (one variable for each column). No row: the variables become <code>NULL</code>.</td></tr><tr><td><code>INTO STRICT v</code></td><td>the same, but exactly one row is needed; no row or more rows is an error</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Put values in with <code>USING</code>, or with <code>%L</code> of <code>format</code>. Put names in with <code>%I</code> of <code>format</code> or <code>quote_ident</code>. Then a quote in a value cannot change the statement.</li><li>The text may hold <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> (with <code>RETURNING</code> for <code>INTO</code>), <code>CALL</code>, <code>EXPLAIN</code> or <code>SHOW</code>: what a body may hold. <code>CREATE</code>, <code>DROP</code>, <code>BEGIN</code> and <code>COMMIT</code> are refused.</li><li>The statement runs with the <strong>rights of the user who called</strong> the procedure, inside the same transaction. An error undoes the whole <code>CALL</code>.</li><li><code>FOUND</code> is <code>TRUE</code> when the statement gave or changed at least one row.</li><li>A <code>SELECT</code> without <code>INTO</code> returns its rows as an extra result of the <code>CALL</code>.</li><li>Speed: a date in <code>USING</code> skips partitions like a date written in the SQL. <code>CALL ... WITH DEBUG</code> shows the text that ran and <code>partitions read</code>.</li><li>The text is parsed each time it runs. In a loop over many rows, a normal statement with variables is faster.</li><li>Locks: KDB locks the tables a <code>CALL</code> uses before it starts. Text written out in the body (<code>EXECUTE &#39;INSERT INTO t VALUES ($1)&#39; USING x</code>) is known then, so only its tables are locked. Text made while the procedure runs (<code>format(...)</code>, <code>&#39;...&#39; || name</code>) could name any table, so such a <code>CALL</code> (or trigger) locks <strong>every</strong> table of the database while it runs, and writers of all other tables wait for it. See <a href="transactions.html#one-writer">one writer per table</a>.</li></ul></li></ul>
+<p><strong>Example: One procedure for two tables: the table name is an argument</strong></p>
+<pre><code class="language-sql">CREATE TABLE daily_prices (symbol STRING, close DOUBLE);
+CREATE TABLE weekly_prices (symbol STRING, close DOUBLE);
+CREATE PROCEDURE add_price(tbl STRING, sym STRING, px DOUBLE) AS BEGIN
+  EXECUTE format(&#39;INSERT INTO %I VALUES ($1, $2)&#39;, tbl) USING sym, px;
+END;
+CALL add_price(&#39;daily_prices&#39;, &#39;CITY&#39;, 512.5);
+CALL add_price(&#39;weekly_prices&#39;, &#39;CITY&#39;, 509.0);
+CALL add_price(&#39;daily_prices&#39;, &#39;it&#39;&#39;s; DROP TABLE daily_prices&#39;, 1);
+SELECT * FROM daily_prices;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE daily_prices (</code></p>
+<pre><code class="language-text">table &#39;daily_prices&#39; created</code></pre>
+<p><code>CREATE TABLE weekly_prices (</code></p>
+<pre><code class="language-text">table &#39;weekly_prices&#39; created</code></pre>
+<p><code>CREATE PROCEDURE add_price(tbl STRING, sym STRING, px DOUBLE) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;add_price&#39; created</code></pre>
+<p><code>CALL add_price(&#39;daily_prices&#39;, &#39;CITY&#39;, 512.5)</code></p>
+<pre><code class="language-text">procedure &#39;add_price&#39; done: 1 row(s) changed</code></pre>
+<p><code>CALL add_price(&#39;weekly_prices&#39;, &#39;CITY&#39;, 509.0)</code></p>
+<pre><code class="language-text">procedure &#39;add_price&#39; done: 1 row(s) changed</code></pre>
+<p><code>CALL add_price(&#39;daily_prices&#39;, &#39;it&#39;&#39;s; DROP TABLE daily_prices&#39;, 1)</code></p>
+<pre><code class="language-text">procedure &#39;add_price&#39; done: 1 row(s) changed</code></pre>
+<p><code>SELECT * FROM daily_prices</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>512.5</td></tr><tr><td>it&#39;s; DROP TABLE daily_prices</td><td>1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A count into a variable</strong></p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, email STRING);
+INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;);
+CREATE PROCEDURE row_count(tbl STRING) AS BEGIN
+  DECLARE n LONG;
+  EXECUTE &#39;SELECT count(*) FROM &#39; || quote_ident(tbl) INTO n;
+  PRINT concat(tbl, &#39;: &#39;, n, &#39; rows&#39;);
+END;
+CALL row_count(&#39;app_users&#39;);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE app_users (</code></p>
+<pre><code class="language-text">table &#39;app_users&#39; created</code></pre>
+<p><code>INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>CREATE PROCEDURE row_count(tbl STRING) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;row_count&#39; created</code></pre>
+<p><code>CALL row_count(&#39;app_users&#39;)</code></p>
+<pre><code class="language-text">procedure &#39;row_count&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>app_users: 2 rows</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: INTO STRICT needs exactly one row</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY, email STRING);
+CREATE PROCEDURE email_of(user_id INT) AS BEGIN
+  DECLARE e STRING;
+  EXECUTE &#39;SELECT email FROM app_users WHERE id = $1&#39; INTO STRICT e USING user_id;
+END;
+CALL email_of(7);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE app_users (</code></p>
+<pre><code class="language-text">table &#39;app_users&#39; created</code></pre>
+<p><code>CREATE PROCEDURE email_of(user_id INT) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;email_of&#39; created</code></pre>
+<p>Error: <code>procedure &#39;email_of&#39;, line 3: EXECUTE ... INTO STRICT: the query gave no row</code></p>
+<p><strong>Example: Only the statements a body may hold</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE make_table(tbl STRING) AS BEGIN
+  EXECUTE format(&#39;CREATE TABLE %I (a INT)&#39;, tbl);
+END;
+CALL make_table(&#39;t2&#39;);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;make_table&#39; created</code></pre>
+<p>Error: <code>procedure &#39;make_table&#39;, line 2: EXECUTE runs SELECT, INSERT, UPDATE, DELETE, CALL, EXPLAIN or SHOW, the statements a procedure body may hold; not CREATE TABLE t2 (   a INT )</code></p>
+<h2 id="local-cursors">Cursors in a body: DECLARE CURSOR, OPEN, FETCH INTO, CLOSE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DECLARE cursor_name CURSOR FOR SELECT ...;
+OPEN cursor_name;
+FETCH cursor_name INTO variable, variable, ...;
+FETCH [NEXT] [FROM] cursor_name INTO variable, ...;
+CLOSE cursor_name;
+FOUND   -- TRUE when the last FETCH read a row</code></pre>
+<p>A cursor reads a query <strong>one row at a time</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>What it does</th></tr></thead><tbody><tr><td><code>DECLARE c CURSOR FOR SELECT ...</code></td><td>names the query. It does not run yet.</td></tr><tr><td><code>OPEN c</code></td><td>runs the query and keeps its rows</td></tr><tr><td><code>FETCH c INTO a, b</code></td><td>puts the next row into the variables (one variable for each column) and sets <code>FOUND</code></td></tr><tr><td><code>CLOSE c</code></td><td>forgets the rows. You can <code>OPEN</code> it again (the query runs again).</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li><code>FOUND</code> is <code>TRUE</code> when <code>FETCH</code> read a row, and <code>FALSE</code> when there was no row left. When there is no row, the variables keep their old values.</li><li><code>FETCH ... INTO</code> reads one row. <code>FETCH NEXT 5</code> and <code>FETCH ALL</code> are for <a href="cursors.html">SQL cursors</a> outside a body.</li><li><code>OPEN</code> of an open cursor, and <code>FETCH</code> of a cursor that is not open, are errors.</li><li>A cursor of a body belongs to that one <code>CALL</code>. It closes by itself when the procedure ends, and it does not count toward the 16 SQL cursors.</li><li>A <code>FOR</code> loop is shorter for one query. A cursor is useful when you read two queries side by side, or stop early.</li></ul></li></ul>
+<p><strong>Example: The biggest trade of a day, with a cursor loop</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE PROCEDURE biggest_trade(day DATE) AS BEGIN
+  DECLARE sym SYMBOL;
+  DECLARE qty LONG;
+  DECLARE best_sym SYMBOL;
+  DECLARE best_qty LONG DEFAULT 0;
+  DECLARE trades CURSOR FOR
+    SELECT symbol, quantity FROM trade_log WHERE date = day ORDER BY transaction_id;
+  OPEN trades;
+  FETCH trades INTO sym, qty;
+  WHILE found DO
+    IF qty &gt; best_qty THEN
+      SET best_qty = qty;
+      SET best_sym = sym;
+    END IF;
+    FETCH trades INTO sym, qty;
+  END WHILE;
+  CLOSE trades;
+  PRINT concat(&#39;biggest trade on &#39;, day, &#39;: &#39;, best_qty, &#39; shares of &#39;, best_sym);
+END;
+
+CALL biggest_trade(&#39;2026-09-10&#39;);</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE biggest_trade(day DATE) AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;biggest_trade&#39; created</code></pre>
+<p><code>CALL biggest_trade(&#39;2026-09-10&#39;)</code></p>
+<pre><code class="language-text">procedure &#39;biggest_trade&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>biggest trade on 2026-09-10: 1000 shares of COAST</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: FOUND after the last row</strong></p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  DECLARE n INT;
+  DECLARE c CURSOR FOR SELECT 7 AS x;
+  OPEN c;
+  FETCH c INTO n;
+  PRINT concat(&#39;found=&#39;, found, &#39;, n=&#39;, n);
+  FETCH c INTO n;
+  PRINT concat(&#39;found=&#39;, found, &#39;, n=&#39;, n, &#39; (the old value)&#39;);
+  CLOSE c;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<p><code>CREATE PROCEDURE p() AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p><code>CALL p()</code></p>
+<pre><code class="language-text">procedure &#39;p&#39; done: 0 row(s) changed</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>found=true, n=7</td></tr><tr><td>found=false, n=7 (the old value)</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: One variable for each column</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  DECLARE sym SYMBOL;
+  DECLARE c CURSOR FOR SELECT &#39;CITY&#39; AS symbol, 514.5 AS ltp;
+  OPEN c;
+  FETCH c INTO sym;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 5: FETCH c INTO needs 2 variable(s), one for each column of the cursor (symbol, ltp), got 1</code></p>
+<p><strong>Example: FETCH before OPEN</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p() AS BEGIN
+  DECLARE n INT;
+  DECLARE c CURSOR FOR SELECT 1 AS x;
+  FETCH c INTO n;
+END;
+CALL p();</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">procedure &#39;p&#39; created</code></pre>
+<p>Error: <code>procedure &#39;p&#39;, line 4: cursor &#39;c&#39; is not open (OPEN c first)</code></p>
+<h2 id="limits">Limits of the procedure language</h2>
+<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Procedures calling procedures (also itself)</td><td>16 levels</td></tr><tr><td>Triggers firing triggers</td><td>16 levels</td></tr><tr><td>Rounds of one <code>WHILE</code> loop</td><td>10 million</td></tr><tr><td>Rows changed in one <code>CALL</code> (one transaction)</td><td>10 million</td></tr><tr><td>Steps kept by <code>WITH DEBUG</code></td><td>100,000</td></tr><tr><td>Text of one statement in a debug row</td><td>200 characters</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> there is no <code>LOOP</code>, <code>CASE</code> statement (the <code>CASE</code> expression works), <code>EXCEPTION</code> block, <code>EXIT</code> or <code>CONTINUE</code>. Use <code>WHILE</code> with a variable, and <code>RETURN</code>.</li></ul>
+<p><strong>Example: A syntax error is found when you create the procedure</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE PROCEDURE p(x INT) AS BEGIN
+  WHILE x &gt; 0
+    SET x = x - 1;
+  END WHILE;
+END;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 3, column 5: expected an operator (AND, OR, =, +, ...) or DO after the WHILE condition but found &#39;SET&#39;</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/procedure-language.md">This page as markdown</a>.</footer>
+</body>
+</html>

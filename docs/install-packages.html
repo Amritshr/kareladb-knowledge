@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install packages and the Claude skill - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="The Windows and Linux install packages, the Docker image, and the skill file that teaches an AI assistant in another project how to use KDB.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/install-packages.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/install-packages.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="install-packages-and-the-claude-skill">Install packages and the Claude skill</h1>
+<blockquote><p>The Windows and Linux install packages, the Docker image, and the skill file that teaches an AI assistant in another project how to use KDB.</p></blockquote>
+<ul><li>Category: Getting started</li><li>Keywords: install, installer, package, zip, tar.gz, install.sh, install.ps1, PATH, systemd, service, Docker, image, container, docker stop, docker rm, stop-timeout, restart unless-stopped, HEALTHCHECK, healthy, connection refused, retry, 503, Retry-After, KDB_DRAIN_TIMEOUT, last shutdown, not clean, uninstall, Claude, AI, skill, kdb skill, kdb skill install, --dir, --url, --home, KDB_URL, token file, 0600, /skill.md, agent, assistant, KDB_TOKEN, KDB_MEMORY, KDB_MEMORY_LIMIT, KDB_READER_YIELD, KDB_SNAPSHOT_READS, KDB_CORE_DUMPS, KDB_CORE_KEEP, core dump, crash, gdb, kdb.debug, KDB_DATA_DIR, KDB_CONFIG, KDB_BACKUP_SCHEDULE, KDB_BACKUP_COMMAND, GLIBC_TUNABLES, kdb.conf, volume</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="cli-serve.html">kdb serve</a>, <a href="web-console.html">Web console</a>, <a href="http-overview.html">HTTP API overview</a>, <a href="server-security.html">Keeping kdb serve safe</a></li></ul>
+<p>KDB ships as one program and three folders of plain files next to it: the web console, the help pages and the Claude skill. There is nothing else to install - no runtime, no libraries, no service to configure first. There are three ways to get it onto a machine.</p>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>You get</th><th>Best for</th></tr></thead><tbody><tr><td>The Windows package</td><td><code>kdb-&lt;version&gt;-windows-x64.zip</code></td><td>a desktop or a Windows server</td></tr><tr><td>The Linux package</td><td><code>kdb-&lt;version&gt;-linux-x64.tar.gz</code>, built static so it runs on any distribution</td><td>a VPS or a Linux desktop</td></tr><tr><td>The Docker image</td><td>a small Alpine image with the program and its folders</td><td>a server you would rather not install anything on</td></tr></tbody></table></div>
+<p>An unpacked package looks like this:</p>
+<pre><code class="language-text">kdb-&lt;version&gt;-&lt;os&gt;-x64/
+  kdb.exe (Windows) or kdb (Linux)   the program - nothing else is inside it
+  web/                               the web console
+  help/                              the help pages (missing when the package was made without them)
+  skill/skill.md                     the Claude skill
+  install.ps1 or install.sh, kdb.conf.example, README.md</code></pre>
+<h2 id="windows">Windows</h2>
+<p>Unpack the zip and run the installer from the folder it made:</p>
+<pre><code class="language-powershell">powershell -ExecutionPolicy Bypass -File .\install.ps1</code></pre>
+<p>It copies <code>kdb.exe</code> and its <code>web</code>, <code>help</code> and <code>skill</code> folders into <code>%LOCALAPPDATA%\Programs\kdb</code>, adds that folder to <strong>your</strong> PATH (no administrator rights needed) and writes the <a href="install-packages.html#skill">Claude skill</a>. Add <code>-Token my-secret</code> to save your token beside the skill, in a file only you can read.</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>-Prefix &lt;folder&gt;</code></td><td>where the program goes</td><td><code>%LOCALAPPDATA%\Programs\kdb</code></td></tr><tr><td><code>-Token &lt;secret&gt;</code></td><td>the token, saved in the file <code>token</code> beside the skill</td><td><code>$env:KDB_TOKEN</code></td></tr><tr><td><code>-Data &lt;folder&gt;</code></td><td>the data folder it suggests</td><td><code>%LOCALAPPDATA%\kdb\data</code></td></tr><tr><td><code>-NoPath</code></td><td>do not touch PATH</td><td>-</td></tr><tr><td><code>-NoSkill</code></td><td>do not write the skill</td><td>-</td></tr></tbody></table></div>
+<p>Uninstalling is deleting that folder and taking it off your PATH. Nothing is registered with Windows.</p>
+<h2 id="linux">Linux</h2>
+<p>Unpack the tar.gz and run the installer from the folder it made:</p>
+<pre><code class="language-bash">./install.sh                                              # just you: ~/.local/bin, folders in ~/.local/share/kdb
+sudo ./install.sh --system                                # everyone: /usr/local/bin, folders in /usr/local/share/kdb
+sudo ./install.sh --system --service --token my-secret    # ...and start it at boot</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>--system</code></td><td>install into <code>/usr/local</code> instead of <code>~/.local</code></td><td>-</td></tr><tr><td><code>--prefix &lt;folder&gt;</code></td><td>install somewhere else</td><td><code>~/.local</code></td></tr><tr><td><code>--service</code></td><td>write a systemd unit and start it (needs root and <code>--token</code>)</td><td>-</td></tr><tr><td><code>--token &lt;secret&gt;</code></td><td>the token for the service and the skill</td><td><code>$KDB_TOKEN</code></td></tr><tr><td><code>--data &lt;folder&gt;</code></td><td>the data folder</td><td><code>/var/lib/kdb</code> or <code>~/.local/share/kdb</code></td></tr></tbody></table></div>
+<p>With <code>--service</code> the server runs as its own <code>kdb</code> user, is restarted if it stops, and can write to its data folder and nowhere else. The unit file holds the token, so it is readable only by root.</p>
+<pre><code class="language-bash">systemctl status kdb
+journalctl -u kdb -f</code></pre>
+<h2 id="folders">Where kdb finds the console, the help and the skill</h2>
+<p>The web console, the help pages and the Claude skill are files, so a new console or help needs the files copied, not a new program. <code>kdb</code> looks for each folder in this order and uses the first one that has its files in it (<code>index.html</code>, or <code>skill.md</code>):</p>
+<div class="table-wrap"><table><thead><tr><th>Order</th><th>Web console</th><th>Help pages</th><th>Claude skill</th></tr></thead><tbody><tr><td>1. <code>kdb.conf</code></td><td><code>&quot;web_dir&quot;</code></td><td><code>&quot;help_dir&quot;</code></td><td><code>&quot;skill_dir&quot;</code></td></tr><tr><td>2. environment</td><td><code>KDB_WEB_DIR</code></td><td><code>KDB_HELP_DIR</code></td><td><code>KDB_SKILL_DIR</code></td></tr><tr><td>3. next to the program</td><td><code>web/</code></td><td><code>help/</code></td><td><code>skill/</code></td></tr><tr><td>4. <code>share/kdb</code> beside the program folder</td><td><code>../share/kdb/web</code></td><td><code>../share/kdb/help</code></td><td><code>../share/kdb/skill</code></td></tr><tr><td>5. a source checkout (<code>build/bin/kdb</code>)</td><td><code>web/console</code></td><td><code>docs/help/site</code></td><td><code>.claude/skills/kdb</code></td></tr></tbody></table></div>
+<ul><li>The console&#39;s <strong>Settings</strong> page shows the folders in use and what chose each one. They are read-only there.</li><li>Files are read when they are asked for, so copying a new help build into <code>help/</code> shows at the next page load, without a restart.</li><li>A folder that is missing does not stop the server. The HTTP API works, <code>http://127.0.0.1:9900/</code> says the console is not installed and lists the folders it looked in, and <code>/help/</code> says how to build the help.</li></ul>
+<p>A <code>kdb.conf</code> that names all three:</p>
+<pre><code class="language-json">{
+  &quot;data_dir&quot;: &quot;E:/kdb-data&quot;,
+  &quot;web_dir&quot;: &quot;E:/kdb/web&quot;,
+  &quot;help_dir&quot;: &quot;E:/kdb/help&quot;,
+  &quot;skill_dir&quot;: &quot;E:/kdb/skill&quot;
+}</code></pre>
+<h2 id="docker">Docker</h2>
+<pre><code class="language-bash">docker run -d --name kdb -p 9900:9900 -p 8832:8832 \
+  -e KDB_TOKEN=&lt;token&gt; -v kdb-data:/data kdb</code></pre>
+<p>The data lives in the named volume <code>kdb-data</code>, so removing and recreating the container does not lose it. The server refuses to start without <code>KDB_TOKEN</code>: the image listens on all addresses, so a published port can reach it, and KDB does not do that without a secret.</p>
+<p>The image holds <code>/usr/local/bin/kdb</code> and its folders in <code>/usr/local/share/kdb/web</code>, <code>help</code> and <code>skill</code> (named by <code>KDB_WEB_DIR</code>, <code>KDB_HELP_DIR</code> and <code>KDB_SKILL_DIR</code>). The image build only compiles <code>kdb</code> and copies those folders from the source tree, so run the help build first when the help pages should be in it.</p>
+<ul><li>Add <code>--restart unless-stopped</code> so the server comes back by itself after Docker or the computer restarts.</li><li>The image has a health check: <code>docker ps</code> shows <code>healthy</code> once the HTTP port answers <code>GET /health</code>. While the server is stopping, <code>/health</code> answers 503.</li><li>Anything after the image name is added to <code>kdb serve</code>, for example <code>... kdb --threads 4</code>.</li></ul>
+<p>The settings of the image, all given with <code>-e NAME=value</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Variable</th><th>Meaning</th><th>Default in the image</th></tr></thead><tbody><tr><td><code>KDB_TOKEN</code></td><td>the secret every request sends as <code>Authorization: Bearer &lt;token&gt;</code>. The start script passes it as <code>--token</code>; the program itself reads no <code>KDB_TOKEN</code>.</td><td>none: required</td></tr><tr><td><code>KDB_MEMORY</code></td><td><code>--memory</code>, in MB (passed as the flag)</td><td><code>256</code></td></tr><tr><td><code>KDB_MEMORY_LIMIT</code></td><td>one limit for everything the server holds (<a href="cli-serve.html#memory-limit">memory limit</a>), like <code>3GB</code></td><td>85% of the container&#39;s memory limit, else of Docker&#39;s memory</td></tr><tr><td><code>KDB_DATA_DIR</code></td><td>the data folder</td><td><code>/data</code></td></tr><tr><td><code>KDB_CONFIG</code></td><td>the settings file (passed as <code>--config</code>)</td><td><code>/data/kdb.conf</code></td></tr><tr><td><code>KDB_DRAIN_TIMEOUT</code></td><td>how long running requests may finish on a stop</td><td><code>5s</code></td></tr><tr><td><code>KDB_READER_YIELD</code></td><td><code>on</code>: reads do not wait for a long trigger or transaction (<a href="cli-serve.html#kdb-serve">--reader-yield</a>). <code>off</code>: they wait.</td><td><code>on</code></td></tr><tr><td><code>KDB_SNAPSHOT_READS</code></td><td><code>on</code>: a read of a table being written reads a snapshot of the committed rows and does not wait (<a href="cli-serve.html#kdb-serve">--snapshot-reads</a>)</td><td><code>off</code></td></tr><tr><td><code>KDB_PER_TABLE_READS</code></td><td><code>off</code>: every read waits for every writer, as before (<a href="cli-serve.html#kdb-serve">--per-table-reads</a>)</td><td><code>on</code></td></tr><tr><td><code>KDB_READ_ONLY_CALLS</code></td><td><code>off</code>: every <code>CALL</code> is a transaction, also one that only reads (<a href="cli-serve.html#kdb-serve">--read-only-calls</a>)</td><td><code>on</code></td></tr><tr><td><code>KDB_CORE_DUMPS</code></td><td><code>on</code>: a crash leaves a core dump in <code>/data/_logs/cores</code> (kdb runs from that folder). At the next start the dump is renamed with its time. <code>off</code>: no dumps. The unstripped program for reading one is <code>/usr/local/lib/kdb/kdb.debug</code> (<code>gdb kdb.debug core.&lt;time&gt;</code>).</td><td><code>on</code></td></tr><tr><td><code>KDB_CORE_KEEP</code></td><td>how many old core dumps are kept; a dump is about as big as the server&#39;s memory</td><td><code>2</code></td></tr><tr><td>every other <code>KDB_*</code> variable of <code>kdb serve</code></td><td>as listed in <a href="cli-serve.html#all-options">every option</a>, for example <code>KDB_HTTP_THREADS</code>, <code>KDB_TIMER_WORKERS</code>, <code>KDB_CACHE_MB</code>, <code>KDB_TIMEZONE</code></td><td>the program&#39;s defaults</td></tr><tr><td><code>GLIBC_TUNABLES</code></td><td>for example <code>glibc.malloc.arena_max=8</code>: how many memory arenas the C library keeps (fewer than the query threads makes concurrent queries wait for each other&#39;s allocations; 2 arenas halved the request rate of 8 clients) (see <code>allocator_arena_max</code> in <a href="http-server-info.html#api-stats">/api/stats</a>). With <code>trim_threshold</code> set, KDB puts glibc&#39;s mmap line at 32 MB, where glibc would move it itself (<code>allocator_mmap_threshold</code>)</td><td>KDB chooses</td></tr></tbody></table></div>
+<p>A fuller run line, as a long-running server uses it:</p>
+<pre><code class="language-bash">docker run -d --name kdb --restart unless-stopped --stop-timeout 60 \
+  -p 9900:9900 -p 8832:8832 \
+  -e KDB_TOKEN=&lt;token&gt; -e KDB_MEMORY=1536 -e KDB_READER_YIELD=on \
+  -e GLIBC_TUNABLES=glibc.malloc.arena_max=8:glibc.malloc.trim_threshold=67108864 \
+  -v kdb-data:/data kdb</code></pre>
+<p>On Windows, <code>-v &quot;D:\kdb_data:/data&quot;</code> puts the data in a Windows folder instead of a named volume.</p>
+<h3 id="docker-settings">The data folder and kdb.conf in the container</h3>
+<ul><li>The image passes the data folder as the environment variable <code>KDB_DATA_DIR</code>, <strong>not</strong> as <code>--data-dir</code>. A command-line flag always wins over what the console&#39;s <a href="console-settings.html">Settings page</a> saves, so a flag would make that page read-only. With the variable, <code>/data</code> is the default and an admin can still choose another folder in the console.</li><li><code>kdb.conf</code> is <code>/data/kdb.conf</code>, inside the volume. A setting saved on the Settings page survives <code>docker rm</code> and a new image.</li><li>A data folder chosen on the Settings page must be under a mounted volume too. Anywhere else is in the container&#39;s own layer and is thrown away with the container.</li><li>Backups go to <code>/data/_backups</code>, inside the volume, with no setting. Turn on a schedule with <code>-e KDB_BACKUP_SCHEDULE=&quot;daily 02:00&quot;</code> (or the Settings page), and copy each backup off the machine with <code>-e KDB_BACKUP_COMMAND=&quot;...&quot;</code> - the tool it runs (rclone, aws) must be in the image (<a href="backup-schedule.html#backup-command">backup schedule</a>).</li></ul>
+<h3 id="docker-stop">Stopping and restarting the container</h3>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>What KDB gets</th><th>Next start says</th></tr></thead><tbody><tr><td><code>docker stop kdb</code>, container run <strong>with</strong> <code>--stop-timeout 60</code></td><td>SIGTERM, then a kill after 60 s</td><td><code>last shutdown: clean</code></td></tr><tr><td><code>docker stop -t 60 kdb</code></td><td>SIGTERM, then a kill after 60 s</td><td><code>last shutdown: clean</code></td></tr><tr><td><code>docker stop kdb</code>, container run <strong>without</strong> <code>--stop-timeout</code></td><td>SIGTERM, then a kill after Docker&#39;s default wait - seen as short as <strong>1 s</strong></td><td><code>clean</code> only if nothing was running</td></tr><tr><td><code>docker rm -f kdb</code>, <code>docker kill kdb</code></td><td>a kill at once</td><td><code>last shutdown: not clean (crash or kill)</code></td></tr></tbody></table></div>
+<p>An image cannot choose how long Docker waits, so give the container <code>--stop-timeout</code> when you create it. Without it, a stop while a request runs, or while a big database closes, ends in a kill.</p>
+<p>On SIGTERM the server:</p>
+<ol><li>keeps the port open and lets requests that are already running finish, up to <code>KDB_DRAIN_TIMEOUT</code> (5 s in the image);</li><li>answers every new request with <strong>503</strong> and <code>Retry-After: 2</code>;</li><li>cancels what still runs (a writer that waits for a busy table stops waiting too), closes every database side by side and writes the clean-shutdown mark.</li></ol>
+<p>A kill is safe too - every confirmed write is in the log - but the next start has to replay the log. So stop the container before you remove it:</p>
+<pre><code class="language-bash">docker stop -t 60 kdb &amp;&amp; docker rm kdb
+docker run -d --name kdb --restart unless-stopped --stop-timeout 60 \
+  -e KDB_DRAIN_TIMEOUT=30s -e KDB_TOKEN=&lt;token&gt; \
+  -p 9900:9900 -p 8832:8832 -v kdb-data:/data kdb</code></pre>
+<ul><li><code>--stop-timeout 60</code> makes a plain <code>docker stop</code> (and Docker&#39;s own restart) wait 60 s. Keep <code>KDB_DRAIN_TIMEOUT</code> well below it, so closing the databases still fits.</li><li>The server log shows <code>databases closed cleanly (N ms)</code>. If N gets close to the stop timeout, give it more.</li><li>With Docker Compose the same is <code>stop_grace_period: 60s</code> on the service.</li></ul>
+<h3 id="docker-clients">What a client should do</h3>
+<p>While the container is stopped and started again there is a short gap, about 2 s on a laptop.</p>
+<div class="table-wrap"><table><thead><tr><th>The client sees</th><th>Meaning</th><th>Do</th></tr></thead><tbody><tr><td>HTTP <strong>503</strong> with <code>Retry-After</code></td><td>the server is stopping; the request was not run</td><td>wait that many seconds, send it again</td></tr><tr><td><strong>connection refused</strong></td><td>the server is not listening yet (or any more)</td><td>wait a second, try again</td></tr><tr><td>the connection closed before a reply</td><td>the request was cut off</td><td>send it again</td></tr></tbody></table></div>
+<ul><li>A write that was cut off, or answered 503, is rolled back as a whole: no row of it is saved. Sending the same <code>/write</code>, <code>/imp</code> or <code>/exec</code> again is safe.</li><li>A request that was already running when the stop began gets its real answer, then the connection closes. Open a new one for the next request.</li><li>Retry refused connections, not only HTTP errors. A loader that gives up on the first refused connection stops at every restart.</li></ul>
+<h2 id="skill">The Claude skill</h2>
+<p>Claude Code, or any other AI assistant, working in <strong>some other project</strong> has no idea KDB exists. It will not guess the port, the token, the shape of <code>/exec</code> or where the help is. A <em>skill file</em> tells it, once, and every project on the machine benefits.</p>
+<p>The installers write it for you. To do it by hand, or again after the address or token changed:</p>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb skill
+kdb skill install [--dir &lt;folder&gt;] [--url &lt;address&gt;] [--token &lt;secret&gt;] [--home &lt;checkout&gt;]</code></pre>
+<pre><code class="language-bash">kdb skill install                                  # writes ~/.claude/skills/kdb/SKILL.md
+kdb skill install --token &lt;token&gt; --home /srv/kdb-source
+kdb skill                                          # print it instead, to pipe somewhere</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>--dir &lt;folder&gt;</code></td><td>where to write <code>SKILL.md</code></td><td><code>~/.claude/skills/kdb</code></td></tr><tr><td><code>--url &lt;address&gt;</code></td><td>the address the assistant should use</td><td><code>$KDB_URL</code>, else <code>http://localhost:9900</code></td></tr><tr><td><code>--token &lt;secret&gt;</code></td><td>the token, saved in the file <code>token</code> beside <code>SKILL.md</code> (see below)</td><td><code>$KDB_TOKEN</code></td></tr><tr><td><code>--home &lt;folder&gt;</code></td><td>a source checkout, so the assistant can read <code>docs/help/topics/</code></td><td>-</td></tr></tbody></table></div>
+<p><strong>Command line: Install into a folder of your choice, with another address</strong></p>
+<pre><code class="language-bash">kdb skill install --dir my-skills/kdb --url http://kdb.example.lan:9900</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">wrote my-skills/kdb/SKILL.md
+Claude Code picks it up in any project the next time it starts.</code></pre>
+<p><strong>The token is never written into <code>SKILL.md</code>.</strong> An assistant may quote that file, or you may copy it somewhere, so it only says where the token is. The token goes into its own file, <code>token</code>, in the same folder:</p>
+<div class="table-wrap"><table><thead><tr><th></th><th><code>SKILL.md</code></th><th><code>token</code></th></tr></thead><tbody><tr><td>holds</td><td>the skill, the address, the paths, <strong>where</strong> the token file is</td><td>the token, on one line</td></tr><tr><td>who can read it</td><td>like any of your files</td><td>only you: mode <code>0600</code> on Linux and macOS, an owner-only ACL on Windows</td></tr></tbody></table></div>
+<p>Run without a token, <code>kdb skill install</code> leaves an existing <code>token</code> file alone and still points to it. A <code>SKILL.md</code> written by an older <code>kdb</code> held the token in clear: run <code>kdb skill install</code> again to replace it.</p>
+<p><code>--dir</code> is <strong>refused</strong> when it is, or is inside, a folder the server hands out without a login: the skill folder (<code>GET /skill.md</code>), the console folder or the help folder, wherever <code>kdb</code> looks for them (<a href="install-packages.html#folders">the folders</a>). A token there could be fetched by anyone who reaches the server.</p>
+<p>The text is the file <code>skill/skill.md</code> next to the program, found the same way as the <a href="install-packages.html#folders">other folders</a>, so this works with no source folder and no network.</p>
+<p>A running server also hands the same text out, without a token, at <code>GET /skill.md</code>. That is how a machine that can only reach the server over the network gets it:</p>
+<pre><code class="language-bash">mkdir -p ~/.claude/skills/kdb
+curl -s http://your-server:9900/skill.md -o ~/.claude/skills/kdb/SKILL.md</code></pre>
+<p>From Docker, ask the program inside the container:</p>
+<pre><code class="language-bash">docker exec kdb kdb skill &gt; ~/.claude/skills/kdb/SKILL.md</code></pre>
+<p>Claude Code reads the folder when it starts, so open a new terminal afterwards.</p>
+<h2 id="building">Building the packages yourself</h2>
+<pre><code class="language-bash">cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target kdb
+node tools/help/build_help.mjs --kdb build/bin/kdb.exe   # the help pages -&gt; docs/help/site (runs every example)
+cpack --config build/CPackConfig.cmake          # -&gt; dist/kdb-&lt;version&gt;-&lt;os&gt;-&lt;arch&gt;</code></pre>
+<p>The Linux package is built inside the Docker image, which also links it static:</p>
+<pre><code class="language-bash">docker build --target package -o dist -f docker/Dockerfile .</code></pre>
+<p>A package holds the program, its <code>web</code>, <code>help</code> and <code>skill</code> folders, the installer and <code>kdb.conf.example</code>. No source, no tests, no build folder. The help build is its own step: without it the package has no <code>help</code> folder, and <code>/help</code> says how to add one.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/install-packages.md">This page as markdown</a>.</footer>
+</body>
+</html>

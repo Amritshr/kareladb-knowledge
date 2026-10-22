@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Check, read, build and change JSON values, like company profiles and report numbers.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-json.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-json.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="json-functions">JSON functions</h1>
+<blockquote><p>Check, read, build and change JSON values, like company profiles and report numbers.</p></blockquote>
+<ul><li>Category: Functions — JSON and bytes</li><li>Keywords: JSON, JSONB, json path, $., [last], nested data, document, profile, settings, key, array, object, -&gt;, -&gt;&gt;, @&gt;, &lt;@, ?, ?|, ?&amp;, key exists, GIN, USING GIN, JSON index, jsonpath, SQL/JSON path, jsonb_path_exists, jsonb_path_match, jsonb_path_query, jsonb_path_query_array, jsonb_path_query_first, @?, @@, filter JSON, like_regex, keyvalue, jsonb_pretty, pretty JSON, jsonb_strip_nulls, json_strip_nulls, remove nulls, jsonb_set_lax, jsonb_insert, jsonb_object, array_to_json, get key, change JSON, build JSON, delete key, #-, remove key, JSON to rows, jsonb_each, json_each, jsonb_each_text, jsonb_array_elements, json_array_elements, jsonb_array_elements_text, jsonb_object_keys, json_to_record, json_to_recordset, jsonb_populate_record, jsonb_populate_recordset, bulk insert from JSON</li><li>See also: <a href="functions-bytes.html">Bytes, hex and base64</a>, <a href="column-types.html">Column types</a>, <a href="update-delete.html">UPDATE and DELETE</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="functions-text.html">Text functions</a></li></ul>
+<p>JSON is a text format for data with names and lists: <code>{&quot;branches&quot;: 270, &quot;tags&quot;: [&quot;bank&quot;]}</code>.
+Some data is different for every row. A bank has branches; a hydropower company has megawatts.
+Put such data in a <code>JSON</code> column, and read it with the functions on this page.</p>
+<ul><li>A <strong>path</strong> says which part you want: <code>&#39;$.office.city&#39;</code> or <code>&#39;$.tags[0]&#39;</code> (see <a href="functions-json.html#json-paths">JSON paths</a>).</li><li>A path that is not in the document gives <code>NULL</code>. It is not an error.</li><li>Most functions also take <strong>text</strong> that holds JSON. KDB checks the text first; bad JSON is an error.</li><li>A <code>NULL</code> argument gives <code>NULL</code> (except <code>json_object</code> and <code>json_array</code>, which turn <code>NULL</code> into JSON <code>null</code>).</li><li>The result tables show a JSON value after reading it: a JSON string shows without its quotes, JSON <code>null</code> shows as <code>NULL</code>, and <code>2.50</code> can show as <code>2.5</code>. HTTP answers in JSON do the same. To see the exact saved text, add <code>::STRING</code> (some examples do).</li></ul>
+<p>Every example on this page has two small tables, <code>companies</code> and <code>fundamentals</code> (open &quot;Setup&quot; under an example to see them).
+<a href="../tutorial/18-content-data.html">Chapter 18</a> of the tutorial shows the same tables step by step.</p>
+<p>Setup used by the examples below:</p>
+<pre><code class="language-sql">CREATE TABLE companies (
+  symbol STRING PRIMARY KEY,
+  name STRING NOT NULL,
+  sector STRING NOT NULL,
+  profile JSON DEFAULT &#39;{}&#39;
+);
+INSERT INTO companies VALUES
+  (&#39;CITY&#39;, &#39;City Bank Limited&#39;, &#39;Banking&#39;,
+   &#39;{&quot;website&quot;: &quot;https://www.citybank.example.com&quot;, &quot;office&quot;: {&quot;city&quot;: &quot;Kathmandu&quot;, &quot;phone&quot;: &quot;01-5970015&quot;}, &quot;branches&quot;: 270, &quot;tags&quot;: [&quot;bank&quot;, &quot;A class&quot;]}&#39;),
+  (&#39;COAST&#39;, &#39;Coastal Bank Limited&#39;, &#39;Banking&#39;,
+   &#39;{&quot;website&quot;: &quot;https://www.coastalbank.example.com&quot;, &quot;office&quot;: {&quot;city&quot;: &quot;Kathmandu&quot;}, &quot;branches&quot;: 380, &quot;tags&quot;: [&quot;bank&quot;]}&#39;),
+  (&#39;VOLT&#39;, &#39;Volt River Hydropower Limited&#39;, &#39;Energy&#39;,
+   &#39;{&quot;website&quot;: &quot;https://www.voltriver.example.com&quot;, &quot;capacity_mw&quot;: 456, &quot;rivers&quot;: [&quot;Volt River&quot;], &quot;name_ne&quot;: &quot;भोल्ट रिभर&quot;}&#39;);
+CREATE TABLE fundamentals (
+  id LONG PRIMARY KEY AUTO,
+  symbol STRING NOT NULL,
+  fiscal_year STRING NOT NULL,
+  quarter INT NOT NULL,
+  eps DECIMAL(2),
+  extra JSON DEFAULT &#39;{}&#39;
+);
+INSERT INTO fundamentals (symbol, fiscal_year, quarter, eps, extra) VALUES
+  (&#39;CITY&#39;, &#39;2082/83&#39;, 3, 11.40, &#39;{&quot;npl_pct&quot;: 2.75, &quot;car_pct&quot;: 13.1, &quot;deposits&quot;: 442900000000}&#39;),
+  (&#39;CITY&#39;, &#39;2082/83&#39;, 4, 12.10, &#39;{&quot;npl_pct&quot;: 2.60, &quot;car_pct&quot;: 13.4, &quot;deposits&quot;: 455000000000, &quot;audited&quot;: false}&#39;),
+  (&#39;COAST&#39;, &#39;2082/83&#39;, 4, 6.35, &#39;{&quot;npl_pct&quot;: 4.10, &quot;car_pct&quot;: 12.2}&#39;),
+  (&#39;VOLT&#39;, &#39;2082/83&#39;, 4, 3.20, &#39;{&quot;energy_gwh&quot;: 2105.4, &quot;plant_factor_pct&quot;: 52.7}&#39;);</code></pre>
+<p><strong>Example: Read the company profiles</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       json_value(profile, &#39;$.office.city&#39;) AS city,
+       profile -&gt;&gt; &#39;website&#39; AS website,
+       json_value(profile, &#39;$.branches&#39;) AS branches,
+       profile -&gt; &#39;rivers&#39; -&gt;&gt; 0 AS river
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>city (STRING)</th><th>website (STRING)</th><th>branches (LONG)</th><th>river (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Kathmandu</td><td>https://www.citybank.example.com</td><td>270</td><td>NULL</td></tr><tr><td>COAST</td><td>Kathmandu</td><td>https://www.coastalbank.example.com</td><td>380</td><td>NULL</td></tr><tr><td>VOLT</td><td>NULL</td><td>https://www.voltriver.example.com</td><td>NULL</td><td>Volt River</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="json-column">JSON column type</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column_name JSON [DEFAULT &#39;{}&#39;]
+column_name JSONB</code></pre>
+<p>A <code>JSON</code> column keeps checked JSON. <code>JSONB</code> is another name for the same type. The <a href="column-types.html">column types</a> topic lists all types.</p>
+<ul><li><strong>Check:</strong> KDB refuses text that is not valid JSON. The error says the row, the column and the character.</li><li><strong>Spaces:</strong> spaces between the parts are removed. <code>{ &quot;a&quot; : 1 }</code> is saved as <code>{&quot;a&quot;:1}</code>.</li><li><strong>Order:</strong> the order of the keys stays. The digits of numbers stay (<code>2.60</code> stays <code>2.60</code>).</li><li><strong>Values:</strong> a number, <code>TRUE</code> or <code>FALSE</code> put into a <code>JSON</code> column becomes JSON (<code>5</code>, <code>true</code>). Text must be JSON text.</li><li><strong>NULL:</strong> SQL <code>NULL</code> is &quot;no value&quot;. The JSON text <code>&#39;null&#39;</code> is a value: <code>profile IS NULL</code> is false for it.</li><li><strong>Size:</strong> at most 16 MB per value, and at most 256 levels of <code>{ }</code> and <code>[ ]</code> inside each other.</li><li><strong>Compare:</strong> two JSON values are equal when their text (without spaces) is equal. So <code>{&quot;a&quot;:1,&quot;b&quot;:2}</code> is <strong>not</strong> equal to <code>{&quot;b&quot;:2,&quot;a&quot;:1}</code>. A JSON number compared with a SQL number is compared by value.</li><li><strong>Notes:</strong> <code>ORDER BY</code>, <code>min</code> and <code>max</code> on JSON values compare the JSON <strong>text</strong>, so <code>10</code> comes before <code>9</code>. To sort by a number inside JSON, use <code>json_value_double(...)</code> or <code>json_value(...)</code>.</li></ul>
+<p><strong>Example: Spaces are removed; SQL NULL and JSON null are different</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_settings (user_id LONG PRIMARY KEY, settings JSON);
+INSERT INTO app_settings VALUES
+  (1, &#39;{ &quot;theme&quot; : &quot;dark&quot;, &quot;lang&quot; : &quot;ne&quot; }&#39;),
+  (2, &#39;null&#39;),
+  (3, NULL),
+  (4, 5);</code></pre>
+<pre><code class="language-sql">SELECT user_id, settings::STRING AS saved_text, settings IS NULL AS is_sql_null, json_type(settings) AS kind
+FROM app_settings
+ORDER BY user_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (LONG)</th><th>saved_text (STRING)</th><th>is_sql_null (BOOL)</th><th>kind (STRING)</th></tr></thead><tbody><tr><td>1</td><td>{&quot;theme&quot;:&quot;dark&quot;,&quot;lang&quot;:&quot;ne&quot;}</td><td>false</td><td>object</td></tr><tr><td>2</td><td>null</td><td>false</td><td>null</td></tr><tr><td>3</td><td>NULL</td><td>true</td><td>NULL</td></tr><tr><td>4</td><td>5</td><td>false</td><td>number</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Bad JSON is refused</strong> (shows an error)</p>
+<pre><code class="language-sql">INSERT INTO fundamentals (symbol, fiscal_year, quarter, extra)
+VALUES (&#39;VOLT&#39;, &#39;2082/83&#39;, 3, &#39;{&quot;energy_gwh&quot;: 1850.2,}&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;extra&#39; (JSON): not valid JSON: a JSON object cannot end with &#39;,&#39; at character 23 (near &#39;}&#39;)</code></p>
+<p><strong>Example: Most read news: sort by the number, not by the JSON</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE news (id LONG PRIMARY KEY, title STRING, stats JSON);
+INSERT INTO news VALUES
+  (1, &#39;Market index gains 12 points&#39;, &#39;{&quot;views&quot;: 9}&#39;),
+  (2, &#39;City Bank profit rises 18%&#39;, &#39;{&quot;views&quot;: 120}&#39;),
+  (3, &#39;Volt River output up&#39;, &#39;{&quot;views&quot;: 10}&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, title, stats -&gt; &#39;views&#39; AS views FROM news ORDER BY stats -&gt; &#39;views&#39; DESC;
+SELECT id, title, json_value_long(stats, &#39;$.views&#39;) AS views FROM news ORDER BY views DESC;</code></pre>
+<p>Result:</p>
+<p><code>SELECT id, title, stats -&gt; &#39;views&#39; AS views FROM news ORDER BY stats -&gt; &#39;views&#39; DESC</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>title (STRING)</th><th>views (JSON)</th></tr></thead><tbody><tr><td>2</td><td>City Bank profit rises 18%</td><td>120</td></tr><tr><td>3</td><td>Volt River output up</td><td>10</td></tr><tr><td>1</td><td>Market index gains 12 points</td><td>9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT id, title, json_value_long(stats, &#39;$.views&#39;) AS views FROM news ORDER BY views DESC</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>title (STRING)</th><th>views (LONG)</th></tr></thead><tbody><tr><td>2</td><td>City Bank profit rises 18%</td><td>120</td></tr><tr><td>3</td><td>Volt River output up</td><td>10</td></tr><tr><td>1</td><td>Market index gains 12 points</td><td>9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="json-paths">JSON paths</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&#39;$&#39;                    the whole document
+&#39;$.key&#39;                a key of an object
+&#39;$.key.inner&#39;          a key inside a key
+&#39;$.list[0]&#39;            element 0 of an array (the first one)
+&#39;$.list[-1]&#39;           the last element ([-2] is the one before it)
+&#39;$.list[last]&#39;         the last element, too
+&#39;$.&quot;key with spaces&quot;&#39;  a key with spaces, dots or other signs
+&#39;$[&quot;key&quot;]&#39;  &#39;$[&#39;&#39;key&#39;&#39;]&#39;   the same, in brackets</code></pre>
+<p>A path is text that points to one part of a JSON value. It always starts with <code>$</code>. It is used by <code>json_extract</code>, <code>json_value</code>, <code>json_set</code> and the other functions with a <code>path</code> argument.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>$</code></td><td>the whole document</td></tr><tr><td><code>.name</code></td><td>the key <code>name</code> of an object</td></tr><tr><td><code>[n]</code></td><td>element <code>n</code> of an array; <code>0</code> is the first</td></tr><tr><td><code>[-n]</code>, <code>[last]</code></td><td>counted from the end; <code>[-1]</code> and <code>[last]</code> are the last element</td></tr><tr><td><code>.&quot;...&quot;</code>, <code>[&quot;...&quot;]</code>, <code>[&#39;...&#39;]</code></td><td>a key written in quotes</td></tr></tbody></table></div>
+<ul><li><strong>Missing:</strong> a key or element that is not there gives <code>NULL</code>. A number on an object, or a key on an array, also gives <code>NULL</code>.</li><li><strong>Notes:</strong> a key written twice in one object: the path finds the <strong>last</strong> one.</li><li><strong>Not supported:</strong> wildcards (<code>$.items[*]</code>, <code>$.*</code>), ranges, filters and <code>..</code>. They give an error. <code>[-0]</code> is an error (the last element is <code>[-1]</code>).
+PostgreSQL&#39;s full path language, with all of these, is in <a href="functions-json.html#jsonpath">jsonb_path_query and @?</a>.</li><li>A path must be text in quotes. A column or a number in its place is an error.</li></ul>
+<p><strong>Example: Different paths on one company profile</strong></p>
+<pre><code class="language-sql">SELECT json_extract(profile, &#39;$.office.city&#39;) AS city,
+       json_extract(profile, &#39;$.tags[0]&#39;) AS first_tag,
+       json_extract(profile, &#39;$.tags[-1]&#39;) AS last_tag,
+       json_extract(profile, &#39;$.tags[last]&#39;) AS also_last,
+       json_extract(profile, &#39;$.tags[5]&#39;) AS no_such_tag
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (JSON)</th><th>first_tag (JSON)</th><th>last_tag (JSON)</th><th>also_last (JSON)</th><th>no_such_tag (STRING)</th></tr></thead><tbody><tr><td>&quot;Kathmandu&quot;</td><td>&quot;bank&quot;</td><td>&quot;A class&quot;</td><td>&quot;A class&quot;</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Keys with spaces or dots need quotes</strong></p>
+<pre><code class="language-sql">SELECT json_extract(&#39;{&quot;net profit&quot;: 3270.1, &quot;q4.audited&quot;: true}&#39;, &#39;$.&quot;net profit&quot;&#39;) AS a,
+       json_extract(&#39;{&quot;net profit&quot;: 3270.1, &quot;q4.audited&quot;: true}&#39;, &#39;$[&quot;q4.audited&quot;]&#39;) AS b,
+       json_extract(&#39;{&quot;net profit&quot;: 3270.1, &quot;q4.audited&quot;: true}&#39;, &#39;$.q4.audited&#39;) AS without_quotes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (JSON)</th><th>b (JSON)</th><th>without_quotes (STRING)</th></tr></thead><tbody><tr><td>3270.1</td><td>true</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Wildcards are not supported</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json_extract(profile, &#39;$.tags[*]&#39;) FROM companies;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json_extract: JSON path &#39;$.tags[*]&#39; is not valid: wildcards (*) are not supported (paths look like &#39;$.company.sector&#39;, &#39;$.items[0]&#39; or &#39;$.&quot;key with spaces&quot;&#39;)</code></p>
+<p><strong>Example: A path must start with $</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json_extract(profile, &#39;office.city&#39;) FROM companies;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json_extract: JSON path &#39;office.city&#39; is not valid: it must start with $ (paths look like &#39;$.company.sector&#39;, &#39;$.items[0]&#39; or &#39;$.&quot;key with spaces&quot;&#39;)</code></p>
+<h2 id="json">json</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json(text)</code></pre>
+<p>Checks that <code>text</code> is valid JSON and gives it as a <code>JSON</code> value, without extra spaces. <code>CAST(text AS JSON)</code> and <code>text::JSON</code> do the same.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td><code>STRING</code> (or <code>JSON</code>)</td><td>JSON text, like <code>&#39;{&quot;a&quot;: 1}&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>json(NULL)</code> is <code>NULL</code>. <code>json(&#39;null&#39;)</code> is the JSON value <code>null</code>.</li><li><strong>Notes:</strong> bad JSON is an error that says what is wrong and at which character. Keys and strings need double quotes (<code>&quot;a&quot;</code>), and <code>true</code>, <code>false</code>, <code>null</code> are lower case.</li><li>Use <code>json(...)</code> when you put JSON <strong>inside</strong> other JSON with <code>json_object</code>, <code>json_array</code> or <code>json_set</code>. Without it, the text is saved as a JSON string.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json(&#39;{ &quot;symbol&quot; : &quot;CITY&quot;, &quot;close&quot; : 512.50 }&#39;)::STRING AS saved_text,
+       json(&#39;[1, 2, 3]&#39;) AS list,
+       CAST(&#39;{&quot;a&quot;: 1}&#39; AS JSON) AS with_cast,
+       json(&#39;{&quot;name_ne&quot;: &quot;सिटी बैंक&quot;}&#39;) AS nepali;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>saved_text (STRING)</th><th>list (JSON)</th><th>with_cast (JSON)</th><th>nepali (JSON)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;close&quot;:512.50}</td><td>[1,2,3]</td><td>{&quot;a&quot;:1}</td><td>{&quot;name_ne&quot;:&quot;सिटी बैंक&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Single quotes are not JSON</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json(&#39;{&#39;&#39;symbol&#39;&#39;: &#39;&#39;CITY&#39;&#39;}&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json: argument 1 is not valid JSON: expected a key in double quotes at character 2 (near &#39;&#39;symbol&#39;: &#39;C...&#39;)</code></p>
+<p><strong>Example: true, false and null are lower case</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json(&#39;{&quot;listed&quot;: TRUE}&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json: argument 1 is not valid JSON: expected a JSON value (true, false and null are lower case) at character 12 (near &#39;TRUE}&#39;)</code></p>
+<h2 id="to-json">to_json</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_json(value)</code></pre>
+<p>Turns one SQL value into JSON. Text becomes a JSON string with <code>&quot;</code> around it. Numbers and <code>TRUE</code>/<code>FALSE</code> stay as they are.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any type</td><td>the value to turn into JSON</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>to_json(NULL)</code> is SQL <code>NULL</code> (not JSON <code>null</code>).</li><li><strong>Notes:</strong> a <code>DECIMAL</code> keeps its digits (<code>2.50</code>); a <code>DOUBLE</code> does not (<code>2.5</code>). A time becomes a string like <code>&quot;2026-09-10T05:15:00.000Z&quot;</code>. A <code>JSON</code> value stays the same. <code>BYTES</code> become a string like <code>&quot;\\x0a0b&quot;</code>.</li><li><code>to_json(&#39;{&quot;a&quot;: 1}&#39;)</code> gives a JSON <strong>string</strong>, not an object. Use <code>json(...)</code> to read JSON text.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_json(&#39;City &quot;Bank&quot;&#39;)::STRING AS text_value,
+       to_json(512.50)::STRING AS double_value,
+       to_json(CAST(2.50 AS DECIMAL(2)))::STRING AS exact,
+       to_json(TRUE)::STRING AS yes,
+       to_json(CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP))::STRING AS time_value,
+       to_json(&#39;{&quot;a&quot;: 1}&#39;)::STRING AS still_text;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>text_value (STRING)</th><th>double_value (STRING)</th><th>exact (STRING)</th><th>yes (STRING)</th><th>time_value (STRING)</th><th>still_text (STRING)</th></tr></thead><tbody><tr><td>&quot;City \&quot;Bank\&quot;&quot;</td><td>512.5</td><td>2.50</td><td>true</td><td>&quot;2026-09-10T05:15:00.000Z&quot;</td><td>&quot;{\&quot;a\&quot;: 1}&quot;</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-valid">json_valid</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_valid(text)</code></pre>
+<p><code>true</code> when <code>text</code> is valid JSON, else <code>false</code>. It never gives an error, so it is good for checking data before you insert it.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td><code>STRING</code> (or any value)</td><td>the text to check</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>json_valid(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> a number, <code>TRUE</code> or a <code>JSON</code> value is valid. <code>BYTES</code> are never valid. Empty text is not valid.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_valid(&#39;{&quot;npl_pct&quot;: 2.75}&#39;) AS good,
+       json_valid(&#39;{&quot;npl_pct&quot;: 2.75,}&#39;) AS extra_comma,
+       json_valid(&#39;{npl_pct: 2.75}&#39;) AS no_quotes,
+       json_valid(&#39;&#39;) AS empty,
+       json_valid(NULL) AS nothing;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>good (BOOL)</th><th>extra_comma (BOOL)</th><th>no_quotes (BOOL)</th><th>empty (BOOL)</th><th>nothing (STRING)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Find bad rows in imported text before loading them</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE import_raw (line_no LONG PRIMARY KEY, symbol STRING, extra_text STRING);
+INSERT INTO import_raw VALUES
+  (1, &#39;CITY&#39;, &#39;{&quot;npl_pct&quot;: 2.91}&#39;),
+  (2, &#39;COAST&#39;, &#39;{&quot;npl_pct&quot;: 4.3,}&#39;),
+  (3, &#39;VOLT&#39;, &#39;{&quot;energy_gwh&quot;: 1850.2}&#39;);</code></pre>
+<pre><code class="language-sql">SELECT line_no, symbol, extra_text
+FROM import_raw
+WHERE NOT json_valid(extra_text);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line_no (LONG)</th><th>symbol (STRING)</th><th>extra_text (STRING)</th></tr></thead><tbody><tr><td>2</td><td>COAST</td><td>{&quot;npl_pct&quot;: 4.3,}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-extract">json_extract</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_extract(doc, path)</code></pre>
+<p>The part of <code>doc</code> at <code>path</code>, as JSON. A string stays in quotes (<code>&quot;Kathmandu&quot;</code>), and objects and arrays stay whole.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a> like <code>&#39;$.office.city&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, or the path is not in the document.</li><li><strong>Notes:</strong> <code>doc -&gt; &#39;key&#39;</code> is a short way to write <code>json_extract(doc, &#39;$.key&#39;)</code> (see <a href="functions-json.html#arrow">-&gt;, -&gt;&gt;</a>). To get a plain SQL value (text without quotes, a number), use <code>json_value</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       json_extract(profile, &#39;$.office&#39;) AS office,
+       json_extract(profile, &#39;$.office.city&#39;)::STRING AS city_json_text,
+       json_value(profile, &#39;$.office.city&#39;) AS city_value,
+       json_extract(profile, &#39;$.tags&#39;) AS tags
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>office (JSON)</th><th>city_json_text (STRING)</th><th>city_value (STRING)</th><th>tags (JSON)</th></tr></thead><tbody><tr><td>CITY</td><td>{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;phone&quot;:&quot;01-5970015&quot;}</td><td>&quot;Kathmandu&quot;</td><td>Kathmandu</td><td>[&quot;bank&quot;,&quot;A class&quot;]</td></tr><tr><td>COAST</td><td>{&quot;city&quot;:&quot;Kathmandu&quot;}</td><td>&quot;Kathmandu&quot;</td><td>Kathmandu</td><td>[&quot;bank&quot;]</td></tr><tr><td>VOLT</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The text must be valid JSON</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json_extract(&#39;CITY&#39;, &#39;$.a&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json_extract: argument 1 is not valid JSON: expected a JSON value (an object, array, string, number, true, false or null) at character 1 (near &#39;CITY&#39;)</code></p>
+<h2 id="json-value">json_value</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_value(doc, path)</code></pre>
+<p>The part of <code>doc</code> at <code>path</code> as a normal SQL value. The type depends on the JSON value:</p>
+<div class="table-wrap"><table><thead><tr><th>JSON value</th><th>SQL result</th></tr></thead><tbody><tr><td><code>&quot;text&quot;</code></td><td><code>STRING</code> without quotes</td></tr><tr><td>a whole number like <code>270</code></td><td><code>LONG</code></td></tr><tr><td>a number with a point or <code>e</code>, like <code>2.60</code></td><td><code>DOUBLE</code> (<code>2.6</code>)</td></tr><tr><td><code>true</code>, <code>false</code></td><td><code>BOOL</code></td></tr><tr><td><code>null</code>, an object, an array</td><td><code>NULL</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>, <code>LONG</code>, <code>DOUBLE</code> or <code>BOOL</code>; <code>NULL</code> when the path is missing.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> a whole number too big for <code>LONG</code> comes back as <code>DOUBLE</code>. The result type can change from row to row. When you need one type, use <code>json_value_text</code>, <code>json_value_double</code>, <code>json_value_long</code> or <code>json_value_bool</code>.</li><li>A <code>DOUBLE</code> is not exact. For money, take the text and cast it: <code>CAST(json_value_text(doc, &#39;$.price&#39;) AS DECIMAL(2))</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_value(profile, &#39;$.office.city&#39;) AS city,
+       json_value(profile, &#39;$.branches&#39;) AS branches,
+       json_value(profile, &#39;$.tags&#39;) AS tags_is_array,
+       json_value(profile, &#39;$.no_such_key&#39;) AS missing
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>branches (LONG)</th><th>tags_is_array (STRING)</th><th>missing (STRING)</th></tr></thead><tbody><tr><td>Kathmandu</td><td>270</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Banks with bad loans (NPL) above 3 percent</strong></p>
+<pre><code class="language-sql">SELECT f.symbol, c.name, json_value(f.extra, &#39;$.npl_pct&#39;) AS npl_pct
+FROM fundamentals f
+JOIN companies c ON c.symbol = f.symbol
+WHERE f.quarter = 4 AND json_value(f.extra, &#39;$.npl_pct&#39;) &gt; 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>name (STRING)</th><th>npl_pct (DOUBLE)</th></tr></thead><tbody><tr><td>COAST</td><td>Coastal Bank Limited</td><td>4.1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Nepali text inside JSON: letters count as one</strong></p>
+<pre><code class="language-sql">SELECT json_value(profile, &#39;$.name_ne&#39;) AS name_ne,
+       length(json_value(profile, &#39;$.name_ne&#39;)) AS letters
+FROM companies
+WHERE symbol = &#39;VOLT&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name_ne (STRING)</th><th>letters (LONG)</th></tr></thead><tbody><tr><td>भोल्ट रिभर</td><td>10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-value-text">json_value_text</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_value_text(doc, path)</code></pre>
+<p>The part at <code>path</code> always as text. A JSON string comes without quotes. A number keeps its digits as written (<code>2.60</code>). An object or array comes as its JSON text.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, the path is missing, or the value is JSON <code>null</code>.</li><li><strong>Notes:</strong> this is the safe way to read exact numbers: <code>CAST(json_value_text(...) AS DECIMAL(2))</code>. <code>doc -&gt;&gt; &#39;key&#39;</code> gives the same text for one key.</li></ul>
+<p><strong>Example: Exact percent values for a report</strong></p>
+<pre><code class="language-sql">SELECT symbol, quarter,
+       json_value_text(extra, &#39;$.car_pct&#39;) AS car_text,
+       CAST(json_value_text(extra, &#39;$.npl_pct&#39;) AS DECIMAL(2)) AS npl_exact,
+       json_value(extra, &#39;$.npl_pct&#39;) AS npl_double
+FROM fundamentals
+WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;)
+ORDER BY symbol, quarter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>quarter (INT)</th><th>car_text (STRING)</th><th>npl_exact (DECIMAL(2))</th><th>npl_double (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>3</td><td>13.1</td><td>2.75</td><td>2.75</td></tr><tr><td>CITY</td><td>4</td><td>13.4</td><td>2.60</td><td>2.6</td></tr><tr><td>COAST</td><td>4</td><td>12.2</td><td>4.10</td><td>4.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_value_text(profile, &#39;$.office&#39;) AS office_json,
+       json_value_text(profile, &#39;$.branches&#39;) AS branches_text
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>office_json (STRING)</th><th>branches_text (STRING)</th></tr></thead><tbody><tr><td>{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;phone&quot;:&quot;01-5970015&quot;}</td><td>270</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-value-double">json_value_double</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_value_double(doc, path)</code></pre>
+<p>The part at <code>path</code> as a <code>DOUBLE</code> number. A JSON number works, and so does a JSON string that holds a number (<code>&quot;12.5&quot;</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, the path is missing, or the value is not a number (<code>&quot;abc&quot;</code>, <code>true</code>, an object).</li><li><strong>Notes:</strong> it never gives an error for a wrong value, so it is safe in <code>WHERE</code> and <code>ORDER BY</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_value_double(&#39;{&quot;close&quot;: 512.5}&#39;, &#39;$.close&#39;) AS number,
+       json_value_double(&#39;{&quot;close&quot;: &quot;512.5&quot;}&#39;, &#39;$.close&#39;) AS number_in_text,
+       json_value_double(&#39;{&quot;close&quot;: &quot;n/a&quot;}&#39;, &#39;$.close&#39;) AS not_a_number,
+       json_value_double(&#39;{&quot;close&quot;: true}&#39;, &#39;$.close&#39;) AS bool_value;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>number (DOUBLE)</th><th>number_in_text (DOUBLE)</th><th>not_a_number (STRING)</th><th>bool_value (STRING)</th></tr></thead><tbody><tr><td>512.5</td><td>512.5</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Hydropower plants with a plant factor above 50 percent</strong></p>
+<pre><code class="language-sql">SELECT symbol, json_value_double(extra, &#39;$.plant_factor_pct&#39;) AS plant_factor
+FROM fundamentals
+WHERE json_value_double(extra, &#39;$.plant_factor_pct&#39;) &gt; 50;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>plant_factor (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>52.7</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-value-long">json_value_long</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_value_long(doc, path)</code></pre>
+<p>The part at <code>path</code> as a <code>LONG</code> (a whole number). <code>12</code> and <code>12.0</code> work, and so does a string like <code>&quot;42&quot;</code>. <code>12.5</code> does not fit and gives <code>NULL</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, the path is missing, or the value is not a whole number (or too big for <code>LONG</code>).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_value_long(&#39;{&quot;branches&quot;: 270}&#39;, &#39;$.branches&#39;) AS a,
+       json_value_long(&#39;{&quot;branches&quot;: 270.0}&#39;, &#39;$.branches&#39;) AS b,
+       json_value_long(&#39;{&quot;branches&quot;: &quot;270&quot;}&#39;, &#39;$.branches&#39;) AS c,
+       json_value_long(&#39;{&quot;branches&quot;: 270.5}&#39;, &#39;$.branches&#39;) AS d,
+       json_value_long(&#39;{&quot;branches&quot;: 99999999999999999999}&#39;, &#39;$.branches&#39;) AS too_big;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (LONG)</th><th>d (STRING)</th><th>too_big (STRING)</th></tr></thead><tbody><tr><td>270</td><td>270</td><td>270</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Total branches of all banks</strong></p>
+<pre><code class="language-sql">SELECT sum(json_value_long(profile, &#39;$.branches&#39;)) AS branches
+FROM companies
+WHERE sector = &#39;Banking&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>branches (LONG)</th></tr></thead><tbody><tr><td>650</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-value-bool">json_value_bool</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_value_bool(doc, path)</code></pre>
+<p>The part at <code>path</code> as <code>BOOL</code>. JSON <code>true</code> and <code>false</code> work, and so do the strings <code>&quot;true&quot;</code> and <code>&quot;false&quot;</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, the path is missing, or the value is something else (<code>1</code>, <code>&quot;yes&quot;</code>, an object).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_value_bool(&#39;{&quot;audited&quot;: true}&#39;, &#39;$.audited&#39;) AS a,
+       json_value_bool(&#39;{&quot;audited&quot;: &quot;false&quot;}&#39;, &#39;$.audited&#39;) AS b,
+       json_value_bool(&#39;{&quot;audited&quot;: 1}&#39;, &#39;$.audited&#39;) AS c,
+       json_value_bool(&#39;{&quot;audited&quot;: &quot;yes&quot;}&#39;, &#39;$.audited&#39;) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th><th>c (STRING)</th><th>d (STRING)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Quarter results that are not audited yet</strong></p>
+<pre><code class="language-sql">SELECT symbol, fiscal_year, quarter
+FROM fundamentals
+WHERE json_value_bool(extra, &#39;$.audited&#39;) = FALSE;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>fiscal_year (STRING)</th><th>quarter (INT)</th></tr></thead><tbody><tr><td>CITY</td><td>2082/83</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-type">json_type</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_type(doc)
+json_type(doc, path)</code></pre>
+<p>The kind of JSON value: <code>object</code>, <code>array</code>, <code>string</code>, <code>number</code>, <code>boolean</code> or <code>null</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>optional <a href="functions-json.html#json-paths">JSON path</a>; default <code>&#39;$&#39;</code> (the whole document)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> SQL <code>NULL</code> when an argument is <code>NULL</code> or the path is missing. For a JSON <code>null</code> value it gives the text <code>&#39;null&#39;</code>.</li><li><strong>Notes:</strong> use it to tell &quot;the key is missing&quot; (<code>NULL</code>) from &quot;the key is there with <code>null</code>&quot; (<code>&#39;null&#39;</code>).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_type(profile) AS whole,
+       json_type(profile, &#39;$.office&#39;) AS office,
+       json_type(profile, &#39;$.tags&#39;) AS tags,
+       json_type(profile, &#39;$.branches&#39;) AS branches,
+       json_type(profile, &#39;$.website&#39;) AS website,
+       json_type(profile, &#39;$.capacity_mw&#39;) AS missing
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>whole (STRING)</th><th>office (STRING)</th><th>tags (STRING)</th><th>branches (STRING)</th><th>website (STRING)</th><th>missing (STRING)</th></tr></thead><tbody><tr><td>object</td><td>object</td><td>array</td><td>number</td><td>string</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Which quarters have the audited key at all</strong></p>
+<pre><code class="language-sql">SELECT symbol, quarter, json_type(extra, &#39;$.audited&#39;) AS audited_type
+FROM fundamentals
+ORDER BY symbol, quarter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>quarter (INT)</th><th>audited_type (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>3</td><td>NULL</td></tr><tr><td>CITY</td><td>4</td><td>boolean</td></tr><tr><td>COAST</td><td>4</td><td>NULL</td></tr><tr><td>VOLT</td><td>4</td><td>NULL</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="json-array-length">json_array_length</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_array_length(doc)
+json_array_length(doc, path)</code></pre>
+<p>The number of elements in a JSON array. Elements inside inner arrays are not counted.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>optional <a href="functions-json.html#json-paths">JSON path</a> to the array; default <code>&#39;$&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, the path is missing, or the value is not an array.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       json_array_length(profile, &#39;$.tags&#39;) AS tags,
+       json_array_length(profile, &#39;$.rivers&#39;) AS rivers
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>tags (LONG)</th><th>rivers (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>2</td><td>NULL</td></tr><tr><td>COAST</td><td>1</td><td>NULL</td></tr><tr><td>VOLT</td><td>NULL</td><td>1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_array_length(&#39;[1, [2, 3], {&quot;a&quot;: [4]}]&#39;) AS top_level_only,
+       json_array_length(&#39;[]&#39;) AS empty,
+       json_array_length(&#39;{&quot;a&quot;: 1}&#39;) AS not_an_array;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>top_level_only (LONG)</th><th>empty (LONG)</th><th>not_an_array (STRING)</th></tr></thead><tbody><tr><td>3</td><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-keys">json_keys</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_keys(doc)
+json_keys(doc, path)</code></pre>
+<p>The keys of a JSON object, as a JSON array of strings, in the order they are written.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>optional <a href="functions-json.html#json-paths">JSON path</a> to the object; default <code>&#39;$&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code> (an array).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>, the path is missing, or the value is not an object.</li><li><strong>Notes:</strong> a key written twice is listed once.</li></ul>
+<p><strong>Example: Which extra numbers each company reports</strong></p>
+<pre><code class="language-sql">SELECT symbol, quarter, json_keys(extra) AS keys
+FROM fundamentals
+ORDER BY symbol, quarter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>quarter (INT)</th><th>keys (JSON)</th></tr></thead><tbody><tr><td>CITY</td><td>3</td><td>[&quot;npl_pct&quot;,&quot;car_pct&quot;,&quot;deposits&quot;]</td></tr><tr><td>CITY</td><td>4</td><td>[&quot;npl_pct&quot;,&quot;car_pct&quot;,&quot;deposits&quot;,&quot;audited&quot;]</td></tr><tr><td>COAST</td><td>4</td><td>[&quot;npl_pct&quot;,&quot;car_pct&quot;]</td></tr><tr><td>VOLT</td><td>4</td><td>[&quot;energy_gwh&quot;,&quot;plant_factor_pct&quot;]</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_keys(profile, &#39;$.office&#39;) AS office_keys,
+       json_array_length(json_keys(profile)) AS number_of_keys
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>office_keys (JSON)</th><th>number_of_keys (LONG)</th></tr></thead><tbody><tr><td>[&quot;city&quot;,&quot;phone&quot;]</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-object">json_object</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_object(key, value [, key, value ...])</code></pre>
+<p>Builds a JSON object from pairs of key and value. Text values become JSON strings; numbers, <code>TRUE</code>/<code>FALSE</code> and <code>JSON</code> values are put in as they are.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>STRING</code></td><td>the name of the key (a number is turned into text)</td></tr><tr><td><code>value</code></td><td>any type</td><td>the value; <code>NULL</code> becomes JSON <code>null</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. <code>json_object()</code> with no arguments is <code>{}</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> value becomes <code>null</code>. A <code>NULL</code> key is an error.</li><li><strong>Notes:</strong> an odd number of arguments is an error. When a key is written twice, the last value wins. At most 64 arguments.</li><li>To put JSON inside, pass a <code>JSON</code> value (a JSON column, or <code>json(&#39;...&#39;)</code>). Plain text like <code>&#39;[&quot;bank&quot;]&#39;</code> becomes a string.</li></ul>
+<p><strong>Example: A JSON answer for an app, made from table columns</strong></p>
+<pre><code class="language-sql">SELECT json_object(&#39;symbol&#39;, symbol,
+                   &#39;name&#39;, name,
+                   &#39;city&#39;, json_value(profile, &#39;$.office.city&#39;),
+                   &#39;tags&#39;, profile -&gt; &#39;tags&#39;,
+                   &#39;listed&#39;, TRUE) AS api_answer
+FROM companies
+WHERE symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>api_answer (JSON)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;COAST&quot;,&quot;name&quot;:&quot;Coastal Bank Limited&quot;,&quot;city&quot;:&quot;Kathmandu&quot;,&quot;tags&quot;:[&quot;bank&quot;],&quot;listed&quot;:true}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Text is not JSON until you use json()</strong></p>
+<pre><code class="language-sql">SELECT json_object(&#39;tags&#39;, &#39;[&quot;bank&quot;]&#39;) AS as_text,
+       json_object(&#39;tags&#39;, json(&#39;[&quot;bank&quot;]&#39;)) AS as_json,
+       json_object(&#39;note&#39;, NULL, &#39;note&#39;, &#39;second&#39;) AS last_wins;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>as_text (JSON)</th><th>as_json (JSON)</th><th>last_wins (JSON)</th></tr></thead><tbody><tr><td>{&quot;tags&quot;:&quot;[\&quot;bank\&quot;]&quot;}</td><td>{&quot;tags&quot;:[&quot;bank&quot;]}</td><td>{&quot;note&quot;:&quot;second&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Keys and values must come in pairs</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json_object(&#39;symbol&#39;, &#39;CITY&#39;, &#39;price&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json_object: needs pairs of key and value, like json_object(&#39;symbol&#39;, &#39;CITY&#39;, &#39;price&#39;, 512.5)</code></p>
+<h2 id="json-array">json_array</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_array([value, value ...])</code></pre>
+<p>Builds a JSON array from the values, in order.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any type</td><td>an element; <code>NULL</code> becomes JSON <code>null</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. <code>json_array()</code> with no arguments is <code>[]</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> value becomes <code>null</code>.</li><li><strong>Notes:</strong> text becomes a JSON string; use <code>json(&#39;...&#39;)</code> to put an object or array inside. At most 64 values.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_array(&#39;CITY&#39;, 512.5, TRUE, NULL) AS mixed,
+       json_array(json(&#39;{&quot;q&quot;: 3}&#39;), json(&#39;{&quot;q&quot;: 4}&#39;)) AS objects,
+       json_array() AS empty;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>mixed (JSON)</th><th>objects (JSON)</th><th>empty (JSON)</th></tr></thead><tbody><tr><td>[&quot;CITY&quot;,512.5,true,null]</td><td>[{&quot;q&quot;:3},{&quot;q&quot;:4}]</td><td>[]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Open, high, low and close of one day as a small array</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, json_array(open, high, low, close) AS ohlc
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>ohlc (JSON)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>[540.3,542.5,539.2,542.2]</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>[540.6,542.1,538.8,539.7]</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>[538.5,540.5,536.4,539.3]</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="json-set">json_set</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_set(doc, path, value [, path, value ...])</code></pre>
+<p>Changes <code>doc</code>: puts <code>value</code> at <code>path</code>. A key that is there gets the new value; a key that is not there is added. The other keys stay. Use it in <code>UPDATE</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document to change</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr><tr><td><code>value</code></td><td>any type</td><td>the new value (text becomes a JSON string; use <code>json(&#39;...&#39;)</code> for JSON)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code> (the changed document; the table is changed only by <code>UPDATE</code>).</li><li><strong>NULL:</strong> <code>NULL</code> when <code>doc</code> or a <code>path</code> is <code>NULL</code>. A <code>NULL</code> value puts JSON <code>null</code>.</li><li><strong>Notes:</strong> when the parent of the path is not there (<code>$.a.b</code> without <code>a</code>), nothing changes and there is no error. An array index after the end (<code>$.tags[9]</code>) adds at the end. More pairs are done one after the other.</li><li><strong>Differences:</strong> works like <code>JSON_SET</code> in MySQL. PostgreSQL&#39;s <code>jsonb_set</code> is different (paths like <code>&#39;{a,b}&#39;</code>).</li></ul>
+<p><strong>Example: Mark a quarter as audited and add the auditor</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">UPDATE fundamentals
+SET extra = json_set(extra, &#39;$.audited&#39;, TRUE, &#39;$.auditor&#39;, &#39;CA firm A&#39;)
+WHERE symbol = &#39;CITY&#39; AND quarter = 4;</code></pre>
+<pre><code class="language-sql">SELECT extra::STRING AS extra FROM fundamentals WHERE symbol = &#39;CITY&#39; AND quarter = 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>extra (STRING)</th></tr></thead><tbody><tr><td>{&quot;npl_pct&quot;:2.60,&quot;car_pct&quot;:13.4,&quot;deposits&quot;:455000000000,&quot;audited&quot;:true,&quot;auditor&quot;:&quot;CA firm A&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Change, add, and a missing parent</strong></p>
+<pre><code class="language-sql">SELECT json_set(&#39;{&quot;theme&quot;: &quot;light&quot;}&#39;, &#39;$.theme&#39;, &#39;dark&#39;) AS changed,
+       json_set(&#39;{&quot;theme&quot;: &quot;light&quot;}&#39;, &#39;$.lang&#39;, &#39;ne&#39;) AS added,
+       json_set(&#39;{&quot;theme&quot;: &quot;light&quot;}&#39;, &#39;$.notify.email&#39;, FALSE) AS no_parent,
+       json_set(&#39;{&quot;tags&quot;: [&quot;bank&quot;]}&#39;, &#39;$.tags[9]&#39;, &#39;A class&#39;) AS array_end;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>changed (JSON)</th><th>added (JSON)</th><th>no_parent (JSON)</th><th>array_end (JSON)</th></tr></thead><tbody><tr><td>{&quot;theme&quot;:&quot;dark&quot;}</td><td>{&quot;theme&quot;:&quot;light&quot;,&quot;lang&quot;:&quot;ne&quot;}</td><td>{&quot;theme&quot;:&quot;light&quot;}</td><td>{&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;]}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Paths and values must come in pairs</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json_set(&#39;{&quot;a&quot;: 1}&#39;, &#39;$.a&#39;, 2, &#39;$.b&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json_set: needs pairs of path and value after the document, like json_set(doc, &#39;$.price&#39;, 512.5)</code></p>
+<h2 id="json-insert">json_insert</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_insert(doc, path, value [, path, value ...])</code></pre>
+<p>Like <code>json_set</code>, but it only <strong>adds</strong>. A key or array element that is already there keeps its old value.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document to change</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr><tr><td><code>value</code></td><td>any type</td><td>the value to add</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when <code>doc</code> or a <code>path</code> is <code>NULL</code>. A <code>NULL</code> value adds JSON <code>null</code>.</li><li><strong>Notes:</strong> good for default values: &quot;set it only when it is not set yet&quot;.</li></ul>
+<p><strong>Example: Add a default language, but do not change a user&#39;s choice</strong></p>
+<pre><code class="language-sql">SELECT json_insert(&#39;{&quot;theme&quot;: &quot;dark&quot;}&#39;, &#39;$.lang&#39;, &#39;en&#39;) AS new_key,
+       json_insert(&#39;{&quot;theme&quot;: &quot;dark&quot;, &quot;lang&quot;: &quot;ne&quot;}&#39;, &#39;$.lang&#39;, &#39;en&#39;) AS kept,
+       json_insert(&#39;{&quot;tags&quot;: [&quot;bank&quot;]}&#39;, &#39;$.tags[1]&#39;, &#39;A class&#39;) AS array_end;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>new_key (JSON)</th><th>kept (JSON)</th><th>array_end (JSON)</th></tr></thead><tbody><tr><td>{&quot;theme&quot;:&quot;dark&quot;,&quot;lang&quot;:&quot;en&quot;}</td><td>{&quot;theme&quot;:&quot;dark&quot;,&quot;lang&quot;:&quot;ne&quot;}</td><td>{&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;]}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json-replace">json_replace</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_replace(doc, path, value [, path, value ...])</code></pre>
+<p>Like <code>json_set</code>, but it only <strong>changes</strong> what is there. A missing key is not added.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document to change</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a></td></tr><tr><td><code>value</code></td><td>any type</td><td>the new value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when <code>doc</code> or a <code>path</code> is <code>NULL</code>. A <code>NULL</code> value puts JSON <code>null</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_replace(&#39;{&quot;branches&quot;: 270}&#39;, &#39;$.branches&#39;, 272) AS changed,
+       json_replace(&#39;{&quot;branches&quot;: 270}&#39;, &#39;$.atms&#39;, 400) AS not_added;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>changed (JSON)</th><th>not_added (JSON)</th></tr></thead><tbody><tr><td>{&quot;branches&quot;:272}</td><td>{&quot;branches&quot;:270}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Update the phone only for companies that have one</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">UPDATE companies
+SET profile = json_replace(profile, &#39;$.office.phone&#39;, &#39;01-5970099&#39;);</code></pre>
+<pre><code class="language-sql">SELECT symbol, profile -&gt; &#39;office&#39; AS office FROM companies ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>office (JSON)</th></tr></thead><tbody><tr><td>CITY</td><td>{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;phone&quot;:&quot;01-5970099&quot;}</td></tr><tr><td>COAST</td><td>{&quot;city&quot;:&quot;Kathmandu&quot;}</td></tr><tr><td>VOLT</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="json-remove">json_remove</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_remove(doc, path [, path ...])</code></pre>
+<p>Removes the keys or array elements at the paths.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document to change</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a>; up to 63 paths</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when <code>doc</code> or a <code>path</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> a path that is not there changes nothing. Paths are done one after the other, so after removing <code>[0]</code> the next element becomes <code>[0]</code>. Removing <code>&#39;$&#39;</code> (the whole document) is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_remove(&#39;{&quot;npl_pct&quot;: 2.6, &quot;car_pct&quot;: 13.4, &quot;draft&quot;: true}&#39;, &#39;$.draft&#39;) AS one_key,
+       json_remove(&#39;{&quot;tags&quot;: [&quot;bank&quot;, &quot;old&quot;, &quot;A class&quot;]}&#39;, &#39;$.tags[1]&#39;) AS one_element,
+       json_remove(&#39;{&quot;a&quot;: 1}&#39;, &#39;$.no_such_key&#39;) AS nothing_to_remove;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>one_key (JSON)</th><th>one_element (JSON)</th><th>nothing_to_remove (JSON)</th></tr></thead><tbody><tr><td>{&quot;npl_pct&quot;:2.6,&quot;car_pct&quot;:13.4}</td><td>{&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;]}</td><td>{&quot;a&quot;:1}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Remove a key from every row</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">UPDATE fundamentals SET extra = json_remove(extra, &#39;$.deposits&#39;);</code></pre>
+<pre><code class="language-sql">SELECT symbol, quarter, extra::STRING AS extra FROM fundamentals ORDER BY symbol, quarter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>quarter (INT)</th><th>extra (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>3</td><td>{&quot;npl_pct&quot;:2.75,&quot;car_pct&quot;:13.1}</td></tr><tr><td>CITY</td><td>4</td><td>{&quot;npl_pct&quot;:2.60,&quot;car_pct&quot;:13.4,&quot;audited&quot;:false}</td></tr><tr><td>COAST</td><td>4</td><td>{&quot;npl_pct&quot;:4.10,&quot;car_pct&quot;:12.2}</td></tr><tr><td>VOLT</td><td>4</td><td>{&quot;energy_gwh&quot;:2105.4,&quot;plant_factor_pct&quot;:52.7}</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The whole document cannot be removed</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json_remove(&#39;{&quot;a&quot;: 1}&#39;, &#39;$&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json_remove: cannot remove the whole JSON document ($)</code></p>
+<h2 id="json-array-append">json_array_append</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_array_append(doc, path, value)</code></pre>
+<p>Adds <code>value</code> at the end of the array at <code>path</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>doc</code></td><td><code>JSON</code> or JSON text</td><td>the document to change</td></tr><tr><td><code>path</code></td><td><code>STRING</code></td><td>a <a href="functions-json.html#json-paths">JSON path</a> to an array (<code>&#39;$&#39;</code> when <code>doc</code> itself is the array)</td></tr><tr><td><code>value</code></td><td>any type</td><td>the new element; use <code>json(&#39;...&#39;)</code> to add an object or array</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when <code>doc</code> or <code>path</code> is <code>NULL</code>. A <code>NULL</code> value adds JSON <code>null</code>.</li><li><strong>Notes:</strong> exactly one path and one value. When the path is missing or is not an array, nothing changes (MySQL would make an array; KDB does not).</li></ul>
+<p><strong>Example: Add a tag to a company</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">UPDATE companies
+SET profile = json_array_append(profile, &#39;$.tags&#39;, &#39;dividend 2082/83&#39;)
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<pre><code class="language-sql">SELECT profile -&gt; &#39;tags&#39; AS tags FROM companies WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>tags (JSON)</th></tr></thead><tbody><tr><td>[&quot;bank&quot;,&quot;A class&quot;,&quot;dividend 2082/83&quot;]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT json_array_append(&#39;[1, 2]&#39;, &#39;$&#39;, 3) AS number,
+       json_array_append(&#39;[1, 2]&#39;, &#39;$&#39;, json(&#39;[3, 4]&#39;)) AS inner_array,
+       json_array_append(&#39;{&quot;tags&quot;: &quot;bank&quot;}&#39;, &#39;$.tags&#39;, &#39;x&#39;) AS not_an_array;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>number (JSON)</th><th>inner_array (JSON)</th><th>not_an_array (JSON)</th></tr></thead><tbody><tr><td>[1,2,3]</td><td>[1,2,[3,4]]</td><td>{&quot;tags&quot;:&quot;bank&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="arrow">-&gt;, -&gt;&gt;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">doc -&gt; &#39;key&#39;      doc -&gt; 0      doc -&gt; -1
+doc -&gt;&gt; &#39;key&#39;     doc -&gt;&gt; 0
+doc -&gt; &#39;a&#39; -&gt; &#39;b&#39; -&gt;&gt; 0</code></pre>
+<p>Short ways to take one step into JSON. <code>-&gt;</code> gives the part as <code>JSON</code>. <code>-&gt;&gt;</code> gives it as text: a string without quotes, other values as their JSON text.</p>
+<div class="table-wrap"><table><thead><tr><th>Right side</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&#39;key&#39;</code></td><td>the key of an object</td></tr><tr><td><code>0</code>, <code>1</code>, ...</td><td>an element of an array (<code>0</code> is the first)</td></tr><tr><td><code>-1</code>, <code>-2</code>, ...</td><td>counted from the end (<code>-1</code> is the last)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>-&gt;</code> gives <code>JSON</code>; <code>-&gt;&gt;</code> gives <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when either side is <code>NULL</code>, or the key or element is not there. <code>-&gt;&gt;</code> on JSON <code>null</code> gives <code>NULL</code>.</li><li><strong>Notes:</strong> each arrow takes <strong>one</strong> step. <code>doc -&gt; &#39;office.city&#39;</code> looks for a key named <code>office.city</code>, and <code>doc -&gt; &#39;$.office&#39;</code> looks for a key named <code>$.office</code>: both give <code>NULL</code>. Chain arrows, or use a <a href="functions-json.html#json-paths">path</a> function.</li><li>The left side can be a <code>JSON</code> value or text that holds JSON (bad JSON is an error).</li><li>The result of <code>-&gt;&gt;</code> is text, so <code>doc -&gt;&gt; &#39;n&#39; + 1</code> is an error. Use <code>CAST(doc -&gt;&gt; &#39;n&#39; AS LONG)</code>, or <code>json_value(...)</code>.</li><li><strong>Differences:</strong> the same as PostgreSQL for one step. MySQL&#39;s <code>-&gt;</code> takes a path (<code>doc -&gt; &#39;$.a&#39;</code>); KDB&#39;s does not. The PostgreSQL operators <code>#&gt;</code> and <code>#&gt;&gt;</code> take a whole path at once and work too: <code>profile #&gt; &#39;{office,city}&#39;</code> is <a href="functions-json.html#json_extract_path">json_extract_path</a> and <code>#&gt;&gt;</code> is <a href="functions-json.html#json_extract_path_text">json_extract_path_text</a>. The key tests <code>?</code>, <code>?|</code>, <code>?&amp;</code> and the containment tests <code>@&gt;</code>, <code>&lt;@</code> are in <a href="functions-json.html#contains">the next section</a>.</li><li><strong>Speed:</strong> <code>doc -&gt;&gt; &#39;key&#39; = &#39;text&#39;</code> (also <code>&lt;&gt;</code>, <code>&lt;</code>, <code>IN (...)</code>) in a <code>WHERE</code> is read straight from the stored JSON of each row, without building the row first. A <a href="functions-json.html#gin">GIN index</a> makes it faster still when few rows match.</li></ul>
+<p><strong>Example: Company website, city and first tag</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       profile -&gt;&gt; &#39;website&#39; AS website,
+       profile -&gt; &#39;office&#39; -&gt;&gt; &#39;city&#39; AS city,
+       CAST(profile -&gt; &#39;tags&#39; -&gt; 0 AS STRING) AS first_tag_json,
+       profile -&gt; &#39;tags&#39; -&gt;&gt; -1 AS last_tag_text
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>website (STRING)</th><th>city (STRING)</th><th>first_tag_json (STRING)</th><th>last_tag_text (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>https://www.citybank.example.com</td><td>Kathmandu</td><td>&quot;bank&quot;</td><td>A class</td></tr><tr><td>COAST</td><td>https://www.coastalbank.example.com</td><td>Kathmandu</td><td>&quot;bank&quot;</td><td>bank</td></tr><tr><td>VOLT</td><td>https://www.voltriver.example.com</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: One step at a time</strong></p>
+<pre><code class="language-sql">SELECT profile -&gt; &#39;office&#39; -&gt; &#39;city&#39; AS chained,
+       profile -&gt; &#39;office.city&#39; AS dotted_key,
+       profile -&gt; &#39;$.office&#39; AS path_text
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>chained (JSON)</th><th>dotted_key (STRING)</th><th>path_text (STRING)</th></tr></thead><tbody><tr><td>&quot;Kathmandu&quot;</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Filter and group by a JSON key</strong></p>
+<pre><code class="language-sql">SELECT profile -&gt; &#39;office&#39; -&gt;&gt; &#39;city&#39; AS city, count(*) AS companies
+FROM companies
+GROUP BY profile -&gt; &#39;office&#39; -&gt;&gt; &#39;city&#39;
+ORDER BY city;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>companies (LONG)</th></tr></thead><tbody><tr><td>Kathmandu</td><td>2</td></tr><tr><td>NULL</td><td>1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: -&gt;&gt; gives text: cast it before you calculate</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT profile -&gt;&gt; &#39;branches&#39; + 10 FROM companies WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 31: &#39;270&#39; and &#39;10&#39; are not both numbers</code></p>
+<h2 id="contains">@&gt;, &lt;@, ?, ?|, ?&amp;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">doc @&gt; &#39;{&quot;key&quot;: value}&#39;      doc holds all of this
+&#39;{&quot;key&quot;: value}&#39; &lt;@ doc      the same, the other way round
+doc ? &#39;key&#39;                  doc has this top-level key
+doc ?| ARRAY[&#39;a&#39;, &#39;b&#39;]       doc has at least one of these keys
+doc ?&amp; ARRAY[&#39;a&#39;, &#39;b&#39;]       doc has all of these keys</code></pre>
+<p>The PostgreSQL <code>jsonb</code> tests. Each gives <code>TRUE</code> or <code>FALSE</code>, so they go in a <code>WHERE</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Test</th><th>True when</th></tr></thead><tbody><tr><td><code>a @&gt; b</code></td><td>every key of <code>b</code> is in <code>a</code> with a value that holds <code>b</code>&#39;s value, at every level. A list in <code>b</code> is held when each of its elements is in <code>a</code>&#39;s list, in any order.</td></tr><tr><td><code>a &lt;@ b</code></td><td><code>b @&gt; a</code></td></tr><tr><td><code>doc ? &#39;k&#39;</code></td><td>an object with the key <code>k</code> at the top, a list with the string <code>&quot;k&quot;</code>, or the string <code>&quot;k&quot;</code></td></tr><tr><td><code>doc ?| keys</code></td><td><code>doc ? k</code> for at least one <code>k</code> of the array</td></tr><tr><td><code>doc ?&amp; keys</code></td><td><code>doc ? k</code> for every <code>k</code> of the array (an empty array: always)</td></tr></tbody></table></div>
+<ul><li><strong>Numbers</strong> compare by value: <code>{&quot;n&quot;: 1}</code> holds <code>{&quot;n&quot;: 1.0}</code>. A string never equals a number: <code>{&quot;n&quot;: 1}</code> does not hold <code>{&quot;n&quot;: &quot;1&quot;}</code>.</li><li><strong>Lists:</strong> <code>[1, 2, [1, 3]] @&gt; [1, 3]</code> is false (the 3 is only inside the inner list); <code>@&gt; [[1, 3]]</code> is true. At the top, a list holds a single value: <code>&#39;[&quot;a&quot;, &quot;b&quot;]&#39; @&gt; &#39;&quot;a&quot;&#39;</code>.</li><li><code>?</code> looks at the <strong>top level</strong> only: <code>&#39;{&quot;a&quot;: {&quot;b&quot;: 1}}&#39; ? &#39;b&#39;</code> is false.</li><li>The keys of <code>?|</code> and <code>?&amp;</code> are a text array: <code>ARRAY[&#39;a&#39;, &#39;b&#39;]</code> or <code>&#39;{a,b}&#39;</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when either side is <code>NULL</code>.</li><li>On two arrays, <code>@&gt;</code> and <code>&lt;@</code> work as before: <code>ARRAY[1, 2, 3] @&gt; ARRAY[3, 1]</code>.</li><li><strong>Speed:</strong> a <a href="functions-json.html#gin">GIN index</a> on the column finds the rows without reading every document.</li></ul>
+<p><strong>Example: Banks with an A class tag, and companies with a capacity</strong></p>
+<pre><code class="language-sql">SELECT symbol FROM companies WHERE profile @&gt; &#39;{&quot;tags&quot;: [&quot;A class&quot;]}&#39;;
+SELECT symbol FROM companies WHERE profile @&gt; &#39;{&quot;office&quot;: {&quot;city&quot;: &quot;Kathmandu&quot;}}&#39; ORDER BY symbol;
+SELECT symbol FROM companies WHERE profile ? &#39;capacity_mw&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol FROM companies WHERE profile @&gt; &#39;{&quot;tags&quot;: [&quot;A class&quot;]}&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th></tr></thead><tbody><tr><td>CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT symbol FROM companies WHERE profile @&gt; &#39;{&quot;office&quot;: {&quot;city&quot;: &quot;Kathmandu&quot;}}&#39; ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th></tr></thead><tbody><tr><td>CITY</td></tr><tr><td>COAST</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT symbol FROM companies WHERE profile ? &#39;capacity_mw&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th></tr></thead><tbody><tr><td>VOLT</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Any or all of some keys</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       profile ?| ARRAY[&#39;rivers&#39;, &#39;branches&#39;] AS has_one,
+       profile ?&amp; ARRAY[&#39;office&#39;, &#39;branches&#39;] AS has_both,
+       &#39;{&quot;branches&quot;: 270}&#39; &lt;@ profile AS has_270
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>has_one (BOOL)</th><th>has_both (BOOL)</th><th>has_270 (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>true</td><td>true</td><td>true</td></tr><tr><td>COAST</td><td>true</td><td>true</td><td>false</td></tr><tr><td>VOLT</td><td>true</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="jsonpath">SQL/JSON path: jsonb_path_query, @?, @@</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_path_exists(document, &#39;path&#39; [, vars [, silent]])       TRUE when the path finds anything
+jsonb_path_match(document, &#39;path&#39; [, vars [, silent]])        the TRUE / FALSE the path gives
+jsonb_path_query(document, &#39;path&#39; [, vars [, silent]])        one row per item the path finds
+jsonb_path_query_array(document, &#39;path&#39; [, vars [, silent]])  the items as one JSON list
+jsonb_path_query_first(document, &#39;path&#39; [, vars [, silent]])  the first item, or NULL
+document @? &#39;path&#39;                                            jsonb_path_exists, never an error
+document @@ &#39;path&#39;                                            jsonb_path_match, never an error</code></pre>
+<p>PostgreSQL&#39;s JSON path language: find parts of a document, keep the ones a filter likes, and do sums on them.
+It is bigger than the simple <code>&#39;$.a.b&#39;</code> <a href="functions-json.html#json-paths">paths</a> of <code>json_extract</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Path part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>$</code></td><td>the whole document</td></tr><tr><td><code>.key</code>, <code>.&quot;key with spaces&quot;</code>, <code>.*</code></td><td>a key; any key</td></tr><tr><td><code>[0]</code>, <code>[last]</code>, <code>[last - 1]</code>, <code>[1 to 3]</code>, <code>[0, 2]</code>, <code>[*]</code></td><td>elements of a list (<code>0</code> is the first)</td></tr><tr><td><code>.**</code>, <code>.**{2}</code>, <code>.**{1 to last}</code></td><td>every value below, at any level (or those levels)</td></tr><tr><td><code>? (condition)</code></td><td>keeps the items the condition is true for; <code>@</code> is the item</td></tr><tr><td><code>==</code>, <code>!=</code>, <code>&lt;&gt;</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></td><td>compare (numbers by value, text by its characters)</td></tr><tr><td><code>&amp;&amp;</code>, <code>||</code>, <code>!( )</code></td><td>and, or, not</td></tr><tr><td><code>exists (path)</code>, <code>(condition) is unknown</code></td><td>a path finds something; a comparison could not be made</td></tr><tr><td><code>like_regex &quot;pattern&quot; flag &quot;i&quot;</code>, <code>starts with &quot;text&quot;</code></td><td>text tests (flags <code>i</code>, <code>s</code>, <code>q</code>)</td></tr><tr><td><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code></td><td>sums on single numbers</td></tr><tr><td><code>.type()</code>, <code>.size()</code>, <code>.double()</code>, <code>.abs()</code>, <code>.floor()</code>, <code>.ceiling()</code>, <code>.keyvalue()</code></td><td>methods</td></tr><tr><td><code>$name</code></td><td>a variable from <code>vars</code> (a JSON object: <code>&#39;{&quot;min&quot;: 100}&#39;</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Lax</strong> (the default): a key step on a list looks inside its elements, an element step on a single value treats it as a list of one, and a key that is not there finds nothing. Write <code>strict $...</code> to make such mistakes errors.</li><li><strong>Returns:</strong> <code>BOOL</code> for <code>_exists</code>, <code>_match</code>, <code>@?</code> and <code>@@</code>; <code>JSON</code> for the others (PostgreSQL&#39;s <code>jsonb</code>: Postgres clients get it as <code>jsonb</code>, written <code>{&quot;a&quot;: 1}</code>).</li><li><strong>NULL:</strong> a <code>NULL</code> document, path or vars gives <code>NULL</code> (and <code>jsonb_path_query</code> no rows). <code>@@</code> gives <code>NULL</code> when the answer is unknown.</li><li><strong>Errors:</strong> with the SQLSTATE PostgreSQL uses, such as <code>2203A</code> (<code>strict</code> and no such key), <code>22038</code> (a sum on more than one number) and <code>42601</code> (a mistake in the path). <code>silent =&gt; true</code> (the fourth argument) turns the &quot;not found&quot; and &quot;wrong type&quot; errors into no result, as <code>@?</code> and <code>@@</code> always do.</li><li><strong>Speed:</strong> the path is read once per statement, not once per row. <code>doc @? &#39;...&#39;</code>, <code>doc @@ &#39;...&#39;</code> and the calls with <code>silent</code> true run in the column engine on the stored text, like <code>-&gt;&gt;</code>.</li><li><strong>Differences:</strong> <code>.datetime()</code> and the <code>like_regex</code> flags <code>m</code> and <code>x</code> are an error (PostgreSQL has no <code>x</code> either).</li></ul>
+<p><strong>Example: Companies with more than 300 branches, and every tag as a row</strong></p>
+<pre><code class="language-sql">SELECT symbol FROM companies WHERE profile @? &#39;$.branches ? (@ &gt; 300)&#39;;
+SELECT symbol, jsonb_path_query(profile, &#39;$.tags[*]&#39;) AS tag FROM companies ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol FROM companies WHERE profile @? &#39;$.branches ? (@ &gt; 300)&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th></tr></thead><tbody><tr><td>COAST</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT symbol, jsonb_path_query(profile, &#39;$.tags[*]&#39;) AS tag FROM companies ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>tag (JSON)</th></tr></thead><tbody><tr><td>CITY</td><td>&quot;bank&quot;</td></tr><tr><td>CITY</td><td>&quot;A class&quot;</td></tr><tr><td>COAST</td><td>&quot;bank&quot;</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A condition as the whole path, and a value given as a variable</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       profile @@ &#39;$.branches &gt; 300&#39; AS many_branches,
+       jsonb_path_exists(profile, &#39;$.branches ? (@ &gt;= $min)&#39;, &#39;{&quot;min&quot;: 270}&#39;) AS at_least_270
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>many_branches (BOOL)</th><th>at_least_270 (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>false</td><td>true</td></tr><tr><td>COAST</td><td>true</td><td>true</td></tr><tr><td>VOLT</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Lists and sums</strong></p>
+<pre><code class="language-sql">SELECT jsonb_path_query_array(&#39;{&quot;eps&quot;: [12.1, 6.35, 3.2]}&#39;, &#39;$.eps[*] ? (@ &gt; 5)&#39;) AS big,
+       jsonb_path_query_first(&#39;{&quot;eps&quot;: [12.1, 6.35, 3.2]}&#39;, &#39;$.eps[last]&#39;) AS last_one,
+       jsonb_path_query_first(&#39;{&quot;eps&quot;: [12.1, 6.35, 3.2]}&#39;, &#39;$.eps.size()&#39;) AS how_many,
+       jsonb_path_query_first(&#39;{&quot;eps&quot;: [12.1, 6.35, 3.2]}&#39;, &#39;$.eps[0] / 2&#39;) AS half;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>big (JSON)</th><th>last_one (JSON)</th><th>how_many (JSON)</th><th>half (JSON)</th></tr></thead><tbody><tr><td>[12.1,6.35]</td><td>3.2</td><td>3</td><td>6.0500000000000000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Every key and value of an object, and text tests</strong></p>
+<pre><code class="language-sql">SELECT jsonb_path_query(&#39;{&quot;npl_pct&quot;: 2.6, &quot;car_pct&quot;: 13.4}&#39;, &#39;$.keyvalue()&#39;) AS pair;
+SELECT symbol FROM companies WHERE profile @? &#39;$.website ? (@ like_regex &quot;coastal|volt&quot; flag &quot;i&quot;)&#39; ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>SELECT jsonb_path_query(&#39;{&quot;npl_pct&quot;: 2.6, &quot;car_pct&quot;: 13.4}&#39;, &#39;$.keyvalue()&#39;) AS pair</code></p>
+<div class="table-wrap"><table><thead><tr><th>pair (JSON)</th></tr></thead><tbody><tr><td>{&quot;id&quot;:0,&quot;key&quot;:&quot;car_pct&quot;,&quot;value&quot;:13.4}</td></tr><tr><td>{&quot;id&quot;:0,&quot;key&quot;:&quot;npl_pct&quot;,&quot;value&quot;:2.6}</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT symbol FROM companies WHERE profile @? &#39;$.website ? (@ like_regex &quot;coastal|volt&quot; flag &quot;i&quot;)&#39; O</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th></tr></thead><tbody><tr><td>COAST</td></tr><tr><td>VOLT</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: strict: a key that is not there is an error</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT jsonb_path_query(&#39;{&quot;branches&quot;: 270}&#39;, &#39;strict $.office&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: jsonb_path_query: JSON object does not contain key &quot;office&quot;</code></p>
+<p><strong>Example: silent: the same mistake gives no result</strong></p>
+<pre><code class="language-sql">SELECT count(*) FROM jsonb_path_query(&#39;{&quot;branches&quot;: 270}&#39;, &#39;strict $.office&#39;, &#39;{}&#39;, true);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>count(*) (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="gin">GIN index on a JSON column</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE INDEX name ON table USING GIN (json_column)</code></pre>
+<p>An index of the keys and values inside every document of the column. It finds the rows for:</p>
+<div class="table-wrap"><table><thead><tr><th>Condition</th><th>Example</th></tr></thead><tbody><tr><td><code>@&gt;</code> a JSON value</td><td><code>extra @&gt; &#39;{&quot;category&quot;: &quot;auth&quot;}&#39;</code></td></tr><tr><td><code>?</code>, <code>?|</code>, <code>?&amp;</code></td><td><code>extra ? &#39;error&#39;</code></td></tr><tr><td><code>-&gt;&gt;</code> equal to text, or <code>IN</code> a list of texts</td><td><code>extra -&gt;&gt; &#39;category&#39; = &#39;auth&#39;</code>, <code>extra -&gt; &#39;user&#39; -&gt;&gt; &#39;role&#39; IN (&#39;admin&#39;, &#39;owner&#39;)</code></td></tr></tbody></table></div>
+<ul><li>The index finds the rows that <strong>may</strong> match; the condition is then checked on those rows. So the answer is always the same as without the index.</li><li><code>EXPLAIN</code> shows <code>use index name (JSON keys and values ...)</code> when it is used. It is not used for <code>&lt;&gt;</code>, <code>&lt;</code>, <code>&gt;</code>, or for <code>@&gt; &#39;{}&#39;</code> (nothing to look up).</li><li>Like every KDB index it lives in memory and is built from the rows when first needed (see <a href="indexes.html">indexes</a>). It costs roughly the size of the keys and values it holds.</li><li><code>USING GIN</code> on a column that is not <code>JSON</code> makes an ordinary index, as before.</li><li>An index made with <code>USING GIN</code> before 2026-09-24 is an ordinary index on the whole value: drop it and create it again to get this kind.</li></ul>
+<p><strong>Example: Find log rows by a key inside the JSON</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_logs (id LONG PRIMARY KEY, message STRING, extra JSON);
+INSERT INTO app_logs VALUES
+  (1, &#39;login ok&#39;, &#39;{&quot;category&quot;: &quot;auth&quot;, &quot;user&quot;: {&quot;id&quot;: 7}}&#39;),
+  (2, &#39;feed loaded&#39;, &#39;{&quot;category&quot;: &quot;feed&quot;, &quot;items&quot;: 20}&#39;),
+  (3, &#39;login failed&#39;, &#39;{&quot;category&quot;: &quot;auth&quot;, &quot;user&quot;: {&quot;id&quot;: 9}, &quot;error&quot;: &quot;bad password&quot;}&#39;);
+CREATE INDEX app_logs_extra ON app_logs USING GIN (extra);</code></pre>
+<pre><code class="language-sql">SELECT id, message FROM app_logs WHERE extra -&gt;&gt; &#39;category&#39; = &#39;auth&#39; ORDER BY id;
+SELECT id, message FROM app_logs WHERE extra @&gt; &#39;{&quot;user&quot;: {&quot;id&quot;: 9}}&#39;;
+SELECT id, message FROM app_logs WHERE extra ? &#39;error&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT id, message FROM app_logs WHERE extra -&gt;&gt; &#39;category&#39; = &#39;auth&#39; ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>message (STRING)</th></tr></thead><tbody><tr><td>1</td><td>login ok</td></tr><tr><td>3</td><td>login failed</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT id, message FROM app_logs WHERE extra @&gt; &#39;{&quot;user&quot;: {&quot;id&quot;: 9}}&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>message (STRING)</th></tr></thead><tbody><tr><td>3</td><td>login failed</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT id, message FROM app_logs WHERE extra ? &#39;error&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>message (STRING)</th></tr></thead><tbody><tr><td>3</td><td>login failed</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json_build_object">json_build_object, jsonb_build_object</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_build_object(key, value [, key, value ...])
+jsonb_build_object(key, value [, key, value ...])</code></pre>
+<p>Builds a JSON object from pairs: first a key, then its value, then the next pair. <code>jsonb_build_object</code> is the same function under the PostgreSQL <code>jsonb</code> name.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>STRING</code> (a number is turned into text)</td><td>the key name</td></tr><tr><td><code>value</code></td><td>any</td><td>the value for that key; <code>JSON</code> stays JSON</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code> (an object). With no arguments: <code>{}</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> <strong>value</strong> becomes JSON <code>null</code>. A <code>NULL</code> <strong>key</strong> is an error.</li><li><strong>Notes:</strong> an odd number of arguments is an error. <a href="functions-json.html#json_object">json_object</a> does the same thing with the same shape.</li></ul>
+<p><strong>Example: A company card for the app</strong></p>
+<pre><code class="language-sql">SELECT json_build_object(&#39;symbol&#39;, symbol, &#39;name&#39;, name, &#39;sector&#39;, sector,
+                         &#39;city&#39;, profile -&gt;&gt; &#39;office.city&#39;) AS card
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>card (JSON)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;name&quot;:&quot;City Bank Limited&quot;,&quot;sector&quot;:&quot;Banking&quot;,&quot;city&quot;:null}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Pairs must be complete</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT json_build_object(&#39;symbol&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: json_build_object needs pairs of key and value (an even number of arguments)</code></p>
+<h2 id="json_build_array">json_build_array, jsonb_build_array</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_build_array(value [, value ...])
+jsonb_build_array(value [, value ...])</code></pre>
+<p>Builds a JSON list from the values, in order. <code>jsonb_build_array</code> is the same function under the PostgreSQL <code>jsonb</code> name.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>one element of the list; <code>JSON</code> stays JSON</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code> (a list). With no arguments: <code>[]</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> value becomes JSON <code>null</code>. The result is never <code>NULL</code>.</li><li><strong>Notes:</strong> <code>ARRAY[...]</code> builds the same value and is shorter to write (see <a href="functions-postgres.html#arrays">arrays</a>).</li></ul>
+<p><strong>Example: Quarter results as a small list</strong></p>
+<pre><code class="language-sql">SELECT symbol, json_build_array(fiscal_year, quarter, eps) AS row_as_list
+FROM fundamentals
+WHERE symbol = &#39;CITY&#39;
+ORDER BY quarter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>row_as_list (JSON)</th></tr></thead><tbody><tr><td>CITY</td><td>[&quot;2082/83&quot;,3,11.40]</td></tr><tr><td>CITY</td><td>[&quot;2082/83&quot;,4,12.10]</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="to-jsonb">to_jsonb</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_jsonb(value)</code></pre>
+<p>Turns one SQL value into JSON: text becomes a JSON string with <code>&quot;</code> around it, a number stays a number, <code>TRUE</code>/<code>FALSE</code> stay <code>true</code>/<code>false</code>, and a <code>JSON</code> value stays as it is.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to turn into JSON</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>to_jsonb(NULL)</code> is <code>NULL</code> (SQL NULL, not JSON <code>null</code>).</li><li><strong>Notes:</strong> the same as <a href="functions-json.html#to_json">to_json</a>; PostgreSQL apps write <code>to_jsonb</code>. Use it to make the new value for <a href="functions-json.html#jsonb_set">jsonb_set</a>, so text is not read as JSON by mistake.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_jsonb(symbol) AS as_json_string,
+       to_jsonb(eps) AS as_number,
+       to_jsonb(extra) AS json_stays_json
+FROM fundamentals
+WHERE symbol = &#39;VOLT&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>as_json_string (JSON)</th><th>as_number (JSON)</th><th>json_stays_json (JSON)</th></tr></thead><tbody><tr><td>&quot;VOLT&quot;</td><td>3.20</td><td>{&quot;energy_gwh&quot;:2105.4,&quot;plant_factor_pct&quot;:52.7}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="row_to_json">row_to_json, to_json_row</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">row_to_json(value)
+to_json_row(value)</code></pre>
+<p>Turns a value into JSON, the way a PostgreSQL app calls it on a row. KDB has no whole-row value, so give it a list or an object you built yourself.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to turn into JSON</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>row_to_json(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> for a whole row, build it with <code>json_build_object(&#39;column&#39;, column, ...)</code>. <code>SELECT row_to_json(t) FROM table t</code>, the usual PostgreSQL way, does not work here.</li></ul>
+<p><strong>Example: One row of the company list as JSON</strong></p>
+<pre><code class="language-sql">SELECT row_to_json(json_build_object(&#39;symbol&#39;, symbol, &#39;name&#39;, name)) AS row_json
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>row_json (JSON)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;name&quot;:&quot;City Bank Limited&quot;}</td></tr><tr><td>{&quot;symbol&quot;:&quot;COAST&quot;,&quot;name&quot;:&quot;Coastal Bank Limited&quot;}</td></tr><tr><td>{&quot;symbol&quot;:&quot;VOLT&quot;,&quot;name&quot;:&quot;Volt River Hydropower Limited&quot;}</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="jsonb-set">jsonb_set</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_set(document, path_array, new_value)
+jsonb_set(document, path_array, new_value, create_missing)</code></pre>
+<p>The document with one part set to <code>new_value</code>. The path is an <strong>array of steps</strong> (<code>&#39;{office,city}&#39;</code>), not a <code>$.</code> path.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>document</code></td><td><code>JSON</code></td><td>the document to change</td></tr><tr><td><code>path_array</code></td><td>array or array text</td><td>the steps down to the part, like <code>&#39;{office,city}&#39;</code> or <code>ARRAY[&#39;tags&#39;, 0]</code></td></tr><tr><td><code>new_value</code></td><td><code>JSON</code></td><td>the new value; use <code>to_jsonb(x)</code> for text or a number</td></tr><tr><td><code>create_missing</code></td><td><code>BOOL</code></td><td><code>TRUE</code> (default): add the key when it is not there. <code>FALSE</code>: only change a key that is already there.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. The saved row does not change until you <code>UPDATE</code> it.</li><li><strong>NULL:</strong> a <code>NULL</code> document gives <code>NULL</code>. A <code>NULL</code> path gives the document back. A <code>NULL</code> new value gives <code>NULL</code> (as PostgreSQL does).</li><li><strong>Notes:</strong> a new value that is not JSON is an error - <code>&#39;A&#39;</code> is not JSON, <code>to_jsonb(&#39;A&#39;)</code> is. <a href="functions-json.html#json_set">json_set</a> does the same with a <code>&#39;$.office.city&#39;</code> path.</li></ul>
+<p><strong>Example: Mark a quarter as audited</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">UPDATE fundamentals
+SET extra = jsonb_set(extra, &#39;{audited}&#39;, &#39;true&#39;)
+WHERE symbol = &#39;COAST&#39; AND quarter = 4;</code></pre>
+<pre><code class="language-sql">SELECT symbol, quarter, extra FROM fundamentals WHERE symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>quarter (INT)</th><th>extra (JSON)</th></tr></thead><tbody><tr><td>COAST</td><td>4</td><td>{&quot;npl_pct&quot;:4.10,&quot;car_pct&quot;:12.2,&quot;audited&quot;:true}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: create_missing = FALSE changes only keys that are there</strong></p>
+<pre><code class="language-sql">SELECT jsonb_set(extra, &#39;{npl_pct}&#39;, &#39;3.00&#39;) AS changed,
+       jsonb_set(extra, &#39;{rating}&#39;, to_jsonb(&#39;A&#39;), FALSE) AS not_added,
+       jsonb_set(extra, &#39;{rating}&#39;, to_jsonb(&#39;A&#39;)) AS added
+FROM fundamentals
+WHERE symbol = &#39;COAST&#39; AND quarter = 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>changed (JSON)</th><th>not_added (JSON)</th><th>added (JSON)</th></tr></thead><tbody><tr><td>{&quot;npl_pct&quot;:3.00,&quot;car_pct&quot;:12.2}</td><td>{&quot;npl_pct&quot;:4.10,&quot;car_pct&quot;:12.2}</td><td>{&quot;npl_pct&quot;:4.10,&quot;car_pct&quot;:12.2,&quot;rating&quot;:&quot;A&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The new value must be JSON</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT jsonb_set(extra, &#39;{rating}&#39;, &#39;A&#39;) FROM fundamentals WHERE symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: jsonb_set: the new value is not JSON (use to_jsonb(...) for text)</code></p>
+<h2 id="jsonb-set-lax">jsonb_set_lax</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_set_lax(document, path_array, new_value [, create_missing [, null_value_treatment]])</code></pre>
+<p><a href="functions-json.html#jsonb_set">jsonb_set</a> that says what a <code>NULL</code> new value means, instead of giving <code>NULL</code>.</p>
+<div class="table-wrap"><table><thead><tr><th><code>null_value_treatment</code></th><th>A <code>NULL</code> new value ...</th></tr></thead><tbody><tr><td><code>&#39;use_json_null&#39;</code> (default)</td><td>sets the part to JSON <code>null</code></td></tr><tr><td><code>&#39;delete_key&#39;</code></td><td>removes the part (as <code>#-</code>)</td></tr><tr><td><code>&#39;return_target&#39;</code></td><td>leaves the document as it is</td></tr><tr><td><code>&#39;raise_exception&#39;</code></td><td>is an error (SQLSTATE <code>22004</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code> (<code>jsonb</code>). A new value that is not <code>NULL</code> works exactly as in <code>jsonb_set</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> document, path or <code>create_missing</code> gives <code>NULL</code>. A <code>NULL</code> treatment, or a word not in the table, is an error.</li></ul>
+<p><strong>Example: Clear a key when the app sends no value</strong></p>
+<pre><code class="language-sql">SELECT jsonb_set_lax(&#39;{&quot;phone&quot;: &quot;01-5970015&quot;, &quot;city&quot;: &quot;Kathmandu&quot;}&#39;, &#39;{phone}&#39;, NULL, true, &#39;delete_key&#39;) AS removed,
+       jsonb_set_lax(&#39;{&quot;phone&quot;: &quot;01-5970015&quot;, &quot;city&quot;: &quot;Kathmandu&quot;}&#39;, &#39;{phone}&#39;, NULL) AS json_null;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>removed (JSON)</th><th>json_null (JSON)</th></tr></thead><tbody><tr><td>{&quot;city&quot;:&quot;Kathmandu&quot;}</td><td>{&quot;phone&quot;:null,&quot;city&quot;:&quot;Kathmandu&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="jsonb-insert">jsonb_insert</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_insert(document, path_array, new_value [, insert_after])</code></pre>
+<p>The document with <code>new_value</code> added at the path, never replacing anything (PostgreSQL).</p>
+<ul><li><strong>In a list:</strong> the last step is a place; the value goes <strong>before</strong> it (<code>insert_after</code> true: after it). <code>-1</code> is the last element. A place past either end adds at that end.</li><li><strong>In an object:</strong> the last step is a new key. A key that is already there is an error (SQLSTATE <code>22023</code>): use <a href="functions-json.html#jsonb_set">jsonb_set</a> to change it.</li><li><strong>Returns:</strong> <code>JSON</code> (<code>jsonb</code>). When the path&#39;s parent is not there, the document comes back unchanged.</li><li><strong>NULL:</strong> any <code>NULL</code> argument gives <code>NULL</code>.</li></ul>
+<p><strong>Example: Add a tag at the front, at the end, and a new key</strong></p>
+<pre><code class="language-sql">SELECT jsonb_insert(profile, &#39;{tags,0}&#39;, &#39;&quot;listed&quot;&#39;) AS first_tag,
+       jsonb_insert(profile, &#39;{tags,-1}&#39;, &#39;&quot;retail&quot;&#39;, true) AS last_tag,
+       jsonb_insert(profile, &#39;{office,fax}&#39;, &#39;&quot;01-5970016&quot;&#39;) AS with_fax
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_tag (JSON)</th><th>last_tag (JSON)</th><th>with_fax (JSON)</th></tr></thead><tbody><tr><td>{&quot;website&quot;:&quot;https://www.citybank.example.com&quot;,&quot;office&quot;:{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;phone&quot;:&quot;01-5970015&quot;},&quot;branches&quot;:270,&quot;tags&quot;:[&quot;listed&quot;,&quot;bank&quot;,&quot;A class&quot;]}</td><td>{&quot;website&quot;:&quot;https://www.citybank.example.com&quot;,&quot;office&quot;:{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;phone&quot;:&quot;01-5970015&quot;},&quot;branches&quot;:270,&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;,&quot;retail&quot;]}</td><td>{&quot;website&quot;:&quot;https://www.citybank.example.com&quot;,&quot;office&quot;:{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;phone&quot;:&quot;01-5970015&quot;,&quot;fax&quot;:&quot;01-5970016&quot;},&quot;branches&quot;:270,&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;]}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An existing key is not replaced</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT jsonb_insert(&#39;{&quot;branches&quot;: 270}&#39;, &#39;{branches}&#39;, &#39;300&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: jsonb_insert: cannot replace existing key (use jsonb_set to replace the value of a key)</code></p>
+<h2 id="jsonb_strip_nulls">jsonb_strip_nulls, json_strip_nulls</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_strip_nulls(document)
+json_strip_nulls(document)</code></pre>
+<p>The document without the keys whose value is JSON <code>null</code>, at every level. A <code>null</code> inside a list stays.</p>
+<ul><li><strong>Returns:</strong> <code>JSON</code> (<code>jsonb_strip_nulls</code>: <code>jsonb</code>). <strong>NULL:</strong> <code>NULL</code> gives <code>NULL</code>.</li><li><strong>Notes:</strong> a key written twice counts once in <code>jsonb_strip_nulls</code>, with its last value (<code>{&quot;a&quot;:1,&quot;a&quot;:null}</code> gives <code>{}</code>); <code>json_strip_nulls</code> keeps both and removes only the <code>null</code> one.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT jsonb_strip_nulls(&#39;{&quot;eps&quot;: 12.1, &quot;dividend&quot;: null, &quot;notes&quot;: {&quot;audit&quot;: null}, &quot;q&quot;: [null, 1]}&#39;) AS stripped;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>stripped (JSON)</th></tr></thead><tbody><tr><td>{&quot;eps&quot;:12.1,&quot;notes&quot;:{},&quot;q&quot;:[null,1]}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="jsonb-pretty">jsonb_pretty</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_pretty(document)</code></pre>
+<p>The document as text on many lines, four spaces per level, exactly as PostgreSQL writes it (keys in <code>jsonb</code> order: shorter keys first).</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. <strong>NULL:</strong> <code>NULL</code> gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT jsonb_pretty(profile) FROM companies WHERE symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>jsonb_pretty(profile) (STRING)</th></tr></thead><tbody><tr><td>{     &quot;tags&quot;: [         &quot;bank&quot;     ],     &quot;office&quot;: {         &quot;city&quot;: &quot;Kathmandu&quot;     },     &quot;website&quot;: &quot;https://www.coastalbank.example.com&quot;,     &quot;branches&quot;: 380 }</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="jsonb-object">jsonb_object</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_object(&#39;{key, value, key, value ...}&#39;)
+jsonb_object(&#39;{{key, value}, {key, value} ...}&#39;)
+jsonb_object(keys_array, values_array)</code></pre>
+<p>A JSON object from a text array of pairs, or from a list of keys and a list of values (PostgreSQL). Every value becomes a JSON <strong>string</strong>.</p>
+<ul><li><strong>Returns:</strong> <code>JSON</code> (<code>jsonb</code>). A key given twice keeps its last value.</li><li><strong>NULL:</strong> a <code>NULL</code> value becomes JSON <code>null</code>; a <code>NULL</code> key is an error (<code>22004</code>). An odd number of elements, rows that are not pairs, or lists of different lengths are errors (<code>2202E</code>).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT jsonb_object(&#39;{city,Kathmandu,branches,270}&#39;) AS from_pairs,
+       jsonb_object(ARRAY[&#39;city&#39;, &#39;branches&#39;], ARRAY[&#39;Pokhara&#39;, &#39;12&#39;]) AS from_two_lists;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>from_pairs (JSON)</th><th>from_two_lists (JSON)</th></tr></thead><tbody><tr><td>{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;branches&quot;:&quot;270&quot;}</td><td>{&quot;city&quot;:&quot;Pokhara&quot;,&quot;branches&quot;:&quot;12&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="array-to-json">array_to_json</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_to_json(array [, pretty])</code></pre>
+<p>An array as a JSON list: <code>ARRAY[1, 2]</code> gives <code>[1,2]</code>, <code>ARRAY[&#39;a&#39;, &#39;b&#39;]</code> gives <code>[&quot;a&quot;,&quot;b&quot;]</code>.</p>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. With <code>pretty</code> true: the text PostgreSQL gives, a line break after each comma of the outer list (as <code>STRING</code>, since KDB keeps JSON values compact).</li><li><strong>NULL:</strong> <code>NULL</code> gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT array_to_json(ARRAY[513, 515.6, 527.1]) AS prices;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>prices (JSON)</th></tr></thead><tbody><tr><td>[513,515.6,527.1]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json_extract_path">json_extract_path, jsonb_extract_path</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_extract_path(document, key [, key ...])
+jsonb_extract_path(document, key [, key ...])</code></pre>
+<p>The part of the document at those steps, <strong>as JSON</strong>. Each step is one argument: a key of an object, or the number of a place in a list (counting from <code>0</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>document</code></td><td><code>JSON</code></td><td>the document to read</td></tr><tr><td><code>key</code></td><td><code>STRING</code></td><td>one step down: a key name, or a number for a list</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. With no steps: the whole document.</li><li><strong>NULL:</strong> a step that is not there gives <code>NULL</code>. A <code>NULL</code> document gives <code>NULL</code>.</li><li><strong>Notes:</strong> the same as the operator <code>document #&gt; &#39;{office,city}&#39;</code>. For plain text instead of JSON use <a href="functions-json.html#json_extract_path_text">json_extract_path_text</a>. For a <code>&#39;$.office.city&#39;</code> path use <a href="functions-json.html#json_extract">json_extract</a>.</li></ul>
+<p><strong>Example: City and first tag of a company</strong></p>
+<pre><code class="language-sql">SELECT json_extract_path(profile, &#39;office&#39;, &#39;city&#39;) AS city,
+       json_extract_path(profile, &#39;tags&#39;, &#39;0&#39;) AS first_tag,
+       json_extract_path(profile, &#39;office&#39;, &#39;street&#39;) AS not_there
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (JSON)</th><th>first_tag (JSON)</th><th>not_there (STRING)</th></tr></thead><tbody><tr><td>&quot;Kathmandu&quot;</td><td>&quot;bank&quot;</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json_extract_path_text">json_extract_path_text, jsonb_extract_path_text</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_extract_path_text(document, key [, key ...])
+jsonb_extract_path_text(document, key [, key ...])</code></pre>
+<p>The same as <code>json_extract_path</code>, but the answer is <strong>text</strong>: a JSON string comes back without its quotes.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>document</code></td><td><code>JSON</code></td><td>the document to read</td></tr><tr><td><code>key</code></td><td><code>STRING</code></td><td>one step down: a key name, or a number for a list</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> a step that is not there, or a JSON <code>null</code>, gives <code>NULL</code>.</li><li><strong>Notes:</strong> the same as the operator <code>document #&gt;&gt; &#39;{office,city}&#39;</code>. Text cannot be used in sums: cast it first (<code>::DOUBLE</code>).</li></ul>
+<p><strong>Example: Company office cities as plain text</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       json_extract_path_text(profile, &#39;office&#39;, &#39;city&#39;) AS city,
+       json_extract_path_text(profile, &#39;website&#39;) AS website
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>city (STRING)</th><th>website (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Kathmandu</td><td>https://www.citybank.example.com</td></tr><tr><td>COAST</td><td>Kathmandu</td><td>https://www.coastalbank.example.com</td></tr><tr><td>VOLT</td><td>NULL</td><td>https://www.voltriver.example.com</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="json_typeof">json_typeof, jsonb_typeof</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_typeof(value)
+jsonb_typeof(value)</code></pre>
+<p>What kind of JSON the value is: <code>object</code>, <code>array</code>, <code>string</code>, <code>number</code>, <code>boolean</code> or <code>null</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td><code>JSON</code> (or text that holds JSON)</td><td>the value to look at</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> a SQL <code>NULL</code> gives <code>NULL</code>. The JSON value <code>null</code> gives the text <code>null</code>.</li><li><strong>Notes:</strong> the same as <a href="functions-json.html#json_type">json_type</a>. Use it before you read a part whose shape is not the same in every row.</li></ul>
+<p><strong>Example: Which profiles have a list of tags?</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       json_typeof(profile) AS profile_is,
+       jsonb_typeof(profile -&gt; &#39;tags&#39;) AS tags_is
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>profile_is (STRING)</th><th>tags_is (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>object</td><td>array</td></tr><tr><td>COAST</td><td>object</td><td>array</td></tr><tr><td>VOLT</td><td>object</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="jsonb-array-length">jsonb_array_length</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">jsonb_array_length(json_array)</code></pre>
+<p>How many elements a JSON list has.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>json_array</code></td><td><code>JSON</code></td><td>a JSON list</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> value gives <code>NULL</code>.</li><li><strong>Notes:</strong> the PostgreSQL name for <a href="functions-json.html#json_array_length">json_array_length</a>; both give the same number. A value that is not a list gives <code>NULL</code>, as in PostgreSQL.</li></ul>
+<p><strong>Example: How many tags does a company have</strong></p>
+<pre><code class="language-sql">SELECT symbol, jsonb_array_length(profile -&gt; &#39;tags&#39;) AS tags
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>tags (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The same number three ways</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       json_array_length(profile -&gt; &#39;tags&#39;) AS tags,
+       cardinality(profile -&gt; &#39;tags&#39;) AS same_number
+FROM companies
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>tags (LONG)</th><th>same_number (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>2</td><td>2</td></tr><tr><td>COAST</td><td>1</td><td>1</td></tr><tr><td>VOLT</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="jsonb-delete">-, #- (delete from a document)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">document - &#39;key&#39;
+document - ARRAY[&#39;key1&#39;, &#39;key2&#39;]
+document - position
+document #- &#39;{step,step,...}&#39;</code></pre>
+<p>The document without some part of it (PostgreSQL). The saved row does not change until you <code>UPDATE</code> it.</p>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>What goes</th></tr></thead><tbody><tr><td><code>doc - &#39;key&#39;</code></td><td>that key of an object; in a list, every string element equal to <code>&#39;key&#39;</code></td></tr><tr><td><code>doc - ARRAY[&#39;a&#39;, &#39;b&#39;]</code></td><td>each of those keys</td></tr><tr><td><code>doc - 2</code></td><td>the element at that place of a list, counting from <code>0</code>; <code>-1</code> is the last</td></tr><tr><td><code>doc #- &#39;{office,city}&#39;</code></td><td>the part the path points to; a number step is a place in a list</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. A key or place that is not there leaves the document as it is.</li><li><strong>NULL:</strong> a <code>NULL</code> document or argument gives <code>NULL</code>.</li><li><strong>Notes:</strong> a number on an object (<code>&#39;{&quot;a&quot;:1}&#39;::jsonb - 0</code>) and anything on a plain value (<code>&#39;5&#39;::jsonb - &#39;a&#39;</code>) is an error, as in PostgreSQL. A path step that is not a number where the document has a list is an error too. <a href="functions-json.html#json_remove">json_remove</a> does the same with <code>&#39;$.a&#39;</code> paths.</li></ul>
+<p><strong>Example: Leave out keys, list elements and a nested part</strong></p>
+<pre><code class="language-sql">SELECT profile - &#39;website&#39; AS no_website,
+       profile - ARRAY[&#39;website&#39;, &#39;office&#39;] AS two_keys_less,
+       profile -&gt; &#39;tags&#39; - 0 AS tags_without_first,
+       profile #- &#39;{office,phone}&#39; AS no_phone
+FROM companies
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>no_website (JSON)</th><th>two_keys_less (JSON)</th><th>tags_without_first (JSON)</th><th>no_phone (JSON)</th></tr></thead><tbody><tr><td>{&quot;office&quot;:{&quot;city&quot;:&quot;Kathmandu&quot;,&quot;phone&quot;:&quot;01-5970015&quot;},&quot;branches&quot;:270,&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;]}</td><td>{&quot;branches&quot;:270,&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;]}</td><td>[&quot;A class&quot;]</td><td>{&quot;website&quot;:&quot;https://www.citybank.example.com&quot;,&quot;office&quot;:{&quot;city&quot;:&quot;Kathmandu&quot;},&quot;branches&quot;:270,&quot;tags&quot;:[&quot;bank&quot;,&quot;A class&quot;]}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A number on an object is an error</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT &#39;{&quot;a&quot;: 1}&#39;::jsonb - 0;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 26: cannot delete from object using integer index</code></p>
+<h2 id="json-rows">JSON to rows: jsonb_each, jsonb_array_elements, ...</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT * FROM jsonb_each(document)                -- key, value (JSON)
+SELECT * FROM jsonb_each_text(document)           -- key, value (text)
+SELECT * FROM jsonb_array_elements(list)          -- value (JSON)
+SELECT * FROM jsonb_array_elements_text(list)     -- value (text)
+SELECT * FROM jsonb_object_keys(document)         -- jsonb_object_keys</code></pre>
+<p>These functions make <strong>rows</strong> from one JSON value, as in PostgreSQL: one row per key of an object, or per element of a list. The <code>json_</code> names (<code>json_each</code>, <code>json_array_elements</code>, ...) are the same functions.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Rows</th><th>Columns</th></tr></thead><tbody><tr><td><code>jsonb_each(doc)</code></td><td>one per key</td><td><code>key</code> (text), <code>value</code> (JSON)</td></tr><tr><td><code>jsonb_each_text(doc)</code></td><td>one per key</td><td><code>key</code>, <code>value</code> (text: a string without quotes, JSON <code>null</code> as <code>NULL</code>)</td></tr><tr><td><code>jsonb_array_elements(list)</code></td><td>one per element</td><td><code>value</code> (JSON)</td></tr><tr><td><code>jsonb_array_elements_text(list)</code></td><td>one per element</td><td><code>value</code> (text)</td></tr><tr><td><code>jsonb_object_keys(doc)</code></td><td>one per key</td><td><code>jsonb_object_keys</code> (text)</td></tr></tbody></table></div>
+<ul><li><strong>In FROM:</strong> the argument is a value: a constant, a <code>$1</code> parameter, or a subquery like <code>(SELECT profile FROM companies WHERE symbol = &#39;CITY&#39;)</code>. A column of another table in the same <code>FROM</code> (PostgreSQL&#39;s <code>FROM t, jsonb_each(t.doc)</code>) is <strong>not</strong> supported yet.</li><li><strong>In the SELECT list:</strong> <code>jsonb_array_elements</code>, <code>jsonb_array_elements_text</code> and <code>jsonb_object_keys</code> also work, one row per element for each row, like <a href="functions-postgres.html#unnest">unnest</a>. That is the way to split a column of every row.</li><li><strong>NULL:</strong> a <code>NULL</code> value gives no rows.</li><li><strong>Notes:</strong> a value of the wrong shape is an error, as in PostgreSQL: <code>jsonb_each</code> of a list, <code>jsonb_array_elements</code> of an object. <code>AS e(k, v)</code> renames the columns.</li></ul>
+<p><strong>Example: Every key and value of a profile</strong></p>
+<pre><code class="language-sql">SELECT key, value
+FROM jsonb_each_text((SELECT profile FROM companies WHERE symbol = &#39;COAST&#39;));</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>key (STRING)</th><th>value (STRING)</th></tr></thead><tbody><tr><td>website</td><td>https://www.coastalbank.example.com</td></tr><tr><td>office</td><td>{&quot;city&quot;:&quot;Kathmandu&quot;}</td></tr><tr><td>branches</td><td>380</td></tr><tr><td>tags</td><td>[&quot;bank&quot;]</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: One row per tag of every company (SELECT list)</strong></p>
+<pre><code class="language-sql">SELECT symbol, jsonb_array_elements_text(profile -&gt; &#39;tags&#39;) AS tag
+FROM companies
+WHERE profile ? &#39;tags&#39;
+ORDER BY symbol, tag;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>tag (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>A class</td></tr><tr><td>CITY</td><td>bank</td></tr><tr><td>COAST</td><td>bank</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The keys of a document</strong></p>
+<pre><code class="language-sql">SELECT * FROM jsonb_object_keys(&#39;{&quot;npl_pct&quot;: 2.6, &quot;car_pct&quot;: 13.4}&#39;);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>jsonb_object_keys (STRING)</th></tr></thead><tbody><tr><td>npl_pct</td></tr><tr><td>car_pct</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Not an object</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM jsonb_each(&#39;[1, 2]&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 15: jsonb_each: cannot deconstruct an array as an object</code></p>
+<h2 id="json_to_record">json_to_record, json_to_recordset</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT * FROM json_to_record(document) AS r(column TYPE, ...)
+SELECT * FROM json_to_recordset(list_of_objects) AS r(column TYPE, ...)</code></pre>
+<p>A JSON object as one row, or a list of objects as rows, with the columns and types you write after the alias (PostgreSQL). An app can send many rows as one JSON parameter and insert them with one statement. <code>jsonb_to_record</code> and <code>jsonb_to_recordset</code> are the same.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>document</code> / <code>list_of_objects</code></td><td><code>JSON</code> or text</td><td><code>{&quot;id&quot;: 1, ...}</code> or <code>[{&quot;id&quot;: 1, ...}, {&quot;id&quot;: 2, ...}]</code></td></tr><tr><td><code>AS r(column TYPE, ...)</code></td><td></td><td>each column and its type; a column is read from the key with its name</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> rows with those columns. A key that is missing, or JSON <code>null</code>, gives <code>NULL</code>. Keys without a column are left out.</li><li><strong>Types:</strong> each value is converted as <code>CAST(value AS TYPE)</code>: <code>&quot;2.5&quot;</code> and <code>2.5</code> both give a <code>DOUBLE</code>; a <code>JSON</code> column keeps the part as JSON; a <code>TEXT</code> column gets a string without its quotes, anything else as JSON text. A value that does not fit the type is an error that names the column and the row.</li><li><strong>NULL:</strong> a <code>NULL</code> value gives no rows.</li></ul>
+<p><strong>Example: Rows from a JSON list, as an app would send them</strong></p>
+<pre><code class="language-sql">SELECT *
+FROM json_to_recordset(&#39;[{&quot;symbol&quot;: &quot;CITY&quot;, &quot;eps&quot;: 12.1, &quot;audited&quot;: true},
+                         {&quot;symbol&quot;: &quot;COAST&quot;, &quot;eps&quot;: &quot;6.35&quot;}]&#39;) AS r(symbol TEXT, eps DOUBLE, audited BOOL);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>eps (DOUBLE)</th><th>audited (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>12.1</td><td>true</td></tr><tr><td>COAST</td><td>6.35</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Each column needs a type</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM json_to_record(&#39;{&quot;id&quot;: 1}&#39;) AS r(id);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 15: json_to_record: column &#39;id&#39; needs a type, as in AS r(id INT, sym TEXT)</code></p>
+<h2 id="jsonb_populate_record">jsonb_populate_record, jsonb_populate_recordset</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT * FROM jsonb_populate_record(NULL::table_name, document)
+SELECT * FROM jsonb_populate_recordset(NULL::table_name, list_of_objects)</code></pre>
+<p>Like <a href="#json_to_record">json_to_record</a>, but the columns and their types are those of a <strong>table</strong> (PostgreSQL&#39;s row type). <code>json_populate_record(set)</code> is the same.</p>
+<ul><li><strong>Returns:</strong> rows with the table&#39;s columns, each value converted as an <code>INSERT</code> into that column would do it. Missing keys give <code>NULL</code>.</li><li><strong>Notes:</strong> the first argument must be written <code>NULL::table_name</code>; KDB does not take a row of values there. It is only for <code>FROM</code> (and <code>INSERT INTO t SELECT * FROM ...</code>).</li></ul>
+<p><strong>Example: Insert rows sent as JSON into a table</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">INSERT INTO fundamentals (id, symbol, fiscal_year, quarter, eps)
+SELECT id, symbol, fiscal_year, quarter, eps
+FROM jsonb_populate_recordset(NULL::fundamentals,
+     &#39;[{&quot;id&quot;: 90, &quot;symbol&quot;: &quot;VOLT&quot;, &quot;fiscal_year&quot;: &quot;2083/84&quot;, &quot;quarter&quot;: 1, &quot;eps&quot;: &quot;1.10&quot;}]&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, symbol, quarter, eps FROM fundamentals WHERE id = 90;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (STRING)</th><th>quarter (INT)</th><th>eps (DECIMAL(2))</th></tr></thead><tbody><tr><td>90</td><td>VOLT</td><td>1</td><td>1.10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-json.md">This page as markdown</a>.</footer>
+</body>
+</html>

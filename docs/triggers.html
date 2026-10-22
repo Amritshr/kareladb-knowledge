@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triggers - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="SQL that runs by itself when rows of a table are inserted, updated or deleted.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/triggers.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/triggers.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="triggers">Triggers</h1>
+<blockquote><p>SQL that runs by itself when rows of a table are inserted, updated or deleted.</p></blockquote>
+<ul><li>Category: Triggers</li><li>Keywords: trigger, BEFORE, AFTER, EXECUTE, TRIGGERS, CREATE OR REPLACE TRIGGER, ENABLE TRIGGER, DISABLE TRIGGER, ENABLE, DISABLE, EXECUTE PROCEDURE, EXECUTE CALL, statement level, triggers are nested too deeply, has triggers, audit log, DEFERRED, deferred trigger, RETRY TRIGGER QUEUE, SKIP TRIGGER JOB, trigger queue, /api/trigger-queue, wait</li><li>See also: <a href="procedures.html">Stored procedures</a>, <a href="procedure-language.html">The procedure language</a>, <a href="transactions.html">Transactions</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
+<p>A <strong>trigger</strong> is SQL that KDB runs by itself every time a table changes. You do not call it.
+Use it to keep another table up to date, to write an audit log (a list of who changed what), or to refuse bad changes.</p>
+<ul><li>A trigger runs <strong>once per statement</strong>, not once per row. It reads the changed rows from the tables <a href="triggers.html#new-old"><code>NEW</code> and <code>OLD</code></a>.</li><li>It runs in the <strong>same transaction</strong> as the statement. If the trigger fails, the statement is undone too.</li></ul>
+<p>A real job: the app shows the last price of every share. Instead of searching <code>live_data</code> every time, a trigger keeps a small table <code>latest_price</code> up to date.</p>
+<p><strong>Example: Market data: keep the latest price of every share up to date</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE TABLE latest_price (symbol SYMBOL PRIMARY KEY, ltp DOUBLE, time TIMESTAMP);
+
+CREATE TRIGGER keep_latest AFTER INSERT ON live_data EXECUTE BEGIN
+  FOR r IN (SELECT symbol, last(ltp) AS ltp, max(timestamp) AS time FROM NEW GROUP BY symbol) DO
+    INSERT OR REPLACE INTO latest_price VALUES (r.symbol, r.ltp, r.time);
+  END FOR;
+END;
+
+INSERT INTO live_data VALUES
+  (&#39;2026-09-11T11:00:00+05:45&#39;, &#39;CITY&#39;, 528.0, 10, 0.9, 0.17, 527.1, 528.0, 527.1, 527.5, 527.1, 1200),
+  (&#39;2026-09-11T11:01:00+05:45&#39;, &#39;CITY&#39;, 529.5, 20, 2.4, 0.46, 527.1, 529.5, 527.1, 528.2, 527.1, 3400),
+  (&#39;2026-09-11T11:00:00+05:45&#39;, &#39;COAST&#39;, 402.5, 10, 0.6, 0.15, 401.9, 402.5, 401.9, 402.2, 401.9, 800);
+
+SELECT symbol, ltp, time FROM latest_price ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE latest_price (</code></p>
+<pre><code class="language-text">table &#39;latest_price&#39; created</code></pre>
+<p><code>CREATE TRIGGER keep_latest AFTER INSERT ON live_data EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;keep_latest&#39; created on table &#39;live_data&#39;</code></pre>
+<p><code>INSERT INTO live_data VALUES (&#39;2026-09-11T11:00:00+05:45&#39;, &#39;CITY&#39;, 528.0, 10, 0.9, 0.17, 527.1, 528.</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT symbol, ltp, time FROM latest_price ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>time (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>529.5</td><td>2026-09-11T05:16:00.000Z</td></tr><tr><td>COAST</td><td>402.5</td><td>2026-09-11T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="create-trigger">CREATE TRIGGER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] TRIGGER name {BEFORE | AFTER} {INSERT | UPDATE | DELETE} ON table
+  EXECUTE CALL procedure(argument, ...)
+CREATE [OR REPLACE] TRIGGER name {BEFORE | AFTER} {INSERT | UPDATE | DELETE} ON table
+  EXECUTE PROCEDURE procedure(argument, ...)
+CREATE [OR REPLACE] TRIGGER name {BEFORE | AFTER} {INSERT | UPDATE | DELETE} ON table
+  EXECUTE {INSERT ... | UPDATE ... | DELETE ...}
+CREATE [OR REPLACE] TRIGGER name {BEFORE | AFTER} {INSERT | UPDATE | DELETE} ON table
+  EXECUTE BEGIN statement; ... END</code></pre>
+<p>Saves a trigger on a table. <code>OR REPLACE</code> changes a trigger that already exists.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the trigger name. It must be unique in the database (not only in the table).</td></tr><tr><td><code>BEFORE</code> / <code>AFTER</code></td><td>run before the rows are written, or after. See <a href="triggers.html#before-after">BEFORE and AFTER</a>.</td></tr><tr><td><code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code></td><td>the kind of change. <code>INSERT OR REPLACE</code> and <code>INSERT OR IGNORE</code> are <code>INSERT</code>. One trigger has one kind: make two triggers for two kinds.</td></tr><tr><td><code>ON table</code></td><td>the table. It must exist. Not a view.</td></tr><tr><td><code>EXECUTE CALL p(...)</code></td><td>run a <a href="procedures.html">procedure</a>. Inside it, <code>NEW</code> and <code>OLD</code> work too.</td></tr><tr><td><code>EXECUTE PROCEDURE p(...)</code></td><td>the same as <code>EXECUTE CALL</code> (the PostgreSQL way to write it)</td></tr><tr><td><code>EXECUTE INSERT/UPDATE/DELETE ...</code></td><td>run one statement</td></tr><tr><td><code>EXECUTE BEGIN ... END</code></td><td>run a body, like a procedure body: variables, <code>IF</code>, <code>FOR</code>, <code>RAISE</code>, <code>PRINT</code> (<a href="procedure-language.html">the procedure language</a>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>trigger &#39;name&#39; created on table &#39;table&#39;</code> (or <code>replaced</code>).</li><li><strong>Notes:</strong>
+<ul><li>A trigger fires for every way of writing: SQL, <code>POST /write</code> (line protocol), and bulk loads. A statement that changes no row does not fire it.</li><li><code>EXECUTE SELECT ...</code> is not allowed. To copy the rows of <code>NEW</code> into another table, use <code>INSERT INTO other SELECT ... FROM NEW</code> or <code>BEGIN FOR r IN (SELECT ... FROM NEW) DO INSERT ... END FOR; END</code>.</li><li><code>PRINT</code> lines of a trigger come back as a <code>print</code> result of the statement that fired it.</li><li><code>CREATE TRIGGER</code> cannot be used inside <code>BEGIN ... COMMIT</code>.</li><li>Keep trigger bodies short: they run inside every change of the table. See <a href="triggers.html#speed">triggers and load speed</a>.</li></ul></li></ul>
+<p><strong>Example: App users: write a sign-up audit log</strong></p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, email STRING NOT NULL, created TIMESTAMP DEFAULT now());
+CREATE TABLE audit_log (id LONG PRIMARY KEY AUTO, time TIMESTAMP DEFAULT now(), action STRING, detail STRING);
+
+CREATE TRIGGER log_signup AFTER INSERT ON app_users EXECUTE BEGIN
+  FOR u IN (SELECT id, email FROM NEW ORDER BY id) DO
+    INSERT INTO audit_log (action, detail) VALUES (&#39;sign-up&#39;, concat(&#39;user &#39;, u.id, &#39;: &#39;, u.email));
+  END FOR;
+END;
+
+INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;);
+INSERT INTO app_users (email) VALUES (&#39;hari@example.com&#39;);
+SELECT id, action, detail FROM audit_log ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE app_users (</code></p>
+<pre><code class="language-text">table &#39;app_users&#39; created</code></pre>
+<p><code>CREATE TABLE audit_log (</code></p>
+<pre><code class="language-text">table &#39;audit_log&#39; created</code></pre>
+<p><code>CREATE TRIGGER log_signup AFTER INSERT ON app_users EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;log_signup&#39; created on table &#39;app_users&#39;</code></pre>
+<p><code>INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>INSERT INTO app_users (email) VALUES (&#39;hari@example.com&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, action, detail FROM audit_log ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>action (STRING)</th><th>detail (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sign-up</td><td>user 1: ram@example.com</td></tr><tr><td>2</td><td>sign-up</td><td>user 2: sita@example.com</td></tr><tr><td>3</td><td>sign-up</td><td>user 3: hari@example.com</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Forum: post counters kept by two triggers that call procedures</strong></p>
+<pre><code class="language-sql">CREATE TABLE topics (id INT PRIMARY KEY, title STRING NOT NULL, posts LONG NOT NULL DEFAULT 0);
+CREATE TABLE posts (id LONG PRIMARY KEY AUTO, topic_id INT NOT NULL, author STRING, body STRING);
+
+CREATE PROCEDURE count_new_posts() AS BEGIN
+  FOR r IN (SELECT topic_id, count(*) AS n FROM NEW GROUP BY topic_id) DO
+    UPDATE topics SET posts = posts + r.n WHERE id = r.topic_id;
+  END FOR;
+END;
+CREATE PROCEDURE count_deleted_posts() AS BEGIN
+  FOR r IN (SELECT topic_id, count(*) AS n FROM OLD GROUP BY topic_id) DO
+    UPDATE topics SET posts = posts - r.n WHERE id = r.topic_id;
+  END FOR;
+END;
+CREATE TRIGGER posts_added AFTER INSERT ON posts EXECUTE CALL count_new_posts();
+CREATE TRIGGER posts_removed AFTER DELETE ON posts EXECUTE PROCEDURE count_deleted_posts();
+
+INSERT INTO topics (id, title) VALUES (1, &#39;CITY results&#39;), (2, &#39;Hydro IPOs&#39;);
+INSERT INTO posts (topic_id, author, body) VALUES (1, &#39;ram&#39;, &#39;Profit is up&#39;), (1, &#39;sita&#39;, &#39;Agree&#39;), (2, &#39;hari&#39;, &#39;When?&#39;);
+DELETE FROM posts WHERE author = &#39;sita&#39;;
+SELECT id, title, posts FROM topics ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE topics (</code></p>
+<pre><code class="language-text">table &#39;topics&#39; created</code></pre>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE PROCEDURE count_new_posts() AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;count_new_posts&#39; created</code></pre>
+<p><code>CREATE PROCEDURE count_deleted_posts() AS BEGIN</code></p>
+<pre><code class="language-text">procedure &#39;count_deleted_posts&#39; created</code></pre>
+<p><code>CREATE TRIGGER posts_added AFTER INSERT ON posts EXECUTE CALL count_new_posts()</code></p>
+<pre><code class="language-text">trigger &#39;posts_added&#39; created on table &#39;posts&#39;</code></pre>
+<p><code>CREATE TRIGGER posts_removed AFTER DELETE ON posts EXECUTE CALL count_deleted_posts()</code></p>
+<pre><code class="language-text">trigger &#39;posts_removed&#39; created on table &#39;posts&#39;</code></pre>
+<p><code>INSERT INTO topics (id, title) VALUES (1, &#39;CITY results&#39;), (2, &#39;Hydro IPOs&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>INSERT INTO posts (topic_id, author, body) VALUES (1, &#39;ram&#39;, &#39;Profit is up&#39;), (1, &#39;sita&#39;, &#39;Agree&#39;), </code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>DELETE FROM posts WHERE author = &#39;sita&#39;</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>SELECT id, title, posts FROM topics ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>title (STRING)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>1</td><td>CITY results</td><td>1</td></tr><tr><td>2</td><td>Hydro IPOs</td><td>1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: One statement: count the changes of a table</strong></p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE stats (name STRING PRIMARY KEY, n LONG NOT NULL);
+INSERT INTO stats VALUES (&#39;broker inserts&#39;, 0);
+
+CREATE TRIGGER count_broker_inserts AFTER INSERT ON brokers
+  EXECUTE UPDATE stats SET n = n + 1 WHERE name = &#39;broker inserts&#39;;
+
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (34, &#39;Vision Securities&#39;);
+INSERT INTO brokers VALUES (45, &#39;Imperial Securities&#39;);
+SELECT * FROM stats;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE brokers (</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; created</code></pre>
+<p><code>CREATE TABLE stats (</code></p>
+<pre><code class="language-text">table &#39;stats&#39; created</code></pre>
+<p><code>INSERT INTO stats VALUES (&#39;broker inserts&#39;, 0)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>CREATE TRIGGER count_broker_inserts AFTER INSERT ON brokers EXECUTE UPDATE stats SET n = n + 1 WHERE</code></p>
+<pre><code class="language-text">trigger &#39;count_broker_inserts&#39; created on table &#39;brokers&#39;</code></pre>
+<p><code>INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (34, &#39;Vision Securities&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>INSERT INTO brokers VALUES (45, &#39;Imperial Securities&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT * FROM stats</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>n (LONG)</th></tr></thead><tbody><tr><td>broker inserts</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: EXECUTE SELECT is not allowed</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TRIGGER t AFTER INSERT ON brokers EXECUTE SELECT * FROM NEW;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 2, column 50: expected CALL, INSERT, UPDATE, DELETE or BEGIN ... END after EXECUTE but found &#39;SELECT&#39;</code></p>
+<p><strong>Example: The table must exist</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TRIGGER t AFTER INSERT ON orders EXECUTE BEGIN PRINT &#39;new order&#39;; END;</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;orders&#39; does not exist</code></p>
+<h2 id="before-after">BEFORE and AFTER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TRIGGER name BEFORE {INSERT | UPDATE | DELETE} ON table EXECUTE ...
+CREATE TRIGGER name AFTER {INSERT | UPDATE | DELETE} ON table EXECUTE ...</code></pre>
+<div class="table-wrap"><table><thead><tr><th></th><th><code>BEFORE</code></th><th><code>AFTER</code></th></tr></thead><tbody><tr><td>runs</td><td>before the rows are written</td><td>after the rows are written</td></tr><tr><td>the table itself</td><td>does not have the change yet</td><td>already has the change</td></tr><tr><td>use it to</td><td>check the rows and refuse them with <code>RAISE</code></td><td>change other tables</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Order: all <code>BEFORE</code> triggers of the table and event, then the change, then all <code>AFTER</code> triggers. Several triggers of the same kind run in <strong>name order</strong>.</li><li>A <code>BEFORE</code> trigger cannot change the rows that are being written (<code>UPDATE NEW</code> is an error). It can only accept them or refuse them.</li><li><code>RAISE</code> in a <code>BEFORE</code> or <code>AFTER</code> trigger undoes the whole statement.</li></ul></li></ul>
+<p><strong>Example: The order in which triggers run</strong></p>
+<pre><code class="language-sql">CREATE TABLE t (id INT PRIMARY KEY);
+CREATE TRIGGER b_second BEFORE INSERT ON t EXECUTE BEGIN PRINT concat(&#39;before b_second, rows in t: &#39;, (SELECT count(*) FROM t)); END;
+CREATE TRIGGER a_first BEFORE INSERT ON t EXECUTE BEGIN PRINT concat(&#39;before a_first, rows in t: &#39;, (SELECT count(*) FROM t)); END;
+CREATE TRIGGER c_after AFTER INSERT ON t EXECUTE BEGIN PRINT concat(&#39;after c_after, rows in t: &#39;, (SELECT count(*) FROM t)); END;
+INSERT INTO t VALUES (1), (2);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE t (</code></p>
+<pre><code class="language-text">table &#39;t&#39; created</code></pre>
+<p><code>CREATE TRIGGER b_second BEFORE INSERT ON t EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;b_second&#39; created on table &#39;t&#39;</code></pre>
+<p><code>CREATE TRIGGER a_first BEFORE INSERT ON t EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;a_first&#39; created on table &#39;t&#39;</code></pre>
+<p><code>CREATE TRIGGER c_after AFTER INSERT ON t EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;c_after&#39; created on table &#39;t&#39;</code></pre>
+<p><code>INSERT INTO t VALUES (1), (2)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>before a_first, rows in t: 0</td></tr><tr><td>before b_second, rows in t: 0</td></tr><tr><td>after c_after, rows in t: 2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Market data: refuse a price of 0 or less</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TRIGGER check_price BEFORE INSERT ON live_data EXECUTE BEGIN
+  IF EXISTS (SELECT 1 FROM NEW WHERE ltp &lt;= 0) THEN
+    RAISE &#39;ltp must be more than 0&#39;;
+  END IF;
+END;
+
+INSERT INTO live_data VALUES
+  (&#39;2026-09-11T11:02:00+05:45&#39;, &#39;CITY&#39;, 0, 10, 0, 0, 527.1, 529.5, 527.1, 528.2, 527.1, 3500);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">trigger &#39;check_price&#39; created on table &#39;live_data&#39;</code></pre>
+<p>Error: <code>trigger &#39;check_price&#39;, line 3: ltp must be more than 0</code></p>
+<p><strong>Example: Accounting: a balance may never go below zero</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0);
+
+CREATE TRIGGER no_negative_balance BEFORE UPDATE ON accounts EXECUTE BEGIN
+  FOR r IN (SELECT id, balance FROM NEW WHERE balance &lt; 0) DO
+    RAISE concat(&#39;account &#39;, r.id, &#39; would go below zero: &#39;, r.balance);
+  END FOR;
+END;
+
+UPDATE accounts SET balance = balance - 300 WHERE id = 1;
+UPDATE accounts SET balance = balance - 300 WHERE id = 2;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 0)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>CREATE TRIGGER no_negative_balance BEFORE UPDATE ON accounts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;no_negative_balance&#39; created on table &#39;accounts&#39;</code></pre>
+<p><code>UPDATE accounts SET balance = balance - 300 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p>Error: <code>trigger &#39;no_negative_balance&#39;, line 3: account 2 would go below zero: -300.00</code></p>
+<h2 id="new-old">NEW, OLD</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM NEW
+SELECT ... FROM OLD
+SELECT ... FROM OLD o JOIN NEW n ON o.id = n.id</code></pre>
+<p>Inside a trigger (and in a procedure that the trigger calls), two tables hold the changed rows. They have the columns of the changed table.</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th><code>INSERT</code></th><th><code>UPDATE</code></th><th><code>DELETE</code></th></tr></thead><tbody><tr><td><code>NEW</code></td><td>the inserted rows</td><td>the rows after the change</td><td>(empty)</td></tr><tr><td><code>OLD</code></td><td>(empty)</td><td>the rows before the change</td><td>the deleted rows</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Use them like read-only tables in <code>SELECT</code>, <code>FOR r IN (SELECT ... FROM NEW)</code>, <code>EXISTS (...)</code>, <code>SET</code> and <code>DECLARE ... DEFAULT (SELECT ...)</code>. <code>INSERT INTO NEW</code>, <code>UPDATE NEW</code> and <code>DELETE FROM NEW</code> are errors.</li><li><code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> cannot hold a subquery. So <code>UPDATE topics SET posts = posts + (SELECT count(*) FROM NEW)</code> is an error: put the count in a variable first, or loop with <code>FOR</code>.</li><li>For <code>INSERT OR REPLACE</code>, the trigger is an <code>INSERT</code> trigger: <code>NEW</code> holds all written rows, and <code>OLD</code> is <strong>empty</strong>, also for the rows that were replaced.</li><li>For <code>INSERT OR IGNORE</code>, <code>NEW</code> holds only the rows that were really inserted.</li><li>Outside a trigger, <code>NEW</code> and <code>OLD</code> do not exist (unless you have tables with these names).</li></ul></li></ul>
+<p><strong>Example: Price change log: OLD and NEW side by side</strong></p>
+<pre><code class="language-sql">CREATE TABLE share_prices (symbol SYMBOL PRIMARY KEY, ltp DOUBLE);
+CREATE TABLE price_changes (symbol SYMBOL, old_ltp DOUBLE, new_ltp DOUBLE, changed TIMESTAMP DEFAULT now());
+INSERT INTO share_prices VALUES (&#39;CITY&#39;, 514.5), (&#39;COAST&#39;, 398.0), (&#39;VOLT&#39;, 187.3);
+
+CREATE TRIGGER log_price_change AFTER UPDATE ON share_prices EXECUTE BEGIN
+  FOR r IN (SELECT o.symbol AS symbol, o.ltp AS old_ltp, n.ltp AS new_ltp
+            FROM OLD o JOIN NEW n ON o.symbol = n.symbol
+            WHERE o.ltp != n.ltp) DO
+    INSERT INTO price_changes (symbol, old_ltp, new_ltp) VALUES (r.symbol, r.old_ltp, r.new_ltp);
+  END FOR;
+END;
+
+UPDATE share_prices SET ltp = round(ltp * 1.02, 1) WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;);
+SELECT symbol, old_ltp, new_ltp FROM price_changes ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE share_prices (</code></p>
+<pre><code class="language-text">table &#39;share_prices&#39; created</code></pre>
+<p><code>CREATE TABLE price_changes (</code></p>
+<pre><code class="language-text">table &#39;price_changes&#39; created</code></pre>
+<p><code>INSERT INTO share_prices VALUES (&#39;CITY&#39;, 514.5), (&#39;COAST&#39;, 398.0), (&#39;VOLT&#39;, 187.3)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>CREATE TRIGGER log_price_change AFTER UPDATE ON share_prices EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;log_price_change&#39; created on table &#39;share_prices&#39;</code></pre>
+<p><code>UPDATE share_prices SET ltp = round(ltp * 1.02, 1) WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;)</code></p>
+<pre><code class="language-text">2 row(s) updated</code></pre>
+<p><code>SELECT symbol, old_ltp, new_ltp FROM price_changes ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>old_ltp (DOUBLE)</th><th>new_ltp (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>514.5</td><td>524.8</td></tr><tr><td>COAST</td><td>398</td><td>406</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Keep a copy of deleted users</strong></p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY, email STRING NOT NULL);
+CREATE TABLE deleted_users (id INT, email STRING, deleted TIMESTAMP DEFAULT now());
+INSERT INTO app_users VALUES (1, &#39;ram@example.com&#39;), (2, &#39;sita@example.com&#39;), (3, &#39;spam@example.com&#39;);
+
+CREATE TRIGGER keep_deleted BEFORE DELETE ON app_users EXECUTE BEGIN
+  FOR u IN (SELECT id, email FROM OLD) DO
+    INSERT INTO deleted_users (id, email) VALUES (u.id, u.email);
+  END FOR;
+END;
+
+DELETE FROM app_users WHERE email LIKE &#39;spam%&#39;;
+SELECT id, email FROM deleted_users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE app_users (</code></p>
+<pre><code class="language-text">table &#39;app_users&#39; created</code></pre>
+<p><code>CREATE TABLE deleted_users (</code></p>
+<pre><code class="language-text">table &#39;deleted_users&#39; created</code></pre>
+<p><code>INSERT INTO app_users VALUES (1, &#39;ram@example.com&#39;), (2, &#39;sita@example.com&#39;), (3, &#39;spam@example.com&#39;</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>CREATE TRIGGER keep_deleted BEFORE DELETE ON app_users EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;keep_deleted&#39; created on table &#39;app_users&#39;</code></pre>
+<p><code>DELETE FROM app_users WHERE email LIKE &#39;spam%&#39;</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>SELECT id, email FROM deleted_users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th></tr></thead><tbody><tr><td>3</td><td>spam@example.com</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: What NEW and OLD hold for INSERT OR REPLACE and UPDATE</strong></p>
+<pre><code class="language-sql">CREATE TABLE t (id INT PRIMARY KEY, v INT);
+CREATE TRIGGER show_insert AFTER INSERT ON t EXECUTE BEGIN
+  PRINT concat(&#39;insert: NEW rows &#39;, (SELECT count(*) FROM NEW), &#39;, OLD rows &#39;, (SELECT count(*) FROM OLD));
+END;
+CREATE TRIGGER show_update AFTER UPDATE ON t EXECUTE BEGIN
+  PRINT concat(&#39;update: NEW rows &#39;, (SELECT count(*) FROM NEW), &#39;, OLD rows &#39;, (SELECT count(*) FROM OLD));
+END;
+INSERT INTO t VALUES (1, 10);
+INSERT OR REPLACE INTO t VALUES (1, 11), (2, 20);
+UPDATE t SET v = v + 1;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE t (</code></p>
+<pre><code class="language-text">table &#39;t&#39; created</code></pre>
+<p><code>CREATE TRIGGER show_insert AFTER INSERT ON t EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;show_insert&#39; created on table &#39;t&#39;</code></pre>
+<p><code>CREATE TRIGGER show_update AFTER UPDATE ON t EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;show_update&#39; created on table &#39;t&#39;</code></pre>
+<p><code>INSERT INTO t VALUES (1, 10)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>insert: NEW rows 1, OLD rows 0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>INSERT OR REPLACE INTO t VALUES (1, 11), (2, 20)</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 replaced</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>insert: NEW rows 2, OLD rows 0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>UPDATE t SET v = v + 1</code></p>
+<pre><code class="language-text">2 row(s) updated</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>update: NEW rows 2, OLD rows 2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: NEW cannot be changed</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE t (id INT PRIMARY KEY, v INT);
+CREATE TRIGGER fix_value BEFORE INSERT ON t EXECUTE BEGIN
+  UPDATE NEW SET v = 0 WHERE v &lt; 0;
+END;
+INSERT INTO t VALUES (1, -5);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE t (</code></p>
+<pre><code class="language-text">table &#39;t&#39; created</code></pre>
+<p><code>CREATE TRIGGER fix_value BEFORE INSERT ON t EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;fix_value&#39; created on table &#39;t&#39;</code></pre>
+<p>Error: <code>trigger &#39;fix_value&#39;, line 2: table &#39;NEW&#39; does not exist</code></p>
+<h2 id="once-per-statement">Once per statement</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT INTO t VALUES (...), (...), (...)   -- the trigger runs once, NEW has 3 rows</code></pre>
+<p>A KDB trigger is <strong>statement level</strong>: it runs once for each statement (or <code>POST /write</code> request, or bulk load call), and <code>NEW</code> / <code>OLD</code> hold all rows of that statement.
+It is not &quot;for each row&quot; like in some other databases.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>Write the body for many rows: <code>FOR r IN (SELECT ... FROM NEW)</code>, <code>GROUP BY</code>, <code>count(*)</code>.</li><li>A statement that changes no row (<code>UPDATE ... WHERE</code> with no match, <code>DELETE</code> of nothing) does not fire the trigger.</li></ul></li></ul>
+<p><strong>Example: Three rows, one run</strong></p>
+<pre><code class="language-sql">CREATE TABLE floor_trades (id LONG PRIMARY KEY, symbol SYMBOL, quantity LONG);
+CREATE TRIGGER report AFTER INSERT ON floor_trades EXECUTE BEGIN
+  PRINT concat(&#39;trigger ran once for &#39;, (SELECT count(*) FROM NEW), &#39; rows, &#39;, (SELECT sum(quantity) FROM NEW), &#39; shares&#39;);
+END;
+INSERT INTO floor_trades VALUES (1, &#39;CITY&#39;, 10), (2, &#39;COAST&#39;, 500), (3, &#39;CITY&#39;, 40);
+UPDATE floor_trades SET quantity = 0 WHERE symbol = &#39;TELCO&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE floor_trades (</code></p>
+<pre><code class="language-text">table &#39;floor_trades&#39; created</code></pre>
+<p><code>CREATE TRIGGER report AFTER INSERT ON floor_trades EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;report&#39; created on table &#39;floor_trades&#39;</code></pre>
+<p><code>INSERT INTO floor_trades VALUES (1, &#39;CITY&#39;, 10), (2, &#39;COAST&#39;, 500), (3, &#39;CITY&#39;, 40)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>print</code></p>
+<div class="table-wrap"><table><thead><tr><th>output (STRING)</th></tr></thead><tbody><tr><td>trigger ran once for 3 rows, 550 shares</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>UPDATE floor_trades SET quantity = 0 WHERE symbol = &#39;TELCO&#39;</code></p>
+<pre><code class="language-text">0 row(s) updated</code></pre>
+<h2 id="per-user-results">Per-user results kept up to date</h2>
+<p>An app shows every user their own watch list: the last price of each share they follow, and whether it passed their alert price. Working that out from the trades on every page view is slow. Instead, triggers keep a small <strong>results table</strong> with one row per user and share, and the app reads it by its key.</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>Holds</th><th>Changed by</th></tr></thead><tbody><tr><td><code>watchlist</code></td><td>what each user follows, and their alert price</td><td>the app</td></tr><tr><td><code>trades</code></td><td>every trade (a time-series table)</td><td>the feed</td></tr><tr><td><code>user_quotes</code></td><td>one row per user and share: last price, time, alert</td><td>the triggers only</td></tr></tbody></table></div>
+<ul><li><strong>Three triggers:</strong> a new trade updates the rows of every user who follows that share. A new watch-list row gets its price at once from the latest trade. A removed watch-list row removes its result.</li><li><strong>Upsert:</strong> <code>INSERT ... ON CONFLICT (key) DO UPDATE</code> writes the row when it is new and changes it when it is there (<a href="insert.html#on-conflict">ON CONFLICT</a>).</li><li><strong>One row per share from <code>NEW</code>:</strong> a write with many trades of one share gives the trigger many rows. <code>GROUP BY symbol</code> with <code>last(price)</code> makes it one, so each result row is written once.</li><li><strong>Reading is a key lookup:</strong> <code>WHERE user_name = &#39;ram&#39;</code> on the key reads only that user&#39;s rows, however many users there are.</li><li><strong>In memory:</strong> a small table like <code>user_quotes</code> stays loaded; it is the last one KDB unloads when memory is short (<a href="cli-serve.html#memory-limit">memory limit</a>).</li></ul>
+<p><strong>Example: A watch list with alerts, kept up to date by triggers</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE watchlist (user_name STRING NOT NULL, symbol SYMBOL NOT NULL, alert_above DOUBLE, PRIMARY KEY (user_name, symbol));
+CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+CREATE TABLE user_quotes (user_name STRING NOT NULL, symbol SYMBOL NOT NULL, price DOUBLE, time TIMESTAMP, alert BOOL,
+  PRIMARY KEY (user_name, symbol));
+
+-- A new trade: update every user who follows that share.
+CREATE TRIGGER quotes_on_trade AFTER INSERT ON trades EXECUTE
+  INSERT INTO user_quotes (user_name, symbol, price, time, alert)
+  SELECT w.user_name, n.symbol, n.price, n.time, n.price &gt; w.alert_above
+  FROM (SELECT symbol, last(price) AS price, max(time) AS time FROM NEW GROUP BY symbol) n
+  JOIN watchlist w ON w.symbol = n.symbol
+  ON CONFLICT (user_name, symbol) DO UPDATE SET price = EXCLUDED.price, time = EXCLUDED.time, alert = EXCLUDED.alert;
+
+-- A share added to a watch list: its latest trade right away.
+CREATE TRIGGER quotes_on_follow AFTER INSERT ON watchlist EXECUTE
+  INSERT INTO user_quotes (user_name, symbol, price, time, alert)
+  SELECT n.user_name, n.symbol, t.price, t.time, t.price &gt; n.alert_above
+  FROM NEW n JOIN (SELECT symbol, price, time FROM trades LATEST ON time PARTITION BY symbol) t ON t.symbol = n.symbol
+  ON CONFLICT (user_name, symbol) DO UPDATE SET price = EXCLUDED.price, time = EXCLUDED.time, alert = EXCLUDED.alert;
+
+-- A share removed from a watch list: its result goes too.
+CREATE TRIGGER quotes_on_unfollow AFTER DELETE ON watchlist EXECUTE
+  DELETE FROM user_quotes WHERE (user_name, symbol) IN (SELECT user_name, symbol FROM OLD);</code></pre>
+<pre><code class="language-sql">INSERT INTO watchlist VALUES (&#39;ram&#39;, &#39;CITY&#39;, 520), (&#39;ram&#39;, &#39;NABIL&#39;, 1300), (&#39;sita&#39;, &#39;CITY&#39;, 500);
+INSERT INTO trades VALUES (&#39;2026-09-24T10:00:00Z&#39;, &#39;CITY&#39;, 498.0), (&#39;2026-09-24T10:00:01Z&#39;, &#39;NABIL&#39;, 1250.0),
+  (&#39;2026-09-24T10:00:02Z&#39;, &#39;HIDCL&#39;, 180.0);
+INSERT INTO trades VALUES (&#39;2026-09-24T10:05:00Z&#39;, &#39;CITY&#39;, 505.5), (&#39;2026-09-24T10:06:00Z&#39;, &#39;CITY&#39;, 512.0);
+INSERT INTO watchlist VALUES (&#39;sita&#39;, &#39;HIDCL&#39;, 175);
+DELETE FROM watchlist WHERE user_name = &#39;ram&#39; AND symbol = &#39;NABIL&#39;;
+
+SELECT symbol, price, time, alert FROM user_quotes WHERE user_name = &#39;ram&#39; ORDER BY symbol;
+SELECT user_name, symbol, price FROM user_quotes WHERE alert ORDER BY user_name, symbol;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO watchlist VALUES (&#39;ram&#39;, &#39;CITY&#39;, 520), (&#39;ram&#39;, &#39;NABIL&#39;, 1300), (&#39;sita&#39;, &#39;CITY&#39;, 500)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>INSERT INTO trades VALUES (&#39;2026-09-24T10:00:00Z&#39;, &#39;CITY&#39;, 498.0), (&#39;2026-09-24T10:00:01Z&#39;, &#39;NABIL&#39;,</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>INSERT INTO trades VALUES (&#39;2026-09-24T10:05:00Z&#39;, &#39;CITY&#39;, 505.5), (&#39;2026-09-24T10:06:00Z&#39;, &#39;CITY&#39;, </code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>INSERT INTO watchlist VALUES (&#39;sita&#39;, &#39;HIDCL&#39;, 175)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>DELETE FROM watchlist WHERE user_name = &#39;ram&#39; AND symbol = &#39;NABIL&#39;</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>SELECT symbol, price, time, alert FROM user_quotes WHERE user_name = &#39;ram&#39; ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th><th>time (TIMESTAMP)</th><th>alert (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>512</td><td>2026-09-24T10:06:00.000Z</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT user_name, symbol, price FROM user_quotes WHERE alert ORDER BY user_name, symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>user_name (STRING)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>sita</td><td>CITY</td><td>512</td></tr><tr><td>sita</td><td>HIDCL</td><td>180</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>A change of <code>alert_above</code> needs one more trigger (<code>AFTER UPDATE ON watchlist</code>) in the same way, or the app updates <code>user_quotes</code> itself.</li><li>For a feed that writes thousands of trades a second, make <code>quotes_on_trade</code> <a href="#deferred">DEFERRED</a>: loads stay fast, and the results follow a moment later.</li></ul></li></ul>
+<h2 id="speed">Triggers and load speed</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TRIGGER name AFTER INSERT ON table DEFERRED EXECUTE ...   -- for a table that is loaded in bulk</code></pre>
+<p>A normal (immediate) <code>INSERT</code> trigger must see the rows of each write in <code>NEW</code>, inside the write. So writes into <strong>its own table</strong> take the slower row-by-row way.
+Writes into <strong>other tables</strong> are not slowed by it.</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>How a load into it is written</th></tr></thead><tbody><tr><td>no <code>INSERT</code> trigger</td><td>the fast way: <code>POST /write</code> and bulk loads write the rows as sorted blocks</td></tr><tr><td>only <a href="triggers.html#deferred">DEFERRED</a> triggers</td><td>the fast way too. The trigger runs after the commit.</td></tr><tr><td>a <code>BEFORE INSERT</code> or <code>AFTER INSERT</code> trigger that is not deferred</td><td>row by row, with the trigger inside the write. In a test with 20,000 rows: about 32 ms instead of 7 ms.</td></tr><tr><td>another table has an immediate trigger</td><td>the fast way (since 2026-09-23; before, one trigger anywhere in the database slowed every load)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>For a table that is loaded in bulk (a live feed, a floor sheet, a day of candles), make its triggers <code>DEFERRED</code>.</li><li>A disabled trigger does not count. <code>UPDATE</code> and <code>DELETE</code> triggers do not change how rows are inserted.</li><li>One <code>POST /write</code> with rows for several tables goes the slow way as a whole when one of its tables has an immediate <code>INSERT</code> trigger.</li><li>A trigger locks the tables its body uses, for as long as it runs (see <a href="transactions.html#one-writer">one writer per table</a>). A body with <a href="procedure-language.html#execute"><code>EXECUTE</code></a> (dynamic SQL) locks <strong>every</strong> table of the database, because KDB cannot know the tables before the text is made.</li></ul></li></ul>
+<h2 id="errors">Errors in a trigger</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">statement -&gt; BEFORE triggers -&gt; change -&gt; AFTER triggers   -- one transaction: all or nothing</code></pre>
+<p>A trigger runs in the same transaction as the statement that fired it.
+If the trigger fails (an error, or <code>RAISE</code>), <strong>the statement is undone too</strong>, with everything the trigger changed before the error.
+Inside <code>BEGIN ... COMMIT</code>, the whole transaction is rolled back.</p>
+<ul><li><strong>Returns:</strong> the error <code>trigger &#39;name&#39;, line N: &lt;message&gt;</code>.</li><li><strong>Notes:</strong>
+<ul><li>A trigger may change a table that has triggers. At most <strong>16 levels</strong>: a trigger that fires itself again and again stops with <code>triggers are nested too deeply</code>.</li><li>Tables and columns in the body are checked when the trigger runs, not when it is created. A trigger that uses a dropped table or procedure makes every change of its table fail. Use <code>DISABLE TRIGGER</code> or <code>DROP TRIGGER</code>.</li></ul></li></ul>
+<h2 id="time-limit">How long a trigger may run</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">statement time = the statement + its triggers      -- one statement timeout for all of it
+error:  trigger &lt;name&gt;: statement timeout (&lt;N&gt; s)</code></pre>
+<p>A trigger&#39;s work counts toward the <a href="protection.html#statement-timeout">statement timeout</a> of the statement that fired it, like a <code>CALL</code>.
+The rule is the same for <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> over <code>/exec</code>, for <a href="line-protocol.html">POST /write</a> and for <a href="http-import.html">POST /imp</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>Detail</th></tr></thead><tbody><tr><td>The limit</td><td>the server&#39;s <code>--statement-timeout</code> (60 s by default), or the request&#39;s <code>X-KDB-Statement-Timeout</code> header</td></tr><tr><td>Longer</td><td>only an admin (or the server token) may raise it, for example <code>X-KDB-Statement-Timeout: 10min</code> on a loader&#39;s <code>/write</code>. Other users can only make it shorter.</td></tr><tr><td>When it runs out</td><td>the trigger stops, and the <strong>whole statement is undone</strong>: the rows that fired it and everything the trigger wrote</td></tr><tr><td>Error</td><td><code>trigger &lt;name&gt;: statement timeout (&lt;N&gt; s)</code>, HTTP status 408. It names the trigger, so a loader never takes it for a bad line of its data.</td></tr><tr><td>Running now</td><td><code>GET /api/stats</code> lists it under <code>running</code> as <code>trigger &lt;name&gt; on &lt;table&gt;</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>A trigger that builds a day of candles may need several seconds, more on a big or cold day. Make it <a href="triggers.html#deferred">DEFERRED</a>: the load then returns at once and the work runs after it. Or move the work to a <a href="timers.html">timer</a>.</li><li>Readers never see a trigger&#39;s changes before it commits (in every table it wrote, all at once). Whether they <strong>wait</strong> for a long trigger depends on the server: with <a href="transactions.html#reader-yield">reader yield</a> on, other sessions&#39; <code>SELECT</code>s answer at once with the rows as the last commit left them; with it off (<code>kdb serve --reader-yield off</code>), they wait until the trigger&#39;s statement ends.</li></ul></li></ul>
+<p><strong>Command line: The refused INSERT wrote nothing</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+CREATE TABLE audit_log (id LONG PRIMARY KEY AUTO, detail STRING);
+CREATE TRIGGER log_accounts AFTER INSERT ON accounts EXECUTE BEGIN
+  INSERT INTO audit_log (detail) VALUES (&#39;accounts added&#39;);
+  IF EXISTS (SELECT 1 FROM NEW WHERE balance &gt; 100000) THEN
+    RAISE &#39;a new account cannot start with more than 1 lakh&#39;;
+  END IF;
+END;</code></pre>
+<pre><code class="language-bash">kdb sql market &quot;INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 500000)&quot;
+kdb sql market &quot;SELECT (SELECT count(*) FROM accounts) AS accounts, (SELECT count(*) FROM audit_log) AS audit_rows&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql market &quot;INSERT INTO accounts VALUES (1, &#39;Ram&#39;, 1000), (2, &#39;Sita&#39;, 500000)&quot;</code></p>
+<pre><code class="language-text">error: trigger &#39;log_accounts&#39;, line 4: a new account cannot start with more than 1 lakh</code></pre>
+<p>exit code 1</p>
+<p><code>&gt; kdb sql market &quot;SELECT (SELECT count(*) FROM accounts) AS accounts, (SELECT count(*) FROM audit_log) AS audit_rows&quot;</code></p>
+<pre><code class="language-text">accounts | audit_rows
+---------+-----------
+       0 |          0
+(1 row, 0.3 ms)</code></pre>
+<p><strong>Example: A trigger that fires itself</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE t (id INT PRIMARY KEY);
+CREATE TRIGGER again AFTER INSERT ON t EXECUTE BEGIN
+  FOR r IN (SELECT id FROM NEW) DO
+    INSERT INTO t VALUES (r.id + 1);
+  END FOR;
+END;
+INSERT INTO t VALUES (1);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE t (</code></p>
+<pre><code class="language-text">table &#39;t&#39; created</code></pre>
+<p><code>CREATE TRIGGER again AFTER INSERT ON t EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;again&#39; created on table &#39;t&#39;</code></pre>
+<p>Error: <code>trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: trigger &#39;again&#39;, line 3: triggers are nested too deeply (more than 16 levels): trigger &#39;again&#39; on table &#39;t&#39; was fired by a change made by a trigger, again and again</code></p>
+<h2 id="deferred">Deferred triggers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] TRIGGER name AFTER INSERT ON table DEFERRED [TIMEOUT 600s]
+  EXECUTE {CALL procedure(...) | INSERT ... | BEGIN statement; ... END}</code></pre>
+<p>A normal trigger runs <strong>inside</strong> the insert: the loader waits for it, the tables it uses stay locked the whole time, and the rows of its table are written <a href="triggers.html#speed">row by row</a>.
+A <strong>deferred</strong> trigger runs <strong>after</strong> the insert is committed. The write returns at once; the trigger&#39;s work waits in a queue and runs in the background.</p>
+<p>Use it when a trigger is slow, or when its table is loaded in bulk: a trigger that builds many summary tables from a day of trades.</p>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>What it means</th></tr></thead><tbody><tr><td>NEW</td><td><code>NEW</code> holds exactly the rows that one write committed. They are kept with the job, so a later write cannot change them.</td></tr><tr><td>One job per write</td><td>Every <code>POST /write</code>, <code>POST /imp</code>, <code>INSERT</code> or <code>COMMIT</code> that inserts rows makes one <strong>job</strong> for each deferred trigger of the table.</td></tr><tr><td>Order</td><td>Jobs of a trigger run one at a time, in the order their writes committed.</td></tr><tr><td>Failure</td><td>A job that fails <strong>runs again by itself</strong>: 3 more tries, 1 s, 2 s and 4 s later (<code>kdb serve --trigger-retries</code>). The jobs behind it wait. When every try failed, it <strong>stops its trigger&#39;s queue</strong>. The job and its rows stay. Nothing is ever skipped by itself. See <a href="triggers.html#deferred-recovery">recovery</a>.</td></tr><tr><td>Noticed</td><td>Each failed try and each stopped queue is an <code>error</code> event in the activity log, counts in <code>GET /api/stats</code>, and can be sent to a <a href="triggers.html#deferred-alerts">webhook</a>.</td></tr><tr><td>Queue limit</td><td>At most 10,000 jobs wait in one database (<code>kdb serve --max-trigger-jobs</code>). A write past that is refused with <code>503</code> and the reason, usually a stopped queue. Nothing of it is stored.</td></tr><tr><td>All or nothing</td><td>A job&#39;s work and the record &quot;job done&quot; commit together. After a crash in the middle of a job, it runs again from the start. Its work is applied exactly once.</td></tr><tr><td>Restart</td><td>Waiting jobs and their rows survive a restart. A stopped queue is still stopped after the restart.</td></tr><tr><td>TIMEOUT</td><td>How long one job may run. Without it, the server&#39;s statement timeout. A job that runs out fails, and its queue stops.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>trigger &#39;name&#39; created on table &#39;table&#39; (deferred: ...)</code>.</li><li><strong>Notes:</strong>
+<ul><li>Only <code>AFTER INSERT</code> triggers can be deferred.</li><li>The job reads the tables as they are when it runs. Other writes may have come in since.</li><li>A table with only deferred triggers keeps the fast write path: a new day of 250,000 rows is written in about 0.2 s.</li><li>A job is a writer like any other: it locks the tables its body reads and changes (not the trigger&#39;s own table, unless the body reads it by name). The next load into the trigger&#39;s table does not wait for a running job. A write (<code>/write</code>, <code>/imp</code> or SQL) into a table the job uses waits until the job commits, at most 5 seconds, then gets <code>table &#39;x&#39; is busy: a deferred trigger job has held it for ...</code>.</li><li>A schema change (<code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code>) waits for the running job.</li><li>Readers see the tables as last committed. With <a href="transactions.html#reader-yield">reader yield</a> on they read at once; with it off they wait for the job to end.</li><li>A deferred trigger cannot be dropped, or made normal again, while it has jobs in its queue. Wait for them, or skip them.</li><li>The activity log gets one <code>trigger</code> event per job, with its time and error.</li></ul></li></ul>
+<p><strong>Example: A deferred trigger that builds daily totals</strong></p>
+<pre><code class="language-sql">CREATE TABLE trades (date TIMESTAMP, id LONG, symbol SYMBOL, quantity LONG, rate DOUBLE)
+  TIMESERIES(date) PARTITION BY DAY SORT BY (symbol, id) DEDUP KEY (date, id);
+CREATE TABLE daily_totals (date TIMESTAMP, symbol SYMBOL, quantity LONG, amount DOUBLE)
+  TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, symbol);
+CREATE TRIGGER build_totals AFTER INSERT ON trades DEFERRED TIMEOUT 10min EXECUTE
+  INSERT OR REPLACE INTO daily_totals
+  SELECT date, symbol, sum(quantity), sum(quantity * rate) FROM NEW GROUP BY date, symbol;
+SHOW TRIGGERS;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trades (</code></p>
+<pre><code class="language-text">table &#39;trades&#39; created</code></pre>
+<p><code>CREATE TABLE daily_totals (</code></p>
+<pre><code class="language-text">table &#39;daily_totals&#39; created</code></pre>
+<p><code>CREATE TRIGGER build_totals AFTER INSERT ON trades DEFERRED TIMEOUT &#39;600000ms&#39; EXECUTE INSERT OR REP</code></p>
+<pre><code class="language-text">trigger &#39;build_totals&#39; created on table &#39;trades&#39; (deferred: it runs after each INSERT commits, one job at a time)</code></pre>
+<p><code>SHOW TRIGGERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>table (STRING)</th><th>timing (STRING)</th><th>event (STRING)</th><th>enabled (BOOL)</th><th>definition (STRING)</th></tr></thead><tbody><tr><td>build_totals</td><td>trades</td><td>AFTER (deferred)</td><td>INSERT</td><td>true</td><td>CREATE TRIGGER build_totals AFTER INSERT ON trades DEFERRED TIMEOUT &#39;600000ms&#39; EXECUTE INSERT OR REPLACE INTO daily_totals SELECT date, symbol, sum(quantity), sum(quantity * rate) FROM NEW GROUP BY...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Only AFTER INSERT can be deferred</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE trades (date TIMESTAMP, id LONG) TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, id);
+CREATE TABLE seen (id LONG);
+CREATE TRIGGER t AFTER UPDATE ON trades DEFERRED EXECUTE INSERT INTO seen SELECT id FROM NEW;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trades (</code></p>
+<pre><code class="language-text">table &#39;trades&#39; created</code></pre>
+<p><code>CREATE TABLE seen (</code></p>
+<pre><code class="language-text">table &#39;seen&#39; created</code></pre>
+<p>Error: <code>trigger &#39;t&#39;: only AFTER INSERT triggers can be DEFERRED (a deferred trigger runs after the inserted rows are committed)</code></p>
+<h3 id="deferred-queue">Watch and wait for the queue</h3>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET  /api/trigger-queue?db=&lt;name&gt;[&amp;trigger=&lt;name&gt;][&amp;wait=30s]
+POST /write?db=&lt;name&gt;&amp;precision=s&amp;wait=trigger[&amp;wait_timeout=10min]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>What you get</th></tr></thead><tbody><tr><td><code>GET /api/trigger-queue</code></td><td>per trigger: <code>pending</code> jobs, <code>oldest_pending_age_ms</code> (the lag), <code>running_job</code>, <code>failed_job</code> (id, error, time), <code>last_done_job</code>. And a list <code>jobs</code> of every job not finished yet. <code>wait=30s</code> holds the answer until they finished or stand still.</td></tr><tr><td><code>POST /write?...&amp;wait=trigger</code></td><td>the write answers only after its own jobs ended: <code>{&quot;rows&quot;:..., &quot;jobs&quot;:[{&quot;id&quot;,&quot;status&quot;,&quot;took_ms&quot;,&quot;error&quot;,...}], &quot;done&quot;:true}</code>. The rows are committed either way.</td></tr><tr><td><code>GET /api/stats</code></td><td><code>trigger_queues</code> for every database. The console&#39;s Monitor shows them.</td></tr></tbody></table></div>
+<p>Job status: <code>done</code>, <code>skipped</code>, <code>failed</code>, <code>running</code>, <code>waiting</code>, <code>retrying</code> (it failed and runs again by itself at <code>retry_at_ms</code>), or <code>blocked</code> (waiting behind a failed job).</p>
+<p>Each queue also counts, since the database opened: <code>failures</code> (jobs that stopped the queue), <code>retries</code> (failed tries that ran again) and <code>refused_writes</code> (writes refused because the queue was full).</p>
+<p>The queue fields are <strong>inside <code>queues[]</code></strong>, one entry per trigger - not at the top of the answer:</p>
+<pre><code class="language-json">{&quot;queues&quot;: [{&quot;trigger&quot;: &quot;fs_after_insert&quot;, &quot;table&quot;: &quot;floorsheet&quot;, &quot;enabled&quot;: true,
+             &quot;pending&quot;: 1, &quot;oldest_pending_age_ms&quot;: 850,
+             &quot;running_job&quot;: {&quot;id&quot;: 3, &quot;status&quot;: &quot;running&quot;, ...}, &quot;failed_job&quot;: null,
+             &quot;last_done_job&quot;: 2}],
+ &quot;jobs&quot;: [{&quot;id&quot;: 3, &quot;status&quot;: &quot;running&quot;, ...}]}</code></pre>
+<p>A script that loads data and must wait until the trigger caught up. A job is finished when <code>last_done_job</code> is at least its id; the queue is idle when <code>pending</code> is 0 and <code>running_job</code> is <code>null</code>. Stop on <code>failed_job</code>, or the loop waits forever behind it:</p>
+<pre><code class="language-bash"># wait until the trigger fs_after_insert has no job left (up to 30 s per call)
+while :; do
+  q=$(curl -s -H &quot;Authorization: Bearer $KDB_TOKEN&quot; \
+      &quot;$KDB_URL/api/trigger-queue?db=mydb&amp;trigger=fs_after_insert&amp;wait=30s&quot;)
+  echo &quot;$q&quot; | jq -e &#39;.queues[0].failed_job != null&#39; &gt;/dev/null &amp;&amp; { echo &quot;job failed: $q&quot;; exit 1; }
+  echo &quot;$q&quot; | jq -e &#39;.queues[0].pending == 0 and .queues[0].running_job == null&#39; &gt;/dev/null &amp;&amp; break
+done</code></pre>
+<ul><li><strong>Notes:</strong>
+<ul><li>Easier still: send the load with <code>&amp;wait=trigger</code>, and it answers after its own jobs ended.</li><li>A <code>/write</code> without <code>wait=trigger</code> answers <code>204</code> with no body, so it gives no job id. Wait for the queue to be idle, as above, or read <code>last_done_job</code> before the load and wait until it grows.</li></ul></li></ul>
+<h3 id="deferred-recovery">When a job fails: RETRY and SKIP</h3>
+<p>Syntax:</p>
+<pre><code class="language-sql">RETRY TRIGGER QUEUE trigger_name
+SKIP TRIGGER JOB trigger_name job_id</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>What it does</th></tr></thead><tbody><tr><td><code>RETRY TRIGGER QUEUE name</code></td><td>runs the failed job again, then the jobs behind it. Fix the cause first (the data, or the trigger with <code>CREATE OR REPLACE TRIGGER</code>).</td></tr><tr><td><code>SKIP TRIGGER JOB name id</code></td><td>removes one job without running it. Its rows stay in the table, but the trigger never sees them. The next job runs.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Both need the admin role. They cannot be used inside <code>BEGIN ... COMMIT</code>.</li><li>They lock no table. A long load, <code>CALL</code> or trigger job in the database does not make them wait or fail with <code>503 busy</code>.</li><li><code>SKIP TRIGGER JOB</code> refuses the job that is running right now. Only a job that waits or has failed can be skipped.</li><li>Find the job id in <code>GET /api/trigger-queue</code>.</li><li><code>RETRY TRIGGER QUEUE</code> on a job that waits for its next automatic try runs it now.</li></ul></li></ul>
+<h3 id="deferred-alerts">Hearing about a failed job</h3>
+<p>The write that made a job succeeded, so nobody is told when the job fails. KDB tells you in three places:</p>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>What</th></tr></thead><tbody><tr><td>Activity log (console)</td><td>an <code>error</code> event for each failed try and for the job that stopped its queue</td></tr><tr><td><code>GET /api/stats</code></td><td><code>alerts</code>: <code>trigger_jobs_failed</code>, <code>trigger_job_retries</code>, the <code>last</code> message, and how the webhook went (<code>webhook_sent</code>, <code>webhook_failed</code>, <code>webhook_last_error</code>)</td></tr><tr><td>A webhook</td><td><code>kdb serve --alert-webhook http://10.0.0.5:8080/kdb-alerts</code> (or <code>KDB_ALERT_WEBHOOK</code>, or <code>alert_webhook</code> in <code>kdb.conf</code>)</td></tr></tbody></table></div>
+<p>The webhook gets one JSON <code>POST</code> per event:</p>
+<pre><code class="language-json">{&quot;source&quot;: &quot;kdb&quot;, &quot;event&quot;: &quot;trigger_job_failed&quot;, &quot;database&quot;: &quot;market&quot;,
+ &quot;trigger&quot;: &quot;build_totals&quot;, &quot;table&quot;: &quot;trades&quot;, &quot;job&quot;: 42, &quot;rows&quot;: 1500, &quot;retries&quot;: 3,
+ &quot;error&quot;: &quot;...&quot;, &quot;time_ms&quot;: 1790000000000,
+ &quot;text&quot;: &quot;KDB market: trigger build_totals on trades, job 42 failed and stopped its queue ...&quot;}</code></pre>
+<p><code>event</code> is <code>trigger_job_retrying</code> for a try that will run again, <code>trigger_job_failed</code> when the queue stopped.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>Plain <code>http://</code> to an IPv4 address or <code>localhost</code>. KDB does not look up host names and sends no TLS. For Slack or Teams (https), point it at a small relay on your network.</li><li>Sending never slows the database: a background thread sends, with 5 s per try. When the receiver is down, the newest 100 wait and older ones are dropped (<code>webhook_dropped</code>).</li></ul></li></ul>
+<h2 id="enable-disable">ALTER TABLE ... ENABLE TRIGGER, DISABLE TRIGGER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table DISABLE TRIGGER name
+ALTER TABLE table ENABLE TRIGGER name</code></pre>
+<p>Turns a trigger off for a while, and on again. A disabled trigger stays saved but does not run.</p>
+<ul><li><strong>Returns:</strong> <code>trigger &#39;name&#39; disabled</code> or <code>trigger &#39;name&#39; enabled</code>.</li><li><strong>Notes:</strong>
+<ul><li>The table must be the trigger&#39;s own table.</li><li>Use it for a big load of old data that the trigger must not see, then enable it again. Changes made while it was off are <strong>not</strong> replayed.</li><li>A new trigger is enabled. <code>SHOW TRIGGERS</code> shows the state in the column <code>enabled</code>. The state is kept after a restart.</li></ul></li></ul>
+<p><strong>Example: Load old posts without counting them, then count again</strong></p>
+<pre><code class="language-sql">CREATE TABLE topics (id INT PRIMARY KEY, posts LONG NOT NULL DEFAULT 0);
+CREATE TABLE posts (id LONG PRIMARY KEY, topic_id INT NOT NULL);
+INSERT INTO topics (id) VALUES (1);
+CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN
+  DECLARE added LONG DEFAULT (SELECT count(*) FROM NEW);
+  UPDATE topics SET posts = posts + added WHERE id = 1;
+END;
+
+ALTER TABLE posts DISABLE TRIGGER count_posts;
+INSERT INTO posts VALUES (1, 1), (2, 1), (3, 1);
+ALTER TABLE posts ENABLE TRIGGER count_posts;
+INSERT INTO posts VALUES (4, 1);
+SELECT id, posts FROM topics;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE topics (</code></p>
+<pre><code class="language-text">table &#39;topics&#39; created</code></pre>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>INSERT INTO topics (id) VALUES (1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; created on table &#39;posts&#39;</code></pre>
+<p><code>ALTER TABLE posts DISABLE TRIGGER count_posts</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; disabled</code></pre>
+<p><code>INSERT INTO posts VALUES (1, 1), (2, 1), (3, 1)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>ALTER TABLE posts ENABLE TRIGGER count_posts</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; enabled</code></pre>
+<p><code>INSERT INTO posts VALUES (4, 1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, posts FROM topics</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>1</td><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The trigger is on another table</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE topics (id INT PRIMARY KEY);
+CREATE TABLE posts (id LONG PRIMARY KEY);
+CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN PRINT &#39;new post&#39;; END;
+ALTER TABLE topics DISABLE TRIGGER count_posts;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE topics (</code></p>
+<pre><code class="language-text">table &#39;topics&#39; created</code></pre>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; created on table &#39;posts&#39;</code></pre>
+<p>Error: <code>trigger &#39;count_posts&#39; is on table &#39;posts&#39;, not on &#39;topics&#39;</code></p>
+<h2 id="drop-trigger">DROP TRIGGER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP TRIGGER [IF EXISTS] name</code></pre>
+<p>Removes a trigger. The table is not changed.</p>
+<ul><li><strong>Returns:</strong> <code>trigger &#39;name&#39; dropped</code>. With <code>IF EXISTS</code>, a name that does not exist gives the message <code>trigger &#39;name&#39; does not exist</code> and no error.</li><li><strong>Notes:</strong> you do not name the table: trigger names are unique in the database. <code>DROP TRIGGER</code> cannot be used inside <code>BEGIN ... COMMIT</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY);
+CREATE TRIGGER hello AFTER INSERT ON posts EXECUTE BEGIN PRINT &#39;new post&#39;; END;
+DROP TRIGGER hello;
+DROP TRIGGER IF EXISTS hello;
+INSERT INTO posts VALUES (1);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE TRIGGER hello AFTER INSERT ON posts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;hello&#39; created on table &#39;posts&#39;</code></pre>
+<p><code>DROP TRIGGER hello</code></p>
+<pre><code class="language-text">trigger &#39;hello&#39; dropped</code></pre>
+<p><code>DROP TRIGGER IF EXISTS hello</code></p>
+<pre><code class="language-text">trigger &#39;hello&#39; does not exist</code></pre>
+<p><code>INSERT INTO posts VALUES (1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><strong>Example: A name that does not exist</strong> (shows an error)</p>
+<pre><code class="language-sql">DROP TRIGGER hello;</code></pre>
+<p>Result:</p>
+<p>Error: <code>trigger &#39;hello&#39; does not exist</code></p>
+<h2 id="show-triggers">SHOW TRIGGERS</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW TRIGGERS</code></pre>
+<p>Lists all triggers of the database, in name order.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the trigger name</td></tr><tr><td><code>table</code></td><td>the table it watches</td></tr><tr><td><code>timing</code></td><td><code>BEFORE</code>, <code>AFTER</code>, or <code>AFTER (deferred)</code> for a <a href="triggers.html#deferred">deferred trigger</a></td></tr><tr><td><code>event</code></td><td><code>INSERT</code>, <code>UPDATE</code> or <code>DELETE</code></td></tr><tr><td><code>enabled</code></td><td><code>true</code>, or <code>false</code> after <code>DISABLE TRIGGER</code></td></tr><tr><td><code>definition</code></td><td>the whole <code>CREATE TRIGGER</code> statement</td></tr></tbody></table></div>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY, topic_id INT);
+CREATE TABLE audit_log (detail STRING);
+CREATE TRIGGER log_post AFTER INSERT ON posts EXECUTE INSERT INTO audit_log VALUES (&#39;post added&#39;);
+CREATE TRIGGER check_post BEFORE INSERT ON posts EXECUTE BEGIN
+  IF EXISTS (SELECT 1 FROM NEW WHERE topic_id IS NULL) THEN RAISE &#39;a post needs a topic&#39;; END IF;
+END;
+ALTER TABLE posts DISABLE TRIGGER log_post;
+SHOW TRIGGERS;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE TABLE audit_log (</code></p>
+<pre><code class="language-text">table &#39;audit_log&#39; created</code></pre>
+<p><code>CREATE TRIGGER log_post AFTER INSERT ON posts EXECUTE INSERT INTO audit_log VALUES (&#39;post added&#39;)</code></p>
+<pre><code class="language-text">trigger &#39;log_post&#39; created on table &#39;posts&#39;</code></pre>
+<p><code>CREATE TRIGGER check_post BEFORE INSERT ON posts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;check_post&#39; created on table &#39;posts&#39;</code></pre>
+<p><code>ALTER TABLE posts DISABLE TRIGGER log_post</code></p>
+<pre><code class="language-text">trigger &#39;log_post&#39; disabled</code></pre>
+<p><code>SHOW TRIGGERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>table (STRING)</th><th>timing (STRING)</th><th>event (STRING)</th><th>enabled (BOOL)</th><th>definition (STRING)</th></tr></thead><tbody><tr><td>check_post</td><td>posts</td><td>BEFORE</td><td>INSERT</td><td>true</td><td>CREATE TRIGGER check_post BEFORE INSERT ON posts EXECUTE BEGIN   IF EXISTS (SELECT 1 FROM NEW WHERE topic_id IS NULL) THEN     RAISE &#39;a post needs a topic&#39;;   END IF; END</td></tr><tr><td>log_post</td><td>posts</td><td>AFTER</td><td>INSERT</td><td>false</td><td>CREATE TRIGGER log_post AFTER INSERT ON posts EXECUTE INSERT INTO audit_log VALUES (&#39;post added&#39;)</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="drop-table">DROP TABLE and RENAME TABLE with triggers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP TRIGGER name;  -- first, for every trigger of the table
+DROP TABLE table;</code></pre>
+<p>A table that has triggers cannot be dropped or renamed. This keeps triggers from pointing at a table that is gone.
+Drop its triggers first (also the disabled ones).</p>
+<ul><li><strong>Returns:</strong> the error <code>table &#39;name&#39; has triggers (...); DROP TRIGGER them first</code>.</li><li><strong>Notes:</strong> triggers of <strong>other</strong> tables that write into this table are not checked; they fail when they run.</li></ul>
+<p><strong>Example: DROP TABLE is refused</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY);
+CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN PRINT &#39;new post&#39;; END;
+DROP TABLE posts;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; created on table &#39;posts&#39;</code></pre>
+<p>Error: <code>table &#39;posts&#39; has triggers (count_posts); DROP TRIGGER them first</code></p>
+<p><strong>Example: Drop the trigger, then the table</strong></p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY);
+CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN PRINT &#39;new post&#39;; END;
+DROP TRIGGER count_posts;
+DROP TABLE posts;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; created on table &#39;posts&#39;</code></pre>
+<p><code>DROP TRIGGER count_posts</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; dropped</code></pre>
+<p><code>DROP TABLE posts</code></p>
+<pre><code class="language-text">table &#39;posts&#39; dropped; UNDROP TABLE posts brings it back within 7 days</code></pre>
+<p><strong>Example: RENAME TABLE is refused too</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY);
+CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN PRINT &#39;new post&#39;; END;
+RENAME TABLE posts TO forum_posts;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE TRIGGER count_posts AFTER INSERT ON posts EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;count_posts&#39; created on table &#39;posts&#39;</code></pre>
+<p>Error: <code>table &#39;posts&#39; has triggers (count_posts); DROP TRIGGER them first</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/triggers.md">This page as markdown</a>.</footer>
+</body>
+</html>

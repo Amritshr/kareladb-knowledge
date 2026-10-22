@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Partitions, SORT BY and DEDUP KEY - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="How PARTITION BY, SORT BY and DEDUP KEY of a time-series table change where rows go, their order, and what happens to duplicates; DROP PARTITION deletes old data fast.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/partitions-and-dedup.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/partitions-and-dedup.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="partitions-sort-by-and-dedup-key">Partitions, SORT BY and DEDUP KEY</h1>
+<blockquote><p>How PARTITION BY, SORT BY and DEDUP KEY of a time-series table change where rows go, their order, and what happens to duplicates; DROP PARTITION deletes old data fast.</p></blockquote>
+<ul><li>Category: Time-series</li><li>Keywords: partition, partitions, PARTITION BY, DAY, MONTH, YEAR, NONE, SYMBOL(col), KEY(col), partition by symbol, symbol partitions, DROP PARTITION OLDER THAN, OLDER THAN, TRUNCATE, keyless table, batch dedup, KDB_NO_BATCH_DEDUP, how loads find duplicates, SORT BY, SORT, sort order, row order, DEDUP KEY, DEDUP, KEY, dedup, deduplication, duplicates, duplicate rows, upsert, INSERT OR REPLACE, INSERT OR IGNORE, DROP PARTITION, delete old data, retention, purge, files, key range, TIMESERIES, time-series table, QuestDB, DROP PARTITION LIST, dedup, skip dedup, DEDUP TABLE, repair duplicates, dedup_insert, WITH (dedup_insert, plain INSERT upserts, DEDUP UPSERT, compression, WITH (compression, SET (compression, COMPRESS TABLE, packed, pack, compress, bytes a row, disk size, sealed partition, tail files, tail_files, KDB_TAIL_FILES, --tail-files, append, appends, checkpoint, rewrite, delta files, KDB_NO_PARTITION_DELTA, partition_deltas, small update, small replace, trash growth</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="insert.html">INSERT</a>, <a href="update-delete.html">UPDATE and DELETE</a>, <a href="time-and-time-zones.html#storage">Time and time zones (storage)</a>, <a href="explain.html#explain">EXPLAIN (explain)</a>, <a href="performance-tips.html">Performance tips</a></li></ul>
+<p>A time-series table (<code>CREATE TABLE ... TIMESERIES(time)</code>) has three extra options. This page shows what they <strong>do</strong>. The full <code>CREATE TABLE</code> and <code>ALTER TABLE</code> grammar is in <a href="create-table.html">create-table</a> and <a href="alter-table.html">alter-table</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>What it decides</th><th>Default</th></tr></thead><tbody><tr><td><a href="partitions-and-dedup.html#partition-by">PARTITION BY</a></td><td>which <strong>file</strong> a row goes into: one file per day, month or year, and with <a href="partitions-and-dedup.html#partition-by-symbol">SYMBOL(col)</a> one per symbol too</td><td><code>DAY</code></td></tr><tr><td><a href="partitions-and-dedup.html#sort-by">SORT BY</a></td><td>the <strong>order</strong> of rows inside each file</td><td>the first <code>SYMBOL</code> column, then the time column</td></tr><tr><td><a href="partitions-and-dedup.html#dedup-key">DEDUP KEY</a></td><td>when two rows are <strong>the same row</strong> (a duplicate)</td><td>none: every row is kept</td></tr></tbody></table></div>
+<p><code>PARTITION BY</code> and <code>SORT BY</code> cannot be changed after the table is made. Choose them when you create the table. The <code>DEDUP KEY</code> can be set or taken off later with <a href="alter-table.html#dedup-enable">ALTER TABLE ... DEDUP ENABLE</a>, which rewrites the rows.</p>
+<p><strong>Example: The sample market tables and their partitions</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SHOW TABLES;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>brokers</td><td>relational</td><td>NONE</td><td>2</td><td>5</td></tr><tr><td>live_data</td><td>timeseries</td><td>DAY</td><td>12</td><td>12</td></tr><tr><td>ochl_day</td><td>timeseries</td><td>YEAR</td><td>7</td><td>57</td></tr><tr><td>ochl_minutes</td><td>timeseries</td><td>MONTH</td><td>7</td><td>956</td></tr><tr><td>securities</td><td>relational</td><td>NONE</td><td>3</td><td>5</td></tr><tr><td>trade_log</td><td>timeseries</td><td>DAY</td><td>8</td><td>32</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="partition-by">PARTITION BY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time_column)
+    PARTITION BY DAY | MONTH | YEAR | NONE</code></pre>
+<p>A <strong>partition</strong> is one part of the table on disk. KDB puts each row into the partition of its time: with <code>PARTITION BY MONTH</code>, all rows of September 2026 go into the partition <code>2026-09</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>PARTITION BY</th><th>Partition names</th><th>Good for</th></tr></thead><tbody><tr><td><code>DAY</code> (default)</td><td><code>&#39;2026-09-10&#39;</code></td><td>trades, live price snapshots (many rows per day)</td></tr><tr><td><code>MONTH</code></td><td><code>&#39;2026-09&#39;</code></td><td>one-minute candles</td></tr><tr><td><code>YEAR</code></td><td><code>&#39;2026&#39;</code></td><td>daily candles, yearly reports</td></tr><tr><td><code>NONE</code></td><td>(one part only)</td><td>small tables</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Partitions follow the <strong>UTC</strong> date. <code>&#39;2026-09-10T02:00:00+05:45&#39;</code> (2 AM in Nepal) is still 9 September in UTC, so it goes into partition <code>2026-09-09</code>.</li><li>A query with a time condition on the first table (<code>time IN &#39;2026-09&#39;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>BETWEEN</code>) reads <strong>only</strong> the partitions in that range. <code>EXPLAIN</code> shows it as <code>1 of 2 partitions</code>.</li><li>A condition without the time column (<code>close &gt; 500</code>) reads every partition.</li><li>A partition is made when its first row arrives. Old partitions can be deleted fast with <a href="partitions-and-dedup.html#drop-partition">DROP PARTITION</a>.</li><li>Too small partitions (<code>DAY</code> for 50 rows a day) make many small files; too big ones make time filters less useful. See the table above.</li><li>Only time-series tables have partitions. <code>PARTITION BY</code> on a relational table is an error.</li><li>A table that is nearly always read one symbol at a time can be split by symbol too: <a href="partitions-and-dedup.html#partition-by-symbol">PARTITION BY ..., SYMBOL(col)</a>.</li></ul></li></ul>
+<p><strong>Example: A condition on time skips whole partitions</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT symbol, close FROM ochl_day WHERE time IN &#39;2025-12&#39;;
+EXPLAIN SELECT symbol, close FROM ochl_day WHERE close &gt; 500;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT symbol, close FROM ochl_day WHERE time IN &#39;2025-12&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>EXPLAIN SELECT symbol, close FROM ochl_day WHERE close &gt; 500</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (2 of 2 partitions, about 57 rows)</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Month partitions: rows of three months make three partitions</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE TABLE prices (time TIMESTAMP, symbol SYMBOL, close DOUBLE)
+  TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO prices VALUES
+  (&#39;2026-07-31T11:00:00+05:45&#39;, &#39;CITY&#39;, 511.0),
+  (&#39;2026-08-30T11:00:00+05:45&#39;, &#39;CITY&#39;, 507.3),
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 504.6);
+EXPLAIN SELECT close FROM prices WHERE time IN &#39;2026-09&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE prices (</code></p>
+<pre><code class="language-text">table &#39;prices&#39; created</code></pre>
+<p><code>INSERT INTO prices VALUES (&#39;2026-07-31T11:00:00+05:45&#39;, &#39;CITY&#39;, 511.0), (&#39;2026-08-30T11:00:00+05:45&#39;</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>EXPLAIN SELECT close FROM prices WHERE time IN &#39;2026-09&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table prices (1 of 3 partitions, about 3 rows)</td></tr><tr><td>build 2 of 3 stored column(s) per row: time, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Early morning in Nepal is the day before in UTC: the error lists partition 2026-09-09</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-09-10T02:00:00+05:45&#39;, &#39;CITY&#39;, 1), (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 2);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks DROP PARTITION &#39;2026-09-11&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;ticks&#39; has no partition &#39;2026-09-11&#39;; partitions: 2026-09-09, 2026-09-10</code></p>
+<p><strong>Example: Partitions are only for time-series tables</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE app_notes (id INT PRIMARY KEY, text STRING) PARTITION BY DAY;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 58: PARTITION BY is only for time-series tables; expected TIMESERIES(&lt;TIMESTAMP or DATE column&gt;) on table &#39;app_notes&#39;</code></p>
+<h2 id="partition-by-symbol">PARTITION BY time, SYMBOL(col)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time_column)
+    PARTITION BY YEAR | MONTH | NONE, SYMBOL(column)
+    SORT BY (column, ...) [DEDUP KEY (column, ..., time_column)]
+PARTITION BY ..., KEY(column)        -- the same, for a column that is not a market symbol</code></pre>
+<p>A second level of partitions: each time bucket is split again into <strong>one file per value</strong> of the column. A query for one symbol then opens only that symbol&#39;s files.</p>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Why</th></tr></thead><tbody><tr><td>the time part is <code>YEAR</code>, <code>MONTH</code> or <code>NONE</code>; <code>DAY</code> is refused</td><td>one small file per symbol per day makes thousands of files a week</td></tr><tr><td>the column is a stored <code>SYMBOL</code> or <code>STRING</code> column</td><td>its value names the file</td></tr><tr><td>it is the <strong>first</strong> <code>SORT BY</code> column</td><td>then reading the files one after the other keeps the <code>SORT BY</code> order</td></tr><tr><td>a <code>DEDUP KEY</code> must include it</td><td>a duplicate is looked for in one partition only</td></tr><tr><td>a value is at most 64 bytes, with no 0 byte</td><td>the value is part of a file name</td></tr><tr><td>at most 4,096 values with <code>NONE</code>, 100,000 partitions with <code>YEAR</code> or <code>MONTH</code></td><td>every value is a file of its own</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>SHOW TABLES</code> shows the partition as <code>YEAR, SYMBOL(symbol)</code>. <code>KEY(col)</code> is shown as <code>SYMBOL(col)</code>.</li><li><strong>Notes:</strong>
+<ul><li><code>WHERE symbol = &#39;CITY&#39;</code> or <code>symbol IN (...)</code> opens only those files. <code>EXPLAIN</code> shows it as <code>1 of 4 partitions</code>.</li><li>Good for data read <strong>one value at a time</strong>: one symbol&#39;s candles, one source&#39;s news. Not for a table read a whole day at a time across all symbols (a trade list): plain <code>PARTITION BY DAY</code> is right there.</li><li>Reads get faster, writes do not: a load that holds 300 symbols writes 300 files.</li><li>Not for a column with very many values (a user id). Keep such a column as the first <code>SORT BY</code> column instead: that already reads only its rows.</li><li><code>DROP PARTITION &#39;2025&#39;</code> drops every symbol of that year. Single symbols cannot be dropped by name: use <code>DELETE ... WHERE symbol = ...</code>. With <code>NONE</code> there is no time part to drop: use <code>DELETE</code> or <a href="update-delete.html#truncate">TRUNCATE</a>.</li><li>Only for new tables: an existing table cannot be changed to it. Not with <code>CREATE TABLE ... AS</code>.</li><li>An older KDB build cannot open a database with such a table (see <a href="versions.html">versions</a>).</li></ul></li></ul>
+<p><strong>Example: Daily candles in one file per year and symbol</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE candles (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE)
+  TIMESERIES(time) PARTITION BY YEAR, SYMBOL(symbol) SORT BY (symbol, time) DEDUP KEY (symbol, time);
+INSERT INTO candles VALUES
+  (&#39;2025-09-10&#39;, &#39;CITY&#39;, 500.0), (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6),
+  (&#39;2026-09-10&#39;, &#39;COAST&#39;, 376.1), (&#39;2026-09-10&#39;, &#39;VOLT&#39;, 191.2);</code></pre>
+<pre><code class="language-sql">SHOW TABLES;
+EXPLAIN SELECT time, close FROM candles WHERE symbol = &#39;COAST&#39;;
+ALTER TABLE candles DROP PARTITION &#39;2025&#39;;
+SELECT time, symbol, close FROM candles ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>brokers</td><td>relational</td><td>NONE</td><td>2</td><td>5</td></tr><tr><td>candles</td><td>timeseries</td><td>YEAR, SYMBOL(symbol)</td><td>3</td><td>4</td></tr><tr><td>live_data</td><td>timeseries</td><td>DAY</td><td>12</td><td>12</td></tr><tr><td>ochl_day</td><td>timeseries</td><td>YEAR</td><td>7</td><td>57</td></tr><tr><td>ochl_minutes</td><td>timeseries</td><td>MONTH</td><td>7</td><td>956</td></tr><tr><td>securities</td><td>relational</td><td>NONE</td><td>3</td><td>5</td></tr><tr><td>trade_log</td><td>timeseries</td><td>DAY</td><td>8</td><td>32</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<p><code>EXPLAIN SELECT time, close FROM candles WHERE symbol = &#39;COAST&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table candles (1 of 4 partitions, about 4 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>ALTER TABLE candles DROP PARTITION &#39;2025&#39;</code></p>
+<pre><code class="language-text">1 partition(s) of &#39;candles&#39; dropped</code></pre>
+<p><code>SELECT time, symbol, close FROM candles ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: News split by source: KEY(col) and PARTITION BY NONE</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE news (time TIMESTAMP, source STRING, title STRING)
+  TIMESERIES(time) PARTITION BY NONE, KEY(source) SORT BY (source, time);
+INSERT INTO news VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;wire one&#39;, &#39;City Bank profit rises 18%&#39;),
+  (&#39;2026-09-11T09:30:00+05:45&#39;, &#39;market desk&#39;, &#39;Index closes higher&#39;);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT title FROM news WHERE source = &#39;market desk&#39;;
+SHOW CREATE TABLE news;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT title FROM news WHERE source = &#39;market desk&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table news (1 of 2 partitions, about 2 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SHOW CREATE TABLE news</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE news (   time TIMESTAMP,   source STRING,   title STRING ) TIMESERIES(time) PARTITION BY NONE, SYMBOL(source) SORT BY (source, time)</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: DAY is refused with SYMBOL(col)</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE)
+  TIMESERIES(time) PARTITION BY DAY, SYMBOL(symbol);</code></pre>
+<p>Result:</p>
+<p>Error: <code>PARTITION BY ..., SYMBOL(column) on table &#39;ticks&#39;: the time part must be YEAR, MONTH or NONE (as in PARTITION BY YEAR, SYMBOL(symbol))</code></p>
+<p><strong>Example: The column must be the first SORT BY column</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE candles (time TIMESTAMP, symbol SYMBOL, close DOUBLE)
+  TIMESERIES(time) PARTITION BY MONTH, SYMBOL(symbol) SORT BY (time);</code></pre>
+<p>Result:</p>
+<p>Error: <code>PARTITION BY ..., SYMBOL(column) on table &#39;candles&#39;: &#39;symbol&#39; must be the first SORT BY column (as in SORT BY (symbol, time))</code></p>
+<p><strong>Example: The DEDUP KEY must hold the column</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE candles (time TIMESTAMP, symbol SYMBOL, close DOUBLE)
+  TIMESERIES(time) PARTITION BY MONTH, SYMBOL(symbol) DEDUP KEY (time);</code></pre>
+<p>Result:</p>
+<p>Error: <code>PARTITION BY ..., SYMBOL(column) on table &#39;candles&#39;: the DEDUP KEY must include &#39;symbol&#39;</code></p>
+<h2 id="sort-by">SORT BY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time_column)
+    [PARTITION BY ...]
+    SORT BY (column [, column ...])</code></pre>
+<p>Sets the <strong>order of rows inside each partition</strong>. Rows are kept sorted by these columns, whatever order you insert them in.</p>
+<ul><li><strong>Returns:</strong> a <code>SELECT</code> without <code>ORDER BY</code> gives rows partition by partition, and inside a partition in <code>SORT BY</code> order.</li><li><strong>Notes:</strong>
+<ul><li>The default is the first <code>SYMBOL</code> column, then the time column: <code>SORT BY (symbol, time)</code>. Without a <code>SYMBOL</code> column it is the time column.</li><li>With <code>SORT BY (symbol, time)</code>, <code>WHERE symbol = &#39;CITY&#39;</code> or <code>symbol IN (...)</code> reads only CITY&#39;s rows (with a time range: only that part of them). <code>EXPLAIN</code> shows <code>read only 1 key range(s)</code>. This is why the default is good for market data: most queries ask for one symbol.</li><li>With <code>SORT BY (time)</code>, a filter on <code>symbol</code> alone must read every row of the partitions. A time range still reads only that part.</li><li>Do not depend on the order without <code>ORDER BY</code>: the partitions, <code>SORT BY</code> and the query plan decide it. Write <code>ORDER BY</code> when the order matters.</li><li><code>SORT BY</code> only decides the order. Two rows with the same <code>SORT BY</code> values are <strong>not</strong> duplicates; that is the job of <a href="partitions-and-dedup.html#dedup-key">DEDUP KEY</a>.</li></ul></li></ul>
+<p><strong>Example: Default SORT BY (symbol, time): rows come grouped by symbol</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL, broker INT, qty LONG) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO trades VALUES
+  (&#39;2026-09-10T11:02:00+05:45&#39;, &#39;COAST&#39;, 58, 10),
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 45, 20),
+  (&#39;2026-09-10T11:01:00+05:45&#39;, &#39;COAST&#39;, 34, 30),
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;VOLT&#39;, 1, 40);</code></pre>
+<pre><code class="language-sql">SELECT * FROM trades;
+EXPLAIN SELECT * FROM trades WHERE symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT * FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>broker (INT)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>45</td><td>20</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>COAST</td><td>34</td><td>30</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>COAST</td><td>58</td><td>10</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>VOLT</td><td>1</td><td>40</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>EXPLAIN SELECT * FROM trades WHERE symbol = &#39;COAST&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trades (1 of 1 partitions, about 4 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: SORT BY (time): rows come in time order, but a symbol filter reads everything</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL, broker INT, qty LONG)
+  TIMESERIES(time) PARTITION BY DAY SORT BY (time);
+INSERT INTO trades VALUES
+  (&#39;2026-09-10T11:02:00+05:45&#39;, &#39;COAST&#39;, 58, 10),
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 45, 20),
+  (&#39;2026-09-10T11:01:00+05:45&#39;, &#39;COAST&#39;, 34, 30),
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;VOLT&#39;, 1, 40);</code></pre>
+<pre><code class="language-sql">SELECT * FROM trades;
+EXPLAIN SELECT * FROM trades WHERE symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT * FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>broker (INT)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>45</td><td>20</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>VOLT</td><td>1</td><td>40</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>COAST</td><td>34</td><td>30</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>COAST</td><td>58</td><td>10</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>EXPLAIN SELECT * FROM trades WHERE symbol = &#39;COAST&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trades (1 of 1 partitions, about 4 rows)</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: SORT BY needs real columns</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE bad (time TIMESTAMP, symbol SYMBOL) TIMESERIES(time) SORT BY (sym);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 76: SORT BY column &#39;sym&#39; does not exist; expected one of the columns of &#39;bad&#39;</code></p>
+<h2 id="dedup-key">DEDUP KEY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time_column)
+    [PARTITION BY ...] [SORT BY (...)]
+    DEDUP KEY (column [, column ...], time_column)
+
+INSERT INTO name VALUES (...)              -- a duplicate: error, nothing is saved (see dedup_insert)
+INSERT OR REPLACE INTO name VALUES (...)   -- a duplicate: the old row is replaced
+INSERT OR IGNORE INTO name VALUES (...)    -- a duplicate: the new row is skipped</code></pre>
+<p>Says which columns make a row <strong>unique</strong>. Two rows with the same values in all <code>DEDUP KEY</code> columns are the same row. <code>DEDUP KEY (symbol, time)</code> means &quot;one row per symbol per time&quot;.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>Key is new</th><th>Key is already there</th></tr></thead><tbody><tr><td><code>INSERT</code></td><td>row inserted</td><td><strong>error</strong>, nothing from the statement is saved</td></tr><tr><td><code>INSERT OR REPLACE</code></td><td>row inserted</td><td>the whole old row is <strong>replaced</strong> by the new one</td></tr><tr><td><code>INSERT OR IGNORE</code></td><td>row inserted</td><td>the new row is <strong>skipped</strong></td></tr><tr><td><code>UPDATE</code> that would make two equal keys</td><td>-</td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> messages like <code>1 row(s) inserted, 1 replaced</code> or <code>0 row(s) inserted, 1 skipped (already there)</code>.</li><li><strong>NULL:</strong> <code>NULL</code> values in key columns are compared like values: two rows with the same time and a <code>NULL</code> symbol are duplicates.</li><li><strong>Notes:</strong>
+<ul><li>The DEDUP KEY <strong>must include the time column</strong>. KDB finds duplicates inside one partition, and the time decides the partition. A stored column holding the time&#39;s <strong>minute</strong> may take its place: see <a href="partitions-and-dedup.html#minute-key">a key on the minute</a>.</li><li>Without a DEDUP KEY, every INSERT adds rows, also exact copies. Load the same file twice and you have every row twice. Such a table loads fast: nothing is looked up (see <a href="partitions-and-dedup.html#load-dedup">how loads find duplicates</a>).</li><li>Duplicates <strong>inside one statement</strong> count too: with <code>INSERT OR REPLACE</code>, the last one wins.</li><li><code>INSERT OR REPLACE</code> replaces the <strong>whole</strong> row: columns you do not give become their DEFAULT or <code>NULL</code>. To change some columns only, use <code>UPDATE</code>.</li><li>With <code>ROUND 1d</code> or <code>ROUND 1m</code> on the time column, two times in the same day or minute become equal, so they are duplicates (<a href="create-table.html">create-table</a>).</li><li>Time-series tables cannot have a <code>PRIMARY KEY</code>. Use <code>DEDUP KEY (..., time)</code>.</li><li>Tip: give every time-series table that you import into a DEDUP KEY and load with <code>INSERT OR REPLACE</code>. Then you can run the same import again and again (<a href="insert.html">insert</a>).</li></ul></li></ul>
+<p><strong>Example: Live snapshots: a snapshot sent again replaces the old one</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE snapshots (time TIMESTAMP, symbol SYMBOL, ltp DOUBLE, volume LONG)
+  TIMESERIES(time) PARTITION BY DAY DEDUP KEY (symbol, time);
+INSERT INTO snapshots VALUES (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.0, 65850);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO snapshots VALUES
+  (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.2, 66010),
+  (&#39;2026-09-10T11:06:00+05:45&#39;, &#39;CITY&#39;, 513.5, 67000);
+INSERT OR IGNORE INTO snapshots VALUES (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 999, 1);
+SELECT * FROM snapshots;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO snapshots VALUES (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.2, 66010), (&#39;2026-</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 replaced</code></pre>
+<p><code>INSERT OR IGNORE INTO snapshots VALUES (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 999, 1)</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 skipped (already there)</code></pre>
+<p><code>SELECT * FROM snapshots</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>volume (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>513.2</td><td>66010</td></tr><tr><td>2026-09-10T05:21:00.000Z</td><td>CITY</td><td>513.5</td><td>67000</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A plain INSERT of a duplicate is refused</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507.0, 500.7, 504.9, 183040);</code></pre>
+<p>Result:</p>
+<p>Error: <code>a row with symbol=&#39;CITY&#39;, time=&#39;2026-09-10T00:00:00.000Z&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></p>
+<p><strong>Example: Trade log: the same transaction twice in one import keeps one row (the last)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">INSERT OR REPLACE INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUES
+  (&#39;2026-09-11&#39;, 200001, &#39;CITY&#39;, 45, 1, 10, 515.0),
+  (&#39;2026-09-11&#39;, 200001, &#39;CITY&#39;, 45, 1, 10, 516.0);
+SELECT date, transaction_id, symbol, quantity, rate, amount FROM trade_log WHERE date IN &#39;2026-09-11&#39;;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate) VALUE</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT date, transaction_id, symbol, quantity, rate, amount FROM trade_log WHERE date IN &#39;2026-09-11</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-11T00:00:00.000Z</td><td>200001</td><td>CITY</td><td>10</td><td>516</td><td>5160</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Without a DEDUP KEY every copy is kept</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE raw_ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;</code></pre>
+<pre><code class="language-sql">INSERT INTO raw_ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510);
+INSERT INTO raw_ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510);
+SELECT count(*) AS rows_kept FROM raw_ticks;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO raw_ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO raw_ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT count(*) AS rows_kept FROM raw_ticks</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows_kept (LONG)</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A market index: one value per minute, DEDUP KEY on the time alone</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE market_index (time TIMESTAMP ROUND 1m, value DOUBLE)
+  TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (time);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO market_index VALUES
+  (&#39;2026-09-10T11:00:05+05:45&#39;, 2840.1),
+  (&#39;2026-09-10T11:00:40+05:45&#39;, 2841.5),
+  (&#39;2026-09-10T11:01:10+05:45&#39;, 2842.0);
+SELECT * FROM market_index;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO market_index VALUES (&#39;2026-09-10T11:00:05+05:45&#39;, 2840.1), (&#39;2026-09-10T11:00</code></p>
+<pre><code class="language-text">2 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT * FROM market_index</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>value (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>2841.5</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>2842</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: An UPDATE may not make a duplicate</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">UPDATE ochl_day SET time = &#39;2026-09-09&#39; WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>the update would create a second row with symbol=&#39;CITY&#39;, time=&#39;2026-09-09T00:00:00.000Z&#39; in &#39;ochl_day&#39;</code></p>
+<p><strong>Example: The DEDUP KEY must include the time column</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE bad (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) DEDUP KEY (symbol);</code></pre>
+<p>Result:</p>
+<p>Error: <code>DEDUP KEY must include the time column &#39;time&#39;, e.g. DEDUP KEY (symbol, time), or a column GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, time)) STORED</code></p>
+<h2 id="minute-key">Ragged seconds: a DEDUP KEY on the minute</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">minute TIMESTAMP GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, time)) STORED
+... DEDUP KEY (symbol, minute)</code></pre>
+<p>A feed of minute candles often sends the same minute with different seconds: <code>11:01:07</code>, then <code>11:01:42</code>. With <code>DEDUP KEY (symbol, time)</code> those are two rows. Put the minute in a stored <a href="create-table.html#generated">generated column</a> and make <strong>that</strong> the key: then both are the same row, and the later one replaces the earlier one.</p>
+<div class="table-wrap"><table><thead><tr><th>Column in the key</th><th><code>11:01:07</code> then <code>11:01:42</code>, same symbol</th></tr></thead><tbody><tr><td><code>time</code></td><td>two rows</td></tr><tr><td><code>minute</code> (<code>date_trunc(&#39;minute&#39;, time)</code>)</td><td>one row: the later one (with <code>INSERT OR REPLACE</code>, <code>dedup_insert = &#39;upsert&#39;</code>, <code>POST /write</code> or <code>/imp</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>The time column keeps the real time of the row (<code>11:01:42</code>). Only the key uses the minute.</li><li>The column must be <code>date_trunc(&#39;&lt;unit&gt;&#39;, &lt;time column&gt;)</code>, <code>STORED</code>, with a unit of <code>minute</code>, <code>second</code> or <code>ms</code>. An hour is refused: in Nepal (+05:45) a local hour can start before midnight UTC and end after it, so it would reach into another day&#39;s partition.</li><li>A plain <code>INSERT</code> of the same minute fails like any repeated key. Use <code>INSERT OR REPLACE</code>, or give the table <code>WITH (dedup_insert = &#39;upsert&#39;)</code> (<a href="partitions-and-dedup.html#dedup-insert">above</a>). <code>POST /write</code> and <code>/imp</code> always replace.</li><li>Such a table checks its keys row by row, so a bulk load into it is slower than into a table keyed on the time itself.</li><li>An existing table moves to the minute with <code>ALTER TABLE ... ADD COLUMN</code> and then <code>ALTER TABLE ... DEDUP ENABLE UPSERT KEYS (...)</code>. Rows of one minute are folded then: the newest stays.</li></ul></li></ul>
+<p><strong>Example: Minute candles: 11:01:07 and 11:01:42 of one symbol keep one row, the later</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE candle_1m (time TIMESTAMP, symbol SYMBOL, close DOUBLE,
+    minute TIMESTAMP GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, time)) STORED)
+  TIMESERIES(time) PARTITION BY DAY DEDUP KEY (symbol, minute) WITH (dedup_insert = &#39;upsert&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO candle_1m (time, symbol, close) VALUES (&#39;2026-09-25T11:01:07+05:45&#39;, &#39;CITY&#39;, 510.0);
+INSERT INTO candle_1m (time, symbol, close) VALUES (&#39;2026-09-25T11:01:42+05:45&#39;, &#39;CITY&#39;, 512.5),
+                                                (&#39;2026-09-25T11:02:03+05:45&#39;, &#39;CITY&#39;, 513.0);
+SELECT time, symbol, close, minute FROM candle_1m ORDER BY time;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO candle_1m (time, symbol, close) VALUES (&#39;2026-09-25T11:01:07+05:45&#39;, &#39;CITY&#39;, 510.0)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO candle_1m (time, symbol, close) VALUES (&#39;2026-09-25T11:01:42+05:45&#39;, &#39;CITY&#39;, 512.5), (&#39;2</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT time, symbol, close, minute FROM candle_1m ORDER BY time</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>minute (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-25T05:16:42.000Z</td><td>CITY</td><td>512.5</td><td>2026-09-25T05:16:00.000Z</td></tr><tr><td>2026-09-25T05:17:03.000Z</td><td>CITY</td><td>513</td><td>2026-09-25T05:17:00.000Z</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Move a table that is there to the minute: seconds of one minute fold into the newest row</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks_1m (time TIMESTAMP, symbol SYMBOL, close DOUBLE)
+  TIMESERIES(time) PARTITION BY DAY DEDUP KEY (symbol, time);
+INSERT INTO ticks_1m VALUES (&#39;2026-09-25T11:01:07+05:45&#39;, &#39;CITY&#39;, 510.0), (&#39;2026-09-25T11:01:42+05:45&#39;, &#39;CITY&#39;, 512.5);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks_1m ADD COLUMN minute TIMESTAMP GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, time)) STORED;
+ALTER TABLE ticks_1m DEDUP ENABLE UPSERT KEYS (symbol, minute);
+SELECT time, close FROM ticks_1m;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE ticks_1m ADD COLUMN minute TIMESTAMP GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, time)) ST</code></p>
+<pre><code class="language-text">table &#39;ticks_1m&#39; altered (2 row change(s) written)</code></pre>
+<p><code>ALTER TABLE ticks_1m DEDUP ENABLE UPSERT KEYS (symbol, minute)</code></p>
+<pre><code class="language-text">table &#39;ticks_1m&#39; now dedups on (symbol, minute) (1 row(s) rewritten, 1 duplicate row(s) folded: the newest row of each key was kept)</code></pre>
+<p><code>SELECT time, close FROM ticks_1m</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-25T05:16:42.000Z</td><td>512.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An hour is too coarse to stand in for the time</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE candle_1h (time TIMESTAMP, symbol SYMBOL, close DOUBLE,
+    hour TIMESTAMP GENERATED ALWAYS AS (date_trunc(&#39;hour&#39;, time)) STORED)
+  TIMESERIES(time) PARTITION BY DAY DEDUP KEY (symbol, hour);</code></pre>
+<p>Result:</p>
+<p>Error: <code>DEDUP KEY must include the time column &#39;time&#39;, e.g. DEDUP KEY (symbol, time), or a column GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, time)) STORED</code></p>
+<h2 id="dedup-insert">A plain INSERT that replaces: dedup_insert</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time) ... DEDUP KEY (...) WITH (dedup_insert = &#39;upsert&#39;)
+ALTER TABLE name SET (dedup_insert = &#39;upsert&#39;)    -- a plain INSERT replaces the row with the same key
+ALTER TABLE name SET (dedup_insert = &#39;error&#39;)     -- back to the default: it fails
+ALTER TABLE name RESET (dedup_insert)             -- the same as &#39;error&#39;</code></pre>
+<p>In QuestDB a plain <code>INSERT</code> into a <code>DEDUP UPSERT KEYS</code> table replaces the row with the same key. On a table made with KDB&#39;s own <code>DEDUP KEY (...)</code> it fails, so you do not overwrite a row by mistake. A table made with QuestDB&#39;s words, <code>DEDUP UPSERT KEYS (...)</code>, gets QuestDB&#39;s behaviour: <code>dedup_insert = &#39;upsert&#39;</code> is set by itself (since 2026-09-25), so an app written for QuestDB keeps its plain <code>INSERT</code>s unchanged. Any table can switch with <code>ALTER TABLE ... SET (dedup_insert = ...)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>The table was made with</th><th>A plain <code>INSERT</code> of a key that is there</th></tr></thead><tbody><tr><td><code>DEDUP KEY (...)</code></td><td>fails (<code>dedup_insert = &#39;error&#39;</code>)</td></tr><tr><td><code>DEDUP UPSERT KEYS (...)</code> (QuestDB)</td><td>replaces the row (<code>dedup_insert = &#39;upsert&#39;</code>)</td></tr><tr><td><code>DEDUP UPSERT KEYS (...) WITH (dedup_insert = &#39;error&#39;)</code></td><td>fails</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th><code>dedup_insert</code></th><th>A plain <code>INSERT</code> of a key that is there</th></tr></thead><tbody><tr><td><code>&#39;error&#39;</code> (default)</td><td>fails: <code>a row with ... already exists</code> (<code>23505</code>)</td></tr><tr><td><code>&#39;upsert&#39;</code></td><td>replaces the whole row, like <code>INSERT OR REPLACE</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39;: a plain INSERT of a DEDUP KEY that is there replaces the row (dedup_insert = &#39;upsert&#39;)</code>.</li><li><strong>Notes:</strong>
+<ul><li>Only a table with a <code>DEDUP KEY</code> can have it. A table with a <code>PRIMARY KEY</code> takes <code>INSERT OR REPLACE</code> or <code>INSERT ... ON CONFLICT</code>.</li><li>It works for every way rows come in: SQL <code>INSERT</code>, a PostgreSQL <code>COPY</code>, <code>POST /write</code> and <code>/imp</code>.</li><li><code>INSERT OR IGNORE</code> still skips, and <code>INSERT ... ON CONFLICT</code> still does what it says.</li><li><code>SHOW CREATE TABLE</code> shows it as <code>WITH (dedup_insert = &#39;upsert&#39;)</code>. <code>DEDUP DISABLE</code> turns it off with the key.</li><li>A table made with <code>DEDUP UPSERT KEYS</code> before 2026-09-25 keeps the rule it had (fails); <code>ALTER TABLE t SET (dedup_insert = &#39;upsert&#39;)</code> changes it. <code>ALTER TABLE t DEDUP ENABLE UPSERT KEYS (...)</code> does not change it.</li><li>New rows cost nothing extra: the setting is looked at only when a key is already there.</li><li>A database with such a table needs KDB 2026-09-24 or newer (feature <code>dedup_insert</code>, see <a href="versions.html">versions</a>).</li></ul></li></ul>
+<p><strong>Example: A price feed written for QuestDB: plain INSERTs replace the tick</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ltp (time TIMESTAMP, symbol SYMBOL, price DOUBLE)
+  TIMESERIES(time) PARTITION BY DAY DEDUP KEY (symbol, time) WITH (dedup_insert = &#39;upsert&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO ltp VALUES (&#39;2026-09-24T11:00:00+05:45&#39;, &#39;CITY&#39;, 510.0);
+INSERT INTO ltp VALUES (&#39;2026-09-24T11:00:00+05:45&#39;, &#39;CITY&#39;, 512.5), (&#39;2026-09-24T11:01:00+05:45&#39;, &#39;CITY&#39;, 513.0);
+SELECT * FROM ltp;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO ltp VALUES (&#39;2026-09-24T11:00:00+05:45&#39;, &#39;CITY&#39;, 510.0)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO ltp VALUES (&#39;2026-09-24T11:00:00+05:45&#39;, &#39;CITY&#39;, 512.5), (&#39;2026-09-24T11:01:00+05:45&#39;, &#39;</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT * FROM ltp</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-24T05:15:00.000Z</td><td>CITY</td><td>512.5</td></tr><tr><td>2026-09-24T05:16:00.000Z</td><td>CITY</td><td>513</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Turn it on for a table that is there</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ltp (time TIMESTAMP, symbol SYMBOL, price DOUBLE)
+  TIMESERIES(time) PARTITION BY DAY DEDUP KEY (symbol, time);
+INSERT INTO ltp VALUES (&#39;2026-09-24T11:00:00+05:45&#39;, &#39;CITY&#39;, 510.0);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ltp SET (dedup_insert = &#39;upsert&#39;);
+INSERT INTO ltp VALUES (&#39;2026-09-24T11:00:00+05:45&#39;, &#39;CITY&#39;, 511.0);
+SELECT * FROM ltp;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE ltp SET (dedup_insert = &#39;upsert&#39;)</code></p>
+<pre><code class="language-text">table &#39;ltp&#39;: a plain INSERT of a DEDUP KEY that is there replaces the row (dedup_insert = &#39;upsert&#39;)</code></pre>
+<p><code>INSERT INTO ltp VALUES (&#39;2026-09-24T11:00:00+05:45&#39;, &#39;CITY&#39;, 511.0)</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT * FROM ltp</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-24T05:15:00.000Z</td><td>CITY</td><td>511</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A table without a DEDUP KEY cannot have it</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, balance DOUBLE);</code></pre>
+<pre><code class="language-sql">ALTER TABLE accounts SET (dedup_insert = &#39;upsert&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>dedup_insert = &#39;upsert&#39; needs a DEDUP KEY, and table &#39;accounts&#39; has none (a table with a PRIMARY KEY takes INSERT OR REPLACE or INSERT ... ON CONFLICT)</code></p>
+<h2 id="compression">Packed partitions: compression</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time) PARTITION BY DAY ... WITH (compression = on)
+ALTER TABLE name SET (compression = on)     -- sealed partitions are stored packed
+ALTER TABLE name SET (compression = off)    -- back to the default: stored as plain arrays
+ALTER TABLE name RESET (compression)        -- the same as off
+COMPRESS TABLE name                         -- how far it is; packs what is left, in the background
+COMPRESS TABLE name WAIT                    -- packs what is left now, then answers</code></pre>
+<p>A partition is <strong>sealed</strong> when a newer time bucket exists: yesterday&#39;s day, last month&#39;s month. Only sealed partitions are packed. The newest one is where rows still arrive, so it stays plain and quick to write again. A packed file keeps the same rows in far fewer bytes: times and ids that go up by small steps, broker numbers, sorted symbols and prices with a few decimals take 1 to 3 bytes instead of 8.</p>
+<div class="table-wrap"><table><thead><tr><th>Measured (a floorsheet-shaped table, 3,000,000 rows, 60 days)</th><th>plain</th><th>packed</th></tr></thead><tbody><tr><td>bytes a row on disk</td><td>76.1</td><td>15.5</td></tr><tr><td>first <code>GROUP BY symbol, buyer</code> after a start (reads every file), 1 thread</td><td>433 ms</td><td>368 ms</td></tr><tr><td>the same with a small memory budget (files read again and again), 1 thread</td><td>316 ms</td><td>183 ms</td></tr><tr><td>the same with every partition in memory</td><td>96 ms</td><td>98 ms (the same work)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>ALTER TABLE</code> says what it does. <code>COMPRESS TABLE</code> answers with one row:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>partitions</code>, <code>sealed</code>, <code>packed</code></td><td>partitions with a file, how many are sealed, how many files are packed</td></tr><tr><td><code>to_do</code></td><td>partitions still to write again: sealed plain ones while <code>on</code>, packed ones while <code>off</code></td></tr><tr><td><code>rows</code>, <code>file_bytes</code>, <code>bytes_per_row</code></td><td>the saved rows and the bytes of their files</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>It is <strong>off</strong> by default. Nothing changes for a table until you turn it on.</li><li>Queries answer exactly the same: a packed file is unpacked into the same arrays when it is loaded. Loading reads fewer bytes, so it is often faster; with every partition in memory the speed is the same.</li><li>After <code>SET (compression = on)</code> the partitions already on disk are packed in the background, one partition at a time, with a pause after each one, while reads and writes go on. Run <code>COMPRESS TABLE name</code> again to see how far it is. <code>SET (compression = off)</code> unpacks them the same way.</li><li>When the first rows of a new day arrive, yesterday becomes sealed. The server packs it in the background after its next save, with no <code>COMPRESS TABLE</code> and no restart.</li><li>Rows added to a sealed day later (a late load, <code>UPDATE</code>, <code>DELETE</code>) are fine: the day is written packed again with them.</li><li>A crash in the middle loses nothing: a packed file replaces the old one only once it is complete, like every file KDB writes.</li><li>A table without time partitions has no sealed partition, so nothing is packed.</li><li>A database that has used it needs KDB 2026-09-25 or newer (feature <code>column_compression</code>, see <a href="versions.html">versions</a>). An older KDB refuses it with &quot;needs a newer KDB&quot;, never misreads it. <a href="versions.html#downgrade">kdb downgrade</a> writes packed files plain again once the table is set to <code>off</code>.</li></ul></li></ul>
+<p><strong>Example: Pack the old days of a trade table</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL, qty LONG, price DOUBLE)
+  TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO trades VALUES (&#39;2026-09-21T10:00:00Z&#39;, &#39;NABIL&#39;, 100, 512.5), (&#39;2026-09-21T10:01:00Z&#39;, &#39;NABIL&#39;, 20, 513.0),
+  (&#39;2026-09-22T10:00:00Z&#39;, &#39;CITY&#39;, 50, 99.5), (&#39;2026-09-23T10:00:00Z&#39;, &#39;NABIL&#39;, 10, 515.0);</code></pre>
+<pre><code class="language-sql">ALTER TABLE trades SET (compression = on);
+COMPRESS TABLE trades WAIT;
+SELECT symbol, sum(qty), max(price) FROM trades GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE trades SET (compression = on)</code></p>
+<pre><code class="language-text">table &#39;trades&#39;: sealed partitions are stored packed (compression = on); the sealed partitions on disk are written again in the background (COMPRESS TABLE trades shows how far, COMPRESS TABLE trades WAIT does it now)</code></pre>
+<p><code>COMPRESS TABLE trades WAIT</code></p>
+<div class="table-wrap"><table><thead><tr><th>table (STRING)</th><th>compression (STRING)</th><th>partitions (LONG)</th><th>sealed (LONG)</th><th>packed (LONG)</th><th>to_do (LONG)</th><th>rows (LONG)</th><th>file_bytes (LONG)</th><th>bytes_per_row (DOUBLE)</th></tr></thead><tbody><tr><td>trades</td><td>on</td><td>3</td><td>2</td><td>2</td><td>0</td><td>4</td><td>2031</td><td>507.75</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">table &#39;trades&#39;: 2 sealed partition(s) written packed</code></pre>
+<p><code>SELECT symbol, sum(qty), max(price) FROM trades GROUP BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sum(qty) (LONG)</th><th>max(price) (DOUBLE)</th></tr></thead><tbody><tr><td>NABIL</td><td>130</td><td>515</td></tr><tr><td>CITY</td><td>50</td><td>99.5</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: compression takes on or off</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks SET (compression = small);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 24: compression takes on (sealed partitions are stored packed) or off (the default)</code></p>
+<h2 id="tail-files">Appending without rewriting: tail files</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve --tail-files on       -- or KDB_TAIL_FILES=on; off by default</code></pre>
+<p>Every save (checkpoint) used to write each changed partition whole. On <code>PARTITION BY YEAR, SYMBOL(symbol)</code> one more month of candles wrote each symbol&#39;s whole year again, and a live feed touching every symbol wrote every year file again at each save. Most of the bytes written, and kept in the trash, were rows already on disk.</p>
+<p>With tail files on, a partition whose new rows all come <strong>after</strong> its last saved row gets them in a small extra file, a <strong>tail</strong>, next to its file. Its file is not read or written. Reads put the file and its tails together, so every query answers exactly the same.</p>
+<div class="table-wrap"><table><thead><tr><th>What changed in the partition since the last save</th><th>What the save writes</th></tr></thead><tbody><tr><td>only new rows, all after the last saved key (next minute, next month)</td><td>one tail file with just those rows</td></tr><tr><td>an <code>UPDATE</code> or <code>DELETE</code> of a saved row, an upsert of an existing key, a late row before the end</td><td>a <a href="#delta-files">delta file</a> when the changes are few, else the whole partition (and its tails go)</td></tr><tr><td>it has 8 tails already, or its tails reach a quarter of its file</td><td>the whole partition, once, and its tails go</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>It is <strong>off</strong> by default while it is new. Nothing changes until you turn it on.</li><li>&quot;After the last saved row&quot; is in the table&#39;s key order (<code>SORT BY</code>, or time then row id): for <code>SORT BY (symbol, time)</code> in a <code>SYMBOL(symbol)</code> partition, a later time.</li><li>A crash in the middle loses nothing: a tail is listed only once it is complete, like every file KDB writes. A tail cut short by a power cut was never listed, and the next start removes it.</li><li>Folding the tails back into the file is an ordinary save too: a crash during it leaves the file and its tails as they were.</li><li>Backups, restores, branches, the trash and <code>kdb info</code> see tails as ordinary files. Encryption at rest and column compression cover them like any file (a packed, sealed partition is written whole, never given a tail).</li><li><code>kdb check</code> also checks that every tail sits behind its partition file, numbered 1, 2, 3 ... with none missing, and is no older than what it extends.</li><li><a href="http-server-info.html#api-disk">GET /api/disk</a> and the console&#39;s <a href="console-keep-data.html#disk">Keep data</a> page show how much of the data is in tails (<code>tail_bytes</code>, <code>tail_files</code>).</li><li>A read <code>AS OF</code> an earlier time reads the tails that existed then. When a partition is written whole and its tails go, reads <code>AS OF</code> a time before that are refused for the table, as after <code>TRUNCATE</code>.</li><li>Turned off again, existing tails are still read; the next change of such a partition writes it whole.</li><li>A database with tail files needs KDB 2026-10-02 or newer (feature <code>partition_tails</code>, see <a href="versions.html">versions</a>). An older KDB refuses it with &quot;needs a newer KDB&quot;. <a href="versions.html#downgrade">kdb downgrade</a> writes those partitions whole again first and says how many it folded.</li></ul></li></ul>
+<h2 id="delta-files">Small changes without rewriting: delta files</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">KDB_NO_PARTITION_DELTA=1        -- turns them off: every change writes the whole partition again</code></pre>
+<p>An <code>UPDATE</code>, a <code>DELETE</code> or an <code>INSERT OR REPLACE</code> of a few rows used to make the next save write the whole partition again. One replaced row in a day of a million rows wrote the whole day, and the old day went to the trash. Do that a hundred times and the trash holds a hundred days.</p>
+<p>Now, when the changes of a partition are a <strong>small share</strong> of its rows, the save writes them to one small extra file next to it, its <strong>delta</strong>: the rows replaced, updated or added, and the keys deleted. The partition&#39;s file (and its <a href="#tail-files">tails</a>) stay as they are. Reads apply the delta, so every query answers exactly the same.</p>
+<div class="table-wrap"><table><thead><tr><th>What changed in the partition since it was last written whole</th><th>What the save writes</th></tr></thead><tbody><tr><td>replaced, updated, new and deleted rows, together at most 1/16 of its rows</td><td>its delta again, with all those rows (a few hundred bytes for one row)</td></tr><tr><td>more than that</td><td>the whole partition, and its delta goes</td></tr><tr><td>a delta file bigger than 1/8 of the partition&#39;s files, or delta bytes written since the last whole write more than the partition&#39;s files (one key replaced again and again)</td><td>the whole partition, and its delta goes: <strong>compaction</strong></td></tr><tr><td>a sealed partition of a table with <code>compression = on</code> whose file is not packed yet</td><td>the whole partition, packed</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>It is <strong>on</strong> by default. <code>KDB_NO_PARTITION_DELTA=1</code> in the server&#39;s environment turns it off.</li><li>Each save writes the partition&#39;s delta again with everything in it so far, so a partition has one delta, and the bytes written and trashed are those of the changed rows, not of the partition.</li><li>A partition that is not in memory is still read once for the save (its new row count and summary come from its rows); only the writing is saved.</li><li>Compaction keeps the cost bounded: the delta bytes a partition writes before it is written whole again are about the size of the partition, never many times it. The count survives a restart.</li><li><code>/api/stats</code> counts <code>partition_whole_writes</code> / <code>partition_whole_bytes</code> and <code>partition_delta_writes</code> / <code>partition_delta_bytes</code> since the start. <code>GET /api/disk</code> and the <code>disk</code> part of <code>/api/stats</code> show <code>delta_files</code> / <code>delta_bytes</code>, the delta files on disk now (part of <code>data_bytes</code>).</li><li>A power cut during a save loses nothing confirmed: a new delta, or the whole file that replaces it, is used only once the manifest names it, and both change in one manifest save.</li><li>A partition with a delta is always read whole: a <a href="databases.html#per-column-loads">per-column load</a> would miss the replaced rows. Its next whole write makes it per-column again.</li><li>Backups, the trash and <code>kdb info</code> see a delta as an ordinary file. <code>kdb check</code> also reads every partition with a delta and reports one that does not fit its file (made for other rows, keys out of order, a row count other than the saved one) or that has no partition file.</li><li>A read <code>AS OF</code> an earlier time reads the delta that existed then. When the partition is written whole and its delta goes, reads <code>AS OF</code> a time before that are refused for the table, as for tails.</li><li>A database with delta files needs KDB 2026-10-02 or newer (feature <code>partition_deltas</code>, see <a href="versions.html">versions</a>). An older KDB refuses it with &quot;needs a newer KDB&quot;. <a href="versions.html#downgrade">kdb downgrade</a> writes those partitions whole again first.</li></ul></li></ul>
+<h2 id="load-dedup">How a load finds duplicates</h2>
+<p>A load over <a href="line-protocol.html#post-write">POST /write</a> or <a href="http-import.html">POST /imp</a> builds its rows as columns and writes them in one piece per partition. How much work the duplicate check is depends on the keys:</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>A partition that has no rows yet</th><th>A partition that has rows</th></tr></thead><tbody><tr><td>no <code>DEDUP KEY</code></td><td>nothing to check</td><td>nothing to check: every row is added</td></tr><tr><td>every <code>SORT BY</code> column is in the <code>DEDUP KEY</code> (<code>SORT BY (symbol, time) DEDUP KEY (symbol, time)</code>)</td><td>nothing to check</td><td>nothing to look up: the key decides the place, so a row sent again lands on the old one</td></tr><tr><td>the <code>DEDUP KEY</code> has columns the <code>SORT BY</code> does not start with (<code>SORT BY (symbol, id) DEDUP KEY (date, id)</code>)</td><td>only repeats inside the load</td><td>the whole load is checked against the stored keys <strong>at once</strong>; a stored row with the same key is replaced</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Some tables still go row by row, which is several times slower: a table with an immediate <code>INSERT</code> <a href="triggers.html">trigger</a>, a <code>CHECK</code>, <code>REFERENCES</code>, a <code>UNIQUE</code> column or index, an <code>AUTO</code> column, or a <code>BEFORE UPDATE</code> row trigger. A trigger on <strong>another</strong> table does not slow the load. For a table you load in bulk, make its triggers <a href="triggers.html#deferred">DEFERRED</a>.</li><li>A table with no <code>DEDUP KEY</code> is as fast to load as one with a key.</li><li><code>KDB_NO_BATCH_DEDUP=1</code> (read at start) turns the at-once check off: such partitions then go row by row. It is only for comparing the two ways.</li><li>SQL <code>INSERT</code> statements check key by key as described in <a href="partitions-and-dedup.html#dedup-key">DEDUP KEY</a>; the result is the same.</li></ul></li></ul>
+<h2 id="dedup-skip">Loads without the duplicate check: dedup=skip</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /write?...&amp;dedup=skip
+POST /imp?...&amp;dedup=skip</code></pre>
+<p>A load normally looks up every key in its day, so a day sent again replaces its rows. With <code>dedup=skip</code> the load <strong>does not look</strong>. Use it only for trusted bulk loads where you know the rows are new.</p>
+<p>It matters only for a table whose <code>DEDUP KEY</code> is not the start of its <code>SORT BY</code> (the last row of the <a href="partitions-and-dedup.html#load-dedup">table above</a>). For the other tables a load never looks anything up.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th><code>dedup=on</code> (default)</th><th><code>dedup=skip</code></th></tr></thead><tbody><tr><td>a new day</td><td>no lookups, fast</td><td>the same</td></tr><tr><td>a day that has rows</td><td>the load&#39;s keys checked against that day&#39;s keys at once</td><td>no check: faster</td></tr><tr><td>the same key twice in one load</td><td>the last row stays</td><td>the same</td></tr><tr><td>a key that is already stored</td><td>replaced</td><td><strong>may be there twice</strong></td></tr></tbody></table></div>
+<ul><li><strong>The risk:</strong> if a key already exists, you get <strong>two rows with the same key</strong>. Queries then return both. A row with the same key <strong>and</strong> the same <code>SORT BY</code> values still replaces the old one; one with other <code>SORT BY</code> values (another symbol) is added next to it.</li><li>Rights: the same as a normal write.</li><li>The activity log says <code>dedup skipped</code>, and the event has <code>dedup_skipped</code>: the rows that went into days which already had rows.</li><li>A table that goes row by row anyway (an immediate <code>INSERT</code> trigger, <code>CHECK</code>, <code>REFERENCES</code>, a <code>UNIQUE</code> column or index, an <code>AUTO</code> column) checks every key: <code>dedup=skip</code> does nothing there.</li><li><code>dedup=skip</code> cannot be used with <code>upsert=merge</code>.</li></ul>
+<h3 id="dedup-skip-sql">The same in SQL: WITH (dedup = skip) and SET dedup</h3>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT INTO table ... WITH (dedup = skip | on)     -- this statement only
+SET dedup = skip | on | DEFAULT                     -- every INSERT and COPY FROM of this session
+SHOW dedup                                          -- skip or on
+RESET dedup                                         -- back to on</code></pre>
+<p>The words are those of <code>?dedup=</code>. <code>skip</code> means: <strong>do not look the key up among the stored rows</strong>. A plain <code>INSERT</code> of a stored key then does not fail. Repeats inside the statement are still found.</p>
+<p>Which value counts, first match wins:</p>
+<div class="table-wrap"><table><thead><tr><th>Where it is set</th><th>Notes</th></tr></thead><tbody><tr><td>1. the statement&#39;s <code>WITH (dedup = ...)</code></td><td><code>on</code> looks up even in a <code>skip</code> session</td></tr><tr><td>2. the session&#39;s <code>SET dedup</code></td><td>an HTTP session or a PostgreSQL connection; <code>SET LOCAL dedup</code> lasts until the transaction ends</td></tr><tr><td>3. the table</td><td><code>on</code>: every key is looked up</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the usual message, then <code>; dedup = skip: N key(s) not looked up among the stored rows</code>.</li><li><strong>Notes:</strong>
+<ul><li>A stored key written again with <code>skip</code>: when the key is the whole <code>SORT BY</code>, the new row lands on the old one and replaces it. Otherwise the key is <strong>there twice</strong>. Repair it with <a href="partitions-and-dedup.html#dedup-table">DEDUP TABLE</a>.</li><li><code>INSERT OR IGNORE</code>, <code>INSERT OR REPLACE</code> and <code>ON CONFLICT</code> need the lookup: with <code>WITH (dedup = skip)</code> they are refused, and a session&#39;s <code>skip</code> does not count for them.</li><li>The same tables as <code>?dedup=skip</code> ignore it: an immediate <code>INSERT</code> trigger, <code>REFERENCES</code>, a <code>UNIQUE</code> column or index, an <code>AUTO</code> column, a <code>BEFORE UPDATE</code> row trigger. A <code>CHECK</code> is fine.</li><li>A PostgreSQL <code>COPY ... FROM STDIN</code> takes the connection&#39;s <code>SET dedup</code> too.</li><li>A statement run by a trigger or a function for the <code>INSERT</code> does not take the session&#39;s <code>skip</code>.</li></ul></li></ul>
+<p><strong>Example: A day you know is new: write it without the lookups</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE fills (date TIMESTAMP, id LONG, symbol SYMBOL, qty LONG)
+  TIMESERIES(date) PARTITION BY DAY SORT BY (symbol, id) DEDUP KEY (date, id);
+INSERT INTO fills VALUES (&#39;2026-09-11&#39;, 1, &#39;CITY&#39;, 10);</code></pre>
+<pre><code class="language-sql">INSERT INTO fills VALUES (&#39;2026-09-12&#39;, 1, &#39;CITY&#39;, 11), (&#39;2026-09-12&#39;, 2, &#39;COAST&#39;, 20) WITH (dedup = skip);
+SELECT date, id, symbol, qty FROM fills ORDER BY date, id;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO fills VALUES (&#39;2026-09-12&#39;, 1, &#39;CITY&#39;, 11), (&#39;2026-09-12&#39;, 2, &#39;COAST&#39;, 20) WITH (dedup =</code></p>
+<pre><code class="language-text">2 row(s) inserted; dedup = skip: 2 key(s) not looked up among the stored rows</code></pre>
+<p><code>SELECT date, id, symbol, qty FROM fills ORDER BY date, id</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>2026-09-11T00:00:00.000Z</td><td>1</td><td>CITY</td><td>10</td></tr><tr><td>2026-09-12T00:00:00.000Z</td><td>1</td><td>CITY</td><td>11</td></tr><tr><td>2026-09-12T00:00:00.000Z</td><td>2</td><td>COAST</td><td>20</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A session that skips, a key sent twice by mistake, and the repair</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE fills (date TIMESTAMP, id LONG, symbol SYMBOL, qty LONG)
+  TIMESERIES(date) PARTITION BY DAY SORT BY (symbol, id) DEDUP KEY (date, id);
+INSERT INTO fills VALUES (&#39;2026-09-11&#39;, 1, &#39;CITY&#39;, 10);</code></pre>
+<pre><code class="language-sql">SET dedup = skip;
+SHOW dedup;
+INSERT INTO fills VALUES (&#39;2026-09-11&#39;, 1, &#39;COAST&#39;, 12);
+SELECT count(*) AS rows_for_id_1 FROM fills WHERE id = 1;
+DEDUP TABLE fills FOR &#39;2026-09-11&#39;;
+RESET dedup;
+SELECT id, symbol, qty FROM fills;</code></pre>
+<p>Result:</p>
+<p><code>SET dedup = &#39;skip&#39;</code></p>
+<pre><code class="language-text">INSERTs and COPY FROM of this session do not look keys up among the stored rows (dedup = skip); a key that is stored already is then overwritten or there twice, DEDUP TABLE repairs it</code></pre>
+<p><code>SHOW dedup</code></p>
+<div class="table-wrap"><table><thead><tr><th>dedup (STRING)</th></tr></thead><tbody><tr><td>skip</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>INSERT INTO fills VALUES (&#39;2026-09-11&#39;, 1, &#39;COAST&#39;, 12)</code></p>
+<pre><code class="language-text">1 row(s) inserted; dedup = skip: 1 key(s) not looked up among the stored rows</code></pre>
+<p><code>SELECT count(*) AS rows_for_id_1 FROM fills WHERE id = 1</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows_for_id_1 (LONG)</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>DEDUP TABLE fills FOR &#39;2026-09-11&#39;</code></p>
+<pre><code class="language-text">1 duplicate row(s) removed from 1 of 1 partition(s) of &#39;fills&#39;</code></pre>
+<p><code>SET dedup = &#39;default&#39;</code></p>
+<pre><code class="language-text">INSERTs of this session look every key up again (dedup = on)</code></pre>
+<p><code>SELECT id, symbol, qty FROM fills</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>1</td><td>COAST</td><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: OR IGNORE needs the lookup</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE fills (date TIMESTAMP, id LONG, symbol SYMBOL, qty LONG)
+  TIMESERIES(date) PARTITION BY DAY SORT BY (symbol, id) DEDUP KEY (date, id);</code></pre>
+<pre><code class="language-sql">INSERT OR IGNORE INTO fills VALUES (&#39;2026-09-11&#39;, 1, &#39;CITY&#39;, 10) WITH (dedup = skip);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 66: INSERT OR IGNORE cannot be used with WITH (dedup = skip): it looks every key up, and skip means no lookup</code></p>
+<h2 id="dedup-table">DEDUP TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DEDUP TABLE table [FOR &#39;time&#39;]</code></pre>
+<p>Removes rows that repeat a <code>DEDUP KEY</code>. Of the rows with the same key, the one written <strong>last</strong> stays, as a normal load would have kept it. Use it to repair a load made with <code>dedup=skip</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code></td><td>a time-series table with a <code>DEDUP KEY</code></td></tr><tr><td><code>FOR &#39;time&#39;</code></td><td>only the partition that holds this time, like <code>&#39;2026-09-11&#39;</code>. Without it: every partition.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>N duplicate row(s) removed from X of Y partition(s) of &#39;table&#39;</code>.</li><li><strong>Notes:</strong>
+<ul><li>It is a <code>DELETE</code> of the extra rows: it needs the same rights, runs <code>DELETE</code> triggers, and is saved like any change.</li><li>Without <code>FOR</code> it reads the whole table. Give the day when you know it.</li></ul></li></ul>
+<p><strong>Example: Repair a day: nothing to remove in a table loaded normally</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE fills (date TIMESTAMP, id LONG, symbol SYMBOL, qty LONG)
+  TIMESERIES(date) PARTITION BY DAY SORT BY (symbol, id) DEDUP KEY (date, id);
+INSERT OR REPLACE INTO fills VALUES (&#39;2026-09-11&#39;, 1, &#39;CITY&#39;, 10), (&#39;2026-09-11&#39;, 2, &#39;COAST&#39;, 20);</code></pre>
+<pre><code class="language-sql">DEDUP TABLE fills FOR &#39;2026-09-11&#39;;
+SELECT id, symbol, qty FROM fills ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>DEDUP TABLE fills FOR &#39;2026-09-11&#39;</code></p>
+<pre><code class="language-text">0 duplicate row(s) removed from 0 of 1 partition(s) of &#39;fills&#39;</code></pre>
+<p><code>SELECT id, symbol, qty FROM fills ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>symbol (SYMBOL)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>10</td></tr><tr><td>2</td><td>COAST</td><td>20</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: DEDUP TABLE needs a DEDUP KEY</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE raw (time TIMESTAMP, v LONG) TIMESERIES(time) PARTITION BY DAY;
+DEDUP TABLE raw;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">table &#39;raw&#39; created</code></pre>
+<p>Error: <code>DEDUP TABLE needs a time-series table with a DEDUP KEY; &#39;raw&#39; has none</code></p>
+<h2 id="drop-partition">DROP PARTITION</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table DROP PARTITION &#39;name&#39; [, &#39;name&#39; ...]
+ALTER TABLE table DROP PARTITION OLDER THAN n HOURS | DAYS | WEEKS | MONTHS | YEARS</code></pre>
+<p>Deletes whole partitions: all rows of a day, month or year at once. It removes files, so it is much faster than <code>DELETE</code> for old data. <code>OLDER THAN</code> picks the partitions whose last moment is more than that long ago (<a href="alter-table.html#drop-partition">alter-table</a>); a <a href="alter-table.html#set-ttl">TTL</a> does the same by itself.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&#39;name&#39;</code></td><td>text in single quotes</td><td>the partition: <code>&#39;2026&#39;</code> (YEAR), <code>&#39;2026-09&#39;</code> (MONTH), <code>&#39;2026-09-10&#39;</code> (DAY)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>N partition(s) of &#39;table&#39; dropped</code>.</li><li><strong>Notes:</strong>
+<ul><li>The name must be a partition that exists. If not, the error <strong>lists the partitions</strong> the table has. That is an easy way to see them.</li><li>The name is a UTC date (see <a href="partitions-and-dedup.html#partition-by">PARTITION BY</a>).</li><li>All names are checked first. When one is wrong, nothing is dropped.</li><li>Not for relational tables and not for <code>PARTITION BY NONE</code> tables. There, use <code>DELETE FROM table WHERE ...</code>.</li><li>QuestDB&#39;s <code>DROP PARTITION LIST &#39;2026-09&#39;</code> works too (with <code>LIST</code> a partition that is not there is skipped, as in QuestDB), and so does <code>DROP PARTITION WHERE time &lt; &#39;2026-09-01&#39;</code>, which drops each partition whose whole time range matches (<a href="alter-table.html#drop-partition">alter-table</a>).</li><li>There is no undo. Make a backup first when the data matters.</li><li><code>DELETE FROM t WHERE time IN &#39;2025&#39;</code> removes the same rows, one by one (slower, but works for any condition).</li><li>With <a href="partitions-and-dedup.html#partition-by-symbol">SYMBOL(col)</a> partitions, the name is the time part: <code>&#39;2025&#39;</code> drops every symbol of 2025.</li><li>To empty the whole table fast, use <a href="update-delete.html#truncate">TRUNCATE</a>: it drops every partition the same way.</li></ul></li></ul>
+<p><strong>Example: Delete the 2025 daily candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;;
+ALTER TABLE ochl_day DROP PARTITION &#39;2025&#39;;
+SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows_2025 (LONG)</th></tr></thead><tbody><tr><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>ALTER TABLE ochl_day DROP PARTITION &#39;2025&#39;</code></p>
+<pre><code class="language-text">1 partition(s) of &#39;ochl_day&#39; dropped</code></pre>
+<p><code>SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows_2025 (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Trade log: delete two days at once</strong> (sample data: sample)</p>
+<pre><code class="language-sql">ALTER TABLE trade_log DROP PARTITION &#39;2026-09-09&#39;, &#39;2026-09-10&#39;;
+SELECT count(*) AS trades_left FROM trade_log;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE trade_log DROP PARTITION &#39;2026-09-09&#39;, &#39;2026-09-10&#39;</code></p>
+<pre><code class="language-text">2 partition(s) of &#39;trade_log&#39; dropped</code></pre>
+<p><code>SELECT count(*) AS trades_left FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades_left (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A wrong name: the message lists the partitions</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">ALTER TABLE ochl_day DROP PARTITION &#39;2026-09&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;ochl_day&#39; has no partition &#39;2026-09&#39;; partitions: 2025, 2026</code></p>
+<p><strong>Example: The name needs quotes</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">ALTER TABLE ochl_day DROP PARTITION 2025;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 37: expected a partition value in single quotes, e.g. &#39;2026-09&#39; but found &#39;2025&#39;</code></p>
+<p><strong>Example: Relational tables have no partitions</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">ALTER TABLE brokers DROP PARTITION &#39;2026&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop partitions of table &#39;brokers&#39;: it is a relational table; only time-series tables have partitions</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/partitions-and-dedup.md">This page as markdown</a>.</footer>
+</body>
+</html>

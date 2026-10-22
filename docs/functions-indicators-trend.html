@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trend indicators - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Is the price going up, down or sideways, and how strong is the move? ADX and DI, Aroon, parabolic SAR, Ichimoku, SuperTrend, linear regression and Heikin-Ashi candles.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-indicators-trend.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators-trend.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="trend-indicators">Trend indicators</h1>
+<blockquote><p>Is the price going up, down or sideways, and how strong is the move? ADX and DI, Aroon, parabolic SAR, Ichimoku, SuperTrend, linear regression and Heikin-Ashi candles.</p></blockquote>
+<ul><li>Category: Functions — technical indicators</li><li>Keywords: cross_above, cross_below, crossover, crossunder, golden cross, death cross, moving average crossover, trend, trend strength, direction, up trend, down trend, sideways, directional movement, DMI, +DI, -DI, DX, average directional index, ADX, ADXR, Aroon, Aroon oscillator, parabolic SAR, SAR, stop and reverse, trailing stop, Ichimoku, Ichimoku cloud, kumo, tenkan-sen, conversion line, kijun-sen, base line, senkou span, chikou span, lagging span, SuperTrend, linear regression, LINEARREG, time series forecast, TSF, Heikin-Ashi, Heiken Ashi, HA candles, TA-Lib, TradingView, stock market</li><li>See also: <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-indicators-momentum.html">Momentum indicators</a>, <a href="functions-indicators-volatility.html">Volatility indicators and bands</a>, <a href="functions-indicators-volume.html">Volume indicators</a>, <a href="functions-window.html">Window and series functions</a>, <a href="functions-correlation.html#regr_slope">Correlation and regression (regr_slope)</a>, <a href="candles-cookbook.html">Candles cookbook</a></li></ul>
+<p>A <strong>trend</strong> is the main direction of the price over some time: up (higher highs and higher lows), down, or sideways (no clear direction). <strong>Trend indicators</strong> answer two questions for a trader: <em>which way</em> is the price going, and <em>how strong</em> is the move? Many traders only buy in an up trend and use a trend line as a <strong>trailing stop</strong>: a stop-loss price that moves up with the price, so you sell when the trend ends.</p>
+<p>These indicators are <strong>series functions</strong>, like <a href="functions-indicators.html">sma and ema</a>. They give a value for every candle and follow the same rules:</p>
+<ul><li><strong>Order:</strong> without <code>OVER</code>, all result rows are one series in time order. With <strong>many symbols</strong>, always write <code>OVER (PARTITION BY symbol ORDER BY time)</code>.</li><li><strong>Period:</strong> <code>n</code> is a number of candles, a whole number. Every argument after the price columns has a default, so <code>adx(high, low, close)</code> is the usual 14-candle ADX.</li><li><strong>WHERE runs first</strong>, and candles from <code>SAMPLE BY</code> must be made in a subquery, with the indicator outside (see <a href="functions-indicators.html">technical indicators</a>).</li><li><strong>Warm-up:</strong> the first candles have no value (<code>NULL</code>). With the default periods:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Default periods</th><th>First value on candle</th><th>NULL candles at the start</th></tr></thead><tbody><tr><td><code>plus_di</code>, <code>minus_di</code>, <code>dx</code></td><td>n = 14</td><td>n + 1 = 15</td><td>14</td></tr><tr><td><code>adx</code></td><td>n = 14</td><td>2n = 28</td><td>27</td></tr><tr><td><code>adxr</code></td><td>n = 14</td><td>3n - 1 = 41</td><td>40</td></tr><tr><td><code>aroon_up</code>, <code>aroon_down</code>, <code>aroon_osc</code></td><td>n = 14</td><td>n + 1 = 15</td><td>14</td></tr><tr><td><code>sar</code></td><td>0.02, 0.2</td><td>2</td><td>1</td></tr><tr><td><code>ichimoku_tenkan</code></td><td>9</td><td>9</td><td>8</td></tr><tr><td><code>ichimoku_kijun</code></td><td>26</td><td>26</td><td>25</td></tr><tr><td><code>ichimoku_senkou_a</code></td><td>9, 26, shift 26</td><td>26 + 26 = 52</td><td>51</td></tr><tr><td><code>ichimoku_senkou_b</code></td><td>52, shift 26</td><td>52 + 26 = 78</td><td>77</td></tr><tr><td><code>ichimoku_chikou</code></td><td>shift 26</td><td>1 (but the <strong>last</strong> 26 candles are NULL)</td><td>0</td></tr><tr><td><code>supertrend</code>, <code>supertrend_direction</code></td><td>n = 10, 3</td><td>n = 10</td><td>9</td></tr><tr><td><code>linearreg</code>, <code>linearreg_slope</code>, <code>linearreg_intercept</code>, <code>linearreg_angle</code>, <code>tsf</code></td><td>n = 14</td><td>n = 14</td><td>13</td></tr><tr><td><code>ha_open</code>, <code>ha_high</code>, <code>ha_low</code>, <code>ha_close</code></td><td>none</td><td>1</td><td>0</td></tr></tbody></table></div>
+<ul><li><strong>Same as TA-Lib:</strong> DI, DX, ADX, ADXR, Aroon, SAR and the linear regression functions give the same numbers as TA-Lib. SuperTrend follows TradingView (<code>ta.supertrend</code>). Ichimoku and Heikin-Ashi use the usual textbook formulas.</li><li><strong>NULL prices:</strong> the step-by-step indicators (<code>plus_di</code>, <code>minus_di</code>, <code>dx</code>, <code>adx</code>, <code>adxr</code>, <code>sar</code>, <code>supertrend</code>, <code>supertrend_direction</code>, the <code>ha_</code> functions) <strong>stop</strong> at the first NULL: that candle and every later one is <code>NULL</code>. The window indicators (Aroon, Ichimoku, linear regression) come back once the NULL is out of their window. Leave NULL candles out with <code>WHERE</code>.</li><li><strong>Returns</strong> <code>DOUBLE</code>, except <code>supertrend_direction</code> (<code>LONG</code>). Use <code>round(x, 2)</code> for prices.</li></ul>
+<p><strong>Example: The trend of CITY in its last 5 minutes: ADX, DI, SuperTrend and SAR</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, adx14, plus_di14, minus_di14, st_dir, sar
+FROM (SELECT time, close,
+             round(adx(high, low, close), 1) AS adx14,
+             round(plus_di(high, low, close), 1) AS plus_di14,
+             round(minus_di(high, low, close), 1) AS minus_di14,
+             supertrend_direction(high, low, close) AS st_dir,
+             round(sar(high, low), 2) AS sar
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>adx14 (DOUBLE)</th><th>plus_di14 (DOUBLE)</th><th>minus_di14 (DOUBLE)</th><th>st_dir (LONG)</th><th>sar (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>16.7</td><td>17.3</td><td>17.9</td><td>-1</td><td>505.78</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>17.9</td><td>18.9</td><td>18.2</td><td>-1</td><td>505.84</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>19.1</td><td>14</td><td>19.6</td><td>-1</td><td>505.9</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>19.3</td><td>14.9</td><td>20.8</td><td>-1</td><td>505.97</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>19.5</td><td>15</td><td>21.1</td><td>-1</td><td>506.04</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A NULL high: the step-by-step indicators stop, the window ones come back</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE candles (time TIMESTAMP, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO candles VALUES
+  (&#39;2026-09-01&#39;, 10, 11, 9, 10.5), (&#39;2026-09-02&#39;, 10.5, 12, 10, 11.5), (&#39;2026-09-03&#39;, 11.5, 12.5, 11, 12),
+  (&#39;2026-09-04&#39;, 12, NULL, 11.5, 12.2), (&#39;2026-09-05&#39;, 12.2, 13, 12, 12.8), (&#39;2026-09-06&#39;, 12.8, 13.5, 12.5, 13.2),
+  (&#39;2026-09-07&#39;, 13.2, 14, 13, 13.9), (&#39;2026-09-08&#39;, 13.9, 14.2, 13.1, 13.3);</code></pre>
+<pre><code class="language-sql">SELECT time, high,
+       round(sar(high, low), 2) AS sar,
+       round(ha_close(open, high, low, close), 2) AS ha_close,
+       round(aroon_up(high, 2), 1) AS aroon_up2,
+       round(linearreg_slope(high, 2), 2) AS slope2
+FROM candles
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>high (DOUBLE)</th><th>sar (DOUBLE)</th><th>ha_close (DOUBLE)</th><th>aroon_up2 (DOUBLE)</th><th>slope2 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>11</td><td>NULL</td><td>10.13</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>12</td><td>9</td><td>11</td><td>NULL</td><td>1</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>12.5</td><td>9.06</td><td>11.75</td><td>100</td><td>0.5</td></tr><tr><td>2026-09-04T00:00:00.000Z</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-05T00:00:00.000Z</td><td>13</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>13.5</td><td>NULL</td><td>NULL</td><td>NULL</td><td>0.5</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>14</td><td>NULL</td><td>NULL</td><td>100</td><td>0.5</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>14.2</td><td>NULL</td><td>NULL</td><td>100</td><td>0.2</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="cross_above">cross_above, cross_below</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cross_above(a, b) OVER ([PARTITION BY ...] [ORDER BY ...])
+cross_below(a, b) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Crossings</strong>: <code>cross_above</code> is <code>true</code> on the candle where <code>a</code> goes from at or below <code>b</code> to above it, <code>cross_below</code> where it goes from at or above <code>b</code> to below it. With two moving averages that is the <strong>golden cross</strong> (fast above slow) and the <strong>death cross</strong>. <code>crossover</code> and <code>crossunder</code> are other names for them (TradingView&#39;s).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>a</code>, <code>b</code></td><td>number</td><td>two series, or a series and a fixed level (<code>cross_above(rsi(close, 14), 30)</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>: <code>true</code> on the crossing candle, <code>false</code> on the others.</li><li><strong>NULL:</strong> on the first candle, and where <code>a</code> or <code>b</code> is <code>NULL</code> on this candle or the one before.</li><li><strong>Notes:</strong> <code>a</code> and <code>b</code> may themselves be indicators, as in <code>cross_above(sma(close, 20), sma(close, 50)) OVER (...)</code>: an indicator written inside another one without its own <code>OVER</code> takes the <code>PARTITION BY</code> and <code>ORDER BY</code> of the one it is in (<a href="candles-cookbook.html#moving-averages">indicators inside indicators</a>).</li></ul>
+<p><strong>Example: Golden and death crosses of CITY: 3-day average against 8-day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, signal
+FROM (
+  SELECT time, close,
+         CASE WHEN cross_above(sma(close, 3), sma(close, 8)) OVER (ORDER BY time) THEN &#39;golden&#39;
+              WHEN cross_below(sma(close, 3), sma(close, 8)) OVER (ORDER BY time) THEN &#39;death&#39; END AS signal
+  FROM ochl_day
+  WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026&#39;
+) s
+WHERE signal IS NOT NULL
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>signal (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>golden</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Symbols whose 3-day average crossed above their 8-day one on the last day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, time
+FROM (
+  SELECT symbol, time,
+         cross_above(sma(close, 3), sma(close, 8)) OVER (PARTITION BY symbol ORDER BY time) AS up,
+         row_number() OVER (PARTITION BY symbol ORDER BY time DESC) AS rn
+  FROM ochl_day
+) s
+WHERE rn = 1 AND up
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="plus_di">plus_di, minus_di</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">plus_di(high, low, close)
+plus_di(high, low, close, n)
+minus_di(high, low, close, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>directional indicators</strong> +DI and -DI (Welles Wilder&#39;s &quot;directional movement&quot;). <strong>+DI</strong> measures how strongly the highs push <strong>up</strong>; <strong>-DI</strong> how strongly the lows push <strong>down</strong>. Both are in percent of the <a href="functions-indicators.html#atr">true range</a>. When +DI is above -DI, the buyers are stronger (an up trend); when -DI is above +DI, the sellers are stronger. A cross of the two lines is a common buy or sell signal.</p>
+<p>Each candle&#39;s upward move is <code>high - previous high</code>, its downward move is <code>previous low - low</code>; only the bigger one counts (and only when it is more than 0). Both moves and the true range get Wilder&#39;s smoothing over <code>n</code> candles, and <code>+DI = 100 × smoothed up move / smoothed true range</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>the period; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles. A NULL <code>high</code>, <code>low</code> or <code>close</code> makes that candle and every later one <code>NULL</code>.</li><li><strong>Notes:</strong> the same as TA-Lib <code>PLUS_DI</code> and <code>MINUS_DI</code>. Use <a href="#adx">adx</a> to see whether the trend is strong enough to follow.</li></ul>
+<p><strong>Example: +DI and -DI of COAST in the last 5 minutes</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, plus_di14, minus_di14,
+       CASE WHEN plus_di14 &gt; minus_di14 THEN &#39;buyers stronger&#39; ELSE &#39;sellers stronger&#39; END AS side
+FROM (SELECT time, close,
+             round(plus_di(high, low, close), 1) AS plus_di14,
+             round(minus_di(high, low, close), 1) AS minus_di14
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>plus_di14 (DOUBLE)</th><th>minus_di14 (DOUBLE)</th><th>side (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>27.7</td><td>14.4</td><td>buyers stronger</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>26.9</td><td>15.4</td><td>buyers stronger</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>29</td><td>16.7</td><td>buyers stronger</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>22.5</td><td>18.5</td><td>buyers stronger</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>23.8</td><td>19.5</td><td>buyers stronger</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: DI crossover: the first 5 minutes of 10 September when CITY&#39;s +DI crossed above -DI</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, plus_di14, minus_di14
+FROM (SELECT time, close, plus_di14, minus_di14,
+             lag(plus_di14) AS prev_plus, lag(minus_di14) AS prev_minus
+      FROM (SELECT time, close,
+                   round(plus_di(high, low, close), 1) AS plus_di14,
+                   round(minus_di(high, low, close), 1) AS minus_di14
+            FROM ochl_minutes
+            WHERE symbol = &#39;CITY&#39;) a) b
+WHERE plus_di14 &gt; minus_di14 AND prev_plus &lt;= prev_minus AND time IN &#39;2026-09-10&#39;
+ORDER BY time
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>plus_di14 (DOUBLE)</th><th>minus_di14 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:41:00.000Z</td><td>505.4</td><td>18.5</td><td>16.6</td></tr><tr><td>2026-09-10T05:59:00.000Z</td><td>506.4</td><td>22.6</td><td>16.4</td></tr><tr><td>2026-09-10T06:06:00.000Z</td><td>505.5</td><td>16.2</td><td>14.7</td></tr><tr><td>2026-09-10T06:10:00.000Z</td><td>505.9</td><td>15.1</td><td>14.9</td></tr><tr><td>2026-09-10T06:18:00.000Z</td><td>505.6</td><td>19.7</td><td>19.3</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The period must be 2 or more</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT plus_di(high, low, close, 1) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: plus_di: the period must be a whole number of rows (2 or more)</code></p>
+<h2 id="dx">dx</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">dx(high, low, close)
+dx(high, low, close, n)
+dx(high, low, close, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>directional movement index</strong>: how far apart +DI and -DI are, <code>DX = 100 × |+DI - -DI| / (+DI + -DI)</code>. A big DX means one side (buyers or sellers) is much stronger. DX jumps a lot from candle to candle; most traders use its smooth average, <a href="#adx">adx</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code>, <code>close</code></td><td>number</td><td>the candle&#39;s high, low and close</td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>the period; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles. A NULL price stops the series (that candle and every later one is <code>NULL</code>).</li><li><strong>Notes:</strong> the same as TA-Lib <code>DX</code>. When +DI and -DI are both 0, DX keeps its previous value.</li></ul>
+<p><strong>Example: DX jumps, ADX is smooth (CITY daily, 3-day period)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(dx(high, low, close, 3), 1) AS dx3,
+       round(adx(high, low, close, 3), 1) AS adx3
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>dx3 (DOUBLE)</th><th>adx3 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>100</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>20.9</td><td>NULL</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>36.4</td><td>52.4</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>51.1</td><td>52</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>17.9</td><td>40.6</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>70.9</td><td>50.7</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>70.9</td><td>57.5</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>70.9</td><td>61.9</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>77.7</td><td>67.2</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>71.7</td><td>68.7</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>74.4</td><td>70.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>27</td><td>56.1</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<h2 id="adx">adx</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">adx(high, low, close)
+adx(high, low, close, n)
+adx(high, low, close, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>average directional index</strong>: the <strong>strength</strong> of the trend, from 0 to 100, without its direction. It is Wilder&#39;s average of <a href="#dx">dx</a> over <code>n</code> candles. Traders read it like this:</p>
+<ul><li><strong>below 20:</strong> no real trend, the price moves sideways;</li><li><strong>above 25:</strong> a strong trend. Then look at <a href="#plus_di">+DI and -DI</a> for the direction: +DI above -DI is a strong up trend, -DI above +DI a strong down trend;</li><li><strong>ADX rising:</strong> the trend is getting stronger.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code>, <code>close</code></td><td>number</td><td>the candle&#39;s high, low and close</td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>the period; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>2n - 1</code> candles (27 with the default 14). A NULL price stops the series.</li><li><strong>Notes:</strong> the same as TA-Lib <code>ADX</code>. Because it is an average of an average, ADX is slow: it needs about <code>2n</code> candles to start and more to settle. Load more history than you show.</li></ul>
+<p><strong>Example: Strong or weak trend? COAST in the last 5 minutes</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, adx14, plus_di14, minus_di14,
+       CASE WHEN adx14 &gt; 25 AND plus_di14 &gt; minus_di14 THEN &#39;strong up&#39;
+            WHEN adx14 &gt; 25 THEN &#39;strong down&#39;
+            ELSE &#39;weak&#39; END AS trend
+FROM (SELECT time, close,
+             round(adx(high, low, close), 1) AS adx14,
+             round(plus_di(high, low, close), 1) AS plus_di14,
+             round(minus_di(high, low, close), 1) AS minus_di14
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>adx14 (DOUBLE)</th><th>plus_di14 (DOUBLE)</th><th>minus_di14 (DOUBLE)</th><th>trend (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>17.7</td><td>27.7</td><td>14.4</td><td>weak</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>16.6</td><td>26.9</td><td>15.4</td><td>weak</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>15.8</td><td>29</td><td>16.7</td><td>weak</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>15</td><td>22.5</td><td>18.5</td><td>weak</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>15.4</td><td>23.8</td><td>19.5</td><td>weak</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: How many minutes each symbol spent in a strong up, strong down or weak trend</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, trend, count(*) AS minutes
+FROM (SELECT symbol,
+             CASE WHEN adx14 IS NULL THEN &#39;warm-up&#39;
+                  WHEN adx14 &gt; 25 AND plus_di14 &gt; minus_di14 THEN &#39;strong up&#39;
+                  WHEN adx14 &gt; 25 THEN &#39;strong down&#39;
+                  ELSE &#39;weak&#39; END AS trend
+      FROM (SELECT symbol,
+                   adx(high, low, close) OVER (PARTITION BY symbol ORDER BY time) AS adx14,
+                   plus_di(high, low, close) OVER (PARTITION BY symbol ORDER BY time) AS plus_di14,
+                   minus_di(high, low, close) OVER (PARTITION BY symbol ORDER BY time) AS minus_di14
+            FROM ochl_minutes) a) b
+GROUP BY symbol, trend
+ORDER BY symbol, trend;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trend (STRING)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>strong down</td><td>153</td></tr><tr><td>CITY</td><td>strong up</td><td>73</td></tr><tr><td>CITY</td><td>warm-up</td><td>27</td></tr><tr><td>CITY</td><td>weak</td><td>227</td></tr><tr><td>COAST</td><td>strong down</td><td>159</td></tr><tr><td>COAST</td><td>strong up</td><td>16</td></tr><tr><td>COAST</td><td>warm-up</td><td>27</td></tr><tr><td>COAST</td><td>weak</td><td>274</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="adxr">adxr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">adxr(high, low, close)
+adxr(high, low, close, n)
+adxr(high, low, close, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>average directional movement rating</strong>: the average of today&#39;s <a href="#adx">adx</a> and the ADX of <code>n - 1</code> candles ago. It is an even smoother trend strength. Some traders compare ADX with ADXR: ADX above ADXR means the trend is getting stronger.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code>, <code>close</code></td><td>number</td><td>the candle&#39;s high, low and close</td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>the period; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>3n - 2</code> candles (40 with the default 14). A NULL price stops the series.</li><li><strong>Notes:</strong> the same as TA-Lib <code>ADXR</code>.</li></ul>
+<p><strong>Example: ADX against ADXR: is the trend of CITY getting stronger?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, adx14, adxr14,
+       CASE WHEN adx14 &gt; adxr14 THEN &#39;stronger&#39; ELSE &#39;weaker&#39; END AS strength
+FROM (SELECT time, close,
+             round(adx(high, low, close), 1) AS adx14,
+             round(adxr(high, low, close), 1) AS adxr14
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>adx14 (DOUBLE)</th><th>adxr14 (DOUBLE)</th><th>strength (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>16.7</td><td>21.4</td><td>weaker</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>17.9</td><td>22.9</td><td>weaker</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>19.1</td><td>24.5</td><td>weaker</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>19.3</td><td>25.5</td><td>weaker</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>19.5</td><td>26.2</td><td>weaker</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="aroon_up">aroon_up, aroon_down</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aroon_up(high)
+aroon_up(high, n)
+aroon_down(low, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>Aroon</strong> indicator (&quot;dawn&#39;s early light&quot; in Sanskrit) asks: how long ago was the highest high, and how long ago the lowest low? It looks at this candle and the <code>n</code> candles before it.</p>
+<ul><li><code>aroon_up = 100 × (n - candles since the highest high) / n</code>. <strong>100</strong> means today made a new <code>n</code>-candle high; <strong>0</strong> means the high was <code>n</code> candles ago.</li><li><code>aroon_down</code> is the same with the lowest low.</li><li>Aroon up above 70 and Aroon down below 30 is a strong up trend; the other way round a strong down trend. When the two lines cross, the trend may be changing.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code> (or <code>low</code>)</td><td>number</td><td>the highs for <code>aroon_up</code>, the lows for <code>aroon_down</code></td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles, and while a NULL value is in the window of <code>n + 1</code> candles.</li><li><strong>Notes:</strong> the same as TA-Lib <code>AROON</code>. When the highest high appears twice in the window, the later one counts.</li></ul>
+<p><strong>Example: Aroon of VOLT on daily candles (5-day period)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, high, low,
+       round(aroon_up(high, 5), 1) AS aroon_up5,
+       round(aroon_down(low, 5), 1) AS aroon_down5
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>aroon_up5 (DOUBLE)</th><th>aroon_down5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>182.6</td><td>178.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>183.6</td><td>178.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>182.2</td><td>172.8</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>178.4</td><td>172</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>175.9</td><td>173</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>174.2</td><td>170.6</td><td>20</td><td>100</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>175.6</td><td>171.3</td><td>0</td><td>80</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>172.1</td><td>167.3</td><td>0</td><td>100</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>174.6</td><td>169</td><td>0</td><td>80</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>177.3</td><td>171.9</td><td>100</td><td>60</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>183.9</td><td>172.4</td><td>100</td><td>40</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>183.2</td><td>174.3</td><td>80</td><td>20</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>183.5</td><td>178.2</td><td>60</td><td>0</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>189.5</td><td>181.7</td><td>100</td><td>0</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>192.1</td><td>184.2</td><td>100</td><td>0</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<h2 id="aroon_osc">aroon_osc</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aroon_osc(high, low)
+aroon_osc(high, low, n)
+aroon_osc(high, low, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>Aroon oscillator</strong>: <code>aroon_up(high, n) - aroon_down(low, n)</code>, one line from -100 to 100. Above 0, the recent high is newer than the recent low (the price is climbing); below 0, the other way round. Near +100 or -100, the trend is strong.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from -100 to 100.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> candles, and while a NULL high or low is in the window.</li><li><strong>Notes:</strong> the same as TA-Lib <code>AROONOSC</code>. Both <code>high</code> and <code>low</code> are needed: <code>aroon_osc(high, 5)</code> reads <code>5</code> as the lows.</li></ul>
+<p><strong>Example: Aroon oscillator of every symbol on the last day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, aroon_osc5
+FROM (SELECT time, symbol, close,
+             round(aroon_osc(high, low, 5) OVER (PARTITION BY symbol ORDER BY time), 1) AS aroon_osc5
+      FROM ochl_day) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY aroon_osc5 DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>aroon_osc5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>100</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>80</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>40</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="sar">sar, parabolic_sar</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sar(high, low)
+sar(high, low, acceleration, maximum)
+parabolic_sar(high, low, acceleration, maximum) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>parabolic SAR</strong> (&quot;stop and reverse&quot;). On a chart it is a row of dots: <strong>below</strong> the candles in an up trend, <strong>above</strong> them in a down trend. Traders use it as a <strong>trailing stop</strong>: in an up trend, sell when the price falls under the dot. When the price crosses the dot, the SAR jumps to the other side and the trend is &quot;reversed&quot;. <code>parabolic_sar</code> is the same function.</p>
+<p>Each candle, the dot moves toward the price by <code>acceleration factor × (extreme price - SAR)</code>. The factor starts at <code>acceleration</code>, grows by <code>acceleration</code> every time the trend makes a new high (or low), and never goes above <code>maximum</code>. So the dot follows the price faster the longer the trend lasts.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>acceleration</code></td><td>number, more than 0</td><td>the start and the step of the factor; default <code>0.02</code></td></tr><tr><td><code>maximum</code></td><td>number, more than 0</td><td>the biggest factor; default <code>0.2</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (a price).</li><li><strong>NULL:</strong> <code>NULL</code> for the first candle. A NULL <code>high</code> or <code>low</code> stops the series (that candle and every later one is <code>NULL</code>).</li><li><strong>Notes:</strong> the same as TA-Lib <code>SAR</code>. The first trend (up or down) is chosen from the first two candles. An <code>acceleration</code> bigger than <code>maximum</code> is lowered to <code>maximum</code>. A smaller <code>acceleration</code> gives a slower dot, further from the price.</li></ul>
+<p><strong>Example: SAR of CITY&#39;s daily candles: where the trend reversed</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, low, high, close, sar,
+       CASE WHEN sar &lt;= low THEN &#39;dot below: up trend&#39;
+            WHEN sar &gt;= high THEN &#39;dot above: down trend&#39; END AS trend
+FROM (SELECT time, low, high, close, round(sar(high, low), 2) AS sar
+      FROM ochl_day
+      WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>low (DOUBLE)</th><th>high (DOUBLE)</th><th>close (DOUBLE)</th><th>sar (DOUBLE)</th><th>trend (STRING)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>502</td><td>508.4</td><td>507.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>508.2</td><td>510.9</td><td>510.3</td><td>502</td><td>dot below: up trend</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>507.6</td><td>517</td><td>513.3</td><td>502.18</td><td>dot below: up trend</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>508</td><td>515.3</td><td>513.2</td><td>502.77</td><td>dot below: up trend</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.5</td><td>514.3</td><td>505.9</td><td>503.34</td><td>dot below: up trend</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>501.7</td><td>511.2</td><td>503.1</td><td>517</td><td>dot above: down trend</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>500.1</td><td>506</td><td>505.7</td><td>516.69</td><td>dot above: down trend</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>501.3</td><td>507.3</td><td>502.4</td><td>516.03</td><td>dot above: down trend</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>494.1</td><td>502.8</td><td>496.4</td><td>515.39</td><td>dot above: down trend</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>495.5</td><td>500.9</td><td>497.9</td><td>514.12</td><td>dot above: down trend</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>496</td><td>500.1</td><td>499</td><td>512.91</td><td>dot above: down trend</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>495</td><td>501</td><td>498.7</td><td>511.79</td><td>dot above: down trend</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>501.1</td><td>497.5</td><td>510.72</td><td>dot above: down trend</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504</td><td>512.4</td><td>504.6</td><td>494.1</td><td>dot below: up trend</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>500.7</td><td>507</td><td>504.9</td><td>494.47</td><td>dot below: up trend</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: A trailing stop from the SAR, for the last 5 minutes of CITY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, sar_stop,
+       CASE WHEN sar_stop &lt; close THEN &#39;hold: sell below the stop&#39; ELSE &#39;down trend: stay out&#39; END AS action
+FROM (SELECT time, close, round(sar(high, low), 2) AS sar_stop
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sar_stop (DOUBLE)</th><th>action (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>505.78</td><td>down trend: stay out</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>505.84</td><td>down trend: stay out</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>505.9</td><td>down trend: stay out</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>505.97</td><td>down trend: stay out</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>506.04</td><td>down trend: stay out</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A slower SAR: acceleration 0.01, maximum 0.1</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(sar(high, low), 2) AS sar_default,
+       round(parabolic_sar(high, low, 0.01, 0.1), 2) AS sar_slow
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sar_default (DOUBLE)</th><th>sar_slow (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>367.4</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>369.2</td><td>365.3</td><td>365.3</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>373.2</td><td>373.6</td><td>373.6</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td><td>364.1</td><td>364.1</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td><td>364.1</td><td>364.1</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td><td>364.78</td><td>364.44</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>380.1</td><td>365.43</td><td>364.77</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td><td>367.43</td><td>365.79</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: acceleration and maximum must be more than 0</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT sar(high, low, 0, 0.2) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: sar: the acceleration and the maximum must be more than 0</code></p>
+<h2 id="ichimoku_tenkan">ichimoku_tenkan, ichimoku_kijun</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ichimoku_tenkan(high, low)
+ichimoku_tenkan(high, low, n)
+ichimoku_kijun(high, low, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Ichimoku</strong> (&quot;one look&quot; in Japanese) is a whole trend system drawn on the chart. Its lines are middle prices: <code>(highest high + lowest low) / 2</code> of the last <code>n</code> candles.</p>
+<ul><li><code>ichimoku_tenkan</code> is the <strong>tenkan-sen</strong> (conversion line), a fast line: default 9 candles.</li><li><code>ichimoku_kijun</code> is the <strong>kijun-sen</strong> (base line), a slow line: default 26 candles.</li><li>Tenkan above kijun is a sign of an up trend; a cross of tenkan above kijun is a buy signal (&quot;TK cross&quot;).</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code></td><td>number</td><td>the candle&#39;s high</td></tr><tr><td><code>low</code></td><td>number</td><td>the candle&#39;s low</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period; default <code>9</code> for tenkan, <code>26</code> for kijun</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (a price).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and while a NULL high or low is in the window.</li><li><strong>Notes:</strong> the classic periods 9, 26 and 52 were made for a 6-day trading week. Some traders use other periods; all of them can be changed.</li></ul>
+<p><strong>Example: Tenkan and kijun of COAST in the last 5 minutes</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, tenkan, kijun,
+       CASE WHEN tenkan &gt; kijun THEN &#39;up&#39; WHEN tenkan &lt; kijun THEN &#39;down&#39; ELSE &#39;flat&#39; END AS signal
+FROM (SELECT time, close,
+             round(ichimoku_tenkan(high, low), 2) AS tenkan,
+             round(ichimoku_kijun(high, low), 2) AS kijun
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>tenkan (DOUBLE)</th><th>kijun (DOUBLE)</th><th>signal (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>375.45</td><td>375.4</td><td>up</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>375.35</td><td>375.25</td><td>up</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>375.3</td><td>375.05</td><td>up</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>375</td><td>374.85</td><td>up</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>375</td><td>374.75</td><td>up</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="ichimoku_senkou_a">ichimoku_senkou_a</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ichimoku_senkou_a(high, low)
+ichimoku_senkou_a(high, low, short, long, shift)
+ichimoku_senkou_a(high, low, short, long, shift) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Senkou span A</strong>, the first edge of the Ichimoku <strong>cloud</strong> (kumo): <code>(tenkan + kijun) / 2</code>, made <code>shift</code> candles ago. A chart draws the cloud 26 candles ahead of the price; KDB puts on each row the cloud value that the chart shows <strong>under that candle</strong>, so you can compare it with the row&#39;s price directly.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code></td><td>number</td><td>the candle&#39;s high and low</td></tr><tr><td><code>short</code></td><td>whole number, 1 or more</td><td>the tenkan period; default <code>9</code></td></tr><tr><td><code>long</code></td><td>whole number, 1 or more</td><td>the kijun period; default <code>26</code></td></tr><tr><td><code>shift</code></td><td>whole number, 0 or more</td><td>how many candles back the value was made; default <code>26</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (a price).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>long + shift - 1</code> candles (51 with the defaults; when <code>short</code> is the bigger period, <code>short + shift - 1</code>), and while a NULL high or low is in the window.</li><li><strong>Notes:</strong> with <code>shift</code> 0 you get the value made on this candle, as a chart would draw it 26 candles later.</li></ul>
+<p><strong>Example: Senkou span A with shift 0 is the average of tenkan and kijun</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, tenkan, kijun, span_a_now
+FROM (SELECT time,
+             round(ichimoku_tenkan(high, low), 2) AS tenkan,
+             round(ichimoku_kijun(high, low), 2) AS kijun,
+             round(ichimoku_senkou_a(high, low, 9, 26, 0), 2) AS span_a_now
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>tenkan (DOUBLE)</th><th>kijun (DOUBLE)</th><th>span_a_now (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>505.1</td><td>505.35</td><td>505.23</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.2</td><td>505.35</td><td>505.28</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>505.2</td><td>505.35</td><td>505.28</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="ichimoku_senkou_b">ichimoku_senkou_b</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ichimoku_senkou_b(high, low)
+ichimoku_senkou_b(high, low, n, shift)
+ichimoku_senkou_b(high, low, n, shift) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Senkou span B</strong>, the second edge of the Ichimoku cloud: the middle price <code>(highest high + lowest low) / 2</code> of the last <code>n</code> candles (default 52), made <code>shift</code> candles ago. Together with <a href="#ichimoku_senkou_a">senkou span A</a>:</p>
+<ul><li>price <strong>above</strong> the cloud (above both spans): up trend;</li><li>price <strong>below</strong> the cloud: down trend;</li><li>price <strong>inside</strong> the cloud: no clear trend. A thick cloud is strong support or resistance (a price level that is hard to break).</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code></td><td>number</td><td>the candle&#39;s high and low</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the period; default <code>52</code></td></tr><tr><td><code>shift</code></td><td>whole number, 0 or more</td><td>how many candles back the value was made; default <code>26</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (a price).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n + shift - 1</code> candles (77 with the defaults), and while a NULL high or low is in the window.</li></ul>
+<p><strong>Example: Is CITY above, below or inside the Ichimoku cloud?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, span_a, span_b,
+       CASE WHEN close &gt; greatest(span_a, span_b) THEN &#39;above the cloud: up trend&#39;
+            WHEN close &lt; least(span_a, span_b) THEN &#39;below the cloud: down trend&#39;
+            ELSE &#39;inside the cloud&#39; END AS position
+FROM (SELECT time, close,
+             round(ichimoku_senkou_a(high, low), 2) AS span_a,
+             round(ichimoku_senkou_b(high, low), 2) AS span_b
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>span_a (DOUBLE)</th><th>span_b (DOUBLE)</th><th>position (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>505.95</td><td>504.45</td><td>inside the cloud</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>505.93</td><td>504.45</td><td>inside the cloud</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>505.88</td><td>504.45</td><td>inside the cloud</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>505.65</td><td>504.45</td><td>inside the cloud</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>505.48</td><td>504.45</td><td>inside the cloud</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="ichimoku_chikou">ichimoku_chikou</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ichimoku_chikou(close)
+ichimoku_chikou(close, shift)
+ichimoku_chikou(close, shift) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Chikou span</strong> (the lagging line) of Ichimoku. A chart draws today&#39;s close <code>shift</code> candles <strong>back</strong> in time. So in KDB, each row gets the close from <code>shift</code> rows <strong>later</strong>. It lets you compare the price then with the price 26 candles later: chikou above the old price means the price has risen since.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>close</code></td><td>number</td><td>the candle&#39;s close</td></tr><tr><td><code>shift</code></td><td>whole number, 0 or more</td><td>how many candles later the close comes from; default <code>26</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (a price).</li><li><strong>NULL:</strong> the <strong>last</strong> <code>shift</code> candles are <code>NULL</code> (there is no later close yet). A NULL close gives <code>NULL</code> on the row <code>shift</code> candles before it.</li><li><strong>Notes:</strong> the same as <code>lead(close, shift)</code> (<a href="functions-window.html#lead">lead</a>). Because it looks into the future of each row, never use it as a signal on the last rows.</li></ul>
+<p><strong>Example: Chikou with shift 5 on CITY&#39;s daily closes: the last 5 days are NULL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, ichimoku_chikou(close, 5) AS close_5_days_later
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-30&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>close_5_days_later (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>499</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>498.7</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>497.5</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>504.6</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>504.9</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>NULL</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>NULL</td></tr></tbody></table></div>
+<p>(10 rows)</p>
+<h2 id="supertrend">supertrend</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">supertrend(high, low, close)
+supertrend(high, low, close, n, multiplier)
+supertrend(high, low, close, n, multiplier) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>SuperTrend</strong> is one line that follows the price. In an <strong>up trend</strong> the line is <strong>below</strong> the price, in a <strong>down trend</strong> it is <strong>above</strong>. When the close crosses the line, the trend flips. Traders like it as a simple trailing stop: in an up trend, sell when the close falls below the SuperTrend line.</p>
+<p>The line is <code>(high + low) / 2 ± multiplier × ATR</code>. The ATR (average true range, see <a href="functions-indicators.html#atr">atr</a>) makes the line keep a bigger distance when the price moves a lot. The line only moves toward the price, never away, until the trend flips. Use <a href="#supertrend_direction">supertrend_direction</a> to know which side the line is on.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code>, <code>close</code></td><td>number</td><td>the candle&#39;s high, low and close</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the ATR period; default <code>10</code></td></tr><tr><td><code>multiplier</code></td><td>number</td><td>how many ATRs away the line is; default <code>3</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (a price).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. A NULL price stops the series (that candle and every later one is <code>NULL</code>).</li><li><strong>Notes:</strong> the same as TradingView <code>ta.supertrend(multiplier, n)</code>. Its ATR is TradingView&#39;s: the first true range is <code>high - low</code>, and the first ATR is on candle <code>n</code>. So it is a little different from KDB&#39;s <a href="functions-indicators.html#atr">atr</a>, which starts on candle <code>n + 1</code>. A bigger <code>multiplier</code> gives fewer, later flips.</li></ul>
+<p><strong>Example: SuperTrend of CITY in the last 5 minutes</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, supertrend, direction,
+       CASE WHEN direction = 1 THEN &#39;up: line is the stop below&#39; ELSE &#39;down: line is above&#39; END AS meaning
+FROM (SELECT time, close,
+             round(supertrend(high, low, close), 2) AS supertrend,
+             supertrend_direction(high, low, close) AS direction
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>supertrend (DOUBLE)</th><th>direction (LONG)</th><th>meaning (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>506.15</td><td>-1</td><td>down: line is above</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>506.15</td><td>-1</td><td>down: line is above</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>506.15</td><td>-1</td><td>down: line is above</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>506.15</td><td>-1</td><td>down: line is above</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>504.6</td><td>506.15</td><td>-1</td><td>down: line is above</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Daily SuperTrend of every symbol (5 days, multiplier 2) on the last day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, st, direction
+FROM (SELECT time, symbol, close,
+             round(supertrend(high, low, close, 5, 2) OVER (PARTITION BY symbol ORDER BY time), 2) AS st,
+             supertrend_direction(high, low, close, 5, 2) OVER (PARTITION BY symbol ORDER BY time) AS direction
+      FROM ochl_day) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>st (DOUBLE)</th><th>direction (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>511.5</td><td>-1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>384.2</td><td>-1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>173.34</td><td>1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="supertrend_direction">supertrend_direction</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">supertrend_direction(high, low, close)
+supertrend_direction(high, low, close, n, multiplier)
+supertrend_direction(high, low, close, n, multiplier) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The side of the <a href="#supertrend">SuperTrend</a> line: <strong>1** for an up trend (the line is below the price), **-1</strong> for a down trend (the line is above). When it changes from -1 to 1, traders take it as a <strong>buy</strong> signal; from 1 to -1 as a <strong>sell</strong> signal.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>high</code>, <code>low</code>, <code>close</code></td><td>number</td><td>the candle&#39;s high, low and close</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>the ATR period; default <code>10</code></td></tr><tr><td><code>multiplier</code></td><td>number</td><td>how many ATRs away the line is; default <code>3</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>: <code>1</code> or <code>-1</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles. A NULL price stops the series.</li><li><strong>Notes:</strong> <strong>careful:</strong> TradingView&#39;s <code>ta.supertrend</code> gives the opposite sign (-1 for up). KDB uses 1 for up because it is easier to read. The first value is always <code>-1</code>, like TradingView&#39;s first value.</li></ul>
+<p><strong>Example: SuperTrend flips of CITY: buy and sell signals</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, supertrend,
+       CASE WHEN direction = 1 THEN &#39;BUY&#39; ELSE &#39;SELL&#39; END AS signal
+FROM (SELECT time, close, supertrend, direction, lag(direction) AS prev_direction
+      FROM (SELECT time, close,
+                   round(supertrend(high, low, close), 2) AS supertrend,
+                   supertrend_direction(high, low, close) AS direction
+            FROM ochl_minutes
+            WHERE symbol = &#39;CITY&#39;) a) b
+WHERE direction &lt;&gt; prev_direction
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>supertrend (DOUBLE)</th><th>signal (STRING)</th></tr></thead><tbody><tr><td>2026-09-09T06:47:00.000Z</td><td>505.8</td><td>504.08</td><td>BUY</td></tr><tr><td>2026-09-09T08:42:00.000Z</td><td>508.2</td><td>510.31</td><td>SELL</td></tr><tr><td>2026-09-10T05:43:00.000Z</td><td>506</td><td>504.19</td><td>BUY</td></tr><tr><td>2026-09-10T06:34:00.000Z</td><td>504.8</td><td>506.76</td><td>SELL</td></tr><tr><td>2026-09-10T07:13:00.000Z</td><td>502.9</td><td>501.07</td><td>BUY</td></tr><tr><td>2026-09-10T08:52:00.000Z</td><td>504.7</td><td>506.91</td><td>SELL</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: How many minutes COAST spent in each SuperTrend direction, per day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT to_date(time) AS day, direction, count(*) AS minutes
+FROM (SELECT time, supertrend_direction(high, low, close) AS direction
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+WHERE direction IS NOT NULL
+GROUP BY to_date(time), direction
+ORDER BY day, direction;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th><th>direction (LONG)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>2026-09-09</td><td>-1</td><td>200</td></tr><tr><td>2026-09-09</td><td>1</td><td>31</td></tr><tr><td>2026-09-10</td><td>-1</td><td>149</td></tr><tr><td>2026-09-10</td><td>1</td><td>87</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="linearreg">linearreg, linreg</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">linearreg(x)
+linearreg(x, n)
+linreg(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>A <strong>moving linear regression</strong>. For every candle, KDB draws the best straight line through the last <code>n</code> values (the &quot;least squares&quot; line: the one with the smallest squared distances to the points). <code>linearreg</code> is the value of that line <strong>on this candle</strong>. It is a moving average that follows the trend with less delay than <a href="functions-indicators.html#sma">sma</a>. <code>linreg</code> is the same function.</p>
+<p>The other functions of this family read the same line: <a href="#linearreg_slope">linearreg_slope</a> (its steepness), <a href="#linearreg_intercept">linearreg_intercept</a> (its start), <a href="#linearreg_angle">linearreg_angle</a> and <a href="#tsf">tsf</a> (the next candle&#39;s forecast).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>how many candles the line goes through; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and while a NULL value is in the window.</li><li><strong>Notes:</strong> the same as TA-Lib <code>LINEARREG</code>. For one line through <strong>all</strong> rows of a group, use the aggregate <a href="functions-correlation.html#regr_slope">regr_slope</a>.</li></ul>
+<p><strong>Example: Linear regression line against SMA (CITY daily, 5 days)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(linearreg(close, 5), 2) AS linreg5,
+       round(sma(close, 5), 2) AS sma5
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>linreg5 (DOUBLE)</th><th>sma5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>509.9</td><td>510.12</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>504.8</td><td>509.16</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>503.18</td><td>508.24</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>501.7</td><td>506.06</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>498.76</td><td>502.7</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>497.16</td><td>501.1</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>496.7</td><td>500.28</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>497.92</td><td>498.88</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>498.5</td><td>497.9</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>501.92</td><td>499.54</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>504.48</td><td>500.94</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: The period must be 2 or more: one point makes no line</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT linreg(close, 1) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: linreg: the period must be a whole number of rows (2 or more)</code></p>
+<h2 id="linearreg_slope">linearreg_slope, linreg_slope</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">linearreg_slope(x)
+linearreg_slope(x, n)
+linreg_slope(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>slope</strong> of the moving regression line: how much the line goes up (or down, when negative) per candle. On one-minute closes, a slope of <code>0.05</code> means the trend adds about 5 cents a minute. A positive slope is an up trend, a negative slope a down trend; a bigger number is a steeper trend. <code>linreg_slope</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>how many candles; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (price per candle).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and while a NULL value is in the window.</li><li><strong>Notes:</strong> the same as TA-Lib <code>LINEARREG_SLOPE</code>. To compare shares with different prices, divide by the price: <code>slope / close × 100</code> is the trend in percent per candle.</li></ul>
+<p><strong>Example: Trend of the last 14 minutes, per symbol, at the close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, slope14, round(slope14 / close * 100 * 60, 3) AS pct_per_hour
+FROM (SELECT time, symbol, close,
+             round(linearreg_slope(close, 14) OVER (PARTITION BY symbol ORDER BY time), 4) AS slope14
+      FROM ochl_minutes) t
+WHERE time = &#39;2026-09-10T09:14:00Z&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>slope14 (DOUBLE)</th><th>pct_per_hour (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>504.9</td><td>-0.0534</td><td>-0.635</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>COAST</td><td>376.1</td><td>0.107</td><td>1.707</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="linearreg_intercept">linearreg_intercept, linreg_intercept</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">linearreg_intercept(x)
+linearreg_intercept(x, n)
+linreg_intercept(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>intercept</strong> of the moving regression line: the value of the line on the <strong>first</strong> (oldest) candle of its window. With the slope, it gives the whole line: <code>linearreg = intercept + slope × (n - 1)</code>. <code>linreg_intercept</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>how many candles; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and while a NULL value is in the window.</li><li><strong>Notes:</strong> the same as TA-Lib <code>LINEARREG_INTERCEPT</code>.</li></ul>
+<p><strong>Example: Intercept + slope × (n - 1) is the linearreg value</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(linearreg_intercept(close, 5), 2) AS intercept5,
+       round(linearreg_slope(close, 5), 3) AS slope5,
+       round(linearreg_intercept(close, 5) + linearreg_slope(close, 5) * 4, 2) AS line_today,
+       round(linearreg(close, 5), 2) AS linreg5
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>intercept5 (DOUBLE)</th><th>slope5 (DOUBLE)</th><th>line_today (DOUBLE)</th><th>linreg5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>169.82</td><td>2.44</td><td>179.58</td><td>179.58</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>172.84</td><td>2.27</td><td>181.92</td><td>181.92</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>175.56</td><td>2.49</td><td>185.52</td><td>185.52</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>177.06</td><td>3.26</td><td>190.1</td><td>190.1</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="linearreg_angle">linearreg_angle, linreg_angle</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">linearreg_angle(x)
+linearreg_angle(x, n)
+linreg_angle(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The slope of the moving regression line as an <strong>angle in degrees</strong>: <code>atan(slope)</code> changed to degrees. Near <code>0</code> is flat; near <code>90</code> a very steep rise, near <code>-90</code> a very steep fall. <code>linreg_angle</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>how many candles; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from -90 to 90.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and while a NULL value is in the window.</li><li><strong>Notes:</strong> the same as TA-Lib <code>LINEARREG_ANGLE</code>. The angle depends on the price unit (dollars per candle), so a 500-dollar share shows steeper angles than a 50-dollar share with the same move in percent. Only compare angles of the same share.</li></ul>
+<p><strong>Example: Angle of the 14-minute trend of COAST</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, angle14
+FROM (SELECT time, close, round(linearreg_angle(close), 1) AS angle14
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39;) t
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>angle14 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>6.1</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>4.2</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>1.8</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>375.5</td><td>-0.4</td></tr><tr><td>2026-09-10T09:10:00.000Z</td><td>375.6</td><td>-1.8</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="tsf">tsf</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">tsf(x)
+tsf(x, n)
+tsf(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>time series forecast</strong>: the moving regression line carried <strong>one candle further</strong>. It is a simple guess of the next value if the trend of the last <code>n</code> candles goes on: <code>tsf = linearreg + slope</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>how many candles; default <code>14</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n - 1</code> candles, and while a NULL value is in the window.</li><li><strong>Notes:</strong> the same as TA-Lib <code>TSF</code>. It is only a straight line: it does not know news or sudden turns.</li></ul>
+<p><strong>Example: Forecast against the real next close (CITY daily, 5 days)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, forecast_for_next_day, next_close,
+       round(next_close - forecast_for_next_day, 2) AS error
+FROM (SELECT time, close,
+             round(tsf(close, 5), 2) AS forecast_for_next_day,
+             lead(close) AS next_close
+      FROM ochl_day
+      WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+WHERE forecast_for_next_day IS NOT NULL
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>forecast_for_next_day (DOUBLE)</th><th>next_close (DOUBLE)</th><th>error (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>509.79</td><td>503.1</td><td>-6.69</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>502.62</td><td>505.7</td><td>3.08</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>500.65</td><td>502.4</td><td>1.75</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>499.52</td><td>496.4</td><td>-3.12</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>496.79</td><td>497.9</td><td>1.11</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>495.19</td><td>499</td><td>3.81</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>494.91</td><td>498.7</td><td>3.79</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>497.44</td><td>497.5</td><td>0.06</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>498.8</td><td>504.6</td><td>5.8</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>503.11</td><td>504.9</td><td>1.79</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>506.25</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<h2 id="ha_open">ha_open, ha_high, ha_low, ha_close</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ha_open(open, high, low, close)
+ha_high(open, high, low, close)
+ha_low(open, high, low, close)
+ha_close(open, high, low, close) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p><strong>Heikin-Ashi</strong> (&quot;average bar&quot; in Japanese) candles are smoothed candles. Each one mixes the candle with the one before, so the chart shows long runs of same-colored candles in a trend and fewer false turns. Many traders read them like this: green candles with no lower wick mean a strong up trend.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Formula</th></tr></thead><tbody><tr><td><code>ha_close</code></td><td><code>(open + high + low + close) / 4</code></td></tr><tr><td><code>ha_open</code></td><td><code>(previous ha_open + previous ha_close) / 2</code>; on the first candle <code>(open + close) / 2</code></td></tr><tr><td><code>ha_high</code></td><td>the biggest of <code>high</code>, <code>ha_open</code> and <code>ha_close</code></td></tr><tr><td><code>ha_low</code></td><td>the smallest of <code>low</code>, <code>ha_open</code> and <code>ha_close</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>number</td><td>the normal candle</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (a price).</li><li><strong>NULL:</strong> every candle has a value, from the first. A NULL <code>open</code>, <code>high</code>, <code>low</code> or <code>close</code> stops the series (that candle and every later one is <code>NULL</code>).</li><li><strong>Notes:</strong> all four arguments are needed for every function, in the order open, high, low, close. The Heikin-Ashi close is <strong>not</strong> a real trade price: use the normal close for orders and stop-losses.</li></ul>
+<p><strong>Example: Heikin-Ashi candles of VOLT, with their color</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, open, close, ha_open, ha_high, ha_low, ha_close,
+       CASE WHEN ha_close &gt;= ha_open THEN &#39;green&#39; ELSE &#39;red&#39; END AS ha_color
+FROM (SELECT time, open, close,
+             round(ha_open(open, high, low, close), 2) AS ha_open,
+             round(ha_high(open, high, low, close), 2) AS ha_high,
+             round(ha_low(open, high, low, close), 2) AS ha_low,
+             round(ha_close(open, high, low, close), 2) AS ha_close
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>ha_open (DOUBLE)</th><th>ha_high (DOUBLE)</th><th>ha_low (DOUBLE)</th><th>ha_close (DOUBLE)</th><th>ha_color (STRING)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>182.4</td><td>181</td><td>181.7</td><td>182.6</td><td>178.2</td><td>181.05</td><td>red</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>179.8</td><td>178.5</td><td>181.38</td><td>183.6</td><td>178.5</td><td>180.1</td><td>red</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>179.3</td><td>176.8</td><td>180.74</td><td>182.2</td><td>172.8</td><td>177.78</td><td>red</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>177.6</td><td>174.2</td><td>179.26</td><td>179.26</td><td>172</td><td>175.55</td><td>red</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>175.4</td><td>173.3</td><td>177.4</td><td>177.4</td><td>173</td><td>174.4</td><td>red</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>172.5</td><td>173</td><td>175.9</td><td>175.9</td><td>170.6</td><td>172.58</td><td>red</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>173.7</td><td>172.6</td><td>174.24</td><td>175.6</td><td>171.3</td><td>173.3</td><td>red</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>171.3</td><td>169</td><td>173.77</td><td>173.77</td><td>167.3</td><td>169.93</td><td>red</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>170.6</td><td>171.5</td><td>171.85</td><td>174.6</td><td>169</td><td>171.43</td><td>red</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>172.7</td><td>176</td><td>171.64</td><td>177.3</td><td>171.64</td><td>174.48</td><td>green</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>174.2</td><td>180.1</td><td>173.06</td><td>183.9</td><td>172.4</td><td>177.65</td><td>green</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>181.4</td><td>176.9</td><td>175.35</td><td>183.2</td><td>174.3</td><td>178.95</td><td>green</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>178.7</td><td>182.4</td><td>177.15</td><td>183.5</td><td>177.15</td><td>180.7</td><td>green</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>182</td><td>187.3</td><td>178.93</td><td>189.5</td><td>178.93</td><td>185.13</td><td>green</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>185.6</td><td>191.2</td><td>182.03</td><td>192.1</td><td>182.03</td><td>188.28</td><td>green</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: 30-minute Heikin-Ashi candles: SAMPLE BY inside, Heikin-Ashi outside</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time,
+       round(ha_open(open, high, low, close), 2) AS ha_open,
+       round(ha_high(open, high, low, close), 2) AS ha_high,
+       round(ha_low(open, high, low, close), 2) AS ha_low,
+       round(ha_close(open, high, low, close), 2) AS ha_close
+FROM (SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close
+      FROM ochl_minutes
+      WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+      SAMPLE BY 30m) c
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>ha_open (DOUBLE)</th><th>ha_high (DOUBLE)</th><th>ha_low (DOUBLE)</th><th>ha_close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:00:00.000Z</td><td>380.9</td><td>382</td><td>379.4</td><td>380.8</td></tr><tr><td>2026-09-10T05:30:00.000Z</td><td>380.85</td><td>381.9</td><td>379</td><td>380.58</td></tr><tr><td>2026-09-10T06:00:00.000Z</td><td>380.71</td><td>382</td><td>379.3</td><td>380.15</td></tr><tr><td>2026-09-10T06:30:00.000Z</td><td>380.43</td><td>380.7</td><td>378.8</td><td>379.58</td></tr><tr><td>2026-09-10T07:00:00.000Z</td><td>380</td><td>380</td><td>376.9</td><td>378.3</td></tr><tr><td>2026-09-10T07:30:00.000Z</td><td>379.15</td><td>379.15</td><td>376.9</td><td>377.93</td></tr><tr><td>2026-09-10T08:00:00.000Z</td><td>378.54</td><td>378.54</td><td>375.7</td><td>377.55</td></tr><tr><td>2026-09-10T08:30:00.000Z</td><td>378.04</td><td>378.04</td><td>373.2</td><td>376.05</td></tr><tr><td>2026-09-10T09:00:00.000Z</td><td>377.05</td><td>377.05</td><td>374.3</td><td>375.6</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-indicators-trend.md">This page as markdown</a>.</footer>
+</body>
+</html>

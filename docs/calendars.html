@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trading calendars - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Say which days a market trades - its weekdays, how they changed over the years, and its holidays - and ask it in SQL and in timers.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/calendars.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/calendars.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="trading-calendars">Trading calendars</h1>
+<blockquote><p>Say which days a market trades - its weekdays, how they changed over the years, and its holidays - and ask it in SQL and in timers.</p></blockquote>
+<ul><li>Category: Time-series</li><li>Keywords: missing days, gaps, data gaps, missing bars, missing_bars, calendar, calendars, trading calendar, trading day, trading days, market days, business days, working days, holiday, holidays, era, eras, trading week, sun-thu, mon-fri, week change, NEPSE, CREATE CALENDAR, ALTER CALENDAR, DROP CALENDAR, ADD HOLIDAY, ADD TRADING DAY, is_trading_day, next_trading_day, prev_trading_day, trading_days_between, suggest_calendar_eras, kdb_calendars, trading nepse 15:05</li><li>See also: <a href="functions-date-time.html">Date and time functions</a>, <a href="timers.html">Timers</a>, <a href="time-and-time-zones.html">Time and time zones</a>, <a href="sample-by.html">SAMPLE BY</a></li></ul>
+<p>A <strong>trading calendar</strong> says which days a market trades. It lives in one database, next to its tables, and SQL functions and <a href="timers.html">timers</a> read it.</p>
+<p>A market&#39;s week can change. NEPSE traded <strong>Sunday to Thursday</strong> until 2026-04-05, then <strong>Monday to Friday</strong> from 2026-04-10. So a calendar is a list of <strong>eras</strong>: each era says from which day on which weekdays trade. On top of the eras come single days:</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Example</th><th>Meaning</th></tr></thead><tbody><tr><td>era</td><td><code>ERA FROM &#39;2022-01-01&#39; DAYS sun-thu</code></td><td>from this day on, these weekdays trade (until the next era)</td></tr><tr><td>holiday</td><td><code>HOLIDAY &#39;2026-10-20&#39; &#39;Dashain&#39;</code></td><td>no trading on a day the era trades</td></tr><tr><td>extra trading day</td><td><code>TRADING DAY &#39;2022-01-07&#39; &#39;Friday session&#39;</code></td><td>a session on a day the era does not trade</td></tr><tr><td>time zone</td><td><code>TIME ZONE &#39;Asia/Kathmandu&#39;</code></td><td>which clock a <code>TIMESTAMP</code> is read on (UTC when not given)</td></tr></tbody></table></div>
+<ul><li>A day before the first era is not a trading day (unless it is an extra trading day).</li><li>Weekdays: <code>sun mon tue wed thu fri sat</code> (or the full names). A range may go past Saturday: <code>fri-sun</code>. A list: <code>mon,wed,fri</code>.</li><li>Dates are written <code>&#39;yyyy-mm-dd&#39;</code>.</li></ul>
+<h2 id="create-calendar">CREATE CALENDAR</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE CALENDAR [IF NOT EXISTS] name (
+  [TIME ZONE &#39;zone&#39;,]
+  ERA FROM &#39;date&#39; DAYS weekdays [, ERA FROM &#39;date&#39; DAYS weekdays ...]
+  [, HOLIDAY &#39;date&#39; [&#39;note&#39;] ...]
+  [, TRADING DAY &#39;date&#39; [&#39;note&#39;] ...]
+)</code></pre>
+<ul><li>A calendar needs at least one era. Two eras cannot start on the same day.</li><li><code>TIME ZONE</code> takes any zone: <code>&#39;Asia/Kathmandu&#39;</code>, <code>&#39;UTC&#39;</code>, <code>&#39;+05:45&#39;</code>, or one with summer time such as <code>&#39;America/New_York&#39;</code> (a moment&#39;s day is on the offset in force then; <a href="time-and-time-zones.html#summer-time">summer time</a>).</li><li><strong>Role:</strong> <code>ddl</code>, like <code>CREATE TYPE</code>. It is saved at once, so it cannot go inside <code>BEGIN</code> ... <code>COMMIT</code>.</li></ul>
+<p><strong>Example: NEPSE: Sunday to Thursday, then Monday to Friday</strong></p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (
+  TIME ZONE &#39;Asia/Kathmandu&#39;,
+  ERA FROM &#39;2022-01-01&#39; DAYS sun-thu,
+  ERA FROM &#39;2026-04-10&#39; DAYS mon-fri
+);
+SELECT is_trading_day(&#39;nepse&#39;, &#39;2026-04-05&#39;) AS sun_before,
+       is_trading_day(&#39;nepse&#39;, &#39;2026-04-10&#39;) AS fri_after,
+       is_trading_day(&#39;nepse&#39;, &#39;2026-04-12&#39;) AS sun_after;</code></pre>
+<p>Result:</p>
+<p><code>CREATE CALENDAR nepse (TIME ZONE &#39;Asia/Kathmandu&#39;, ERA FROM &#39;2022-01-01&#39; DAYS &#39;sun-thu&#39;, ERA FROM &#39;2</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; created: 2 era(s), 0 holiday(s), 0 extra trading day(s)</code></pre>
+<p><code>SELECT is_trading_day(&#39;nepse&#39;, &#39;2026-04-05&#39;) AS sun_before, is_trading_day(&#39;nepse&#39;, &#39;2026-04-10&#39;) AS</code></p>
+<div class="table-wrap"><table><thead><tr><th>sun_before (BOOL)</th><th>fri_after (BOOL)</th><th>sun_after (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="alter-calendar">ALTER CALENDAR</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER CALENDAR [IF EXISTS] name ADD HOLIDAY &#39;date&#39; [&#39;note&#39;] [, &#39;date&#39; [&#39;note&#39;] ...]
+ALTER CALENDAR [IF EXISTS] name DROP HOLIDAY &#39;date&#39; [, &#39;date&#39; ...]
+ALTER CALENDAR [IF EXISTS] name ADD TRADING DAY &#39;date&#39; [&#39;note&#39;] [, ...]
+ALTER CALENDAR [IF EXISTS] name DROP TRADING DAY &#39;date&#39; [, ...]
+ALTER CALENDAR [IF EXISTS] name ADD ERA FROM &#39;date&#39; DAYS weekdays
+ALTER CALENDAR [IF EXISTS] name DROP ERA FROM &#39;date&#39;
+ALTER CALENDAR [IF EXISTS] name SET TIME ZONE &#39;zone&#39;</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>What happens</th></tr></thead><tbody><tr><td>A holiday that is there already</td><td>its note is replaced</td></tr><tr><td>A day that is a holiday and is added as a trading day (or the other way)</td><td>refused: drop it first</td></tr><tr><td>A holiday on a day its era does not trade anyway (a Saturday)</td><td>kept, and the answer says so</td></tr><tr><td><code>DROP HOLIDAY</code> of a day that is not a holiday</td><td>refused</td></tr><tr><td><code>DROP ERA</code> of the last era</td><td>refused: a calendar needs one era</td></tr><tr><td>A day listed twice in one statement</td><td>refused</td></tr></tbody></table></div>
+<p>The next query sees the change (also a <a href="performance-tips.html">cached</a> result).</p>
+<p><strong>Example: Holidays, one statement for many</strong></p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS sun-thu, ERA FROM &#39;2026-04-10&#39; DAYS mon-fri);
+ALTER CALENDAR nepse ADD HOLIDAY &#39;2026-10-20&#39; &#39;Dashain&#39;, &#39;2026-10-21&#39; &#39;Dashain&#39;, &#39;2026-10-22&#39; &#39;Dashain&#39;;
+SELECT is_trading_day(&#39;nepse&#39;, &#39;2026-10-21&#39;) AS holiday,
+       next_trading_day(&#39;nepse&#39;, &#39;2026-10-19&#39;) AS after_dashain;</code></pre>
+<p>Result:</p>
+<p><code>CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS &#39;sun-thu&#39;, ERA FROM &#39;2026-04-10&#39; DAYS &#39;mon-fri&#39;)</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; created: 2 era(s), 0 holiday(s), 0 extra trading day(s)</code></pre>
+<p><code>ALTER CALENDAR nepse ADD HOLIDAY &#39;2026-10-20&#39; &#39;Dashain&#39;, &#39;2026-10-21&#39; &#39;Dashain&#39;, &#39;2026-10-22&#39; &#39;Dasha</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; altered: 3 holiday(s) added</code></pre>
+<p><code>SELECT is_trading_day(&#39;nepse&#39;, &#39;2026-10-21&#39;) AS holiday, next_trading_day(&#39;nepse&#39;, &#39;2026-10-19&#39;) AS </code></p>
+<div class="table-wrap"><table><thead><tr><th>holiday (BOOL)</th><th>after_dashain (DATE)</th></tr></thead><tbody><tr><td>false</td><td>2026-10-23</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An extra Friday session in the Sunday-Thursday years</strong></p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS sun-thu, ERA FROM &#39;2026-04-10&#39; DAYS mon-fri);
+ALTER CALENDAR nepse ADD TRADING DAY &#39;2022-01-07&#39; &#39;Friday session&#39;;
+SELECT is_trading_day(&#39;nepse&#39;, &#39;2022-01-07&#39;) AS extra, is_trading_day(&#39;nepse&#39;, &#39;2022-01-14&#39;) AS plain_friday;</code></pre>
+<p>Result:</p>
+<p><code>CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS &#39;sun-thu&#39;, ERA FROM &#39;2026-04-10&#39; DAYS &#39;mon-fri&#39;)</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; created: 2 era(s), 0 holiday(s), 0 extra trading day(s)</code></pre>
+<p><code>ALTER CALENDAR nepse ADD TRADING DAY &#39;2022-01-07&#39; &#39;Friday session&#39;</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; altered: 1 extra trading day(s) added</code></pre>
+<p><code>SELECT is_trading_day(&#39;nepse&#39;, &#39;2022-01-07&#39;) AS extra, is_trading_day(&#39;nepse&#39;, &#39;2022-01-14&#39;) AS plai</code></p>
+<div class="table-wrap"><table><thead><tr><th>extra (BOOL)</th><th>plain_friday (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A holiday cannot also be a trading day</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS sun-thu);
+ALTER CALENDAR nepse ADD HOLIDAY &#39;2026-10-20&#39;;</code></pre>
+<pre><code class="language-sql">ALTER CALENDAR nepse ADD TRADING DAY &#39;2026-10-20&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>&#39;2026-10-20&#39; is a holiday of calendar nepse; DROP HOLIDAY &#39;2026-10-20&#39; first</code></p>
+<h2 id="drop-calendar">DROP CALENDAR</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP CALENDAR [IF EXISTS] name [, name ...]</code></pre>
+<p>A timer with a <code>trading</code> schedule on a dropped calendar fails every day and says why, until you make the calendar again or change the schedule.</p>
+<h2 id="functions">The functions</h2>
+<p>The calendar is named as text. It may come first or last: <code>is_trading_day(&#39;nepse&#39;, ts)</code> and <code>is_trading_day(ts, &#39;nepse&#39;)</code> are the same.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th><th>Meaning</th></tr></thead><tbody><tr><td><code>is_trading_day(cal, d)</code></td><td><code>BOOL</code></td><td><code>d</code> is a trading day</td></tr><tr><td><code>next_trading_day(cal, d)</code></td><td><code>DATE</code></td><td>the first trading day after <code>d</code></td></tr><tr><td><code>prev_trading_day(cal, d)</code></td><td><code>DATE</code></td><td>the last trading day before <code>d</code>; <code>NULL</code> before the first one</td></tr><tr><td><code>trading_days_between(cal, from, to)</code></td><td><code>LONG</code></td><td>trading days <code>d</code> with <code>from &lt;= d &lt; to</code>; negative when <code>to</code> is before <code>from</code> (the rule of NumPy&#39;s <code>busday_count</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Which day:</strong> a <code>DATE</code> or <code>&#39;2026-04-10&#39;</code> is that day. A <code>TIMESTAMP</code> is the day it falls on in the calendar&#39;s time zone: <code>2026-04-10 20:00 UTC</code> is Saturday 01:45 in Kathmandu.</li><li><strong>NULL:</strong> any <code>NULL</code> argument gives <code>NULL</code>.</li><li><strong>Errors:</strong> a calendar that does not exist is an error, never a quiet <code>false</code>.</li><li><code>is_trading_day(t)</code> with <strong>one</strong> argument is the old fixed Sunday-to-Thursday week on the UTC date, with no holidays (<a href="functions-date-time.html#is_trading_day">date functions</a>).</li><li><strong>Speed:</strong> the calendar is looked up once per query and thread; each row is a few comparisons. <code>trading_days_between</code> counts whole weeks at once, so a range of ten years costs no more than a week.</li></ul>
+<p><strong>Example: Around the week change</strong></p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS sun-thu, ERA FROM &#39;2026-04-10&#39; DAYS mon-fri);
+SELECT next_trading_day(&#39;nepse&#39;, &#39;2026-04-02&#39;) AS after_thu,
+       next_trading_day(&#39;nepse&#39;, &#39;2026-04-10&#39;) AS after_fri,
+       prev_trading_day(&#39;nepse&#39;, &#39;2026-04-13&#39;) AS before_mon,
+       trading_days_between(&#39;nepse&#39;, &#39;2026-04-01&#39;, &#39;2026-04-15&#39;) AS days_1_to_14;</code></pre>
+<p>Result:</p>
+<p><code>CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS &#39;sun-thu&#39;, ERA FROM &#39;2026-04-10&#39; DAYS &#39;mon-fri&#39;)</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; created: 2 era(s), 0 holiday(s), 0 extra trading day(s)</code></pre>
+<p><code>SELECT next_trading_day(&#39;nepse&#39;, &#39;2026-04-02&#39;) AS after_thu, next_trading_day(&#39;nepse&#39;, &#39;2026-04-10&#39;)</code></p>
+<div class="table-wrap"><table><thead><tr><th>after_thu (DATE)</th><th>after_fri (DATE)</th><th>before_mon (DATE)</th><th>days_1_to_14 (LONG)</th></tr></thead><tbody><tr><td>2026-04-05</td><td>2026-04-13</td><td>2026-04-10</td><td>10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Rows that fall on a day the market was closed</strong></p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (TIME ZONE &#39;Asia/Kathmandu&#39;, ERA FROM &#39;2022-01-01&#39; DAYS sun-thu, ERA FROM &#39;2026-04-10&#39; DAYS mon-fri);
+CREATE TABLE ticks (ts TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESTAMP(ts) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-04-09T05:15:00Z&#39;, &#39;CITY&#39;, 510), (&#39;2026-04-10T05:15:00Z&#39;, &#39;CITY&#39;, 512),
+                         (&#39;2026-04-11T05:15:00Z&#39;, &#39;CITY&#39;, 511), (&#39;2026-04-12T05:15:00Z&#39;, &#39;CITY&#39;, 513);
+SELECT ts, price FROM ticks WHERE NOT is_trading_day(&#39;nepse&#39;, ts) ORDER BY ts;</code></pre>
+<p>Result:</p>
+<p><code>CREATE CALENDAR nepse (TIME ZONE &#39;Asia/Kathmandu&#39;, ERA FROM &#39;2022-01-01&#39; DAYS &#39;sun-thu&#39;, ERA FROM &#39;2</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; created: 2 era(s), 0 holiday(s), 0 extra trading day(s)</code></pre>
+<p><code>CREATE TABLE ticks (</code></p>
+<pre><code class="language-text">table &#39;ticks&#39; created</code></pre>
+<p><code>INSERT INTO ticks VALUES (&#39;2026-04-09T05:15:00Z&#39;, &#39;CITY&#39;, 510), (&#39;2026-04-10T05:15:00Z&#39;, &#39;CITY&#39;, 512</code></p>
+<pre><code class="language-text">4 row(s) inserted</code></pre>
+<p><code>SELECT ts, price FROM ticks WHERE NOT is_trading_day(&#39;nepse&#39;, ts) ORDER BY ts</code></p>
+<div class="table-wrap"><table><thead><tr><th>ts (TIMESTAMP)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>2026-04-11T05:15:00.000Z</td><td>511</td></tr><tr><td>2026-04-12T05:15:00.000Z</td><td>513</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="missing-days">Find missing days</h2>
+<p>A trading day with no row is a gap in your data (a feed that stopped, a day not loaded). List the calendar&#39;s trading days between a symbol&#39;s first and last row with <code>generate_series</code>, and keep those without a row:</p>
+<p><strong>Example: Trading days of CITY with no daily bar</strong></p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (TIME ZONE &#39;Asia/Kathmandu&#39;, ERA FROM &#39;2026-04-10&#39; DAYS mon-fri, HOLIDAY &#39;2026-09-24&#39; &#39;holiday&#39;);
+CREATE TABLE day_bars (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO day_bars VALUES (&#39;2026-09-21&#39;, &#39;CITY&#39;, 510), (&#39;2026-09-23&#39;, &#39;CITY&#39;, 512), (&#39;2026-09-25&#39;, &#39;CITY&#39;, 515);
+SELECT d AS missing_day
+FROM generate_series((SELECT min(time) FROM day_bars WHERE symbol = &#39;CITY&#39;)::DATE,
+                     (SELECT max(time) FROM day_bars WHERE symbol = &#39;CITY&#39;)::DATE) AS d
+WHERE is_trading_day(&#39;nepse&#39;, d)
+  AND d NOT IN (SELECT time::DATE FROM day_bars WHERE symbol = &#39;CITY&#39;);</code></pre>
+<p>Result:</p>
+<p><code>CREATE CALENDAR nepse (TIME ZONE &#39;Asia/Kathmandu&#39;, ERA FROM &#39;2026-04-10&#39; DAYS &#39;mon-fri&#39;, HOLIDAY &#39;20</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; created: 1 era(s), 1 holiday(s), 0 extra trading day(s)</code></pre>
+<p><code>CREATE TABLE day_bars (</code></p>
+<pre><code class="language-text">table &#39;day_bars&#39; created</code></pre>
+<p><code>INSERT INTO day_bars VALUES (&#39;2026-09-21&#39;, &#39;CITY&#39;, 510), (&#39;2026-09-23&#39;, &#39;CITY&#39;, 512), (&#39;2026-09-25&#39;,</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT d AS missing_day FROM generate_series(CAST((SELECT min(time) FROM day_bars WHERE symbol = &#39;CI</code></p>
+<div class="table-wrap"><table><thead><tr><th>missing_day (DATE)</th></tr></thead><tbody><tr><td>2026-09-22</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p>22 September is missing; 24 September is a holiday, so it is not.</p>
+<h2 id="kdb_calendars">See the calendars: kdb_calendars</h2>
+<p><code>SELECT * FROM kdb_calendars</code> lists every calendar of the database: one row per era, holiday and extra trading day.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>calendar</code></td><td>the calendar&#39;s name</td></tr><tr><td><code>time_zone</code></td><td>its zone (<code>UTC</code> when none was given)</td></tr><tr><td><code>kind</code></td><td><code>era</code>, <code>holiday</code> or <code>trading day</code></td></tr><tr><td><code>day</code></td><td>the era&#39;s first day, or the day</td></tr><tr><td><code>days</code></td><td>an era&#39;s weekdays (<code>sun-thu</code>)</td></tr><tr><td><code>note</code></td><td>the note of a holiday or trading day</td></tr></tbody></table></div>
+<p><strong>Example: What the calendar holds</strong></p>
+<pre><code class="language-sql">CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS sun-thu, ERA FROM &#39;2026-04-10&#39; DAYS mon-fri);
+ALTER CALENDAR nepse ADD HOLIDAY &#39;2026-10-20&#39; &#39;Dashain&#39;;
+SELECT kind, day, days, note FROM kdb_calendars WHERE calendar = &#39;nepse&#39; ORDER BY day;</code></pre>
+<p>Result:</p>
+<p><code>CREATE CALENDAR nepse (ERA FROM &#39;2022-01-01&#39; DAYS &#39;sun-thu&#39;, ERA FROM &#39;2026-04-10&#39; DAYS &#39;mon-fri&#39;)</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; created: 2 era(s), 0 holiday(s), 0 extra trading day(s)</code></pre>
+<p><code>ALTER CALENDAR nepse ADD HOLIDAY &#39;2026-10-20&#39; &#39;Dashain&#39;</code></p>
+<pre><code class="language-text">calendar &#39;nepse&#39; altered: 1 holiday(s) added</code></pre>
+<p><code>SELECT kind, day, days, note FROM kdb_calendars WHERE calendar = &#39;nepse&#39; ORDER BY day</code></p>
+<div class="table-wrap"><table><thead><tr><th>kind (STRING)</th><th>day (DATE)</th><th>days (STRING)</th><th>note (STRING)</th></tr></thead><tbody><tr><td>era</td><td>2022-01-01</td><td>sun-thu</td><td>NULL</td></tr><tr><td>era</td><td>2026-04-10</td><td>mon-fri</td><td>NULL</td></tr><tr><td>holiday</td><td>2026-10-20</td><td>NULL</td><td>Dashain</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="suggest_calendar_eras">Find the eras in your data: suggest_calendar_eras</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">suggest_calendar_eras(time [, &#39;zone&#39;])</code></pre>
+<p>An aggregate: it looks at the days that have rows and writes a report as text:</p>
+<ul><li>how many days of each weekday have data, per year, and how many of the era&#39;s weekdays have <strong>no</strong> data (holidays, or gaps in your data);</li><li>the eras it found, and the days with data outside their era&#39;s weekdays (extra sessions);</li><li>a <code>CREATE CALENDAR</code> statement to start from (and <code>ADD TRADING DAY</code> for the extra sessions).</li></ul>
+<p>How it decides: each week gets the weekdays that have data in most of the weeks around it (4 before, 4 after), so one holiday or one extra session does not count. Weeks in a row with the same weekdays are an era; an era is at least 8 weeks. Where two eras meet, the new era starts on the day that leaves the fewest days outside their era.</p>
+<ul><li>Give the zone of the market when the times are UTC and a session could cross midnight UTC. The day is the local day in that zone.</li><li>Check the days without data before you add them as holidays: they may be gaps in your data.</li></ul>
+<p><strong>Example: The weekdays of the sample candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT suggest_calendar_eras(time, &#39;Asia/Kathmandu&#39;) AS report FROM ochl_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>report (STRING)</th></tr></thead><tbody><tr><td>year    sun   mon   tue   wed   thu   fri   sat   no_data 2025      1     1     1     1     0     0     0      0 2026      3     3     3     3     3     0     0    166 eras: 2025-12-28 sun-thu era ...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="timers">Timers on trading days</h2>
+<p>A <a href="timers.html#schedules">timer</a> with the schedule <code>trading nepse 15:05</code> runs at 15:05 on the trading days of calendar <code>nepse</code> of its database only. It follows the calendar as it changes: a holiday added in the morning is skipped that afternoon. When the calendar is dropped, each run fails and says so.</p>
+<h2 id="stored">How it is stored</h2>
+<p>Calendars are part of the database&#39;s catalog, like tables and <a href="column-types.html#enum">ENUM types</a>: in every backup, kept across restarts, and replayed from the log after a crash. A database with a calendar needs a KDB from 2026-09-25 or newer (feature <code>calendars</code>, see <a href="versions.html">versions</a>).</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/calendars.md">This page as markdown</a>.</footer>
+</body>
+</html>

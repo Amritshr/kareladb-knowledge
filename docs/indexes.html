@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indexes - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Make WHERE and ORDER BY ... LIMIT fast with an index, and keep values unique with a UNIQUE index.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/indexes.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/indexes.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="indexes">Indexes</h1>
+<blockquote><p>Make WHERE and ORDER BY ... LIMIT fast with an index, and keep values unique with a UNIQUE index.</p></blockquote>
+<ul><li>Category: Indexes &amp; search</li><li>Keywords: index, secondary index, bitmap, USING BITMAP, bitmap index, roaring, low cardinality, IF NOT EXISTS, IF EXISTS, SHOW INDEX, SHOW INDEXES FROM, SHOW INDEXES ON, UNIQUE, duplicate value, keyset pagination, OFFSET pages, slow query, use index, built, memory_bytes, index_memory_bytes, warm, built at open, warm-indexes, KDB_WARM_INDEXES, building</li><li>See also: <a href="full-text-search.html">Full-text search</a>, <a href="explain.html">EXPLAIN</a>, <a href="constraints.html">Constraints</a>, <a href="performance-tips.html">Performance tips</a>, <a href="limits.html">Limits</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a></li></ul>
+<p>An <strong>index</strong> is a second, sorted list of some columns of a table. Each entry points to its row. It works like the index at the back of a book: KDB finds the rows at once and does not read the whole table.</p>
+<ul><li>Every table is already sorted by its <strong>storage key</strong> (the <code>PRIMARY KEY</code>, or <code>SORT BY</code> / <code>DEDUP KEY</code> of a time-series table). A condition on another column reads every row. An index fixes that.</li><li>An index lives <strong>in memory</strong>. Only its definition is saved with the table. After the database opens, <code>kdb serve</code> builds it from the rows on a background thread (<a href="#warm">built at open</a>); a query that needs it before that builds it itself.</li><li>Every <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> also changes the index. So writes are a little slower, and each index costs memory. Create indexes only for the columns your app really uses in <code>WHERE</code> and <code>ORDER BY</code>.</li><li>The result of a query is the same with or without an index. Only the speed changes.</li></ul>
+<p>The examples use a small forum: tables <code>threads</code> and <code>posts</code> (<code>id</code>, <code>thread_id</code>, <code>parent_id</code>, <code>author</code>, <code>body</code>, <code>created_at</code>).</p>
+<p><strong>Example: A forum shows the 3 newest posts of thread 1</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id);
+SELECT id, author, created_at FROM posts
+WHERE thread_id = 1
+ORDER BY created_at DESC, id DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<p><code>CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id)</code></p>
+<pre><code class="language-text">index &#39;posts_thread_time&#39; created on table &#39;posts&#39; (8 rows)</code></pre>
+<p><code>SELECT id, author, created_at FROM posts WHERE thread_id = 1 ORDER BY created_at DESC, id DESC LIMIT</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>6</td><td>sita</td><td>2026-09-01T06:15:00.000Z</td></tr><tr><td>5</td><td>ram</td><td>2026-09-01T05:45:00.000Z</td></tr><tr><td>4</td><td>gita</td><td>2026-09-01T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="create-index">CREATE INDEX</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE INDEX [IF NOT EXISTS] name ON table (column [, column ...])</code></pre>
+<p>Makes an index on one or more columns of a table. When the table already has rows, KDB builds the index at once and says how many rows it has.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>name</td><td>the index name; it must be unique in the whole database (a good habit: <code>table_columns</code>)</td></tr><tr><td><code>table</code></td><td>name</td><td>a relational or time-series table</td></tr><tr><td><code>column</code></td><td>names</td><td>1 to 16 stored columns. The order matters (see <a href="indexes.html#when-used">When an index is used</a>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message: <code>index &#39;name&#39; created on table &#39;table&#39; (N rows)</code>.</li><li><strong>NULL:</strong> rows with <code>NULL</code> values are in the index too, so <code>WHERE parent_id IS NULL</code> can use it.</li><li><strong>IF NOT EXISTS:</strong> when an index with this name already exists, nothing happens and there is no error. KDB does not compare the columns.</li><li><strong>Notes:</strong>
+<ul><li>An index on <code>(a, b)</code> also helps queries on <code>a</code> alone. You do not need a second index on <code>(a)</code>.</li><li>Errors: the name is used already; the table or a column does not exist; a column is listed twice; another index of the table has the same columns; a computed column (<code>amount DOUBLE AS (...)</code>).</li><li><code>CREATE INDEX</code> cannot run inside <code>BEGIN ... COMMIT</code>.</li><li>No index on an expression (<code>lower(email)</code>), no partial index (<code>WHERE ...</code>), no <code>INCLUDE</code>, no <code>CONCURRENTLY</code> (PostgreSQL has these).</li><li><code>USING GIN (json_column)</code> on one <code>JSON</code> column makes an index of the keys and values inside the documents, for <code>@&gt;</code>, <code>?</code> and <code>-&gt;&gt; = &#39;text&#39;</code> (see <a href="functions-json.html#gin">GIN index</a>). Other <code>USING</code> methods make an ordinary index.</li><li>An index bigger than the setting <code>index_memory_bytes</code> (default 2 GB) is not built. Queries then read the table, and <code>SHOW INDEXES</code> shows <code>built</code> = <code>false</code>.</li><li>A column that an index uses cannot be dropped. <code>RENAME COLUMN</code> and <code>RENAME TABLE</code> keep the index. <code>DROP TABLE</code> drops the table&#39;s indexes.</li></ul></li></ul>
+<p><strong>Example: Indexes for a forum: pages of a thread, replies, and posts of one author</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id);
+CREATE INDEX posts_parent ON posts (parent_id);
+CREATE INDEX posts_author ON posts (author);
+SELECT id, author, body FROM posts WHERE parent_id = 1 ORDER BY created_at;</code></pre>
+<p>Result:</p>
+<p><code>CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id)</code></p>
+<pre><code class="language-text">index &#39;posts_thread_time&#39; created on table &#39;posts&#39; (8 rows)</code></pre>
+<p><code>CREATE INDEX posts_parent ON posts (parent_id)</code></p>
+<pre><code class="language-text">index &#39;posts_parent&#39; created on table &#39;posts&#39; (8 rows)</code></pre>
+<p><code>CREATE INDEX posts_author ON posts (author)</code></p>
+<pre><code class="language-text">index &#39;posts_author&#39; created on table &#39;posts&#39; (8 rows)</code></pre>
+<p><code>SELECT id, author, body FROM posts WHERE parent_id = 1 ORDER BY created_at</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>2</td><td>sita</td><td>I agree, the profit grew 18%.</td></tr><tr><td>3</td><td>hari</td><td>Price is high now. Wait for a dip.</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Trades of one broker in the trade_log table (a time-series table)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE INDEX trade_log_buyer ON trade_log (buyer);
+SELECT date, transaction_id, symbol, quantity, rate
+FROM trade_log
+WHERE buyer = 45
+ORDER BY transaction_id
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<p><code>CREATE INDEX trade_log_buyer ON trade_log (buyer)</code></p>
+<pre><code class="language-text">index &#39;trade_log_buyer&#39; created on table &#39;trade_log&#39; (32 rows)</code></pre>
+<p><code>SELECT date, transaction_id, symbol, quantity, rate FROM trade_log WHERE buyer = 45 ORDER BY transac</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>100002</td><td>CITY</td><td>10</td><td>515</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>100014</td><td>COAST</td><td>20</td><td>399.5</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>100018</td><td>CITY</td><td>500</td><td>516</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: IF NOT EXISTS: a setup script can run again</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">CREATE INDEX IF NOT EXISTS posts_author ON posts (author);
+CREATE INDEX IF NOT EXISTS posts_author ON posts (author);</code></pre>
+<p>Result:</p>
+<p><code>CREATE INDEX IF NOT EXISTS posts_author ON posts (author)</code></p>
+<pre><code class="language-text">index &#39;posts_author&#39; created on table &#39;posts&#39; (8 rows)</code></pre>
+<p><code>CREATE INDEX IF NOT EXISTS posts_author ON posts (author)</code></p>
+<pre><code class="language-text">index &#39;posts_author&#39; already exists</code></pre>
+<p><strong>Example: The name is used already</strong> (sample data: content-forum; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_author ON posts (author);</code></pre>
+<pre><code class="language-sql">CREATE INDEX posts_author ON posts (author, created_at);</code></pre>
+<p>Result:</p>
+<p>Error: <code>index &#39;posts_author&#39; already exists (on table &#39;posts&#39;); expected a new index name, or CREATE INDEX IF NOT EXISTS</code></p>
+<p><strong>Example: Not inside a transaction</strong> (sample data: content-forum; shows an error)</p>
+<pre><code class="language-sql">BEGIN;
+CREATE INDEX posts_author ON posts (author);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">transaction started</code></pre>
+<p>Error: <code>CREATE INDEX cannot be used inside a transaction; COMMIT or ROLLBACK first (the transaction was rolled back)</code></p>
+<h2 id="create-unique-index">CREATE UNIQUE INDEX</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE UNIQUE INDEX [IF NOT EXISTS] name ON table (column [, column ...])</code></pre>
+<p>An index that also makes sure no two rows have the same values in its columns. Use it for email addresses, user names, or &quot;one vote per user per post&quot;.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>name</td><td>the index name, unique in the whole database</td></tr><tr><td><code>table</code></td><td>name</td><td>the table</td></tr><tr><td><code>column</code></td><td>names</td><td>1 to 16 stored columns; with several columns, the <strong>combination</strong> must be unique</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message: <code>index &#39;name&#39; created on table &#39;table&#39; (N rows)</code>.</li><li><strong>NULL:</strong> <code>NULL</code> values never clash. Many rows may have a <code>NULL</code> email.</li><li><strong>Notes:</strong>
+<ul><li>A write that breaks the rule fails with <code>duplicate value violates unique index &#39;...&#39;</code>, and the message names the value. Nothing is written. Your app can look for the word <code>unique</code> in the message and show &quot;this email is already used&quot;.</li><li>The check covers <code>INSERT</code>, <code>INSERT OR REPLACE</code>, <code>UPDATE</code>, bulk loading and transactions. In a transaction the error rolls back the whole transaction.</li><li>Text must be exactly the same: <code>RAM@example.com</code> and <code>ram@example.com</code> are <strong>different</strong>. Save emails with <code>lower(...)</code> in your app.</li><li><code>CREATE UNIQUE INDEX</code> on a table that already has two equal values fails, and names the value. Fix the rows first.</li><li>Bulk loading (<code>InsertRows</code>, line protocol) into a table with a <code>UNIQUE</code> index is slower: each row must be checked.</li></ul></li></ul>
+<p><strong>Example: App users: one account per email address</strong> (sample data: content-forum; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY, email STRING NOT NULL, name STRING);
+CREATE UNIQUE INDEX users_email ON users (email);
+INSERT INTO users VALUES (1, &#39;ram@example.com&#39;, &#39;Ram&#39;), (2, &#39;sita@example.com&#39;, &#39;Sita&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO users VALUES (3, &#39;ram@example.com&#39;, &#39;Another Ram&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>duplicate value violates unique index &#39;users_email&#39; on table &#39;users&#39;: a row with email=&#39;ram@example.com&#39; already exists</code></p>
+<p><strong>Example: NULL values never clash, and upper case letters make a different value</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY, email STRING, name STRING);
+CREATE UNIQUE INDEX users_email ON users (email);
+INSERT INTO users VALUES (1, &#39;ram@example.com&#39;, &#39;Ram&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO users VALUES (2, NULL, &#39;Hari&#39;), (3, NULL, &#39;Gita&#39;), (4, &#39;RAM@example.com&#39;, &#39;Big Ram&#39;);
+SELECT * FROM users ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO users VALUES (2, NULL, &#39;Hari&#39;), (3, NULL, &#39;Gita&#39;), (4, &#39;RAM@example.com&#39;, &#39;Big Ram&#39;)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT * FROM users ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>Ram</td></tr><tr><td>2</td><td>NULL</td><td>Hari</td></tr><tr><td>3</td><td>NULL</td><td>Gita</td></tr><tr><td>4</td><td>RAM@example.com</td><td>Big Ram</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Forum votes: one vote per user per post (two columns)</strong> (sample data: content-forum; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE votes (id LONG PRIMARY KEY, user_id LONG NOT NULL, post_id LONG NOT NULL, value INT NOT NULL);
+CREATE UNIQUE INDEX votes_one_per_user ON votes (user_id, post_id);
+INSERT INTO votes VALUES (1, 10, 1, 1), (2, 10, 2, 1), (3, 11, 1, -1);</code></pre>
+<pre><code class="language-sql">INSERT INTO votes VALUES (4, 10, 1, -1);</code></pre>
+<p>Result:</p>
+<p>Error: <code>duplicate value violates unique index &#39;votes_one_per_user&#39; on table &#39;votes&#39;: a row with user_id=&#39;10&#39;, post_id=&#39;1&#39; already exists</code></p>
+<p><strong>Example: The table already has two equal values</strong> (sample data: content-forum; shows an error)</p>
+<pre><code class="language-sql">CREATE UNIQUE INDEX posts_one_per_author ON posts (author);</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot create unique index &#39;posts_one_per_author&#39;: two rows of table &#39;posts&#39; have author=&#39;gita&#39;; each value may be used by one row only</code></p>
+<h2 id="bitmap">Bitmap index</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE INDEX name ON table USING BITMAP (column)
+CREATE INDEX name ON table (column) WITH (kind = &#39;bitmap&#39;)</code></pre>
+<p>For a column with <strong>few different values</strong>: a symbol, a side (<code>B</code> / <code>S</code>), a status, a region. For each value the index keeps the set of rows that have it, as a compact bitmap. Two or more such conditions are answered together: <code>region = 5 AND status = &#39;open&#39;</code> takes the rows in both sets at once (an AND of two bitmaps), not the rows of one index checked one by one.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>name</td><td>the index name</td></tr><tr><td><code>column</code></td><td>any stored column</td><td>one column only</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Your query</th><th>Uses the bitmap indexes</th></tr></thead><tbody><tr><td><code>a = 5</code>, <code>a IN (1, 2)</code>, <code>a IS NULL</code></td><td>yes</td></tr><tr><td><code>a = 5 AND b = &#39;x&#39;</code> (a bitmap index on each)</td><td>yes: the rows in both sets</td></tr><tr><td><code>a = 5 AND b &lt;&gt; &#39;x&#39;</code>, <code>a = 5 AND b NOT IN (...)</code></td><td>yes: the rows of <code>a = 5</code>, without those of <code>b</code></td></tr><tr><td><code>(a = 5 OR b = &#39;x&#39;) AND c = 1</code></td><td>yes: the rows in either set, then those of <code>c</code> too</td></tr><tr><td><code>a = 5 AND MATCH(body, &#39;word&#39;)</code> (a <a href="full-text-search.html">full-text index</a>)</td><td>yes: the sets and the matches combined</td></tr><tr><td><code>a = 5 AND d BETWEEN 1 AND 99</code> (an ordinary index on <code>d</code>)</td><td>yes, when the range finds few rows: combined too</td></tr><tr><td><code>a = 5 AND ts &gt;= &#39;2026-03-01&#39; AND ts &lt; &#39;2026-04-01&#39;</code></td><td>yes: only the partitions of that month</td></tr><tr><td><code>b &lt;&gt; &#39;x&#39;</code> alone</td><td>no</td></tr><tr><td><code>a &gt; 5</code>, <code>a LIKE ...</code></td><td>no: use an ordinary index</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message, like <code>CREATE INDEX</code>.</li><li><strong>Notes:</strong>
+<ul><li><code>EXPLAIN</code> says <code>use bitmap index: a_ix (1 value) AND b_ix (2 values), N row(s)</code>. An OR shows as <code>(a_ix (1 value) OR b_ix (1 value))</code>; a text search or an ordinary index combined with the sets adds <code>AND full-text name</code> or <code>AND index name (...)</code>. N is the rows all of them agree on: only those are read.</li><li>A text search with a filter: <code>MATCH(body, &#39;oil&#39;) AND symbol = &#39;X&#39;</code> in one month used to read every row with the word and check the symbol on each. Now the matches and the symbol&#39;s set are combined first: on 1,000,000 rows, 5 ms instead of 99 ms. A word that is far more common than the filter (more than 32 matches per row of the sets) is still checked row by row.</li><li>On a table stored by the column (<code>symbol = &#39;X&#39;</code> on a time-series table whose first <code>SYMBOL</code> column is its sort key), the storage key already finds the rows: the bitmap index is then used only together with a text search.</li><li>Like every index, it lives in memory and is built from the rows when first needed. Every <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> changes it. Rows that come in storage order (a time-series table) cost very little: their sets are long runs of rows.</li><li>The same cost rules as above: on a big table it is used when the sets together find few rows.</li><li>It cannot be <code>UNIQUE</code>, have an expression or a <code>WHERE</code>, or have two columns (make one bitmap index per column: they combine).</li><li><code>SHOW INDEXES</code> shows its kind as <code>BITMAP</code>.</li></ul></li></ul>
+<p><strong>Example: Open orders of one region: two bitmap indexes together</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE orders (id LONG PRIMARY KEY, region INT, status SYMBOL, amount DOUBLE);
+INSERT INTO orders SELECT x, x % 7, CASE x % 3 WHEN 0 THEN &#39;open&#39; WHEN 1 THEN &#39;paid&#39; ELSE &#39;sent&#39; END, x * 1.5
+FROM generate_series(1, 300) g(x);
+CREATE INDEX orders_region ON orders USING BITMAP (region);
+CREATE INDEX orders_status ON orders (status) WITH (kind = &#39;bitmap&#39;);</code></pre>
+<pre><code class="language-sql">SELECT count(*), sum(amount) FROM orders WHERE region = 5 AND status = &#39;open&#39;;
+EXPLAIN SELECT id FROM orders WHERE region = 5 AND status = &#39;open&#39;;
+EXPLAIN SELECT id FROM orders WHERE region IN (1, 2) AND status &lt;&gt; &#39;paid&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*), sum(amount) FROM orders WHERE region = 5 AND status = &#39;open&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>count(*) (LONG)</th><th>sum(amount) (DOUBLE)</th></tr></thead><tbody><tr><td>14</td><td>3118.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>EXPLAIN SELECT id FROM orders WHERE region = 5 AND status = &#39;open&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table orders (1 of 1 partitions, about 300 rows)</td></tr><tr><td>use bitmap index: orders_region (1 value) AND orders_status (1 value), 14 row(s)</td></tr><tr><td>build 3 of 4 stored column(s) per row: id, region, status</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><code>EXPLAIN SELECT id FROM orders WHERE region IN (1, 2) AND status != &#39;paid&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table orders (1 of 1 partitions, about 300 rows)</td></tr><tr><td>use bitmap index: orders_region (2 values) AND NOT orders_status (1 value), 57 row(s)</td></tr><tr><td>build 3 of 4 stored column(s) per row: id, region, status</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: An OR of two bitmap indexes, and a text search combined with them</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE notes (id LONG PRIMARY KEY, region INT, status SYMBOL, body STRING);
+INSERT INTO notes SELECT x, x % 7, CASE x % 3 WHEN 0 THEN &#39;open&#39; WHEN 1 THEN &#39;paid&#39; ELSE &#39;sent&#39; END,
+  CASE WHEN x % 5 = 0 THEN &#39;oil price up&#39; ELSE &#39;quiet day&#39; END
+FROM generate_series(1, 300) g(x);
+CREATE INDEX notes_region ON notes USING BITMAP (region);
+CREATE INDEX notes_status ON notes USING BITMAP (status);
+CREATE FULLTEXT INDEX notes_body ON notes (body);</code></pre>
+<pre><code class="language-sql">SELECT count(*) FROM notes WHERE (region = 5 OR status = &#39;open&#39;) AND MATCH(body, &#39;oil&#39;);
+EXPLAIN SELECT id FROM notes WHERE (region = 5 OR status = &#39;open&#39;) AND MATCH(body, &#39;oil&#39;);</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) FROM notes WHERE (region = 5 OR status = &#39;open&#39;) AND match(body, &#39;oil&#39;)</code></p>
+<div class="table-wrap"><table><thead><tr><th>count(*) (LONG)</th></tr></thead><tbody><tr><td>26</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>EXPLAIN SELECT id FROM notes WHERE (region = 5 OR status = &#39;open&#39;) AND match(body, &#39;oil&#39;)</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table notes (1 of 1 partitions, about 300 rows)</td></tr><tr><td>use bitmap index: (notes_region (1 value) OR notes_status (1 value)) AND full-text notes_body, 26 row(s)</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="drop-index">DROP INDEX</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP INDEX [IF EXISTS] name</code></pre>
+<p>Removes an index. The rows of the table do not change.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>name</td><td>the index name (you do not name the table: index names are unique in the database)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message: <code>index &#39;name&#39; dropped</code>.</li><li><strong>IF EXISTS:</strong> when there is no such index, the message is <code>index &#39;name&#39; does not exist</code> and there is no error.</li><li><strong>Notes:</strong> <code>DROP INDEX</code> cannot run inside <code>BEGIN ... COMMIT</code>. To drop a column that an index uses, drop the index first.</li></ul>
+<p><strong>Example: Drop an index, then run the same script again</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_author ON posts (author);</code></pre>
+<pre><code class="language-sql">DROP INDEX posts_author;
+DROP INDEX IF EXISTS posts_author;</code></pre>
+<p>Result:</p>
+<p><code>DROP INDEX posts_author</code></p>
+<pre><code class="language-text">index &#39;posts_author&#39; dropped</code></pre>
+<p><code>DROP INDEX IF EXISTS posts_author</code></p>
+<pre><code class="language-text">index &#39;posts_author&#39; does not exist</code></pre>
+<p><strong>Example: There is no such index</strong> (sample data: content-forum; shows an error)</p>
+<pre><code class="language-sql">DROP INDEX posts_author;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop index &#39;posts_author&#39;: it does not exist</code></p>
+<p><strong>Example: A column that an index uses cannot be dropped</strong> (sample data: content-forum; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_parent ON posts (parent_id);</code></pre>
+<pre><code class="language-sql">ALTER TABLE posts DROP COLUMN parent_id;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop column &#39;parent_id&#39; from table &#39;posts&#39;: index &#39;posts_parent&#39; uses it; DROP INDEX posts_parent first</code></p>
+<h2 id="show-indexes">SHOW INDEXES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW INDEXES
+SHOW INDEXES FROM table
+SHOW INDEXES ON table</code></pre>
+<p>Lists the indexes of the database, or of one table. <code>SHOW INDEX</code> is the same.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>STRING</td><td>index name</td></tr><tr><td><code>table</code></td><td>STRING</td><td>table name</td></tr><tr><td><code>kind</code></td><td>STRING</td><td><code>INDEX</code>, <code>UNIQUE</code>, <code>FULLTEXT</code>, or <code>GIN</code> (a <a href="functions-json.html#gin">JSON index</a>)</td></tr><tr><td><code>columns</code></td><td>STRING</td><td>the columns, in index order</td></tr><tr><td><code>built</code></td><td>BOOL</td><td><code>true</code> when the index is in memory now</td></tr><tr><td><code>rows</code></td><td>LONG</td><td>entries in the index; <code>NULL</code> when not built</td></tr><tr><td><code>memory_bytes</code></td><td>LONG</td><td>memory the index uses; <code>NULL</code> when not built</td></tr><tr><td><code>create_sql</code></td><td>STRING</td><td>the <code>CREATE ... INDEX</code> statement that makes the index again</td></tr><tr><td><code>building</code></td><td>BOOL</td><td><code>true</code> while the server&#39;s warm-up thread is building it right now (see <a href="#warm">Built at open</a>)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> a table that does not exist gives an error. <code>SHOW CREATE TABLE</code> also lists the table&#39;s <code>CREATE INDEX</code> statements (see <a href="show-tables.html">show-tables</a>).</li></ul>
+<p><strong>Example: The index is built by the first query that needs it</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id);
+CREATE INDEX posts_author ON posts (author);</code></pre>
+<pre><code class="language-sql">SHOW INDEXES FROM posts;
+SELECT count(*) AS posts FROM posts WHERE thread_id = 1;
+SHOW INDEXES FROM posts;</code></pre>
+<p>Result:</p>
+<p><code>SHOW INDEXES FROM posts</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>table (STRING)</th><th>kind (STRING)</th><th>columns (STRING)</th><th>built (BOOL)</th><th>rows (LONG)</th><th>memory_bytes (LONG)</th><th>create_sql (STRING)</th><th>building (BOOL)</th></tr></thead><tbody><tr><td>posts_thread_time</td><td>posts</td><td>INDEX</td><td>thread_id, created_at, id</td><td>false</td><td>NULL</td><td>NULL</td><td>CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id)</td><td>false</td></tr><tr><td>posts_author</td><td>posts</td><td>INDEX</td><td>author</td><td>false</td><td>NULL</td><td>NULL</td><td>CREATE INDEX posts_author ON posts (author)</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT count(*) AS posts FROM posts WHERE thread_id = 1</code></p>
+<div class="table-wrap"><table><thead><tr><th>posts (LONG)</th></tr></thead><tbody><tr><td>6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SHOW INDEXES FROM posts</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>table (STRING)</th><th>kind (STRING)</th><th>columns (STRING)</th><th>built (BOOL)</th><th>rows (LONG)</th><th>memory_bytes (LONG)</th><th>create_sql (STRING)</th><th>building (BOOL)</th></tr></thead><tbody><tr><td>posts_thread_time</td><td>posts</td><td>INDEX</td><td>thread_id, created_at, id</td><td>true</td><td>8</td><td>400</td><td>CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id)</td><td>false</td></tr><tr><td>posts_author</td><td>posts</td><td>INDEX</td><td>author</td><td>false</td><td>NULL</td><td>NULL</td><td>CREATE INDEX posts_author ON posts (author)</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p>Here the database was opened again after <code>CREATE INDEX</code> with <code>kdb sql</code>, so no index was in memory at first. The <code>SELECT</code> built <code>posts_thread_time</code>; <code>posts_author</code> is still not built.</p>
+<h2 id="warm">Built at open</h2>
+<p><code>kdb serve</code> builds every index of a database <strong>right after it opens</strong>, on a background thread, so the first query finds them ready instead of paying for the build (about 0.2 s per million rows for a plain index, a few seconds for a full-text index over 200,000 articles). Nothing else waits for it:</p>
+<ul><li>The open itself takes the same time, and <code>/health</code>, <code>/api/stats</code> and every query answer while it runs. A query that needs an index the thread has not reached yet builds it itself, as before.</li><li>The order is <code>UNIQUE</code> indexes first, then the smallest tables, <code>FULLTEXT</code> indexes last.</li><li>Writes are never blocked for long: between two waves of partitions the thread lets writers go first, and an index whose table changed meanwhile is dropped and built again (once more by the thread, then by the first query that needs it).</li><li>An index bigger than <code>index_memory_bytes</code> is not built, exactly as by a query. When the indexes built so far fill <code>index_memory_bytes</code>, the thread stops, and the rest are built on first use. <code>SHOW INDEXES</code> shows <code>building</code> = <code>true</code> for the index the thread is on.</li><li>After the indexes, the same thread computes the <a href="pinned-queries.html">pinned queries</a>, so a pinned search finds its text index ready.</li><li><code>kdb serve --warm-indexes off</code> (or <code>KDB_WARM_INDEXES=off</code>) goes back to building on first use. <code>kdb sql</code> never warms: it runs its statements and closes.</li></ul>
+<p><strong>Example: Every index of the database</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_author ON posts (author);
+CREATE TABLE users (id LONG PRIMARY KEY, email STRING NOT NULL);
+CREATE UNIQUE INDEX users_email ON users (email);
+CREATE FULLTEXT INDEX posts_body ON posts (body);</code></pre>
+<pre><code class="language-sql">SHOW INDEXES;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>table (STRING)</th><th>kind (STRING)</th><th>columns (STRING)</th><th>built (BOOL)</th><th>rows (LONG)</th><th>memory_bytes (LONG)</th><th>create_sql (STRING)</th><th>building (BOOL)</th></tr></thead><tbody><tr><td>posts_author</td><td>posts</td><td>INDEX</td><td>author</td><td>false</td><td>NULL</td><td>NULL</td><td>CREATE INDEX posts_author ON posts (author)</td><td>false</td></tr><tr><td>posts_body</td><td>posts</td><td>FULLTEXT</td><td>body</td><td>false</td><td>NULL</td><td>NULL</td><td>CREATE FULLTEXT INDEX posts_body ON posts (body)</td><td>false</td></tr><tr><td>users_email</td><td>users</td><td>UNIQUE</td><td>email</td><td>false</td><td>NULL</td><td>NULL</td><td>CREATE UNIQUE INDEX users_email ON users (email)</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="when-used">When an index is used</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">EXPLAIN SELECT ...</code></pre>
+<p>KDB picks an index by itself. There is no hint to force one. Put <a href="explain.html">EXPLAIN</a> before a query: the line <code>use index &lt;name&gt;</code> says which index is used. No such line: every row is read.</p>
+<p>For an index on the columns <code>(a, b, c)</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Your query</th><th>Uses the index</th></tr></thead><tbody><tr><td><code>a = 5</code>, <code>a IN (1, 2, 3)</code>, <code>a IS NULL</code></td><td>yes</td></tr><tr><td><code>a = 5 AND b = 7</code></td><td>yes, both columns</td></tr><tr><td><code>a &gt; 5</code>, <code>a BETWEEN ...</code>, <code>a LIKE &#39;abc%&#39;</code></td><td>yes: a range of <code>a</code></td></tr><tr><td><code>a = 5 AND b &gt; 100</code></td><td>yes: <code>a</code> exactly, then a range of <code>b</code></td></tr><tr><td><code>a = 5 ORDER BY b DESC LIMIT 20</code></td><td>yes, and it stops after 20 rows</td></tr><tr><td><code>a = 5 AND (b, c) &lt; (x, y) ORDER BY b DESC, c DESC LIMIT 20</code></td><td>yes: keyset pagination (below)</td></tr><tr><td><code>b = 7</code> alone</td><td>no: <code>b</code> is not the first column</td></tr><tr><td><code>a = 5 OR a = 7</code></td><td>yes: the rows of each side, once (or write <code>a IN (5, 7)</code>)</td></tr><tr><td><code>a = 5 OR x = 7</code>, with another index that starts with <code>x</code></td><td>yes: each side uses its own index</td></tr><tr><td><code>a = 5 OR b = 7</code></td><td>no: <code>b = 7</code> has no index of its own, so every row is read</td></tr><tr><td><code>lower(a) = &#39;x&#39;</code>, <code>a + 1 = 6</code></td><td>no: a function or math around the column</td></tr><tr><td><code>a != 5</code>, <code>a NOT IN (...)</code>, <code>a LIKE &#39;%abc&#39;</code>, <code>NOT LIKE</code></td><td>no</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Put the column you compare with <code>=</code> first, and the column you sort by or compare with <code>&lt;</code> / <code>&gt;</code> next. For &quot;the newest N rows of X&quot; use <code>(x, time)</code>, for example <code>(thread_id, created_at, id)</code>.</li><li>When the condition already uses the table&#39;s storage key (like <code>id = 3</code> on a <code>PRIMARY KEY</code> table), KDB does not need an index.</li><li>KDB compares the cost first. An index reads its rows one by one; a scan reads rows in big pieces on all threads, about 1,000 times cheaper per row. So an index is used only when it finds <strong>few</strong> rows. When a scan is cheaper, <code>EXPLAIN</code> says <code>no index: &lt;name&gt; would read N row(s), a scan is cheaper</code> (see the <a href="explain.html#plan-lines">example in EXPLAIN</a>).</li><li>On a big table an index that finds a quarter of the rows, or a symbol that is in every partition, is not used. Tables of up to 10,000 rows cost nothing either way: they keep the index, so the small examples here show it.</li><li><strong><code>OR</code>:</strong> when every side of an <code>OR</code> has an index, like <code>email = $1 OR phone = $1</code> with one index on <code>email</code> and one on <code>phone</code>, each index finds its rows and a row found by both is read once. <code>EXPLAIN</code> says <code>use index users_email (...) OR index users_phone (...)</code>. On 100,000 users the login by email or phone went from a read of every row (22 to 75 ms) to 0.1 ms.</li><li>With <code>ORDER BY ... LIMIT</code>, KDB reads the index in order but gives up soon when most rows fail the other conditions, then finds the rows another way. A keyset page is never much slower than a scan.</li><li>In a <code>JOIN</code>, only the first table (after <code>FROM</code>) uses an index.</li><li><code>UPDATE ... WHERE</code> and <code>DELETE ... WHERE</code> use indexes too, whenever one fits: they do not compare the cost with a scan.</li><li>A text column compared with a number (<code>author = 5</code>) does not use the index.</li><li><strong>Keyset pagination:</strong> for the next page, remember <code>created_at</code> and <code>id</code> of the last row shown, and ask for rows before it with a row comparison <code>(created_at, id) &lt; (..., ...)</code>. Page 1000 is as fast as page 1. <code>LIMIT 20 OFFSET 20000</code> must still count 20,000 rows, so it gets slower on every page.</li></ul></li></ul>
+<p><strong>Example: A forum page: the index gives the rows in order and stops after 3</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT id FROM posts WHERE thread_id = 1 ORDER BY created_at DESC, id DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table posts (1 of 1 partitions, about 8 rows)</td></tr><tr><td>use index posts_thread_time (thread_id = value, rows in ORDER BY order, stops after 3 row(s))</td></tr><tr><td>build 3 of 6 stored column(s) per row: id, thread_id, created_at</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>sort by 2 key(s)</td></tr><tr><td>limit 3</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<p><strong>Example: Next page (keyset pagination): posts older than post 4</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id);</code></pre>
+<pre><code class="language-sql">SELECT id, author, created_at FROM posts
+WHERE thread_id = 1 AND (created_at, id) &lt; (&#39;2026-09-01T11:00:00+05:45&#39;, 4)
+ORDER BY created_at DESC, id DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th></tr></thead><tbody><tr><td>3</td><td>hari</td><td>2026-09-01T04:35:00.000Z</td></tr><tr><td>2</td><td>sita</td><td>2026-09-01T04:20:00.000Z</td></tr><tr><td>1</td><td>ram</td><td>2026-09-01T04:15:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: IN and LIKE &#39;text%&#39; use the index; a function around the column does not</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_author ON posts (author);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT id FROM posts WHERE author IN (&#39;ram&#39;, &#39;sita&#39;);
+EXPLAIN SELECT id FROM posts WHERE author LIKE &#39;ra%&#39;;
+EXPLAIN SELECT id FROM posts WHERE lower(author) = &#39;ram&#39;;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT id FROM posts WHERE author IN (&#39;ram&#39;, &#39;sita&#39;)</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table posts (1 of 1 partitions, about 8 rows)</td></tr><tr><td>use index posts_author (author in 2 values)</td></tr><tr><td>build 2 of 6 stored column(s) per row: id, author</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><code>EXPLAIN SELECT id FROM posts WHERE author LIKE &#39;ra%&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table posts (1 of 1 partitions, about 8 rows)</td></tr><tr><td>use index posts_author (author in a range)</td></tr><tr><td>build 2 of 6 stored column(s) per row: id, author</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><code>EXPLAIN SELECT id FROM posts WHERE lower(author) = &#39;ram&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table posts (1 of 1 partitions, about 8 rows)</td></tr><tr><td>build 2 of 6 stored column(s) per row: id, author</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Not the first column of the index: the table is read</strong> (sample data: content-forum)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT id FROM posts WHERE created_at &gt; &#39;2026-09-01&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table posts (1 of 1 partitions, about 8 rows)</td></tr><tr><td>build 2 of 6 stored column(s) per row: id, created_at</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/indexes.md">This page as markdown</a>.</footer>
+</body>
+</html>

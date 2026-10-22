@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Window and series functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Look at a series of rows: previous and next values, running totals, moving windows, time windows and ranks, with OVER (...).">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-window.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-window.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="window-and-series-functions">Window and series functions</h1>
+<blockquote><p>Look at a series of rows: previous and next values, running totals, moving windows, time windows and ranks, with OVER (...).</p></blockquote>
+<ul><li>Category: Functions — window and series</li><li>Keywords: window function, series function, analytic function, OVER, PARTITION BY, ROWS, PRECEDING, FOLLOWING, UNBOUNDED, UNBOUNDED FOLLOWING, CURRENT ROW, RANGE, RANGE BETWEEN, INTERVAL, frame, centered moving average, future rows, time window, last 7 days, running total, running product, cumulative product, running max, high so far, running min, percentile rank, cumulative distribution, quartile, decile, bucket, first value, last value, cumulative sum, moving sum, moving max, rolling, previous row, next row, previous close, change from yesterday, top N per group, ranking, running sum, cumulative, prev, shift, diff, next, percent change, rownum, row number, QUALIFY, window with GROUP BY</li><li>See also: <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-aggregate.html">Aggregate functions</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="where.html">WHERE</a></li></ul>
+<p>A <strong>window function</strong> (or series function) gives a value for <strong>every row</strong>, and it may look at other rows to make it: the row before, the rows of the same symbol, the last 5 rows. Unlike <code>GROUP BY</code>, the rows stay; nothing is merged.</p>
+<ul><li><strong>Series functions</strong> always work on a series: <code>lag</code>, <code>lead</code>, <code>cumsum</code>, <code>cumprod</code>, <code>cummax</code>, <code>cummin</code>, <code>pct_change</code>, <code>row_number</code>, <code>rank</code>, <code>dense_rank</code>, <code>percent_rank</code>, <code>cume_dist</code>, <code>ntile</code>, <code>first_value</code>, <code>last_value</code>, <code>nth_value</code>, and the indicators <code>sma</code>, <code>ema</code>, <code>rsi</code>, <code>atr</code> (<a href="functions-indicators.html">technical indicators</a>).</li><li>More series functions have their own pages: returns, drawdown and z-score (<a href="functions-returns-risk.html">returns and risk</a>), and the indicator families <a href="functions-indicators-momentum.html">momentum</a> (MACD, stochastic), <a href="functions-indicators-volatility.html">volatility</a> (Bollinger bands), <a href="functions-indicators-trend.html">trend</a> (ADX, supertrend) and <a href="functions-indicators-volume.html">volume</a> (OBV, MFI).</li><li><strong>Aggregates</strong> (<code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>count</code>, ...) become window functions when you write <code>OVER (...)</code> after them.</li></ul>
+<p><strong>The order of the series.</strong> Without <code>OVER</code>, or with <code>OVER</code> but without <code>ORDER BY</code>, the series is <strong>all result rows in time order</strong> (the time column of the table). A table or subquery without a time column keeps the order the rows come in. Rows with the same time keep their storage order.</p>
+<p><strong>Rules</strong></p>
+<ol><li><code>WHERE</code> runs first: the series only has the rows that <code>WHERE</code> keeps. <code>LIMIT</code> and <code>ORDER BY</code> run after: they do not change the values.</li><li>The rows of the result are <strong>not</strong> sorted in series order by themselves. Add <code>ORDER BY time</code> (or <code>ORDER BY symbol, time</code>) to read them.</li><li>Window functions can only be in the <strong>select list</strong>. To filter on one (<code>WHERE rn = 1</code>), put the query in a subquery.</li><li>With <code>GROUP BY</code> or <code>SAMPLE BY</code> in the same <code>SELECT</code>, the window runs over the <strong>groups</strong>, after they are made: <code>sum(sum(qty)) OVER (ORDER BY time)</code> is a running total of the grouped sums. Inside <code>OVER</code>, use the group keys or aggregates, not the raw columns.</li><li>One window function cannot be inside another (<code>lag(sma(close, 3))</code>), and an aggregate cannot take a window function (<code>sum(lag(close) OVER (...))</code>). The error says so (PostgreSQL <code>42803</code>). Use one subquery level per step: <code>SELECT sum(x) FROM (SELECT lag(close) OVER (...) AS x FROM t) s</code>.</li></ol>
+<p><strong>Example: Yesterday&#39;s close, change and running volume of VOLT</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       lag(close) AS prev_close,
+       round(close - lag(close), 2) AS change,
+       round(pct_change(close), 2) AS change_pct,
+       cumsum(volume) AS running_volume
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-06&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>prev_close (DOUBLE)</th><th>change (DOUBLE)</th><th>change_pct (DOUBLE)</th><th>running_volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>NULL</td><td>NULL</td><td>NULL</td><td>78550</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>180.1</td><td>-3.2</td><td>-1.78</td><td>214110</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>176.9</td><td>5.5</td><td>3.11</td><td>350880</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>182.4</td><td>4.9</td><td>2.69</td><td>445290</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>187.3</td><td>3.9</td><td>2.08</td><td>486760</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A sum of yesterday&#39;s closes: the window in a subquery</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(sum(prev_close), 2) AS sum_prev_close
+FROM (SELECT lag(close) OVER (ORDER BY time) AS prev_close FROM ochl_day WHERE symbol = &#39;VOLT&#39;) s;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sum_prev_close (DOUBLE)</th></tr></thead><tbody><tr><td>3247.3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The same without the subquery is refused</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT sum(lag(close) OVER (ORDER BY time)) FROM ochl_day WHERE symbol = &#39;VOLT&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 12: &#39;lag&#39; is a window function and cannot be used inside the aggregate &#39;sum&#39;; compute it in a subquery first: SELECT sum(x) FROM (SELECT lag(...) OVER (...) AS x FROM t) s</code></p>
+<p><strong>Example: Top trade of each symbol: the window inside, the filter outside</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, transaction_id, buyer, amount
+FROM (SELECT symbol, transaction_id, buyer, amount,
+             row_number() OVER (PARTITION BY symbol ORDER BY amount DESC) AS rn
+      FROM trade_log) t
+WHERE rn = 1
+ORDER BY amount DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>transaction_id (LONG)</th><th>buyer (INT)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>TELCO</td><td>100001</td><td>58</td><td>881000</td></tr><tr><td>COAST</td><td>100031</td><td>45</td><td>402000</td></tr><tr><td>CITY</td><td>100005</td><td>1</td><td>258500</td></tr><tr><td>VOLT</td><td>100012</td><td>58</td><td>36800</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="over">OVER (...)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">function(arguments) OVER ()
+function(arguments) OVER ([PARTITION BY expr, ...]
+                          [ORDER BY expr [ASC | DESC], ...]
+                          [ROWS n PRECEDING | ROWS UNBOUNDED PRECEDING
+                           | ROWS BETWEEN start AND end
+                           | RANGE BETWEEN start AND end])
+
+start, end:  UNBOUNDED PRECEDING | n PRECEDING | CURRENT ROW | n FOLLOWING | UNBOUNDED FOLLOWING</code></pre>
+<p><code>OVER</code> says which rows the function sees for each row: the <strong>window</strong>. All three parts are optional.</p>
+<div class="table-wrap"><table><thead><tr><th>OVER (...)</th><th>The window of each row</th></tr></thead><tbody><tr><td><code>OVER ()</code></td><td>all result rows</td></tr><tr><td><code>OVER (PARTITION BY symbol)</code></td><td>all rows with the same symbol</td></tr><tr><td><code>OVER (PARTITION BY symbol ORDER BY time)</code></td><td>from the first row of that symbol to this row (a running value)</td></tr><tr><td><code>OVER (PARTITION BY symbol ORDER BY time ROWS 4 PRECEDING)</code></td><td>this row and the 4 rows before it (a moving value)</td></tr><tr><td><code>OVER (ORDER BY time ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING)</code></td><td>2 rows before, this row and 2 rows after (<a href="#rows-following">FOLLOWING</a>)</td></tr><tr><td><code>OVER (ORDER BY time RANGE BETWEEN &#39;7 days&#39; PRECEDING AND CURRENT ROW)</code></td><td>the rows of the last 7 days (<a href="#range">RANGE</a>)</td></tr></tbody></table></div>
+<ul><li><strong>Works with:</strong> the series functions and every aggregate. Other functions give an error: <code>&#39;upper&#39; cannot be used with OVER</code>.</li><li><strong>Notes:</strong> the <strong>frame</strong> is the part of the window that an aggregate reads: <code>ROWS ...</code> or <code>RANGE ...</code>. A series function (<code>lag</code>, <code>sma</code>, <code>rank</code>, ...) uses <code>PARTITION BY</code> and <code>ORDER BY</code>, and ignores the frame; only <code>first_value</code>, <code>last_value</code>, <code>nth_value</code>, and <code>zscore</code> and <code>minmax_scale</code> without a period read it. There are no named windows (<code>WINDOW w AS</code>) and no <code>FILTER</code>. <code>DISTINCT</code> inside a window aggregate is ignored (<code>count(DISTINCT x) OVER ()</code> counts all values).</li></ul>
+<p><strong>Example: The same sum over three different windows</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, volume,
+       sum(volume) OVER () AS all_rows,
+       sum(volume) OVER (ORDER BY time) AS running,
+       sum(volume) OVER (ORDER BY time ROWS 1 PRECEDING) AS last_2_days
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-06&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>volume (DOUBLE)</th><th>all_rows (DOUBLE)</th><th>running (DOUBLE)</th><th>last_2_days (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>74950</td><td>591860</td><td>74950</td><td>74950</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>117080</td><td>591860</td><td>192030</td><td>192030</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>34400</td><td>591860</td><td>226430</td><td>151480</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>182390</td><td>591860</td><td>408820</td><td>216790</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>183040</td><td>591860</td><td>591860</td><td>365430</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Only series functions and aggregates can have OVER</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT upper(symbol) OVER () FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: &#39;upper&#39; cannot be used with OVER</code></p>
+<h2 id="partition-by">PARTITION BY (window)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">function(arguments) OVER (PARTITION BY expr [, expr ...] ...)</code></pre>
+<p>Splits the rows into separate series, one per value (for example one per symbol). The function starts again for every part: <code>lag</code> of the first CITY row is NULL, not the last COAST price.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>expr</code></td><td>any type</td><td>a column or expression; rows with equal values are one part</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> rows where the expression is NULL are one part together.</li><li><strong>Notes:</strong> without <code>PARTITION BY</code>, all rows are <strong>one</strong> series. With many symbols in the result, always use <code>PARTITION BY symbol</code>, or CITY&#39;s values mix with COAST&#39;s.</li><li><strong>Fast sums of windows:</strong> a <code>GROUP BY</code> over a subquery of <code>row_number</code>, <code>rank</code>, <code>dense_rank</code>, <code>lead</code> or <code>lag</code> over one table runs on the column engine when the <code>PARTITION BY</code> columns are the first columns the table is sorted by and include its time column (a floorsheet sorted by symbol, then time: <code>PARTITION BY time, symbol</code>), each call has one plain <code>ORDER BY</code> column, and the outer query uses <code>sum</code>, <code>count</code>, <code>min</code>, <code>max</code> or <code>avg</code>. A year of such a filter is then about 8 times faster. The answer is the same either way. A day with rows not saved yet is read the same way, and the step keeps at most 64 MB of window rows at a time; a NULL in the <code>ORDER BY</code> column runs the usual way.</li></ul>
+<p><strong>Example: Previous close per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-09&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>prev_close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>NULL</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>504.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>NULL</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>380.1</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>NULL</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>187.3</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Wrong: without PARTITION BY the symbols are one series</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, lag(close) AS prev_close_mixed
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-09&#39;
+ORDER BY time, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>prev_close_mixed (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>504.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>380.1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>187.3</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>504.9</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>376.1</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Each symbol&#39;s share of the day&#39;s volume</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, volume,
+       round(volume * 100.0 / sum(volume) OVER (PARTITION BY time), 1) AS share_pct
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-09&#39;
+ORDER BY time, share_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th><th>share_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>186330</td><td>40.2</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>182390</td><td>39.4</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>94410</td><td>20.4</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>186200</td><td>45.3</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>183040</td><td>44.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>41470</td><td>10.1</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="order-by">ORDER BY (window)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">function(arguments) OVER ([PARTITION BY ...] ORDER BY expr [ASC | DESC] [, expr [ASC | DESC] ...] ...)</code></pre>
+<p>The order of the rows inside the window. It decides what &quot;previous&quot; means for <code>lag</code>, what a running total adds up, and who is first for <code>rank</code>.</p>
+<ul><li><strong>Default:</strong> without <code>ORDER BY</code>, time order (see the top of this page).</li><li><strong>NULL:</strong> rows where the order value is NULL come <strong>last</strong>, also with <code>DESC</code>. <code>NULLS FIRST</code> is accepted here but has no effect yet.</li><li><strong>Notes:</strong>
+<ul><li>This <code>ORDER BY</code> only orders the window. The result rows need their own <code>ORDER BY</code> at the end of the query.</li><li>An aggregate with <code>ORDER BY</code> and no <code>ROWS</code> is a <strong>running</strong> value: from the first row to this row. When two rows have the same order value, KDB still adds them one at a time (PostgreSQL would give both rows the same total; in KDB write <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> for that, see <a href="#range">RANGE</a>).</li><li>With <code>DESC</code>, <code>lead</code> looks at the row that comes next in the window, which is the <strong>earlier</strong> time.</li></ul></li></ul>
+<p><strong>Example: Biggest volume first: rank the days of COAST</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, volume, row_number() OVER (ORDER BY volume DESC) AS volume_rank
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-06&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>volume (DOUBLE)</th><th>volume_rank (LONG)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>143620</td><td>3</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>113010</td><td>4</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>60980</td><td>5</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>186330</td><td>1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>186200</td><td>2</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Running total of the day&#39;s turnover, trade by trade</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol, amount,
+       sum(amount) OVER (ORDER BY transaction_id) AS running_turnover
+FROM trade_log
+WHERE date IN &#39;2026-09-09&#39;
+ORDER BY transaction_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>amount (DOUBLE)</th><th>running_turnover (DOUBLE)</th></tr></thead><tbody><tr><td>100001</td><td>TELCO</td><td>881000</td><td>881000</td></tr><tr><td>100002</td><td>CITY</td><td>5150</td><td>886150</td></tr><tr><td>100003</td><td>CITY</td><td>256500</td><td>1142650</td></tr><tr><td>100004</td><td>CITY</td><td>257250</td><td>1399900</td></tr><tr><td>100005</td><td>CITY</td><td>258500</td><td>1658400</td></tr><tr><td>100006</td><td>COAST</td><td>80200</td><td>1738600</td></tr><tr><td>100007</td><td>TELCO</td><td>879000</td><td>2617600</td></tr><tr><td>100008</td><td>COAST</td><td>7970</td><td>2625570</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="rows-preceding">ROWS n PRECEDING</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregate(x) OVER ([PARTITION BY ...] [ORDER BY ...] ROWS n PRECEDING)</code></pre>
+<p>A <strong>moving</strong> window: this row and the <code>n</code> rows before it (so <code>n + 1</code> rows). <code>ROWS 4 PRECEDING</code> is a 5-day window. At the start of a series there are fewer rows before, and the window is smaller.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n</code></td><td>whole number, 0 or more</td><td>how many rows before this row; <code>0</code> is only this row</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> the short form of <code>ROWS BETWEEN n PRECEDING AND CURRENT ROW</code>. It has an effect on aggregates only. The first rows use a smaller window, they are <strong>not</strong> NULL (unlike <code>sma</code>, which is NULL until it has <code>n</code> rows: see <a href="functions-indicators.html#sma">sma</a>).</li></ul>
+<p><strong>Example: 5-day high, 5-day low and 3-day average volume</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       max(high) OVER (PARTITION BY symbol ORDER BY time ROWS 4 PRECEDING) AS high_5d,
+       min(low) OVER (PARTITION BY symbol ORDER BY time ROWS 4 PRECEDING) AS low_5d,
+       round(avg(volume) OVER (PARTITION BY symbol ORDER BY time ROWS 2 PRECEDING)) AS avg_vol_3d
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>high_5d (DOUBLE)</th><th>low_5d (DOUBLE)</th><th>avg_vol_3d (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>CITY</td><td>502.4</td><td>507.3</td><td>501.3</td><td>83000</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>CITY</td><td>496.4</td><td>507.3</td><td>494.1</td><td>91675</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>CITY</td><td>497.9</td><td>507.3</td><td>494.1</td><td>94783</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>CITY</td><td>499</td><td>507.3</td><td>494.1</td><td>92100</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>CITY</td><td>498.7</td><td>507.3</td><td>494.1</td><td>97677</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>502.8</td><td>494.1</td><td>75477</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>512.4</td><td>495</td><td>111290</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>512.4</td><td>495</td><td>133277</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: The short form only goes back: for rows after, write BETWEEN</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT sum(volume) OVER (ORDER BY time ROWS 2 FOLLOWING) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 40: a frame that starts after the current row needs an end: write BETWEEN n FOLLOWING AND ...</code></p>
+<h2 id="rows-unbounded">ROWS UNBOUNDED PRECEDING</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregate(x) OVER ([PARTITION BY ...] [ORDER BY ...] ROWS UNBOUNDED PRECEDING)</code></pre>
+<p>A <strong>running</strong> window: from the first row of the part to this row. It is the same as <code>ORDER BY</code> without <code>ROWS</code>, written out.</p>
+<ul><li><strong>Notes:</strong> a running <code>max(high)</code> is the highest price so far (&quot;all-time high up to this day&quot;).</li></ul>
+<p><strong>Example: Highest high so far, and the running number of trading days</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, high,
+       max(high) OVER (ORDER BY time ROWS UNBOUNDED PRECEDING) AS high_so_far,
+       count(*) OVER (ORDER BY time ROWS UNBOUNDED PRECEDING) AS day_no
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>high (DOUBLE)</th><th>high_so_far (DOUBLE)</th><th>day_no (LONG)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>172.1</td><td>172.1</td><td>1</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>174.6</td><td>174.6</td><td>2</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>177.3</td><td>177.3</td><td>3</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>183.9</td><td>183.9</td><td>4</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>183.2</td><td>183.9</td><td>5</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>183.5</td><td>183.9</td><td>6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>189.5</td><td>189.5</td><td>7</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>192.1</td><td>192.1</td><td>8</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="rows-between">ROWS BETWEEN n PRECEDING AND CURRENT ROW</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregate(x) OVER ([PARTITION BY ...] [ORDER BY ...] ROWS BETWEEN n PRECEDING AND CURRENT ROW)
+aggregate(x) OVER ([PARTITION BY ...] [ORDER BY ...] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code></pre>
+<p>The long, standard SQL way to write <code>ROWS n PRECEDING</code> and <code>ROWS UNBOUNDED PRECEDING</code>. Both forms give the same result. With <code>BETWEEN</code>, the end can also be after this row: see <a href="#rows-following">ROWS BETWEEN ... FOLLOWING</a>.</p>
+<p><strong>Example: Long and short form give the same moving sum</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, volume,
+       sum(volume) OVER (ORDER BY time ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS long_form,
+       sum(volume) OVER (ORDER BY time ROWS 2 PRECEDING) AS short_form
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-06&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>volume (DOUBLE)</th><th>long_form (DOUBLE)</th><th>short_form (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>143620</td><td>143620</td><td>143620</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>113010</td><td>256630</td><td>256630</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>60980</td><td>317610</td><td>317610</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>186330</td><td>360320</td><td>360320</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>186200</td><td>433510</td><td>433510</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The end of the frame cannot be before its start</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT sum(volume) OVER (ORDER BY time ROWS BETWEEN CURRENT ROW AND 2 PRECEDING) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 40: the frame ends before it starts; expected the end bound after the start bound</code></p>
+<h2 id="rows-following">ROWS BETWEEN ... FOLLOWING</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregate(x) OVER ([PARTITION BY ...] [ORDER BY ...] ROWS BETWEEN start AND end)
+
+start:  UNBOUNDED PRECEDING | n PRECEDING | CURRENT ROW | n FOLLOWING
+end:    n PRECEDING | CURRENT ROW | n FOLLOWING | UNBOUNDED FOLLOWING</code></pre>
+<p>A frame that also reads rows <strong>after</strong> this row. <code>n FOLLOWING</code> is <code>n</code> rows after this row; <code>UNBOUNDED FOLLOWING</code> is up to the last row of the part. <code>ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING</code> is a <strong>centered</strong> moving window of 5 rows: this row is in the middle.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n</code></td><td>whole number, 0 or more</td><td>how many rows before (<code>PRECEDING</code>) or after (<code>FOLLOWING</code>) this row</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> NULL values are skipped, as in the plain aggregate. A frame with no rows (for example <code>1 FOLLOWING AND 3 FOLLOWING</code> on the last row) gives <code>NULL</code> (<code>count</code> gives <code>0</code>).</li><li><strong>Notes:</strong>
+<ul><li>Near the start and the end of a part, the frame is smaller; it is not NULL.</li><li>The end must not be before the start. A frame cannot start with <code>UNBOUNDED FOLLOWING</code>, and <code>ROWS n FOLLOWING</code> alone is an error: write <code>ROWS BETWEEN n FOLLOWING AND ...</code>.</li><li>Careful with trading signals: a value that reads future rows is fine for a chart, but a real trader did not know those prices yet.</li></ul></li></ul>
+<p><strong>Example: Centered 5-day average, volume still to come, and the best close of the next 3 days</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(avg(close) OVER (ORDER BY time ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING), 2) AS centered_avg,
+       sum(volume) OVER (ORDER BY time ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS volume_from_here,
+       max(close) OVER (ORDER BY time ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING) AS next_3_days_max
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>centered_avg (DOUBLE)</th><th>volume_from_here (DOUBLE)</th><th>next_3_days_max (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>367.4</td><td>369.93</td><td>910270</td><td>375.4</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>369.2</td><td>371.3</td><td>844060</td><td>379.2</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>373.2</td><td>372.88</td><td>772910</td><td>379.2</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td><td>374.84</td><td>690140</td><td>380.1</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td><td>377.02</td><td>546520</td><td>380.1</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td><td>377.6</td><td>433510</td><td>380.1</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>380.1</td><td>378.15</td><td>372530</td><td>376.1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td><td>377.8</td><td>186200</td><td>NULL</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Each day&#39;s share of the symbol&#39;s volume over all shown days (the full frame)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, volume,
+       round(volume * 100.0 / sum(volume) OVER (PARTITION BY symbol ORDER BY time
+                                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING), 1) AS share_of_days_pct
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th><th>share_of_days_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>34400</td><td>8.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>182390</td><td>45.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>183040</td><td>45.8</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>60980</td><td>14.1</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>186330</td><td>43</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>186200</td><td>43</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>136770</td><td>50.2</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>94410</td><td>34.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>41470</td><td>15.2</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<h2 id="range">RANGE BETWEEN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregate(x) OVER ([PARTITION BY ...] ORDER BY value RANGE BETWEEN start AND end)
+aggregate(x) OVER ([PARTITION BY ...] ORDER BY value RANGE distance PRECEDING)
+
+distance:  number | &#39;interval text&#39; | INTERVAL &#39;interval text&#39;</code></pre>
+<p>A frame by <strong>value</strong>, not by row count. <code>RANGE BETWEEN &#39;7 days&#39; PRECEDING AND CURRENT ROW</code> reads every row whose time is at most 7 days before this row&#39;s time. This is what you want when rows are missing: a week has 5 trading days, and holidays make it fewer, so <code>ROWS 6 PRECEDING</code> is not always &quot;one week&quot;.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n PRECEDING</code>, <code>n FOLLOWING</code></td><td>rows whose <code>ORDER BY</code> value is at most <code>n</code> before or after this row&#39;s value</td></tr><tr><td><code>&#39;7 days&#39;</code>, <code>INTERVAL &#39;1 hour&#39;</code></td><td>a distance of time, for a <code>TIMESTAMP</code> or <code>DATE</code> <code>ORDER BY</code> value. Units: <code>ms</code>, <code>s</code>/<code>seconds</code>, <code>m</code>/<code>minutes</code>, <code>h</code>/<code>hours</code>, <code>d</code>/<code>days</code>, <code>w</code>/<code>weeks</code></td></tr><tr><td>a plain number</td><td>milliseconds for a <code>TIMESTAMP</code>, days for a <code>DATE</code>, the value itself for a number</td></tr><tr><td><code>CURRENT ROW</code></td><td>this row <strong>and its peers</strong>: the rows with the same <code>ORDER BY</code> value</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> NULL values of <code>x</code> are skipped. Rows whose <code>ORDER BY</code> value is NULL are only peers of each other.</li><li><strong>Notes:</strong>
+<ul><li>A distance needs exactly <strong>one</strong> <code>ORDER BY</code> value, and it must be a number or a time.</li><li><code>&#39;1 month&#39;</code> and <code>&#39;1 year&#39;</code> are refused: they have no fixed length.</li><li>The distance must be 0 or more. With <code>ORDER BY ... DESC</code>, <code>PRECEDING</code> means the later times.</li><li><code>RANGE &#39;2 days&#39; PRECEDING</code> (without BETWEEN) is short for <code>RANGE BETWEEN &#39;2 days&#39; PRECEDING AND CURRENT ROW</code>.</li></ul></li></ul>
+<p><strong>Example: 7-day window by time against 7 rows: holidays make the difference</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       count(*) OVER (ORDER BY time RANGE BETWEEN &#39;7 days&#39; PRECEDING AND CURRENT ROW) AS rows_in_7_days,
+       round(avg(close) OVER (ORDER BY time RANGE BETWEEN &#39;7 days&#39; PRECEDING AND CURRENT ROW), 2) AS avg_7_days,
+       count(*) OVER (ORDER BY time ROWS 6 PRECEDING) AS rows_in_7_rows
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>rows_in_7_days (LONG)</th><th>avg_7_days (DOUBLE)</th><th>rows_in_7_rows (LONG)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>1</td><td>507.9</td><td>1</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>2</td><td>509.1</td><td>2</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>3</td><td>510.5</td><td>3</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>4</td><td>511.18</td><td>4</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>5</td><td>510.12</td><td>5</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>6</td><td>508.95</td><td>6</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>6</td><td>508.58</td><td>7</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>6</td><td>507.27</td><td>7</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>6</td><td>504.45</td><td>7</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>6</td><td>501.9</td><td>7</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>6</td><td>500.75</td><td>7</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>6</td><td>500.02</td><td>7</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>6</td><td>498.65</td><td>7</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>6</td><td>499.02</td><td>7</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>6</td><td>500.43</td><td>7</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Volume of the last hour, for every minute</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       sum(volume) OVER (ORDER BY time RANGE BETWEEN INTERVAL &#39;1 hour&#39; PRECEDING AND CURRENT ROW) AS volume_last_hour
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume_last_hour (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>376.1</td><td>49370</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>376.2</td><td>49320</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>376</td><td>48630</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Numbers: trades of a similar size, and running totals where ties share one total</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, quantity,
+       count(*) OVER (ORDER BY quantity RANGE BETWEEN 10 PRECEDING AND 10 FOLLOWING) AS similar_trades,
+       sum(quantity) OVER (ORDER BY quantity RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_with_peers,
+       sum(quantity) OVER (ORDER BY quantity) AS running_row_by_row
+FROM trade_log
+WHERE symbol = &#39;COAST&#39;
+ORDER BY quantity, transaction_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>similar_trades (LONG)</th><th>running_with_peers (LONG)</th><th>running_row_by_row (LONG)</th></tr></thead><tbody><tr><td>100019</td><td>10</td><td>4</td><td>10</td><td>10</td></tr><tr><td>100008</td><td>20</td><td>4</td><td>70</td><td>30</td></tr><tr><td>100014</td><td>20</td><td>4</td><td>70</td><td>50</td></tr><tr><td>100028</td><td>20</td><td>4</td><td>70</td><td>70</td></tr><tr><td>100009</td><td>50</td><td>2</td><td>170</td><td>120</td></tr><tr><td>100013</td><td>50</td><td>2</td><td>170</td><td>170</td></tr><tr><td>100006</td><td>200</td><td>2</td><td>570</td><td>370</td></tr><tr><td>100026</td><td>200</td><td>2</td><td>570</td><td>570</td></tr><tr><td>100023</td><td>500</td><td>1</td><td>1070</td><td>1070</td></tr><tr><td>100015</td><td>1000</td><td>2</td><td>3070</td><td>2070</td></tr><tr><td>100031</td><td>1000</td><td>2</td><td>3070</td><td>3070</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<p><strong>Example: Months have no fixed length</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT sum(volume) OVER (ORDER BY time RANGE BETWEEN &#39;1 month&#39; PRECEDING AND CURRENT ROW) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: sum: &#39;1 month&#39; is not a distance like &#39;5 days&#39;, &#39;2 hours&#39; or &#39;30 minutes&#39; (months and years are not supported)</code></p>
+<h2 id="lag">lag</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">lag(x)
+lag(x, k)
+lag(x, k) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The value of <code>x</code> in the row <code>k</code> places <strong>before</strong> this row in the series. <code>lag(close)</code> is the previous close.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr><tr><td><code>k</code></td><td>whole number, 1 or more</td><td>how many rows back; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>k</code> rows (there is no row before). A NULL value is taken as it is.</li><li><strong>Notes:</strong> <code>k</code> must be a whole number of 1 or more, else the error <code>the period must be a whole number of rows</code>.</li></ul>
+<p><strong>Example: Gap up or down: today&#39;s open against yesterday&#39;s close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, open, prev_close, round(open - prev_close, 2) AS gap
+FROM (SELECT time, symbol, open, lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-06&#39;) t
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>prev_close (DOUBLE)</th><th>gap (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>CITY</td><td>497.4</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>CITY</td><td>497.3</td><td>499</td><td>-1.7</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>498.2</td><td>498.7</td><td>-0.5</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>512</td><td>497.5</td><td>14.5</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>504.6</td><td>0</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>COAST</td><td>374.6</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>COAST</td><td>373.7</td><td>375.4</td><td>-1.7</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>379.8</td><td>379.2</td><td>0.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>398</td><td>377.2</td><td>20.8</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>380.1</td><td>0</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>VOLT</td><td>174.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>VOLT</td><td>181.4</td><td>180.1</td><td>1.3</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>178.7</td><td>176.9</td><td>1.8</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>182</td><td>182.4</td><td>-0.4</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>185.6</td><td>187.3</td><td>-1.7</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Close of 3 days ago</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, lag(close, 3) AS close_3_days_ago
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>close_3_days_ago (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>NULL</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>NULL</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>502.4</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>496.4</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>497.9</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>499</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>498.7</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: lag cannot be used in WHERE: use a subquery</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT time, close FROM ochl_day WHERE close &gt; lag(close);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 48: &#39;lag&#39; works over a series of rows and can only be used in a SELECT list</code></p>
+<h2 id="lead">lead</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">lead(x)
+lead(x, k)
+lead(x, k) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The value of <code>x</code> in the row <code>k</code> places <strong>after</strong> this row. <code>lead(close)</code> is the next day&#39;s close. Useful to test a signal: &quot;what happened the day after?&quot;</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr><tr><td><code>k</code></td><td>whole number, 1 or more</td><td>how many rows forward; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the last <code>k</code> rows.</li></ul>
+<p><strong>Example: Next day&#39;s close after each day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       lead(close) OVER (PARTITION BY symbol ORDER BY time) AS next_close
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>next_close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>504.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>504.9</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>380.1</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>376.1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>NULL</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>187.3</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>191.2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>NULL</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Minutes between forum posts of a thread</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, created_at,
+       (lead(created_at) OVER (PARTITION BY thread_id ORDER BY created_at) - created_at) / 60000 AS minutes_to_next
+FROM posts
+ORDER BY thread_id, created_at;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>created_at (TIMESTAMP)</th><th>minutes_to_next (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>2026-09-01T04:15:00.000Z</td><td>5</td></tr><tr><td>2</td><td>sita</td><td>2026-09-01T04:20:00.000Z</td><td>15</td></tr><tr><td>3</td><td>hari</td><td>2026-09-01T04:35:00.000Z</td><td>40</td></tr><tr><td>4</td><td>gita</td><td>2026-09-01T05:15:00.000Z</td><td>30</td></tr><tr><td>5</td><td>ram</td><td>2026-09-01T05:45:00.000Z</td><td>30</td></tr><tr><td>6</td><td>sita</td><td>2026-09-01T06:15:00.000Z</td><td>NULL</td></tr><tr><td>7</td><td>hari</td><td>2026-09-02T03:15:00.000Z</td><td>10</td></tr><tr><td>8</td><td>gita</td><td>2026-09-02T03:25:00.000Z</td><td>NULL</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="cumsum">cumsum</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cumsum(x)
+cumsum(x) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>running total</strong>: the sum of <code>x</code> from the first row of the series to this row.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to add</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code> when every value is a whole number, else <code>DOUBLE</code> (also for <code>DECIMAL</code>: use <code>sum(x) OVER (ORDER BY ...)</code> to keep a DECIMAL exact).</li><li><strong>NULL:</strong> NULL values are skipped: the total stays the same. Before the first value that is not NULL, the result is <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>sum(x) OVER ([PARTITION BY ...] ORDER BY ...)</code>.</li></ul>
+<p><strong>Example: Running volume per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, volume,
+       cumsum(volume) OVER (PARTITION BY symbol ORDER BY time) AS running_volume
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th><th>running_volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>34400</td><td>34400</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>182390</td><td>216790</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>183040</td><td>399830</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>60980</td><td>60980</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>186330</td><td>247310</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>186200</td><td>433510</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>136770</td><td>136770</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>94410</td><td>231180</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>41470</td><td>272650</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Running balance of the bank account</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT line_id, memo, debit, credit,
+       sum(debit) OVER (ORDER BY line_id) AS money_in_so_far,
+       round(cumsum(coalesce(debit, 0) - coalesce(credit, 0)) OVER (ORDER BY line_id), 2) AS balance
+FROM ledger
+WHERE account = 1100
+ORDER BY line_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line_id (INT)</th><th>memo (STRING)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th><th>money_in_so_far (DECIMAL(2))</th><th>balance (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>Owner puts money in the bank</td><td>500000.00</td><td>NULL</td><td>500000.00</td><td>500000</td></tr><tr><td>6</td><td>Pay the broker</td><td>NULL</td><td>257500.00</td><td>500000.00</td><td>242500</td></tr><tr><td>8</td><td>Commission on the CITY buy</td><td>NULL</td><td>1030.00</td><td>500000.00</td><td>241470</td></tr><tr><td>10</td><td>Take cash from the bank</td><td>NULL</td><td>30000.00</td><td>500000.00</td><td>211470</td></tr><tr><td>13</td><td>CITY cash dividend</td><td>6250.00</td><td>NULL</td><td>506250.00</td><td>217720</td></tr><tr><td>15</td><td>Sell 20 CITY at 630</td><td>12600.00</td><td>NULL</td><td>518850.00</td><td>230320</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: New app users so far, per Nepal day</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT day, signups, cumsum(signups) AS total_users
+FROM (SELECT to_date(created_at + 20700000) AS day, count(*) AS signups
+      FROM signups
+      GROUP BY to_date(created_at + 20700000)) t
+ORDER BY day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th><th>signups (LONG)</th><th>total_users (LONG)</th></tr></thead><tbody><tr><td>2026-09-01</td><td>3</td><td>3</td></tr><tr><td>2026-09-02</td><td>2</td><td>5</td></tr><tr><td>2026-09-03</td><td>3</td><td>8</td></tr><tr><td>2026-09-04</td><td>1</td><td>9</td></tr><tr><td>2026-09-06</td><td>1</td><td>10</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="cumprod">cumprod</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cumprod(x)
+cumprod(x) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>running product</strong>: all values of <code>x</code> from the first row to this row, multiplied. Traders use it to <strong>compound</strong> returns: if a share rises 1% and then 2%, it grew by <code>1.01 × 1.02 = 1.0302</code>. So <code>cumprod(1 + return)</code> is what 1 dollar has grown to.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to multiply</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped: the product stays the same. Before the first value that is not NULL, the result is <code>NULL</code>. A product too big for a <code>DOUBLE</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> a window function cannot be inside another, so compute the return in a subquery first. For the growth in percent, <a href="functions-returns-risk.html#cum_return">cum_return</a> is shorter.</li></ul>
+<p><strong>Example: Growth of 1 dollar in VOLT, day by day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, ratio, round(cumprod(ratio), 4) AS growth_of_1
+FROM (SELECT time, close, close / lag(close) AS ratio
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-01&#39;) t
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>ratio (DOUBLE)</th><th>growth_of_1 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>1.01479289940828</td><td>1.0148</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>1.02623906705539</td><td>1.0414</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>1.02329545454545</td><td>1.0657</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>0.98223209328151</td><td>1.0467</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>1.03109101187111</td><td>1.0793</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>1.02686403508772</td><td>1.1083</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>1.02082221035771</td><td>1.1314</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Text cannot be multiplied</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT cumprod(symbol) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cumprod: needs numbers, got &#39;CITY&#39;</code></p>
+<h2 id="cummax">cummax</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cummax(x)
+cummax(x) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>running maximum</strong>: the biggest value of <code>x</code> from the first row to this row. On prices it is the &quot;highest so far&quot;. Works for numbers, text and times.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number, text or time</td><td>the value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> NULL values are skipped. Before the first value that is not NULL, the result is <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>max(x) OVER ([PARTITION BY ...] ORDER BY ...)</code>. Values of different kinds (a number and a text) give an error. For the fall from the highest price in percent, see <a href="functions-returns-risk.html#drawdown">drawdown</a>.</li></ul>
+<p><strong>Example: Record volume days, and how far the close is below its high so far</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, volume, cummax(volume) AS record_volume,
+       CASE WHEN volume = cummax(volume) THEN &#39;new record&#39; END AS note,
+       round(close / cummax(close) * 100 - 100, 2) AS below_high_pct
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>volume (DOUBLE)</th><th>record_volume (DOUBLE)</th><th>note (STRING)</th><th>below_high_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>125050</td><td>125050</td><td>new record</td><td>0</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>130800</td><td>130800</td><td>new record</td><td>0</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>84980</td><td>130800</td><td>NULL</td><td>0</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>138310</td><td>138310</td><td>new record</td><td>-0.02</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>122630</td><td>138310</td><td>NULL</td><td>-1.44</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>94540</td><td>138310</td><td>NULL</td><td>-1.99</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>159240</td><td>159240</td><td>new record</td><td>-1.48</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>83000</td><td>159240</td><td>NULL</td><td>-2.12</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>100350</td><td>159240</td><td>NULL</td><td>-3.29</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>101000</td><td>159240</td><td>NULL</td><td>-3</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>74950</td><td>159240</td><td>NULL</td><td>-2.79</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>117080</td><td>159240</td><td>NULL</td><td>-2.84</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>34400</td><td>159240</td><td>NULL</td><td>-3.08</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>182390</td><td>182390</td><td>new record</td><td>-1.69</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>183040</td><td>183040</td><td>new record</td><td>-1.64</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: The latest login so far, going through the users by id</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT id, username, last_login, cummax(last_login) OVER (ORDER BY id) AS latest_so_far
+FROM app_users
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>username (STRING)</th><th>last_login (TIMESTAMP)</th><th>latest_so_far (TIMESTAMP)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>2026-09-10T14:30:00.000Z</td><td>2026-09-10T14:30:00.000Z</td></tr><tr><td>2</td><td>sita</td><td>2026-09-09T02:15:00.000Z</td><td>2026-09-10T14:30:00.000Z</td></tr><tr><td>3</td><td>hari_99</td><td>NULL</td><td>2026-09-10T14:30:00.000Z</td></tr><tr><td>4</td><td>gita</td><td>2026-09-11T00:45:00.000Z</td><td>2026-09-11T00:45:00.000Z</td></tr><tr><td>5</td><td>bikash</td><td>2026-09-11T04:20:00.000Z</td><td>2026-09-11T04:20:00.000Z</td></tr><tr><td>6</td><td>anita</td><td>2026-08-30T06:15:00.000Z</td><td>2026-09-11T04:20:00.000Z</td></tr><tr><td>7</td><td>suman</td><td>2026-09-10T03:55:00.000Z</td><td>2026-09-11T04:20:00.000Z</td></tr><tr><td>8</td><td>test_user</td><td>NULL</td><td>2026-09-11T04:20:00.000Z</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="cummin">cummin</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cummin(x)
+cummin(x) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>running minimum</strong>: the smallest value of <code>x</code> from the first row to this row (&quot;lowest so far&quot;). Works for numbers, text and times.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number, text or time</td><td>the value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> NULL values are skipped. Before the first value that is not NULL, the result is <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>min(x) OVER ([PARTITION BY ...] ORDER BY ...)</code>. Values of different kinds give an error.</li></ul>
+<p><strong>Example: Lowest low so far per symbol, and the bounce from it</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, low, close, low_so_far, round((close - low_so_far) / low_so_far * 100, 2) AS above_low_pct
+FROM (SELECT time, symbol, low, close,
+             cummin(low) OVER (PARTITION BY symbol ORDER BY time) AS low_so_far
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-01&#39;) t
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>low_so_far (DOUBLE)</th><th>above_low_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>497.5</td><td>494.1</td><td>0.69</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504</td><td>504.6</td><td>494.1</td><td>2.13</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>500.7</td><td>504.9</td><td>494.1</td><td>2.19</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>374.7</td><td>377.2</td><td>364.1</td><td>3.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>379.2</td><td>380.1</td><td>364.1</td><td>4.39</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>373.2</td><td>376.1</td><td>364.1</td><td>3.3</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>178.2</td><td>182.4</td><td>167.3</td><td>9.03</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>181.7</td><td>187.3</td><td>167.3</td><td>11.95</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>184.2</td><td>191.2</td><td>167.3</td><td>14.29</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<h2 id="pct-change">pct_change</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pct_change(x)
+pct_change(x) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The change from the previous row, in percent: <code>(x - previous) / previous × 100</code>. On daily closes this is the <strong>daily return</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> (<code>2.5</code> means +2.5%).</li><li><strong>NULL:</strong> <code>NULL</code> for the first row, when this or the previous value is NULL, and when the previous value is <code>0</code>.</li></ul>
+<p><strong>Example: Daily return of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       round(pct_change(close) OVER (PARTITION BY symbol ORDER BY time), 2) AS return_pct
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>return_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>1.43</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>0.06</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>0.77</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>-1.05</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>2.69</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>2.08</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Growth of forum posts week by week</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT week, posts, round(pct_change(posts), 1) AS growth_pct
+FROM (SELECT date_trunc(&#39;week&#39;, created_at) AS week, count(*) AS posts
+      FROM forum_posts
+      GROUP BY date_trunc(&#39;week&#39;, created_at)) t
+ORDER BY week;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>week (TIMESTAMP)</th><th>posts (LONG)</th><th>growth_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-16T00:00:00.000Z</td><td>3</td><td>NULL</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>4</td><td>33.3</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>3</td><td>-25</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>4</td><td>33.3</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="row-number">row_number</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">row_number()
+row_number() OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>Numbers the rows of each part: 1, 2, 3, ... Equal values still get different numbers.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>Notes:</strong> takes no argument. For rows with equal order values, which one gets the lower number follows their storage order; add a second <code>ORDER BY</code> value (like <code>time</code>) to make it fixed. Use it with a subquery for &quot;top N per group&quot;.</li></ul>
+<p><strong>Example: Top 2 trades by amount per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, pos, transaction_id, quantity, rate, amount
+FROM (SELECT symbol, transaction_id, quantity, rate, amount,
+             row_number() OVER (PARTITION BY symbol ORDER BY amount DESC, transaction_id) AS pos
+      FROM trade_log) t
+WHERE pos &lt;= 2
+ORDER BY symbol, pos;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>pos (LONG)</th><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>1</td><td>100005</td><td>500</td><td>517</td><td>258500</td></tr><tr><td>CITY</td><td>2</td><td>100018</td><td>500</td><td>516</td><td>258000</td></tr><tr><td>COAST</td><td>1</td><td>100031</td><td>1000</td><td>402</td><td>402000</td></tr><tr><td>COAST</td><td>2</td><td>100015</td><td>1000</td><td>398</td><td>398000</td></tr><tr><td>TELCO</td><td>1</td><td>100001</td><td>1000</td><td>881</td><td>881000</td></tr><tr><td>TELCO</td><td>2</td><td>100007</td><td>1000</td><td>879</td><td>879000</td></tr><tr><td>VOLT</td><td>1</td><td>100012</td><td>200</td><td>184</td><td>36800</td></tr><tr><td>VOLT</td><td>2</td><td>100020</td><td>100</td><td>187</td><td>18700</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Page numbers for a list of forum posts: 3 posts per page</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT id, author, floor((row_number() OVER (ORDER BY created_at) - 1) / 3) + 1 AS page
+FROM posts
+ORDER BY created_at;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>page (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>1</td></tr><tr><td>2</td><td>sita</td><td>1</td></tr><tr><td>3</td><td>hari</td><td>1</td></tr><tr><td>4</td><td>gita</td><td>2</td></tr><tr><td>5</td><td>ram</td><td>2</td></tr><tr><td>6</td><td>sita</td><td>2</td></tr><tr><td>7</td><td>hari</td><td>3</td></tr><tr><td>8</td><td>gita</td><td>3</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="rank">rank</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">rank()
+rank() OVER ([PARTITION BY ...] ORDER BY ...)</code></pre>
+<p>The place of the row in the window&#39;s order. Equal values get the <strong>same</strong> rank, and the next rank <strong>skips</strong>: 1, 1, 3.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>Notes:</strong> takes no argument (<code>rank(close)</code> is an error). Two rows tie when all their <code>ORDER BY</code> values are equal. Without <code>ORDER BY</code>, rows with the same time tie.</li></ul>
+<p><strong>Example: Rank the day&#39;s trades of COAST by quantity (ties share a rank)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, buyer, quantity,
+       rank() OVER (ORDER BY quantity DESC) AS rank,
+       dense_rank() OVER (ORDER BY quantity DESC) AS dense_rank,
+       row_number() OVER (ORDER BY quantity DESC, transaction_id) AS row_number
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39; AND symbol = &#39;COAST&#39;
+ORDER BY quantity DESC, transaction_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>buyer (INT)</th><th>quantity (LONG)</th><th>rank (LONG)</th><th>dense_rank (LONG)</th><th>row_number (LONG)</th></tr></thead><tbody><tr><td>100015</td><td>49</td><td>1000</td><td>1</td><td>1</td><td>1</td></tr><tr><td>100031</td><td>45</td><td>1000</td><td>1</td><td>1</td><td>2</td></tr><tr><td>100023</td><td>58</td><td>500</td><td>3</td><td>2</td><td>3</td></tr><tr><td>100026</td><td>1</td><td>200</td><td>4</td><td>3</td><td>4</td></tr><tr><td>100009</td><td>34</td><td>50</td><td>5</td><td>4</td><td>5</td></tr><tr><td>100013</td><td>58</td><td>50</td><td>5</td><td>4</td><td>6</td></tr><tr><td>100014</td><td>45</td><td>20</td><td>7</td><td>5</td><td>7</td></tr><tr><td>100028</td><td>49</td><td>20</td><td>7</td><td>5</td><td>8</td></tr><tr><td>100019</td><td>58</td><td>10</td><td>9</td><td>6</td><td>9</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Biggest gainer of each day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, change_pct,
+       rank() OVER (PARTITION BY time ORDER BY change_pct DESC) AS place
+FROM (SELECT time, symbol, round((close - open) / open * 100, 2) AS change_pct
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-08&#39;) t
+ORDER BY time, place;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>change_pct (DOUBLE)</th><th>place (LONG)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>2.07</td><td>1</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>-0.14</td><td>2</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>-0.68</td><td>3</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>2.91</td><td>1</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>-1.45</td><td>2</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>-4.5</td><td>3</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>3.02</td><td>1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>0.06</td><td>2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>-1.05</td><td>3</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<h2 id="dense-rank">dense_rank</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">dense_rank()
+dense_rank() OVER ([PARTITION BY ...] ORDER BY ...)</code></pre>
+<p>Like <code>rank</code>, but without gaps: equal values get the same rank, and the next rank is one more: 1, 1, 2.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>Notes:</strong> takes no argument. Use it for &quot;price levels&quot;: every different price gets the next number.</li></ul>
+<p><strong>Example: Price levels of VOLT&#39;s trades</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, rate,
+       dense_rank() OVER (ORDER BY rate DESC) AS price_level,
+       rank() OVER (ORDER BY rate DESC) AS rank
+FROM trade_log
+WHERE symbol = &#39;VOLT&#39;
+ORDER BY rate DESC, transaction_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>rate (DOUBLE)</th><th>price_level (LONG)</th><th>rank (LONG)</th></tr></thead><tbody><tr><td>100020</td><td>187</td><td>1</td><td>1</td></tr><tr><td>100016</td><td>185</td><td>2</td><td>2</td></tr><tr><td>100011</td><td>184</td><td>3</td><td>3</td></tr><tr><td>100012</td><td>184</td><td>3</td><td>3</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="percent_rank">percent_rank</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">percent_rank()
+percent_rank() OVER ([PARTITION BY ...] ORDER BY ...)</code></pre>
+<p>The place of the row as a part from 0 to 1: <code>(rank - 1) / (rows - 1)</code>. The first row is <code>0</code>, the last is <code>1</code>. <code>0.9</code> means &quot;90% of the other rows come before this one&quot;. It is the <strong>percentile rank</strong>.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 1.</li><li><strong>NULL:</strong> never <code>NULL</code>. A part with one row gives <code>0</code>.</li><li><strong>Notes:</strong> takes no argument. Equal values (peers) get the same result, like <code>rank</code>. Without <code>ORDER BY</code> all rows are peers, so every row gets <code>0</code>.</li></ul>
+<p><strong>Example: Where does each COAST trade size stand? percent_rank, cume_dist and rank</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, quantity,
+       rank() OVER (ORDER BY quantity) AS rank,
+       round(percent_rank() OVER (ORDER BY quantity), 2) AS percent_rank,
+       round(cume_dist() OVER (ORDER BY quantity), 2) AS cume_dist
+FROM trade_log
+WHERE symbol = &#39;COAST&#39;
+ORDER BY quantity, transaction_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>rank (LONG)</th><th>percent_rank (DOUBLE)</th><th>cume_dist (DOUBLE)</th></tr></thead><tbody><tr><td>100019</td><td>10</td><td>1</td><td>0</td><td>0.09</td></tr><tr><td>100008</td><td>20</td><td>2</td><td>0.1</td><td>0.36</td></tr><tr><td>100014</td><td>20</td><td>2</td><td>0.1</td><td>0.36</td></tr><tr><td>100028</td><td>20</td><td>2</td><td>0.1</td><td>0.36</td></tr><tr><td>100009</td><td>50</td><td>5</td><td>0.4</td><td>0.55</td></tr><tr><td>100013</td><td>50</td><td>5</td><td>0.4</td><td>0.55</td></tr><tr><td>100006</td><td>200</td><td>7</td><td>0.6</td><td>0.73</td></tr><tr><td>100026</td><td>200</td><td>7</td><td>0.6</td><td>0.73</td></tr><tr><td>100023</td><td>500</td><td>9</td><td>0.8</td><td>0.82</td></tr><tr><td>100015</td><td>1000</td><td>10</td><td>0.9</td><td>1</td></tr><tr><td>100031</td><td>1000</td><td>10</td><td>0.9</td><td>1</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<p><strong>Example: How high are the last closes among all September closes of the same symbol? (100 = the highest)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, percentile_rank
+FROM (SELECT time, symbol, close,
+             round(percent_rank() OVER (PARTITION BY symbol ORDER BY close) * 100) AS percentile_rank
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-01&#39;) t
+WHERE time &gt;= &#39;2026-09-09&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>percentile_rank (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>86</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>100</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>100</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>57</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>86</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>100</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="cume_dist">cume_dist</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cume_dist()
+cume_dist() OVER ([PARTITION BY ...] ORDER BY ...)</code></pre>
+<p>The <strong>cumulative distribution</strong>: the part of the rows (from 0 to 1) whose value is at or before this row&#39;s value. <code>0.75</code> means &quot;75% of the rows have this value or a smaller one&quot;.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, more than 0 and at most 1.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> takes no argument. Peers (equal values) all count, so the last peer&#39;s position is used: three trades of 20 among 11 trades after one smaller trade give <code>4 / 11</code>. Without <code>ORDER BY</code> every row gets <code>1</code>. See the example of <a href="functions-window.html#percent_rank">percent_rank</a>.</li></ul>
+<p><strong>Example: What part of the app users signed up by each day?</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT id, created_at, round(cume_dist() OVER (ORDER BY created_at) * 100) AS pct_of_users_so_far
+FROM signups
+ORDER BY created_at;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>created_at (TIMESTAMP)</th><th>pct_of_users_so_far (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>2026-09-01T03:30:00.000Z</td><td>10</td></tr><tr><td>2</td><td>2026-09-01T07:55:00.000Z</td><td>20</td></tr><tr><td>3</td><td>2026-09-01T16:20:00.000Z</td><td>30</td></tr><tr><td>4</td><td>2026-09-01T20:45:00.000Z</td><td>40</td></tr><tr><td>5</td><td>2026-09-02T05:15:00.000Z</td><td>50</td></tr><tr><td>6</td><td>2026-09-03T02:35:00.000Z</td><td>60</td></tr><tr><td>7</td><td>2026-09-03T14:00:00.000Z</td><td>70</td></tr><tr><td>8</td><td>2026-09-03T18:05:00.000Z</td><td>80</td></tr><tr><td>9</td><td>2026-09-04T04:25:00.000Z</td><td>90</td></tr><tr><td>10</td><td>2026-09-06T06:15:00.000Z</td><td>100</td></tr></tbody></table></div>
+<p>(10 rows)</p>
+<h2 id="ntile">ntile</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ntile(n)
+ntile(n) OVER ([PARTITION BY ...] ORDER BY ...)</code></pre>
+<p>Cuts the rows of each part into <code>n</code> groups of (almost) the same size, in window order, and gives the group number: 1 to <code>n</code>. <code>ntile(4)</code> gives <strong>quartiles</strong>, <code>ntile(10)</code> <strong>deciles</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>how many groups</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code> from 1 to <code>n</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> when the rows do not divide evenly, the first groups get one row more: 11 rows in 3 groups are 4, 4 and 3 rows. Equal values can land in different groups (it counts positions, not values). <code>n</code> must be a constant whole number of 1 or more.</li></ul>
+<p><strong>Example: Quartiles of COAST&#39;s September closes (1 = highest)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, ntile(4) OVER (ORDER BY close DESC) AS quartile
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY close DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>quartile (LONG)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>380.1</td><td>1</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td><td>1</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td><td>2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td><td>2</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td><td>3</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>373.2</td><td>3</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>369.2</td><td>4</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>367.4</td><td>4</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Three groups of trades by size: 11 rows are 4 + 4 + 3</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, quantity, ntile(3) OVER (ORDER BY quantity, transaction_id) AS size_group
+FROM trade_log
+WHERE symbol = &#39;COAST&#39;
+ORDER BY quantity, transaction_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>size_group (LONG)</th></tr></thead><tbody><tr><td>100019</td><td>10</td><td>1</td></tr><tr><td>100008</td><td>20</td><td>1</td></tr><tr><td>100014</td><td>20</td><td>1</td></tr><tr><td>100028</td><td>20</td><td>1</td></tr><tr><td>100009</td><td>50</td><td>2</td></tr><tr><td>100013</td><td>50</td><td>2</td></tr><tr><td>100006</td><td>200</td><td>2</td></tr><tr><td>100026</td><td>200</td><td>2</td></tr><tr><td>100023</td><td>500</td><td>3</td></tr><tr><td>100015</td><td>1000</td><td>3</td></tr><tr><td>100031</td><td>1000</td><td>3</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<p><strong>Example: The number of groups must be 1 or more</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT ntile(0) OVER (ORDER BY close) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: ntile: the number of buckets must be a whole number (1 or more)</code></p>
+<h2 id="first_value">first_value</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">first_value(x)
+first_value(x) OVER ([PARTITION BY ...] [ORDER BY ...] [ROWS | RANGE BETWEEN ... AND ...])</code></pre>
+<p>The value of <code>x</code> in the <strong>first row of the frame</strong>. With <code>OVER (PARTITION BY symbol ORDER BY time)</code> it is the first price of the symbol, on every row.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when that row&#39;s value is NULL (NULL values are <strong>not</strong> skipped), or when the frame has no rows.</li><li><strong>Notes:</strong> it reads the frame. Without <code>OVER</code>, or without <code>ORDER BY</code>, the frame is the whole part. With <code>ORDER BY</code> and no frame, the frame runs from the first row to this row. <code>ROWS 4 PRECEDING</code> makes it the value of 4 rows ago (or the first row, near the start). The aggregate <a href="functions-aggregate.html#first">first</a> gives one value per group instead.</li></ul>
+<p><strong>Example: Change since the first day of the series, per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, start_close, round((close - start_close) / start_close * 100, 2) AS change_pct
+FROM (SELECT time, symbol, close,
+             first_value(close) OVER (PARTITION BY symbol ORDER BY time) AS start_close
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-01&#39;) t
+WHERE time &gt;= &#39;2026-09-09&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>start_close (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>502.4</td><td>0.44</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>502.4</td><td>0.5</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>367.4</td><td>3.46</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>367.4</td><td>2.37</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>169</td><td>10.83</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>169</td><td>13.14</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Open of each one-minute candle against the day&#39;s first open</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, open, first_value(open) AS day_open, round(open - first_value(open), 1) AS from_day_open
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>day_open (DOUBLE)</th><th>from_day_open (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>505.1</td><td>504.6</td><td>0.5</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>504.8</td><td>504.6</td><td>0.2</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.5</td><td>504.6</td><td>-0.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="last_value">last_value</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">last_value(x)
+last_value(x) OVER ([PARTITION BY ...] [ORDER BY ...] [ROWS | RANGE BETWEEN ... AND ...])</code></pre>
+<p>The value of <code>x</code> in the <strong>last row of the frame</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when that row&#39;s value is NULL (NULL values are not skipped), or when the frame has no rows.</li><li><strong>Notes:</strong> <strong>careful:</strong> with <code>ORDER BY</code> and no frame, the frame ends at this row, so <code>last_value</code> is just this row&#39;s value (the same as PostgreSQL). For the last value of the whole part, write <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code>, or leave out <code>ORDER BY</code>.</li></ul>
+<p><strong>Example: The trap: without a frame, last_value is this row</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       last_value(close) OVER (ORDER BY time) AS this_row,
+       last_value(close) OVER (ORDER BY time ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_close,
+       last_value(close) AS also_latest
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-06&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>this_row (DOUBLE)</th><th>latest_close (DOUBLE)</th><th>also_latest (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>499</td><td>504.9</td><td>504.9</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>498.7</td><td>504.9</td><td>504.9</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>497.5</td><td>504.9</td><td>504.9</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>504.6</td><td>504.9</td><td>504.9</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>504.9</td><td>504.9</td><td>504.9</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: How far each day&#39;s close is from the latest close, per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, latest, round(latest - close, 1) AS to_latest
+FROM (SELECT time, symbol, close,
+             last_value(close) OVER (PARTITION BY symbol ORDER BY time
+                                     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-08&#39;) t
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>latest (DOUBLE)</th><th>to_latest (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>504.9</td><td>7.4</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>504.9</td><td>0.3</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>504.9</td><td>0</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>376.1</td><td>-1.1</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>376.1</td><td>-4</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>376.1</td><td>0</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>191.2</td><td>8.8</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>191.2</td><td>3.9</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>191.2</td><td>0</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<h2 id="nth_value">nth_value</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">nth_value(x, n)
+nth_value(x, n) OVER ([PARTITION BY ...] [ORDER BY ...] [ROWS | RANGE BETWEEN ... AND ...])</code></pre>
+<p>The value of <code>x</code> in row number <code>n</code> of the frame (<code>1</code> is the first row).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>which row of the frame</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when the frame has fewer than <code>n</code> rows (so with <code>ORDER BY</code> and no frame, the first <code>n - 1</code> rows are NULL), or when that value is NULL.</li><li><strong>Notes:</strong> <code>nth_value(x, 1)</code> is <code>first_value(x)</code>. <code>n</code> must be a constant whole number of 1 or more.</li></ul>
+<p><strong>Example: The second day&#39;s close, from the second day on</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, nth_value(close, 2) OVER (ORDER BY time) AS second_close
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-06&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>second_close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>NULL</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>498.7</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>498.7</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>498.7</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>498.7</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The second-biggest trade of each symbol, on every row</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT DISTINCT symbol, second_biggest
+FROM (SELECT symbol,
+             nth_value(amount, 2) OVER (PARTITION BY symbol ORDER BY amount DESC
+                                        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS second_biggest
+      FROM trade_log) t
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>second_biggest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>258000</td></tr><tr><td>COAST</td><td>398000</td></tr><tr><td>TELCO</td><td>879000</td></tr><tr><td>VOLT</td><td>18700</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Row numbers start at 1</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT nth_value(close, 0) OVER (ORDER BY time) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: nth_value: the row number must be a whole number (1 or more)</code></p>
+<h2 id="aggregates">Aggregates with OVER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">count(*) OVER (...)    count(x) OVER (...)    sum(x) OVER (...)    avg(x) OVER (...)
+min(x) OVER (...)      max(x) OVER (...)      first(x) OVER (...)  last(x) OVER (...)
+median(x) OVER (...)   percentile(x, p) OVER (...)   stddev(x) OVER (...)   vwap(price, volume) OVER (...)</code></pre>
+<p>Every aggregate (<a href="functions-aggregate.html">aggregate functions</a>, <a href="functions-statistics.html">statistics</a>) can be a window function, also the newer ones like <code>count_if</code>, <code>corr</code> or <code>sharpe_ratio</code>. It then gives a value for every row, computed over the row&#39;s window.</p>
+<div class="table-wrap"><table><thead><tr><th>Window</th><th>What you get</th></tr></thead><tbody><tr><td><code>OVER ()</code> or <code>OVER (PARTITION BY ...)</code></td><td>the total of the whole part on every row (share of total, difference from the average)</td></tr><tr><td><code>OVER (... ORDER BY ...)</code></td><td>a running value: running total, highest so far</td></tr><tr><td><code>OVER (... ORDER BY ... ROWS n PRECEDING)</code></td><td>a moving value: 5-day sum, 20-day high, moving VWAP</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> NULL values are skipped, as in the plain aggregate.</li><li><strong>Notes:</strong> the window version works on the rows the <code>SELECT</code> gives: the table&#39;s rows, or the groups when there is a <code>GROUP BY</code> (then use aggregates inside it, as in <code>avg(sum(qty)) OVER ()</code>). <code>first</code> and <code>last</code> use the window&#39;s order.</li></ul>
+<p><strong>Example: Distance from the symbol&#39;s average close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       round(avg(close) OVER (PARTITION BY symbol), 2) AS avg_close,
+       round(close - avg(close) OVER (PARTITION BY symbol), 2) AS diff
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>avg_close (DOUBLE)</th><th>diff (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>502.33</td><td>-4.83</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>502.33</td><td>2.27</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>502.33</td><td>2.57</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>377.8</td><td>-0.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>377.8</td><td>2.3</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>377.8</td><td>-1.7</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>186.97</td><td>-4.57</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>186.97</td><td>0.33</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>186.97</td><td>4.23</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Moving 3-day VWAP</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, volume,
+       round(vwap(close, volume) OVER (ORDER BY time ROWS 2 PRECEDING), 2) AS vwap_3d
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-03&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>vwap_3d (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>145930</td><td>176</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>78550</td><td>177.43</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>135560</td><td>177.23</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>136770</td><td>179.76</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>94410</td><td>181.63</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>41470</td><td>185.44</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p>A window function can sit next to <code>GROUP BY</code>. It runs over the grouped rows, after the aggregates, as in PostgreSQL.</p>
+<p><strong>Example: A window over groups: rank symbols by volume</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sum(volume) AS volume,
+       rank() OVER (ORDER BY sum(volume) DESC) AS place
+FROM ochl_day
+GROUP BY symbol
+ORDER BY place;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th><th>place (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>1986850</td><td>1</td></tr><tr><td>VOLT</td><td>1800030</td><td>2</td></tr><tr><td>COAST</td><td>1674510</td><td>3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The same idea with GROUP BY inside, window outside</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT day, turnover, sum(turnover) OVER (ORDER BY day) AS running_turnover
+FROM (SELECT date AS day, sum(amount) AS turnover
+      FROM trade_log
+      GROUP BY date) t
+ORDER BY day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (TIMESTAMP)</th><th>turnover (DOUBLE)</th><th>running_turnover (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>2625570</td><td>2625570</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>2361380</td><td>4986950</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-window.md">This page as markdown</a>.</footer>
+</body>
+</html>

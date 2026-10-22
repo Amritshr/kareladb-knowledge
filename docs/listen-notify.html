@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LISTEN and NOTIFY - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Send a message to every client that listens on a channel when a transaction commits - over the PostgreSQL port (LISTEN) or HTTP (GET /listen, server-sent events).">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/listen-notify.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/listen-notify.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="listen-and-notify">LISTEN and NOTIFY</h1>
+<blockquote><p>Send a message to every client that listens on a channel when a transaction commits - over the PostgreSQL port (LISTEN) or HTTP (GET /listen, server-sent events).</p></blockquote>
+<ul><li>Category: Postgres protocol</li><li>Keywords: LISTEN, NOTIFY, UNLISTEN, UNLISTEN *, pg_notify, notification, notifications, pub/sub, pubsub, publish, subscribe, PUBLISH, SUBSCRIBE, PSUBSCRIBE, pattern, pmessage, redis, push, event, events, channel, payload, NotificationResponse, GET /listen, /listen, server-sent events, SSE, EventSource, text/event-stream, payload string too long, channel name cannot be empty, 54000, trigger notify, LISTEN needs a connection that stays open</li><li>See also: <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a>, <a href="triggers.html">Triggers</a>, <a href="transactions.html">Transactions</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="create-table.html#row-ttl">CREATE TABLE (row-ttl)</a>, <a href="kv.html#kv-pubsub">Key-value store (Redis-like) (kv-pubsub)</a></li></ul>
+<p><code>NOTIFY</code> sends a short message on a <strong>channel</strong>. Every client that listens on that channel gets it, the moment the sending transaction commits. It works as in PostgreSQL 14, and web pages can listen over HTTP too.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>How</th></tr></thead><tbody><tr><td>Send</td><td><code>NOTIFY orders, &#39;order 42 paid&#39;</code> or <code>SELECT pg_notify(&#39;orders&#39;, &#39;order 42 paid&#39;)</code>, from any client, a <a href="triggers.html">trigger</a> or a procedure</td></tr><tr><td>Listen (PostgreSQL port)</td><td><code>LISTEN orders</code> on a connection that stays open (<a href="#listen-pg">below</a>)</td></tr><tr><td>Listen (HTTP, web pages)</td><td><code>GET /listen?channel=orders</code>: server-sent events (<a href="#listen-http">below</a>); <code>?pattern=price.*</code> for every channel a pattern matches</td></tr><tr><td>Redis-style</td><td><code>PUBLISH</code>, <code>PUBSUB</code> and keyspace events through <code>POST /kv</code> (<a href="kv.html#kv-pubsub">key-value store</a>): the same channels, sent at once</td></tr></tbody></table></div>
+<p>The rules, the same as PostgreSQL&#39;s:</p>
+<ul><li>A message is delivered when its transaction <strong>commits</strong>, never after a <code>ROLLBACK</code>. <code>ROLLBACK TO SAVEPOINT</code> drops the ones sent after the savepoint.</li><li>The same channel and payload sent twice in one transaction arrive <strong>once</strong>. Otherwise the order is kept.</li><li>Channels belong to one database: a <code>NOTIFY</code> in <code>market</code> never reaches a listener of <code>app</code>.</li><li>A message is a signal for clients connected <strong>now</strong>: nothing is stored, and nothing is sent again after a restart. Read the table after a message to get the data.</li></ul>
+<h2 id="notify">NOTIFY and pg_notify()</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">NOTIFY channel [, &#39;payload&#39;]
+pg_notify(channel_text, payload_text)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>channel</code></td><td>a name. Without quotes it is lower case (<code>NOTIFY Orders</code> goes to <code>orders</code>); <code>&quot;Orders&quot;</code> keeps its case</td></tr><tr><td><code>payload</code></td><td>text of at most 7999 bytes; none = empty</td></tr><tr><td><code>pg_notify(...)</code></td><td>the same as a function, for a value made in the query. It takes the channel as written (no lower case)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>NOTIFY</code>; <code>pg_notify()</code> gives <code>NULL</code>.</li><li><strong>Errors:</strong> <code>payload string too long</code>, <code>channel name cannot be empty</code>, <code>channel name too long</code> (more than 63 bytes).</li><li>Anyone who may read the database may send and listen, as in PostgreSQL.</li></ul>
+<p><strong>Example: Send inside a transaction: it goes out at COMMIT</strong></p>
+<pre><code class="language-sql">BEGIN;
+NOTIFY orders, &#39;order 42 paid&#39;;
+SELECT pg_notify(&#39;orders&#39;, &#39;order &#39; || 43 || &#39; paid&#39;);
+COMMIT;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>NOTIFY orders, &#39;order 42 paid&#39;</code></p>
+<pre><code class="language-text">notification on channel &#39;orders&#39;: sent to its listeners when the transaction commits</code></pre>
+<p><code>SELECT pg_notify(&#39;orders&#39;, &#39;order &#39; || 43 || &#39; paid&#39;)</code></p>
+<div class="table-wrap"><table><thead><tr><th>pg_notify(&#39;orders&#39;, &#39;order &#39; || 43 || &#39; paid&#39;) (STRING)</th></tr></thead><tbody><tr><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 0 change(s) saved</code></pre>
+<p><strong>Example: A payload that is too long</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT pg_notify(&#39;orders&#39;, repeat(&#39;x&#39;, 8000));</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: pg_notify: payload string too long</code></p>
+<h3 id="notify-trigger">From a trigger</h3>
+<p>A <a href="triggers.html">trigger</a> can send a message for each new row. It is part of the statement&#39;s transaction: a failed insert sends nothing.</p>
+<p><strong>Example: Tell the listeners about every paid order</strong></p>
+<pre><code class="language-sql">CREATE TABLE payments (id LONG PRIMARY KEY, amount DOUBLE);
+CREATE TRIGGER tell_paid AFTER INSERT ON payments EXECUTE BEGIN
+  SELECT pg_notify(&#39;payments&#39;, &#39;paid &#39; || id) FROM NEW;
+END;
+INSERT INTO payments VALUES (1, 250.0), (2, 99.5);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE payments (</code></p>
+<pre><code class="language-text">table &#39;payments&#39; created</code></pre>
+<p><code>CREATE TRIGGER tell_paid AFTER INSERT ON payments EXECUTE BEGIN</code></p>
+<pre><code class="language-text">trigger &#39;tell_paid&#39; created on table &#39;payments&#39;</code></pre>
+<p><code>INSERT INTO payments VALUES (1, 250.0), (2, 99.5)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT pg_notify(&#39;payments&#39;, &#39;paid &#39; || id) FROM NEW</code></p>
+<div class="table-wrap"><table><thead><tr><th>pg_notify(&#39;payments&#39;, &#39;paid &#39; || id) (STRING)</th></tr></thead><tbody><tr><td>NULL</td></tr><tr><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="listen-pg">LISTEN on the PostgreSQL port</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">LISTEN channel
+UNLISTEN channel | *</code></pre>
+<ul><li>The connection gets a <code>NotificationResponse</code> (channel, payload, the sender&#39;s process id) for each message. Drivers show them their own way: psql prints <code>Asynchronous notification &quot;orders&quot; with payload &quot;...&quot; received from server process with PID 17.</code>, pgx has <code>WaitForNotification</code>, psycopg <code>conn.notifies()</code>, node-pg the <code>notification</code> event.</li><li>An idle connection gets it at once. A connection inside <code>BEGIN ... COMMIT</code> gets it when that transaction ends, as in PostgreSQL. Its own messages come right after its <code>COMMIT</code>.</li><li><code>LISTEN</code> inside <code>BEGIN ... COMMIT</code> starts at <code>COMMIT</code>, and not at all after <code>ROLLBACK</code>. <code>DISCARD ALL</code> stops every listen.</li></ul>
+<h2 id="listen-http">GET /listen: server-sent events</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /listen?channel=orders[&amp;channel=payments][&amp;pattern=price.*][&amp;db=name]</code></pre>
+<p>The reply is <code>text/event-stream</code> and stays open. A browser reads it with <code>EventSource</code>:</p>
+<pre><code class="language-js">const es = new EventSource(&#39;/listen?channel=orders&#39;);
+es.onmessage = (e) =&gt; {
+  const n = JSON.parse(e.data);  // {&quot;channel&quot;:&quot;orders&quot;,&quot;payload&quot;:&quot;order 42 paid&quot;,&quot;pid&quot;:0}
+  refreshOrders();
+};</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Event</th><th>When</th></tr></thead><tbody><tr><td><code>listen</code></td><td>once, when listening started: <code>{&quot;channels&quot;:[...],&quot;patterns&quot;:[...],&quot;database&quot;:&quot;...&quot;}</code></td></tr><tr><td>(message)</td><td>one per notification: <code>{&quot;channel&quot;,&quot;payload&quot;,&quot;pid&quot;}</code>; <code>pid</code> is 0 for a sender that is not a PostgreSQL connection; <code>&quot;pattern&quot;</code> too when it came through a pattern</td></tr><tr><td><code>: ping</code> (a comment)</td><td>every 15 s, so a proxy keeps the stream open</td></tr><tr><td><code>error</code></td><td>the stream ends after it (see <a href="#limits">limits</a>)</td></tr></tbody></table></div>
+<ul><li>It needs a login, like <a href="http-exec.html">/exec</a> (<code>Authorization: Bearer ...</code>, or the console&#39;s cookie). Up to 64 channels and patterns in one stream; the names are taken as written.</li><li><code>channel=</code> is Redis&#39;s <code>SUBSCRIBE</code>, <code>pattern=</code> its <code>PSUBSCRIBE</code>: a glob as <code>KEYS</code> takes it (<code>*</code> any text, <code>?</code> one character, <code>[abc]</code>, <code>\</code> before a special character). <code>/listen?pattern=price.*</code> gets <code>price.NABIL</code>, <code>price.HDL</code>, ... A message that matches a channel and a pattern of the same stream comes once for each.</li><li>Over HTTP a channel may be up to 4096 bytes long (a <a href="kv.html#kv-events">keyspace event</a> holds the whole key); <code>NOTIFY</code> keeps PostgreSQL&#39;s 63.</li><li><code>LISTEN</code> sent through <code>/exec</code> is refused with the way to do it: a request has no connection that stays open to be told.</li></ul>
+<h2 id="limits">Limits</h2>
+<ul><li>A listener that does not read keeps up to 32 MB of messages. Past that, it is <strong>cut off</strong>: the PostgreSQL connection ends with SQLSTATE <code>54000</code>, the HTTP stream with an <code>error</code> event. Nothing is lost quietly: connect again, <code>LISTEN</code> again, and read the table.</li><li>At most 256 HTTP streams at once (<code>503</code> beyond).</li><li>Messages of one sending connection arrive in commit order. Messages of two connections that commit at the same moment may arrive in either order.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/listen-notify.md">This page as markdown</a>.</footer>
+</body>
+</html>

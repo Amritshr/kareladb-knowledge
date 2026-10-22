@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13. Functions, procedures and triggers - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/13-functions-procedures-triggers.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/13-functions-procedures-triggers.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="13-functions-procedures-and-triggers">13. Functions, procedures and triggers</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>Save a formula once and use it in many queries (<strong>functions</strong>).</li><li>Save several steps under one name and run them with <code>CALL</code> (<strong>procedures</strong>).</li><li>Save several changes together, or none of them (<strong>transactions</strong>).</li><li>Run SQL by itself when a table changes (<strong>triggers</strong>).</li><li>Read a big result a few rows at a time (<strong>cursors</strong>).</li><li>See every step a procedure takes (<code>WITH DEBUG</code>).</li></ul>
+<p>The examples use the database <code>market</code> with the fresh sample data. Each example is a file in <code>examples/13-functions-procedures-triggers/</code>. The results are real.</p>
+<p>Functions, procedures and triggers are saved in the database like tables and views: they survive a restart, a crash and a backup.</p>
+<h2 id="saved-functions">Saved functions</h2>
+<p>A saved function is a formula with a name. Its body is <strong>one expression</strong>.</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] FUNCTION name(param TYPE, ...) [RETURNS TYPE] AS (expression);
+DROP FUNCTION [IF EXISTS] name;
+SHOW FUNCTIONS;</code></pre>
+<pre><code class="language-sql">-- A saved function: the change from one price to another, in percent.
+CREATE FUNCTION change_pct(price DOUBLE, prev DOUBLE) RETURNS DOUBLE
+AS ((price - prev) / prev * 100);
+
+SELECT symbol, open, close, round(change_pct(close, open), 2) AS change
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY change DESC;
+
+-- Functions can call other functions, and work in WHERE and GROUP BY.
+CREATE FUNCTION move(price DOUBLE, prev DOUBLE) RETURNS STRING
+AS (CASE WHEN change_pct(price, prev) &gt; 0.5 THEN &#39;up&#39; WHEN change_pct(price, prev) &lt; -0.5 THEN &#39;down&#39; ELSE &#39;flat&#39; END);
+
+SELECT move(close, open) AS move, count(*) AS days
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+GROUP BY move(close, open)
+ORDER BY move;</code></pre>
+<pre><code class="language-text">function &#39;change_pct&#39; created
+
+symbol | open  | close | change
+-------+-------+-------+-------
+VOLT   | 185.6 | 191.2 |   3.02
+CITY   | 504.6 | 504.9 |   0.06
+COAST  | 380.1 | 376.1 |  -1.05
+(3 rows, 0.2 ms)
+
+function &#39;move&#39; created
+
+move | days
+-----+-----
+down |    4
+flat |   13
+up   |    2
+(3 rows, 0.2 ms)</code></pre>
+<p><strong>Why is it not called <code>pct_change</code>?</strong> Because <code>pct_change</code> is already a built-in function (chapter 5). A saved function cannot have the name of a built-in one:</p>
+<pre><code class="language-sql">CREATE FUNCTION pct_change(price DOUBLE, prev DOUBLE) AS ((price - prev) / prev * 100);</code></pre>
+<pre><code class="language-text">error: &#39;pct_change&#39; is a built-in function; choose another name for the function</code></pre>
+<p>A function can only use its <strong>parameters</strong>, not the columns of a table. Give it the columns as arguments:</p>
+<pre><code class="language-sql">CREATE FUNCTION day_range(high DOUBLE) AS (high - low);</code></pre>
+<pre><code class="language-text">error: the body of function &#39;day_range&#39; uses low, which is not one of its parameters (high DOUBLE); a function can only use its parameters</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>Speed</td><td>A call is replaced by its body when the query starts. <code>change_pct(close, open)</code> is exactly as fast as <code>(close - open) / open * 100</code>.</td></tr><tr><td>Types</td><td>Each argument is converted to the parameter&#39;s type (like <code>CAST</code>). <code>RETURNS</code> converts the result.</td></tr><tr><td>Body</td><td>One expression: operators, <code>CASE</code>, built-in functions like <code>round</code> or <code>concat</code>, and other saved functions. No subqueries, aggregates (<code>sum</code>) or window functions (<code>sma</code>) inside. Use them around the call: <code>sum(change_pct(close, open))</code>.</td></tr><tr><td>Nesting</td><td>A function may call other functions, at most 16 levels deep. A function cannot call itself, also not through another function.</td></tr><tr><td>Where</td><td><code>SELECT</code>, <code>WHERE</code>, <code>GROUP BY</code>, <code>ORDER BY</code>, views, procedures. <strong>Not</strong> in computed columns (<code>AS (...)</code> in <code>CREATE TABLE</code>).</td></tr><tr><td>Names</td><td>Not the name of a built-in function. Names do not care about case.</td></tr><tr><td>Change</td><td><code>CREATE OR REPLACE FUNCTION</code> changes it. Views and procedures that use it get the new body.</td></tr></tbody></table></div>
+<h2 id="stored-procedures">Stored procedures</h2>
+<p>A procedure is a list of statements with a name. You run it with <code>CALL</code>.</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] PROCEDURE name(param TYPE, ...) AS BEGIN
+  statement;
+  ...
+END;
+CALL name(arguments) [WITH DEBUG];
+DROP PROCEDURE [IF EXISTS] name;
+SHOW PROCEDURES;</code></pre>
+<p>This procedure builds the daily candles of one day from the minute candles (the job the app runs after the market closes):</p>
+<pre><code class="language-sql">-- End of day: build the daily candles of one day from the minute candles.
+CREATE PROCEDURE end_of_day(day DATE) AS BEGIN
+  DECLARE minutes LONG DEFAULT 0;
+  SET minutes = (SELECT count(*) FROM ochl_minutes
+                 WHERE time &gt;= day AND time &lt; dateadd(&#39;d&#39;, 1, day));
+  IF minutes = 0 THEN
+    RAISE concat(&#39;no minute candles for &#39;, day);
+  END IF;
+  FOR c IN (SELECT symbol, first(open) AS open, max(high) AS high, min(low) AS low,
+                   last(close) AS close, sum(volume) AS volume
+            FROM ochl_minutes
+            WHERE time &gt;= day AND time &lt; dateadd(&#39;d&#39;, 1, day)
+            GROUP BY symbol) DO
+    INSERT OR REPLACE INTO ochl_day VALUES (day, c.symbol, c.open, c.high, c.low, c.close, c.volume);
+  END FOR;
+  PRINT concat(minutes, &#39; minute candles read&#39;);
+  SELECT symbol, open, high, low, close, volume FROM ochl_day WHERE time = day ORDER BY symbol;
+END;</code></pre>
+<pre><code class="language-text">procedure &#39;end_of_day&#39; created</code></pre>
+<p>Now delete two daily candles and build them again:</p>
+<pre><code class="language-sql">-- Remove two daily candles, then build them again from the minute candles.
+DELETE FROM ochl_day WHERE time IN &#39;2026-09-10&#39; AND symbol IN (&#39;CITY&#39;, &#39;COAST&#39;);
+CALL end_of_day(&#39;2026-09-10&#39;);</code></pre>
+<pre><code class="language-text">2 row(s) deleted
+
+procedure &#39;end_of_day&#39; done: 2 row(s) changed
+
+symbol | open  | high  | low   | close | volume
+-------+-------+-------+-------+-------+-------
+CITY   | 504.6 |   507 | 500.7 | 504.9 | 183040
+COAST  | 380.1 |   382 | 373.2 | 376.1 | 186200
+VOLT   | 185.6 | 192.1 | 184.2 | 191.2 |  41470
+(3 rows, 0.1 ms)
+
+output                 
+-----------------------
+476 minute candles read
+(1 row, 0.0 ms)</code></pre>
+<p>A <code>CALL</code> returns more than one result: its own message, the rows of every <code>SELECT</code> in the procedure, and a result called <code>print</code> with the <code>PRINT</code> lines. The web console and <code>POST /exec</code> show them like several statements.</p>
+<h3 id="what-you-can-write-in-a-procedure">What you can write in a procedure</h3>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>Meaning</th></tr></thead><tbody><tr><td><code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code></td><td>As usual. A <code>SELECT</code> returns its rows as an extra result of the <code>CALL</code>.</td></tr><tr><td><code>DECLARE name TYPE [DEFAULT expr];</code></td><td>A variable. Without <code>DEFAULT</code> it is NULL.</td></tr><tr><td><code>SET name = expr;</code></td><td>Give a variable a new value. <code>SET n = (SELECT count(*) FROM t);</code> takes a value from a query.</td></tr><tr><td><code>IF cond THEN ... [ELSIF cond THEN ...] [ELSE ...] END IF;</code></td><td>Choose. NULL counts as false.</td></tr><tr><td><code>WHILE cond DO ... END WHILE;</code></td><td>Repeat while the condition is true.</td></tr><tr><td><code>FOR r IN (SELECT ...) DO ... END FOR;</code></td><td>Once for every row of the query. <code>r.column</code> is a value of the current row.</td></tr><tr><td><code>DECLARE c CURSOR FOR SELECT ...;</code> <code>OPEN c;</code> <code>FETCH c INTO a, b;</code> <code>CLOSE c;</code></td><td>Read a query one row at a time (see <a href="#cursors">Cursors</a>).</td></tr><tr><td><code>CALL other(args);</code></td><td>Run another procedure (at most 16 levels deep).</td></tr><tr><td><code>RETURN;</code></td><td>Stop the procedure. Its changes are kept.</td></tr><tr><td><code>RAISE expr;</code></td><td>Stop with an error. <strong>Everything the <code>CALL</code> changed is undone.</strong></td></tr><tr><td><code>PRINT expr;</code></td><td>Add a line to the <code>print</code> result (a debug message).</td></tr></tbody></table></div>
+<p>Every statement ends with <code>;</code>. <code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>TRUNCATE</code>, <code>BACKUP</code>, <code>BEGIN</code> and <code>COMMIT</code> cannot be used inside a procedure.</p>
+<h3 id="variables-and-parameters">Variables and parameters</h3>
+<ul><li>Use them by name in any expression: <code>WHERE time &gt;= day</code>, <code>VALUES (day, c.symbol)</code>.</li><li>A <strong>column name wins</strong> over a variable with the same name. Give variables names that are not column names (<code>minutes</code>, not <code>volume</code>).</li><li>Every procedure has a variable <code>FOUND</code> (true when the last <code>FETCH</code> read a row).</li><li>A value is converted to the variable&#39;s type. <code>CALL end_of_day(&#39;2026-09-10&#39;)</code> turns the text into a <code>DATE</code>.</li></ul>
+<h3 id="raise-stop-and-undo">RAISE: stop and undo</h3>
+<p>There are no minute candles for 2026-09-12:</p>
+<pre><code class="language-sql">CALL end_of_day(&#39;2026-09-12&#39;);</code></pre>
+<pre><code class="language-text">error: procedure &#39;end_of_day&#39;, line 5: no minute candles for 2026-09-12</code></pre>
+<p><code>line 5</code> is the line in the procedure as <code>SHOW PROCEDURES</code> prints it (<code>CREATE PROCEDURE ... AS BEGIN</code> is line 1, and each statement starts a new line).</p>
+<p><strong>A <code>CALL</code> is one transaction.</strong> Its changes are saved together at the end, with one write to the log. If any statement fails, or <code>RAISE</code> runs, nothing of the <code>CALL</code> is saved. Statements inside the procedure see the changes made earlier in the same <code>CALL</code>.</p>
+<h2 id="transactions-begin-commit-rollback">Transactions: BEGIN, COMMIT, ROLLBACK</h2>
+<p>Normally every statement is saved on its own. Between <code>BEGIN</code> and <code>COMMIT</code>, statements are saved <strong>together, or not at all</strong>.</p>
+<pre><code class="language-sql">-- ROLLBACK: nothing is saved.
+BEGIN;
+DELETE FROM securities WHERE symbol = &#39;ACME&#39;;
+SELECT count(*) AS securities FROM securities;
+ROLLBACK;
+SELECT count(*) AS securities FROM securities;
+
+-- COMMIT: both rows are saved together, in one log write.
+BEGIN;
+INSERT INTO brokers VALUES (17, &#39;ABC Securities&#39;);
+INSERT INTO brokers VALUES (18, &#39;Sagarmatha Securities&#39;);
+COMMIT;
+SELECT id, name FROM brokers WHERE id IN (17, 18);</code></pre>
+<pre><code class="language-text">transaction started
+
+1 row(s) deleted
+
+securities
+----------
+         4
+(1 row, 0.1 ms)
+
+transaction rolled back: 1 change(s) undone
+
+securities
+----------
+         5
+(1 row, 0.0 ms)
+
+transaction started
+
+1 row(s) inserted
+
+1 row(s) inserted
+
+transaction committed: 2 change(s) saved
+
+id | name                 
+---+----------------------
+17 | ABC Securities       
+18 | Sagarmatha Securities
+(2 rows, 0.0 ms)</code></pre>
+<p>When a statement fails, the whole transaction is undone:</p>
+<pre><code class="language-sql">-- The second INSERT fails (id 1 is already used), so the first one is undone too.
+BEGIN;
+INSERT INTO brokers VALUES (19, &#39;Trishakti Securities&#39;);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities again&#39;);
+COMMIT;</code></pre>
+<pre><code class="language-text">transaction started
+
+1 row(s) inserted
+error: a row with id=&#39;1&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it (the transaction was rolled back)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>Where</td><td>In one text sent to <code>kdb sql</code>, <code>POST /exec</code> or the web console. In <code>kdb shell</code>, in an HTTP session (<code>POST /session</code>) and over the PostgreSQL protocol, a transaction can go over many requests (chapter 15).</td></tr><tr><td>No COMMIT</td><td>A text that ends without <code>COMMIT</code> is rolled back, with the error <code>BEGIN without COMMIT</code> (not in a session: there it stays open).</td></tr><tr><td>Crash</td><td>Changes are written to the log only at <code>COMMIT</code>. After a crash or power cut, a committed transaction is there completely, and a transaction without <code>COMMIT</code> is not there at all.</td></tr><tr><td>Not inside</td><td><code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>RENAME</code>, <code>TRUNCATE</code>, <code>BACKUP DATABASE</code>. Run them before <code>BEGIN</code> or after <code>COMMIT</code>.</td></tr><tr><td>Size</td><td>At most 10 million changed rows per transaction (<code>CALL</code> too). Until <code>COMMIT</code>, KDB keeps the old version of every changed row in memory.</td></tr><tr><td>Others</td><td>While a session has an open transaction, other sessions <strong>wait</strong> before they change a table it used (at most 5 seconds, then <code>table &#39;x&#39; is busy</code>); changes of other tables go on. Their reads do not wait for an open transaction: they see the rows without its changes. Chapter 15 explains this.</td></tr></tbody></table></div>
+<h2 id="triggers">Triggers</h2>
+<p>A trigger runs SQL by itself every time a table is changed.</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] TRIGGER name {BEFORE | AFTER} {INSERT | UPDATE | DELETE} ON table
+  EXECUTE {CALL procedure(args) | one statement | BEGIN statements END};
+CREATE [OR REPLACE] TRIGGER name AFTER INSERT ON table DEFERRED [TIMEOUT 10min]
+  EXECUTE ...;                          -- runs after the commit, in the background
+DROP TRIGGER [IF EXISTS] name;
+ALTER TABLE table {ENABLE | DISABLE} TRIGGER name;
+SHOW TRIGGERS;</code></pre>
+<p>The app shows the last price of every symbol. Instead of searching <code>live_data</code> every time, keep a small <code>latest_price</code> table up to date:</p>
+<pre><code class="language-sql">-- Keep the last price of every symbol in a small table, always up to date.
+CREATE TABLE latest_price (symbol SYMBOL PRIMARY KEY, ltp DOUBLE, time TIMESTAMP);
+
+CREATE TRIGGER keep_latest AFTER INSERT ON live_data EXECUTE BEGIN
+  FOR r IN (SELECT symbol, last(ltp) AS ltp, max(timestamp) AS time FROM NEW GROUP BY symbol) DO
+    INSERT OR REPLACE INTO latest_price VALUES (r.symbol, r.ltp, r.time);
+  END FOR;
+END;
+
+INSERT INTO live_data VALUES
+  (&#39;2026-09-11T11:00:00+05:45&#39;, &#39;CITY&#39;, 528.0, 10, 0.9, 0.17, 527.1, 528.0, 527.1, 527.5, 527.1, 1200),
+  (&#39;2026-09-11T11:01:00+05:45&#39;, &#39;CITY&#39;, 529.5, 20, 2.4, 0.46, 527.1, 529.5, 527.1, 528.2, 527.1, 3400),
+  (&#39;2026-09-11T11:00:00+05:45&#39;, &#39;COAST&#39;, 402.5, 10, 0.6, 0.15, 401.9, 402.5, 401.9, 402.2, 401.9, 800);
+
+SELECT symbol, ltp, time FROM latest_price ORDER BY symbol;</code></pre>
+<pre><code class="language-text">table &#39;latest_price&#39; created
+
+trigger &#39;keep_latest&#39; created on table &#39;live_data&#39;
+
+3 row(s) inserted
+
+symbol | ltp   | time                    
+-------+-------+-------------------------
+CITY   | 529.5 | 2026-09-11T05:16:00.000Z
+COAST  | 402.5 | 2026-09-11T05:15:00.000Z
+(2 rows, 0.1 ms)</code></pre>
+<p>Inside a trigger, two tables exist:</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>INSERT</th><th>UPDATE</th><th>DELETE</th></tr></thead><tbody><tr><td><code>NEW</code></td><td>the inserted rows</td><td>the rows after the change</td><td>(empty)</td></tr><tr><td><code>OLD</code></td><td>(empty)</td><td>the rows before the change</td><td>the deleted rows</td></tr></tbody></table></div>
+<p>They have the columns of the changed table. Use them like tables: <code>SELECT ... FROM NEW</code>, <code>FROM OLD o JOIN NEW n ON o.id = n.id</code>.</p>
+<h3 id="a-before-trigger-can-refuse-a-change">A BEFORE trigger can refuse a change</h3>
+<pre><code class="language-sql">-- A BEFORE trigger can refuse a change.
+CREATE TRIGGER check_price BEFORE INSERT ON live_data EXECUTE BEGIN
+  IF EXISTS (SELECT 1 FROM NEW WHERE ltp &lt;= 0) THEN
+    RAISE &#39;ltp must be more than 0&#39;;
+  END IF;
+END;
+
+INSERT INTO live_data VALUES
+  (&#39;2026-09-11T11:02:00+05:45&#39;, &#39;CITY&#39;, 0, 10, 0, 0, 527.1, 529.5, 527.1, 528.2, 527.1, 3500);</code></pre>
+<pre><code class="language-text">trigger &#39;check_price&#39; created on table &#39;live_data&#39;
+error: trigger &#39;check_price&#39;, line 3: ltp must be more than 0</code></pre>
+<p>Nothing was written, and <code>latest_price</code> did not change:</p>
+<pre><code class="language-sql">-- Nothing was written by the refused INSERT.
+SELECT count(*) AS rows FROM live_data WHERE timestamp &gt; &#39;2026-09-11T11:01:00+05:45&#39;;
+SELECT symbol, ltp FROM latest_price ORDER BY symbol;
+SHOW TRIGGERS;</code></pre>
+<pre><code class="language-text">rows
+----
+   0
+(1 row, 0.3 ms)
+
+symbol | ltp  
+-------+------
+CITY   | 529.5
+COAST  | 402.5
+(2 rows, 0.1 ms)
+
+name        | table     | timing | event  | enabled | definition                                      
+------------+-----------+--------+--------+---------+-------------------------------------------------
+check_price | live_data | BEFORE | INSERT | true    | CREATE TRIGGER check_price BEFORE INSERT ON l...
+keep_latest | live_data | AFTER  | INSERT | true    | CREATE TRIGGER keep_latest AFTER INSERT ON li...
+(2 rows, 0.0 ms)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>How often</td><td><strong>Once per statement</strong>, not once per row: once for an <code>INSERT</code> of 1,000 rows, once for a <code>Database::InsertRows</code> call, once for a <code>POST /write</code> (line protocol) request. A statement that changes no row does not run triggers.</td></tr><tr><td>Together</td><td>The trigger runs in the same transaction as the statement. If the trigger fails, the statement is undone too.</td></tr><tr><td>BEFORE / AFTER</td><td><code>BEFORE</code> runs before the rows are written (use it to check them, <code>RAISE</code> refuses). <code>AFTER</code> runs after (the table already has the new rows).</td></tr><tr><td>Nesting</td><td>A trigger may change a table that has triggers. At most 16 levels: a trigger that fires itself stops with <code>triggers are nested too deeply</code>.</td></tr><tr><td>Order</td><td>Several triggers of the same kind on one table run in name order.</td></tr><tr><td>DROP TABLE</td><td>A table with triggers cannot be dropped or renamed: <code>table &#39;live_data&#39; has triggers (...); DROP TRIGGER them first</code>.</td></tr><tr><td>Off for a while</td><td><code>ALTER TABLE live_data DISABLE TRIGGER keep_latest;</code> and later <code>ENABLE TRIGGER</code>.</td></tr><tr><td>Speed</td><td>A trigger slows only its own table. Writes into that table (<code>InsertRows</code> calls and line-protocol requests too) are written one at a time, not grouped with other requests, and the loader waits for the trigger body. Writes into other tables are as fast as before. Keep trigger bodies short, or make a slow one <code>DEFERRED</code> (below).</td></tr></tbody></table></div>
+<h3 id="deferred-triggers-slow-work-after-the-commit">Deferred triggers: slow work after the commit</h3>
+<p>A normal trigger runs <strong>inside</strong> the insert, so the loader waits for it. A trigger that builds summary tables from a whole day of trades can take seconds. Make it <code>DEFERRED</code>: the insert commits and returns at once, and the trigger&#39;s work runs after it, in the background of the server.</p>
+<pre><code class="language-sql">CREATE TABLE day_totals (symbol SYMBOL PRIMARY KEY, quantity LONG);
+
+CREATE TRIGGER build_totals AFTER INSERT ON trade_log DEFERRED TIMEOUT 10min EXECUTE
+  INSERT OR REPLACE INTO day_totals
+  SELECT symbol, sum(quantity) FROM trade_log GROUP BY symbol;</code></pre>
+<pre><code class="language-text">table &#39;day_totals&#39; created
+
+trigger &#39;build_totals&#39; created on table &#39;trade_log&#39; (deferred: it runs after each INSERT commits, one job at a time)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody><tr><td>Which</td><td>Only <code>AFTER INSERT</code> triggers can be deferred.</td></tr><tr><td>Jobs</td><td>Every insert (<code>INSERT</code>, <code>POST /write</code>, <code>POST /imp</code>, a <code>COMMIT</code> that inserted rows) makes one <strong>job</strong>. The jobs of a trigger run one at a time, oldest first. They are kept on disk, so a restart does not lose them.</td></tr><tr><td>Where they run</td><td>In a running server (<code>kdb serve</code>). <code>kdb sql</code> exits right after its statement, so a job it made runs the next time a server opens the database.</td></tr><tr><td>Failure</td><td>A failed job stops its trigger&#39;s queue. Nothing is skipped by itself. <code>RETRY TRIGGER QUEUE build_totals</code> runs it again; <code>SKIP TRIGGER JOB build_totals &lt;id&gt;</code> leaves it out.</td></tr><tr><td>Watch</td><td><code>GET /api/trigger-queue</code> shows the queue and the lag. <code>POST /write?...&amp;wait=trigger</code> answers only after its own jobs ended.</td></tr><tr><td>SHOW TRIGGERS</td><td>The timing column says <code>AFTER (deferred)</code>.</td></tr></tbody></table></div>
+<p>The help topic <strong>Triggers</strong> has every detail.</p>
+<h2 id="cursors">Cursors</h2>
+<p>A cursor reads the rows of a query one by one, or a few at a time.</p>
+<h3 id="in-a-procedure">In a procedure</h3>
+<pre><code class="language-sql">-- A cursor loop: read rows one at a time, stop when FOUND is false.
+CREATE PROCEDURE biggest_trade(day DATE) AS BEGIN
+  DECLARE sym SYMBOL;
+  DECLARE qty LONG;
+  DECLARE best_sym SYMBOL;
+  DECLARE best_qty LONG DEFAULT 0;
+  DECLARE trades CURSOR FOR
+    SELECT symbol, quantity FROM trade_log WHERE date = day ORDER BY transaction_id;
+  OPEN trades;
+  FETCH trades INTO sym, qty;
+  WHILE found DO
+    IF qty &gt; best_qty THEN
+      SET best_qty = qty;
+      SET best_sym = sym;
+    END IF;
+    FETCH trades INTO sym, qty;
+  END WHILE;
+  CLOSE trades;
+  PRINT concat(&#39;biggest trade on &#39;, day, &#39;: &#39;, best_qty, &#39; shares of &#39;, best_sym);
+END;
+
+CALL biggest_trade(&#39;2026-09-10&#39;);</code></pre>
+<pre><code class="language-text">procedure &#39;biggest_trade&#39; created
+
+procedure &#39;biggest_trade&#39; done: 0 row(s) changed
+
+output                                          
+------------------------------------------------
+biggest trade on 2026-09-10: 1000 shares of C...
+(1 row, 0.0 ms)</code></pre>
+<p><code>OPEN</code> runs the query. <code>FETCH ... INTO</code> puts the next row into the variables (one variable per column) and sets <code>FOUND</code>. A <code>FOR</code> loop is shorter for the same job; a cursor is useful when you read two queries side by side, or stop early.</p>
+<h3 id="in-sql-read-a-big-result-bit-by-bit">In SQL: read a big result bit by bit</h3>
+<pre><code class="language-sql">-- Read a big result a few rows at a time.
+DECLARE m CURSOR FOR
+  SELECT time, symbol, close FROM ochl_minutes WHERE time IN &#39;2026-09-10&#39; ORDER BY time, symbol;
+FETCH NEXT 3 FROM m;
+FETCH NEXT 3 FROM m;
+CLOSE m;</code></pre>
+<pre><code class="language-text">cursor &#39;m&#39; declared: 476 row(s)
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T05:15:00.000Z | CITY   | 504.4
+2026-09-10T05:15:00.000Z | COAST  |   380
+2026-09-10T05:16:00.000Z | CITY   | 504.6
+(3 rows, 0.0 ms)
+3 row(s) fetched, 473 left
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T05:16:00.000Z | COAST  | 379.6
+2026-09-10T05:17:00.000Z | CITY   | 504.2
+2026-09-10T05:17:00.000Z | COAST  | 380.1
+(3 rows, 0.0 ms)
+3 row(s) fetched, no more rows</code></pre>
+<p><code>FETCH NEXT n FROM c</code>, <code>FETCH ALL FROM c</code> (the rest), <code>CLOSE c</code>. <code>DECLARE</code> runs the query once and keeps its rows (a snapshot): later changes to the table do not change what <code>FETCH</code> returns.</p>
+<p>A cursor lives until <code>CLOSE</code>, until the end of the text (<code>kdb sql</code>, <code>POST /exec</code>), or until the <code>kdb shell</code> session ends.</p>
+<h3 id="in-kdb-shell-over-many-lines">In kdb shell: over many lines</h3>
+<p>In <code>kdb shell</code>, a transaction and a cursor stay open from one line to the next:</p>
+<pre><code class="language-powershell">@&quot;
+BEGIN;
+UPDATE securities SET sector = &#39;Banks&#39; WHERE symbol = &#39;CITY&#39;;
+SELECT symbol, sector FROM securities WHERE symbol = &#39;CITY&#39;;
+ROLLBACK;
+SELECT symbol, sector FROM securities WHERE symbol = &#39;CITY&#39;;
+DECLARE s CURSOR FOR SELECT symbol FROM securities ORDER BY symbol;
+FETCH NEXT 2 FROM s;
+FETCH ALL FROM s;
+CLOSE s;
+CREATE PROCEDURE count_sector(wanted STRING) AS BEGIN
+  DECLARE n LONG;
+  SET n = (SELECT count(*) FROM securities WHERE sector = wanted);
+  PRINT concat(wanted, &#39;: &#39;, n);
+END;
+CALL count_sector(&#39;Banking&#39;);
+.exit
+&quot;@ | kdb shell market</code></pre>
+<pre><code class="language-text">KDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; transaction started
+kdb&gt; 1 row(s) updated
+kdb&gt; symbol | sector
+-------+-------
+CITY   | Banks 
+(1 row, 0.1 ms)
+kdb&gt; transaction rolled back: 1 change(s) undone
+kdb&gt; symbol | sector 
+-------+--------
+CITY   | Banking
+(1 row, 0.0 ms)
+kdb&gt; cursor &#39;s&#39; declared: 5 row(s)
+kdb&gt; symbol
+------
+ACME  
+CITY  
+(2 rows, 0.0 ms)
+2 row(s) fetched, 3 left
+kdb&gt; symbol
+------
+COAST 
+TELCO 
+VOLT  
+(3 rows, 0.0 ms)
+3 row(s) fetched, no more rows
+kdb&gt; cursor &#39;s&#39; closed
+kdb&gt; ...&gt; ...&gt; ...&gt; ...&gt; procedure &#39;count_sector&#39; created
+kdb&gt; procedure &#39;count_sector&#39; done: 0 row(s) changed
+
+output    
+----------
+Banking: 2
+(1 row, 0.0 ms)
+kdb&gt;</code></pre>
+<p>The shell knows that a <code>CREATE PROCEDURE ... BEGIN ... END;</code> is one statement, even though it has <code>;</code> inside (the <code>...&gt;</code> prompts). If you leave the shell with a transaction still open, it is rolled back. If a statement fails inside the transaction, the transaction is rolled back and the shell accepts only <code>ROLLBACK</code> until you send it (so the next lines cannot run outside the transaction by mistake).</p>
+<p><strong>A trap:</strong> the parameter is called <code>wanted</code>, not <code>name</code>. The table <code>securities</code> has a column <code>name</code>, and a column name wins over a variable: with a parameter called <code>name</code>, <code>WHERE sector = name</code> compares <code>sector</code> with the <code>name</code> column and counts 0.</p>
+<h3 id="over-http">Over HTTP</h3>
+<p><code>POST /cursor</code> with a <code>SELECT</code> as the body keeps the rows on the server. <code>GET /cursor/&lt;id&gt;?fetch=N</code> returns the next rows, <code>DELETE /cursor/&lt;id&gt;</code> closes it. Chapter 8 has the example (<a href="08-http-api.html#cursors-read-a-big-result-bit-by-bit">Cursors</a>).</p>
+<div class="table-wrap"><table><thead><tr><th>Cursor rule</th><th>Detail</th></tr></thead><tbody><tr><td>Open at the same time</td><td>At most 16 cursors per database (SQL and HTTP together).</td></tr><tr><td>Unused</td><td>A cursor closes after 10 minutes without <code>FETCH</code>.</td></tr><tr><td>Size</td><td>At most 10 million rows. The rows are kept in memory until the cursor closes.</td></tr></tbody></table></div>
+<h2 id="debugging-with-debug">Debugging: WITH DEBUG</h2>
+<p><code>CALL ... WITH DEBUG</code> adds a result called <code>debug</code>, with one row for every step:</p>
+<pre><code class="language-sql">CALL end_of_day(&#39;2026-09-10&#39;) WITH DEBUG;</code></pre>
+<pre><code class="language-text">procedure &#39;end_of_day&#39; done: 2 row(s) changed
+
+symbol | open  | high  | low   | close | volume
+-------+-------+-------+-------+-------+-------
+CITY   | 504.6 |   507 | 500.7 | 504.9 | 183040
+COAST  | 380.1 |   382 | 373.2 | 376.1 | 186200
+VOLT   | 185.6 | 192.1 | 184.2 | 191.2 |  41470
+(3 rows, 0.0 ms)
+
+step | routine    | statement                                        | rows | time_us | changes                                         
+-----+------------+--------------------------------------------------+------+---------+-------------------------------------------------
+   1 |            | CALL end_of_day(&#39;2026-09-10&#39;) WITH DEBUG         |    2 |    1268 | partitions read: 3                              
+   2 | end_of_day | DECLARE minutes LONG DEFAULT 0                   |    0 |       2 | minutes=0                                       
+   3 | end_of_day | SET minutes = (SELECT count(*) FROM ochl_minu... |    0 |     574 | minutes=476, partitions read: 1                 
+   4 | end_of_day | IF minutes = 0 THEN                              |    0 |       2 | false                                           
+   5 | end_of_day | FOR c IN (SELECT symbol, first(open) AS open,... |    2 |     340 | partitions read: 1                              
+   6 | end_of_day | FOR c: row 1 of 2                                |    0 |       0 | c.symbol=CITY, c.open=504.6, c.high=507, c.lo...
+   7 | end_of_day | INSERT OR REPLACE INTO ochl_day VALUES (day, ... |    1 |     131 |                                                 
+   8 | end_of_day | FOR c: row 2 of 2                                |    0 |       0 | c.symbol=COAST, c.open=380.1, c.high=382, c.l...
+   9 | end_of_day | INSERT OR REPLACE INTO ochl_day VALUES (day, ... |    1 |      14 |                                                 
+  10 | end_of_day | PRINT concat(minutes, &#39; minute candles read&#39;)    |    0 |       5 | 476 minute candles read                         
+  11 | end_of_day | SELECT symbol, open, high, low, close, volume... |    3 |      46 | partitions read: 1                              
+(11 rows, 0.0 ms)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>step</code></td><td>1, 2, 3, ... in the order the steps started</td></tr><tr><td><code>routine</code></td><td>the procedure (or <code>trigger name</code>) the step is in</td></tr><tr><td><code>statement</code></td><td>the statement, or the control line (<code>IF ... THEN</code>, <code>WHILE ... DO</code>, <code>FOR r: row 2 of 5</code>)</td></tr><tr><td><code>rows</code></td><td>rows changed (INSERT, UPDATE, DELETE), rows returned (SELECT), rows read (OPEN, FOR)</td></tr><tr><td><code>time_us</code></td><td>time of the step in microseconds (the first row: the whole <code>CALL</code>)</td></tr><tr><td><code>changes</code></td><td>variables that got a new value (<code>minutes=476</code>), the result of a condition (<code>true</code>/<code>false</code>), the <code>PRINT</code> text, or <code>failed: &lt;error&gt;</code>. A step that read table partitions adds how many: <code>partitions read: 1</code>. The first row counts them for the whole <code>CALL</code>.</td></tr></tbody></table></div>
+<p>With <code>WITH DEBUG</code>, <code>PRINT</code> lines are in the <code>debug</code> result (there is no separate <code>print</code> result). When the <code>CALL</code> fails, the <code>debug</code> rows up to the error are still returned, and the last one says <code>failed</code>: <code>kdb sql</code> and <code>kdb shell</code> print them before the error, and <code>POST /exec</code> returns them in <code>results</code> next to the <code>error</code>. Triggers that run during the <code>CALL</code> add their steps too. At most 100,000 steps are recorded.</p>
+<p><code>time_us</code> changes every time you run it: the numbers above are from one run.</p>
+<h2 id="keeping-the-definitions">Keeping the definitions</h2>
+<pre><code class="language-sql">SHOW PROCEDURES;
+ALTER TABLE live_data DISABLE TRIGGER check_price;
+DROP TRIGGER check_price;
+DROP FUNCTION move;
+DROP FUNCTION IF EXISTS move;
+SHOW FUNCTIONS;</code></pre>
+<pre><code class="language-text">name          | arguments     | definition                                      
+--------------+---------------+-------------------------------------------------
+biggest_trade | day DATE      | CREATE PROCEDURE biggest_trade(day DATE) AS B...
+count_sector  | wanted STRING | CREATE PROCEDURE count_sector(wanted STRING) ...
+end_of_day    | day DATE      | CREATE PROCEDURE end_of_day(day DATE) AS BEGI...
+(3 rows, 0.0 ms)
+
+trigger &#39;check_price&#39; disabled
+
+trigger &#39;check_price&#39; dropped
+
+function &#39;move&#39; dropped
+
+function &#39;move&#39; does not exist
+
+name       | arguments                 | returns | definition                                      
+-----------+---------------------------+---------+-------------------------------------------------
+change_pct | price DOUBLE, prev DOUBLE | DOUBLE  | CREATE FUNCTION change_pct(price DOUBLE, prev...
+(1 row, 0.0 ms)</code></pre>
+<p>The table format cuts long text after 48 characters. To see a whole definition, use <code>--format csv</code> or <code>--format json</code>: <code>kdb sql market &quot;SHOW PROCEDURES&quot; --format csv</code>.</p>
+<p>KDB checks a procedure&#39;s statements for <strong>syntax</strong> when you create it, and for <strong>tables and columns</strong> when it runs. A procedure that uses a table you dropped later fails at <code>CALL</code> with a clear message. <code>DROP FUNCTION</code> and <code>DROP PROCEDURE</code> do not check who uses them (views, other procedures, triggers).</p>
+<h2 id="limits">Limits</h2>
+<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Nesting of saved functions</td><td>16 levels</td></tr><tr><td>Nesting of <code>CALL</code></td><td>16 levels</td></tr><tr><td>Nesting of triggers</td><td>16 levels</td></tr><tr><td>Rows changed in one transaction (<code>BEGIN</code>/<code>COMMIT</code>, <code>CALL</code>, a statement with triggers)</td><td>10 million (<code>DatabaseOptions::max_transaction_rows</code>)</td></tr><tr><td>Rounds of one <code>WHILE</code> loop</td><td>10 million</td></tr><tr><td>Open cursors per database</td><td>16 (<code>DatabaseOptions::max_cursors</code>)</td></tr><tr><td>Unused cursor closes after</td><td>10 minutes (<code>DatabaseOptions::cursor_idle_ms</code>)</td></tr><tr><td>Rows in one cursor</td><td>10 million</td></tr><tr><td>Steps in a <code>debug</code> result</td><td>100,000</td></tr></tbody></table></div>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>Write a function <code>day_range_pct(high DOUBLE, low DOUBLE, close DOUBLE)</code> that gives <code>(high - low) / close * 100</code>, and use it on <code>ochl_day</code> for 2026-09-10.</li><li>Why does <code>CALL end_of_day(&#39;2026-09-12&#39;)</code> leave <code>ochl_day</code> exactly as it was?</li><li>You want <code>latest_price</code> to also forget a symbol when all its <code>live_data</code> rows are deleted. Which trigger do you add, <code>BEFORE</code> or <code>AFTER</code>, and on which event?</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><code>CREATE FUNCTION day_range_pct(high DOUBLE, low DOUBLE, close DOUBLE) RETURNS DOUBLE AS ((high - low) / close * 100);</code> then <code>SELECT symbol, round(day_range_pct(high, low, close), 2) FROM ochl_day WHERE time IN &#39;2026-09-10&#39;;</code></li><li><code>RAISE</code> stops the procedure with an error, and a <code>CALL</code> is one transaction: nothing it did is saved. (Here it had not changed anything yet anyway.)</li><li><code>AFTER DELETE ON live_data</code>. After the delete, the body can check <code>SELECT symbol FROM OLD</code> against what is left in <code>live_data</code>, and <code>DELETE FROM latest_price WHERE symbol = ...</code> for symbols with no rows left.</li></ol>
+</details>
+<hr>
+<p>Back to the index. Also read the <a href="known-limitations.html">known limitations</a>.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/13-functions-procedures-triggers.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Change case, cut, trim, pad, search and join text. A letter of any language (Nepali, Chinese, ...) counts as one character.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-text.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-text.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="text-functions">Text functions</h1>
+<blockquote><p>Change case, cut, trim, pad, search and join text. A letter of any language (Nepali, Chinese, ...) counts as one character.</p></blockquote>
+<ul><li>Category: Functions — text</li><li>Keywords: text, string, STRING, ascii, chr, translate, overlay, PLACING, normalize, NFC, NFD, NFKC, NFKD, U&amp;, to_ascii, remove accents, bit_length, to_hex, parse_ident, string_to_table, number format, format a number, VARCHAR, UTF-8, Unicode, Nepali, Devanagari, characters, letters, bytes, upper case, lower case, cut text, clean text, ||, join text, concatenate, lcase, ucase, len, mid, instr, locate, position IN, lengthb, format, sprintf, printf, string format, quote a name, quote a value, quote_ident, quote_literal, quote_nullable, SQL injection</li><li>See also: <a href="functions-regex.html">Regular expressions</a>, <a href="where.html">WHERE</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="functions-bytes.html">Bytes, hex and base64</a>, <a href="full-text-search.html">Full-text search</a></li></ul>
+<p>These functions work on text (<code>STRING</code>). KDB keeps text as <strong>UTF-8</strong>. UTF-8 is the usual way to store the letters of every language. An English letter takes 1 byte; a Nepali letter like <code>न</code> takes 3 bytes.</p>
+<ul><li>Text functions count <strong>characters</strong>, not bytes. <code>length(&#39;नेपाल&#39;)</code> is <code>5</code>. Only <code>octet_length</code> counts bytes.</li><li>A <code>NULL</code> argument gives <code>NULL</code>. Only <code>concat</code>, <code>concat_ws</code>, <code>format</code> and <code>quote_nullable</code> take NULLs.</li><li>A number, date or <code>true</code>/<code>false</code> is first turned into text: <code>length(12.50)</code> is <code>4</code>, because the text is <code>12.5</code>.</li><li><code>upper</code>, <code>lower</code> and <code>initcap</code> change the letters of every script that has capitals: English, <code>Ä</code>, <code>ě</code>, Vietnamese, Greek, Cyrillic, Armenian and more. Nepali (Devanagari) has no capitals, so it stays as it is.</li><li>Searching (<code>replace</code>, <code>strpos</code>, <code>starts_with</code>, ...) cares about upper and lower case. To ignore case, use <code>lower()</code> on both sides, <a href="where.html">ILIKE</a> or a <a href="functions-regex.html">regular expression</a> with the flag <code>&#39;i&#39;</code>.</li><li>To find text with a pattern, use <a href="where.html">LIKE and ILIKE</a> or the <a href="functions-regex.html">regular expression functions</a>.</li></ul>
+<p><strong>Example: Clean labels for the company list</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       lower(symbol) AS url_part,
+       split_part(name, &#39; &#39;, 1) AS first_word,
+       length(name) AS letters,
+       symbol || &#39; - &#39; || left(name, 20) AS label
+FROM securities
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>url_part (STRING)</th><th>first_word (STRING)</th><th>letters (LONG)</th><th>label (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>acme</td><td>Acme</td><td>23</td><td>ACME - Acme Investment Comp</td></tr><tr><td>CITY</td><td>city</td><td>City</td><td>17</td><td>CITY - City Bank Limited</td></tr><tr><td>COAST</td><td>coast</td><td>Coastal</td><td>20</td><td>COAST - Coastal Bank Limited</td></tr><tr><td>TELCO</td><td>telco</td><td>Northwind</td><td>25</td><td>TELCO - Northwind Telecom Li</td></tr><tr><td>VOLT</td><td>volt</td><td>Volt</td><td>29</td><td>VOLT - Volt River Hydropowe</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="lower">lower</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">lower(text)</code></pre>
+<p>The text with every capital letter made small: <code>lower(&#39;CITY&#39;)</code> is <code>city</code>, <code>lower(&#39;ÄÖ&#39;)</code> is <code>äö</code>, <code>lower(&#39;ΣΑΣ&#39;)</code> is <code>σασ</code>. Letters without capitals (Nepali) stay as they are.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text to change</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>lower(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> each letter becomes one letter, as in PostgreSQL: <code>lower(&#39;İ&#39;)</code> is <code>i</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT lower(&#39;CITY Bank&#39;) AS a, lower(&#39;नेपाल&#39;) AS nepali, lower(&#39;ÄBC&#39;) AS german, lower(&#39;ПРИВЕТ&#39;) AS russian, lower(NULL) AS b;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>nepali (STRING)</th><th>german (STRING)</th><th>russian (STRING)</th><th>b (STRING)</th></tr></thead><tbody><tr><td>city bank</td><td>नेपाल</td><td>äbc</td><td>привет</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Log in with the user name in any case</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, username STRING NOT NULL, email STRING);
+INSERT INTO app_users (username, email) VALUES (&#39;Ram_Sharma&#39;, &#39;ram@example.com&#39;), (&#39;sita&#39;, &#39;sita@example.com&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, username FROM app_users WHERE lower(username) = lower(&#39;RAM_sharma&#39;);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>username (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Ram_Sharma</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="upper">upper</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">upper(text)</code></pre>
+<p>The text with every small letter made capital: <code>upper(&#39;city&#39;)</code> is <code>CITY</code>, <code>upper(&#39;ěšč&#39;)</code> is <code>ĚŠČ</code>. Letters without capitals (Nepali) stay as they are.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text to change</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>upper(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>upper(&#39;ß&#39;)</code> stays <code>ß</code>, as in PostgreSQL (one letter becomes one letter).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT upper(&#39;city नेपाल&#39;) AS a, upper(&#39;Coast&#39;) AS b, upper(&#39;crème brûlée&#39;) AS french, upper(NULL) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>french (STRING)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>CITY नेपाल</td><td>COAST</td><td>CRÈME BRÛLÉE</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Clean stock symbols typed by users</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE watchlist (id INT PRIMARY KEY AUTO, typed STRING);
+INSERT INTO watchlist (typed) VALUES (&#39;  city &#39;), (&#39;Coast&#39;), (&#39;volt  &#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, &#39;[&#39; || typed || &#39;]&#39; AS typed, upper(trim(typed)) AS symbol FROM watchlist ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>typed (STRING)</th><th>symbol (STRING)</th></tr></thead><tbody><tr><td>1</td><td>[  city ]</td><td>CITY</td></tr><tr><td>2</td><td>[Coast]</td><td>COAST</td></tr><tr><td>3</td><td>[volt  ]</td><td>VOLT</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="length">length, char_length, character_length</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">length(text)
+char_length(text)
+character_length(text)</code></pre>
+<p>The number of characters in the text. A Nepali letter is one character. The three names are the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING, BYTES, or a value turned into text</td><td>the value to measure</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>length(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> on a <code>BYTES</code> value it counts bytes (see <a href="functions-bytes.html">bytes functions</a>). Some Nepali letters are made of 2 characters: <code>के</code> is <code>क</code> plus the sign <code>े</code>, so <code>length(&#39;के&#39;)</code> is <code>2</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT length(&#39;CITY&#39;) AS a, length(&#39;नेपाल&#39;) AS nepali, length(&#39;के&#39;) AS ke, char_length(&#39;&#39;) AS empty, character_length(&#39;City Bank&#39;) AS b, length(12.50) AS number, length(NULL) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>nepali (LONG)</th><th>ke (LONG)</th><th>empty (LONG)</th><th>b (LONG)</th><th>number (LONG)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>4</td><td>5</td><td>2</td><td>0</td><td>9</td><td>4</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Refuse a forum post that is too short or too long</strong></p>
+<pre><code class="language-sql">SELECT body, length(body) AS letters, length(body) BETWEEN 10 AND 500 AS ok
+FROM (SELECT &#39;Good results!&#39; AS body
+      UNION ALL SELECT &#39;नाफा राम्रो छ&#39;
+      UNION ALL SELECT &#39;ok&#39;) AS posts;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>body (STRING)</th><th>letters (LONG)</th><th>ok (BOOL)</th></tr></thead><tbody><tr><td>Good results!</td><td>13</td><td>true</td></tr><tr><td>नाफा राम्रो छ</td><td>13</td><td>true</td></tr><tr><td>ok</td><td>2</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Company names in English and Nepali</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE companies (symbol STRING PRIMARY KEY, name STRING, name_ne STRING);
+INSERT INTO companies VALUES (&#39;CITY&#39;, &#39;City Bank Limited&#39;, &#39;सिटी बैंक लिमिटेड&#39;), (&#39;VOLT&#39;, &#39;Volt River Hydropower Limited&#39;, &#39;भोल्ट रिभर जलविद्युत लिमिटेड&#39;);</code></pre>
+<pre><code class="language-sql">SELECT symbol, length(name) AS name_letters, name_ne, length(name_ne) AS ne_letters FROM companies ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>name_letters (LONG)</th><th>name_ne (STRING)</th><th>ne_letters (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>17</td><td>सिटी बैंक लिमिटेड</td><td>17</td></tr><tr><td>VOLT</td><td>29</td><td>भोल्ट रिभर जलविद्युत लिमिटेड</td><td>28</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="octet-length">octet_length</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">octet_length(text)</code></pre>
+<p>The number of <strong>bytes</strong> the text takes in UTF-8. An English letter is 1 byte; a Nepali letter is 3 bytes.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING, BYTES, or a value turned into text</td><td>the value to measure</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>octet_length(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> use it when a limit is in bytes (for example a column in another program that takes at most 255 bytes). For letters people see, use <code>length</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT length(&#39;नेपाल&#39;) AS letters, octet_length(&#39;नेपाल&#39;) AS bytes, octet_length(&#39;CITY&#39;) AS english_bytes, octet_length(&#39;&#39;) AS empty;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>letters (LONG)</th><th>bytes (LONG)</th><th>english_bytes (LONG)</th><th>empty (LONG)</th></tr></thead><tbody><tr><td>5</td><td>15</td><td>4</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="substr">substr, substring</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">substr(text, start)
+substr(text, start, count)
+substring(text, start [, count])</code></pre>
+<p>A part of the text: <code>count</code> characters from character number <code>start</code>. The first character is number 1. Without <code>count</code>, you get everything to the end. <code>substring</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (or BYTES)</td><td>the text to cut</td></tr><tr><td><code>start</code></td><td>whole number</td><td>the first character to keep; <code>1</code> = first. <code>0</code> or less starts before the text, so fewer characters are left</td></tr><tr><td><code>count</code></td><td>whole number</td><td>how many characters; must not be negative</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code> (<code>BYTES</code> for a <code>BYTES</code> value, counted in bytes).</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>start</code> after the end gives empty text <code>&#39;&#39;</code>, not an error. A negative <code>count</code> is an error. <code>start</code> and <code>count</code> must be whole numbers: <code>&#39;2&#39;</code> or <code>2.5</code> is an error. The PostgreSQL form <code>substring(text FROM 2 FOR 3)</code> works too, and means the same as <code>substring(text, 2, 3)</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT substr(&#39;CITY&#39;, 3) AS a, substring(&#39;CITY&#39;, 2, 3) AS b, substr(&#39;नेपाल&#39;, 2, 2) AS nepali, substr(&#39;CITY&#39;, 0, 3) AS from_zero, substr(&#39;CITY&#39;, 10) AS after_end;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>nepali (STRING)</th><th>from_zero (STRING)</th><th>after_end (STRING)</th></tr></thead><tbody><tr><td>TY</td><td>ITY</td><td>ेप</td><td>CI</td><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Nepali fiscal year 2082/83: first and last year</strong></p>
+<pre><code class="language-sql">SELECT substr(&#39;2082/83&#39;, 1, 4) AS first_year, substr(&#39;2082/83&#39;, 6) AS second_year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_year (STRING)</th><th>second_year (STRING)</th></tr></thead><tbody><tr><td>2082</td><td>83</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A negative count is an error</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT substr(&#39;CITY&#39;, 2, -1);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: substr: the length must not be negative, got -1</code></p>
+<p><strong>Example: The PostgreSQL FROM ... FOR form</strong></p>
+<pre><code class="language-sql">SELECT substring(&#39;CITY&#39; FROM 2 FOR 3) AS from_for, substring(&#39;CITY&#39; FROM 2) AS to_the_end;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>from_for (STRING)</th><th>to_the_end (STRING)</th></tr></thead><tbody><tr><td>ITY</td><td>ITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="left">left</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">left(text, n)</code></pre>
+<p>The first <code>n</code> characters of the text. With a negative <code>n</code>, everything except the last <code>-n</code> characters.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text</td></tr><tr><td><code>n</code></td><td>whole number</td><td>how many characters to keep from the start; negative = how many to drop from the end</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> it never cuts a Nepali letter in half. <code>n</code> bigger than the text gives the whole text.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT left(&#39;CITY&#39;, 3) AS a, left(&#39;CITY&#39;, -2) AS drop_last_2, left(&#39;नेपाल बैंक&#39;, 5) AS nepali, left(&#39;CITY&#39;, 99) AS whole;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>drop_last_2 (STRING)</th><th>nepali (STRING)</th><th>whole (STRING)</th></tr></thead><tbody><tr><td>CIT</td><td>CI</td><td>नेपाल</td><td>CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Short preview of long company names</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       CASE WHEN length(name) &gt; 25 THEN left(name, 25) || &#39;...&#39; ELSE name END AS preview
+FROM securities
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>preview (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Acme Investment Company</td></tr><tr><td>CITY</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td></tr><tr><td>TELCO</td><td>Northwind Telecom Limited</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Lim...</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="right">right</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">right(text, n)</code></pre>
+<p>The last <code>n</code> characters of the text. With a negative <code>n</code>, everything except the first <code>-n</code> characters.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text</td></tr><tr><td><code>n</code></td><td>whole number</td><td>how many characters to keep from the end; negative = how many to drop from the start</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT right(&#39;CITY&#39;, 3) AS a, right(&#39;CITY&#39;, -2) AS drop_first_2, right(&#39;नेपाल&#39;, 2) AS nepali;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>drop_first_2 (STRING)</th><th>nepali (STRING)</th></tr></thead><tbody><tr><td>ITY</td><td>TY</td><td>ाल</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Show only the last 4 digits of a phone number</strong></p>
+<pre><code class="language-sql">SELECT &#39;******&#39; || right(&#39;9841234567&#39;, 4) AS phone_shown;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>phone_shown (STRING)</th></tr></thead><tbody><tr><td>******4567</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="trim">trim, btrim</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">trim(text)
+trim(text, characters)
+btrim(text [, characters])</code></pre>
+<p>Removes spaces from both ends of the text. With <code>characters</code>, it removes any of those characters from both ends instead. <code>btrim</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to clean</td></tr><tr><td><code>characters</code></td><td>STRING</td><td>the characters to remove, in any order; default: space, tab, carriage return and line break</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>characters</code> is a set of single characters, not a word: <code>trim(&#39;xyCITYyx&#39;, &#39;xy&#39;)</code> removes every <code>x</code> and <code>y</code> at the ends. Characters in the middle stay. The standard forms <code>trim(BOTH &#39;x&#39; FROM text)</code>, <code>trim(LEADING &#39;x&#39; FROM text)</code> and <code>trim(TRAILING &#39;x&#39; FROM text)</code> work too; <code>LEADING</code> is <a href="#ltrim">ltrim</a> and <code>TRAILING</code> is <a href="#rtrim">rtrim</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT &#39;[&#39; || trim(&#39;  CITY  &#39;) || &#39;]&#39; AS a, trim(&#39;xxCOASTxx&#39;, &#39;x&#39;) AS b, btrim(&#39;--a-b--&#39;, &#39;-&#39;) AS c, trim(&#39;xyCITYyx&#39;, &#39;xy&#39;) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>c (STRING)</th><th>d (STRING)</th></tr></thead><tbody><tr><td>[CITY]</td><td>COAST</td><td>a-b</td><td>CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Clean a user name before saving it</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, username STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">INSERT INTO app_users (username) VALUES (lower(trim(&#39;   Hari_KC  &#39;)));
+SELECT id, &#39;[&#39; || username || &#39;]&#39; AS saved FROM app_users;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO app_users (username) VALUES (lower(trim(&#39;   Hari_KC  &#39;)))</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, &#39;[&#39; || username || &#39;]&#39; AS saved FROM app_users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>saved (STRING)</th></tr></thead><tbody><tr><td>1</td><td>[hari_kc]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The standard BOTH / LEADING / TRAILING forms</strong></p>
+<pre><code class="language-sql">SELECT trim(BOTH &#39;x&#39; FROM &#39;xxCOASTxx&#39;) AS both_ends,
+       trim(LEADING &#39;x&#39; FROM &#39;xxCOASTxx&#39;) AS front_only,
+       trim(TRAILING &#39;x&#39; FROM &#39;xxCOASTxx&#39;) AS end_only;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>both_ends (STRING)</th><th>front_only (STRING)</th><th>end_only (STRING)</th></tr></thead><tbody><tr><td>COAST</td><td>COASTxx</td><td>xxCOAST</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="ltrim">ltrim</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ltrim(text [, characters])</code></pre>
+<p>Like <code>trim</code>, but only at the <strong>start</strong> (left side) of the text.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to clean</td></tr><tr><td><code>characters</code></td><td>STRING</td><td>the characters to remove; default: space, tab, carriage return and line break</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT &#39;[&#39; || ltrim(&#39;   CITY  &#39;) || &#39;]&#39; AS a, ltrim(&#39;00042&#39;, &#39;0&#39;) AS no_zeros;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>no_zeros (STRING)</th></tr></thead><tbody><tr><td>[CITY  ]</td><td>42</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="rtrim">rtrim</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">rtrim(text [, characters])</code></pre>
+<p>Like <code>trim</code>, but only at the <strong>end</strong> (right side) of the text.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to clean</td></tr><tr><td><code>characters</code></td><td>STRING</td><td>the characters to remove; default: space, tab, carriage return and line break</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT &#39;[&#39; || rtrim(&#39;  CITY   &#39;) || &#39;]&#39; AS a, rtrim(&#39;नेपाल।।&#39;, &#39;।&#39;) AS nepali_full_stop, rtrim(&#39;512.500&#39;, &#39;0&#39;) AS price;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>nepali_full_stop (STRING)</th><th>price (STRING)</th></tr></thead><tbody><tr><td>[  CITY]</td><td>नेपाल</td><td>512.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="replace">replace</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">replace(text, from, to)</code></pre>
+<p>Replaces <strong>every</strong> place where <code>from</code> is found in <code>text</code> with <code>to</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text</td></tr><tr><td><code>from</code></td><td>STRING</td><td>the text to find (upper and lower case must match)</td></tr><tr><td><code>to</code></td><td>STRING</td><td>the new text; <code>&#39;&#39;</code> removes <code>from</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> an empty <code>from</code> changes nothing. The search does not ignore case: <code>replace(&#39;City&#39;, &#39;city&#39;, &#39;x&#39;)</code> is <code>City</code>. For patterns (any digit, any space) use <a href="functions-regex.html#regexp-replace">regexp_replace</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT replace(&#39;a-b-c&#39;, &#39;-&#39;, &#39;/&#39;) AS a, replace(&#39;City Bank&#39;, &#39;Bank&#39;, &#39;Bank Limited&#39;) AS b, replace(&#39;City&#39;, &#39;city&#39;, &#39;x&#39;) AS case_matters, replace(&#39;CITY&#39;, &#39;&#39;, &#39;x&#39;) AS empty_from;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>case_matters (STRING)</th><th>empty_from (STRING)</th></tr></thead><tbody><tr><td>a/b/c</td><td>City Bank Limited</td><td>City</td><td>CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Turn a price with commas into a number</strong></p>
+<pre><code class="language-sql">SELECT CAST(replace(&#39;1,234,567.50&#39;, &#39;,&#39;, &#39;&#39;) AS DOUBLE) AS amount;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>1234567.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="split-part">split_part</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">split_part(text, separator, n)</code></pre>
+<p>Splits the text at every <code>separator</code> and gives part number <code>n</code>. <code>1</code> is the first part, <code>-1</code> is the last part.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to split</td></tr><tr><td><code>separator</code></td><td>STRING</td><td>the text between the parts (one or more characters)</td></tr><tr><td><code>n</code></td><td>whole number</td><td>the part: <code>1</code> first, <code>2</code> second, <code>-1</code> last, <code>-2</code> second last. <code>0</code> is an error</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. A part that does not exist gives empty text <code>&#39;&#39;</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> an empty <code>separator</code> gives the whole text as part 1. PostgreSQL also allows negative <code>n</code> (since version 14); MySQL has no <code>split_part</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT split_part(&#39;2082/83&#39;, &#39;/&#39;, 1) AS a, split_part(&#39;2082/83&#39;, &#39;/&#39;, -1) AS last, split_part(&#39;a,b&#39;, &#39;,&#39;, 5) AS missing;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>last (STRING)</th><th>missing (STRING)</th></tr></thead><tbody><tr><td>2082</td><td>83</td><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The domain of each user&#39;s email</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, email STRING NOT NULL);
+INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@mail.com.np&#39;), (&#39;hari@example.com&#39;);</code></pre>
+<pre><code class="language-sql">SELECT split_part(email, &#39;@&#39;, 2) AS domain, count(*) AS users FROM app_users GROUP BY split_part(email, &#39;@&#39;, 2) ORDER BY domain;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>domain (STRING)</th><th>users (LONG)</th></tr></thead><tbody><tr><td>example.com</td><td>2</td></tr><tr><td>mail.com.np</td><td>1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Part number 0 does not exist</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT split_part(&#39;2082/83&#39;, &#39;/&#39;, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: split_part: the field number must not be 0 (1 = first, -1 = last)</code></p>
+<h2 id="strpos">strpos</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">strpos(text, part)</code></pre>
+<p>Where <code>part</code> first starts in <code>text</code>, as a character number (1 = first). <code>0</code> when it is not there.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to search in</td></tr><tr><td><code>part</code></td><td>STRING</td><td>the text to find (case must match)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> the number counts characters, so it works with Nepali text. An empty <code>part</code> gives <code>1</code>. <code>position(part IN text)</code> does the same with the arguments the other way round.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT strpos(&#39;CITY&#39;, &#39;IT&#39;) AS a, strpos(&#39;नेपाल बैंक&#39;, &#39;बैंक&#39;) AS nepali, strpos(&#39;CITY&#39;, &#39;x&#39;) AS not_found, strpos(&#39;City&#39;, &#39;cit&#39;) AS case_matters;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>nepali (LONG)</th><th>not_found (LONG)</th><th>case_matters (LONG)</th></tr></thead><tbody><tr><td>2</td><td>7</td><td>0</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The user name before the @ of an email</strong></p>
+<pre><code class="language-sql">SELECT email, left(email, strpos(email, &#39;@&#39;) - 1) AS name
+FROM (SELECT &#39;ram.sharma@example.com&#39; AS email UNION ALL SELECT &#39;sita@mail.com.np&#39;) AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>email (STRING)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>ram.sharma@example.com</td><td>ram.sharma</td></tr><tr><td>sita@mail.com.np</td><td>sita</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="position">position</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">position(part IN text)
+position(part, text)</code></pre>
+<p>Where <code>part</code> first starts in <code>text</code>, as a character number (1 = first). <code>0</code> when it is not there. The same as <code>strpos(text, part)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>part</code></td><td>STRING</td><td>the text to find (case must match)</td></tr><tr><td><code>text</code></td><td>STRING</td><td>the text to search in</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>part</code> comes <strong>first</strong> here, but second in <code>strpos</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT position(&#39;बैंक&#39; IN &#39;नेपाल बैंक&#39;) AS nepali, position(&#39;TY&#39; IN &#39;CITY&#39;) AS a, position(&#39;TY&#39;, &#39;CITY&#39;) AS b, position(&#39;x&#39; IN &#39;CITY&#39;) AS not_found;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepali (LONG)</th><th>a (LONG)</th><th>b (LONG)</th><th>not_found (LONG)</th></tr></thead><tbody><tr><td>7</td><td>3</td><td>3</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="starts-with">starts_with</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">starts_with(text, prefix)</code></pre>
+<p><code>true</code> when the text begins with <code>prefix</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text</td></tr><tr><td><code>prefix</code></td><td>STRING</td><td>the start to look for (case must match)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> an empty <code>prefix</code> is always <code>true</code>. <code>text LIKE &#39;NA%&#39;</code> gives the same answer, and it can use an <a href="indexes.html">index</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT starts_with(&#39;CITY&#39;, &#39;CI&#39;) AS a, starts_with(&#39;city&#39;, &#39;CI&#39;) AS case_matters, starts_with(&#39;CITY&#39;, &#39;&#39;) AS empty;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>case_matters (BOOL)</th><th>empty (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Companies whose symbol starts with N</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name FROM securities WHERE starts_with(symbol, &#39;N&#39;) ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<h2 id="ends-with">ends_with</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ends_with(text, suffix)</code></pre>
+<p><code>true</code> when the text ends with <code>suffix</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text</td></tr><tr><td><code>suffix</code></td><td>STRING</td><td>the end to look for (case must match)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT ends_with(&#39;CITY&#39;, &#39;TY&#39;) AS a, ends_with(&#39;CITY&#39;, &#39;ty&#39;) AS case_matters;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>case_matters (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Users with an email address in Nepal (.np)</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, email STRING NOT NULL);
+INSERT INTO app_users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@mail.com.np&#39;), (&#39;hari@northwind.example.com&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, email FROM app_users WHERE ends_with(lower(email), &#39;.np&#39;) ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th></tr></thead><tbody><tr><td>2</td><td>sita@mail.com.np</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="lpad">lpad</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">lpad(text, length)
+lpad(text, length, fill)</code></pre>
+<p>Makes the text <code>length</code> characters long by adding <code>fill</code> on the <strong>left</strong>. When the text is longer, it is cut to <code>length</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text</td></tr><tr><td><code>length</code></td><td>whole number</td><td>the length you want, in characters (at most 10 000 000)</td></tr><tr><td><code>fill</code></td><td>STRING</td><td>what to add, repeated as needed; default one space</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>length</code> of 0 or less gives <code>&#39;&#39;</code>. An empty <code>fill</code> gives the text unchanged. A text that is too long is cut at the <strong>end</strong> (like PostgreSQL).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT lpad(&#39;7&#39;, 3, &#39;0&#39;) AS a, &#39;[&#39; || lpad(&#39;5&#39;, 3) || &#39;]&#39; AS spaces, lpad(&#39;ab&#39;, 7, &#39;xy&#39;) AS b, lpad(&#39;CITY&#39;, 3) AS cut, lpad(&#39;न&#39;, 3, &#39;क&#39;) AS nepali;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>spaces (STRING)</th><th>b (STRING)</th><th>cut (STRING)</th><th>nepali (STRING)</th></tr></thead><tbody><tr><td>007</td><td>[  5]</td><td>xyxyxab</td><td>CIT</td><td>ककन</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Invoice numbers with leading zeros</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE invoices (id INT PRIMARY KEY AUTO, amount DECIMAL(2));
+INSERT INTO invoices (amount) VALUES (1500.00), (250.50), (99999.99);</code></pre>
+<pre><code class="language-sql">SELECT &#39;INV-2082-&#39; || lpad(id, 5, &#39;0&#39;) AS invoice_no, amount FROM invoices ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>invoice_no (STRING)</th><th>amount (DECIMAL(2))</th></tr></thead><tbody><tr><td>INV-2082-00001</td><td>1500.00</td></tr><tr><td>INV-2082-00002</td><td>250.50</td></tr><tr><td>INV-2082-00003</td><td>99999.99</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The length has a limit</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT lpad(&#39;a&#39;, 20000000);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: lpad: the length is larger than 10000000</code></p>
+<h2 id="rpad">rpad</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">rpad(text, length)
+rpad(text, length, fill)</code></pre>
+<p>Makes the text <code>length</code> characters long by adding <code>fill</code> on the <strong>right</strong>. When the text is longer, it is cut to <code>length</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text</td></tr><tr><td><code>length</code></td><td>whole number</td><td>the length you want, in characters (at most 10 000 000)</td></tr><tr><td><code>fill</code></td><td>STRING</td><td>what to add, repeated as needed; default one space</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> the same rules as <code>lpad</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT rpad(&#39;CITY&#39;, 8, &#39;.&#39;) AS a, rpad(&#39;CITY&#39;, 3) AS cut, &#39;[&#39; || rpad(&#39;COAST&#39;, 6) || &#39;]&#39; AS spaces;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>cut (STRING)</th><th>spaces (STRING)</th></tr></thead><tbody><tr><td>CITY....</td><td>CIT</td><td>[COAST ]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A simple fixed-width price list</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT rpad(symbol, 8, &#39;.&#39;) || lpad(close, 8) AS line
+FROM ochl_day
+WHERE time = &#39;2026-09-09&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line (STRING)</th></tr></thead><tbody><tr><td>CITY....   504.6</td></tr><tr><td>COAST...   380.1</td></tr><tr><td>VOLT....   187.3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="repeat">repeat</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">repeat(text, n)</code></pre>
+<p>The text written <code>n</code> times one after another.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to repeat</td></tr><tr><td><code>n</code></td><td>whole number</td><td>how many times; 0 or less gives <code>&#39;&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> the result can be at most 16 MB; a bigger one is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT repeat(&#39;ab&#39;, 3) AS a, repeat(&#39;नम&#39;, 2) AS nepali, repeat(&#39;-&#39;, 0) AS zero;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>nepali (STRING)</th><th>zero (STRING)</th></tr></thead><tbody><tr><td>ababab</td><td>नमनम</td><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A text bar chart of the CITY close price</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, repeat(&#39;#&#39;, floor((close - 500) / 2)) AS bar
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+ORDER BY time
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>bar (STRING)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>542.2</td><td>#####################</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>539.7</td><td>###################</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>539.3</td><td>###################</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>542.4</td><td>#####################</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>###</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>#####</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="reverse">reverse</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">reverse(text)</code></pre>
+<p>The characters of the text in the opposite order: <code>reverse(&#39;CITY&#39;)</code> is <code>YTIC</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (or BYTES)</td><td>the text</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code> (<code>BYTES</code> for a <code>BYTES</code> value, byte by byte).</li><li><strong>NULL:</strong> <code>reverse(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> it works character by character. A Nepali vowel sign is its own character, so it lands on the other side of its letter: the result of Nepali text does not read well.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT reverse(&#39;CITY&#39;) AS a, reverse(&#39;12345&#39;) AS b, reverse(&#39;नेपाल&#39;) AS nepali;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>nepali (STRING)</th></tr></thead><tbody><tr><td>YTIC</td><td>54321</td><td>लापेन</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="concat">concat</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">concat(value, value, ...)</code></pre>
+<p>Joins the values into one text. <code>NULL</code> values are skipped. Numbers, dates and times are turned into text first.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any type</td><td>1 to 64 values to join</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. Never <code>NULL</code>: when every value is <code>NULL</code>, the result is <code>&#39;&#39;</code>.</li><li><strong>NULL:</strong> <code>NULL</code> values are skipped.</li><li><strong>Notes:</strong> <code>a || b</code> also joins text, but it gives <code>NULL</code> when one side is <code>NULL</code>. <code>concat()</code> with no values is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT concat(&#39;CITY&#39;, &#39;-&#39;, 2082) AS a, concat(&#39;a&#39;, NULL, &#39;b&#39;) AS null_skipped, concat(NULL) AS all_null, concat(&#39;Close: &#39;, 512.5) AS b;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>null_skipped (STRING)</th><th>all_null (STRING)</th><th>b (STRING)</th></tr></thead><tbody><tr><td>CITY-2082</td><td>ab</td><td></td><td>Close: 512.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Full name when the middle name is missing</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, first_name STRING, middle_name STRING, last_name STRING);
+INSERT INTO app_users (first_name, middle_name, last_name) VALUES (&#39;Ram&#39;, &#39;Bahadur&#39;, &#39;Thapa&#39;), (&#39;Sita&#39;, NULL, &#39;Sharma&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id,
+       concat(first_name, &#39; &#39;, middle_name, &#39; &#39;, last_name) AS with_concat,
+       first_name || &#39; &#39; || middle_name || &#39; &#39; || last_name AS with_pipes
+FROM app_users ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>with_concat (STRING)</th><th>with_pipes (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Ram Bahadur Thapa</td><td>Ram Bahadur Thapa</td></tr><tr><td>2</td><td>Sita  Sharma</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="concat-ws">concat_ws</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">concat_ws(separator, value, value, ...)</code></pre>
+<p>Joins the values with <code>separator</code> between them. <code>NULL</code> values are skipped, and they get no separator. &quot;ws&quot; means &quot;with separator&quot;.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>separator</code></td><td>STRING</td><td>the text put between two values</td></tr><tr><td><code>value</code></td><td>any type</td><td>0 to 63 values to join</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> separator gives <code>NULL</code>. <code>NULL</code> values are skipped.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT concat_ws(&#39;, &#39;, &#39;a&#39;, NULL, &#39;b&#39;) AS a, concat_ws(&#39;/&#39;, 2082, 83) AS fiscal_year, concat_ws(NULL, &#39;a&#39;, &#39;b&#39;) AS null_separator;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>fiscal_year (STRING)</th><th>null_separator (STRING)</th></tr></thead><tbody><tr><td>a, b</td><td>2082/83</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The full name from the example above, without double spaces</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY AUTO, first_name STRING, middle_name STRING, last_name STRING);
+INSERT INTO app_users (first_name, middle_name, last_name) VALUES (&#39;Ram&#39;, &#39;Bahadur&#39;, &#39;Thapa&#39;), (&#39;Sita&#39;, NULL, &#39;Sharma&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, concat_ws(&#39; &#39;, first_name, middle_name, last_name) AS full_name FROM app_users ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>full_name (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Ram Bahadur Thapa</td></tr><tr><td>2</td><td>Sita Sharma</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="format">format</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">format(text, value, value, ...)</code></pre>
+<p>Fills the places in <code>text</code> with the values, as PostgreSQL does. Its main use is SQL text for <a href="procedure-language.html#execute">EXECUTE</a> in a procedure.</p>
+<div class="table-wrap"><table><thead><tr><th>Place</th><th>Puts in</th><th>A <code>NULL</code> value</th></tr></thead><tbody><tr><td><code>%s</code></td><td>the value as text</td><td>nothing (empty text)</td></tr><tr><td><code>%I</code></td><td>a table or column name, in double quotes when needed</td><td>an error</td></tr><tr><td><code>%L</code></td><td>a value in single quotes, quotes inside doubled</td><td><code>NULL</code> (no quotes)</td></tr><tr><td><code>%%</code></td><td>one <code>%</code></td><td></td></tr><tr><td><code>%2$s</code></td><td>the 2nd value (any place type); the next place takes the 3rd</td><td></td></tr><tr><td><code>%10s</code>, <code>%-10s</code></td><td>at least 10 characters, filled with spaces on the left (or right with <code>-</code>)</td><td></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. A <code>NULL</code> text gives <code>NULL</code>.</li><li><strong>Notes:</strong> text made with <code>%I</code> and <code>%L</code> is safe to run as SQL: a quote inside a value stays part of the value. Too few values, or another letter after <code>%</code>, is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT format(&#39;%s has %s rows&#39;, &#39;trades&#39;, 120) AS plain,
+       format(&#39;SELECT * FROM %I WHERE symbol = %L&#39;, &#39;Daily Prices&#39;, &#39;it&#39;&#39;s&#39;) AS safe_sql,
+       format(&#39;[%-6s][%6s][%L]&#39;, &#39;ab&#39;, &#39;cd&#39;, NULL) AS widths;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plain (STRING)</th><th>safe_sql (STRING)</th><th>widths (STRING)</th></tr></thead><tbody><tr><td>trades has 120 rows</td><td>SELECT * FROM &quot;Daily Prices&quot; WHERE symbol = &#39;it&#39;&#39;s&#39;</td><td>[ab    ][    cd][NULL]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A NULL cannot be a name</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT format(&#39;SELECT * FROM %I&#39;, NULL);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: format: %I of format() got NULL: a NULL cannot be a table or column name</code></p>
+<h2 id="quote-ident">quote_ident</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">quote_ident(name)</code></pre>
+<p>The name as it can be written in SQL: as it is when it is all small letters, digits and <code>_</code> and not a reserved word, otherwise in double quotes (with <code>&quot;</code> doubled). <code>quote_ident(&#39;close&#39;)</code> is <code>close</code>; <code>quote_ident(&#39;Close&#39;)</code> is <code>&quot;Close&quot;</code>.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li></ul>
+<h2 id="quote_literal">quote_literal, quote_nullable</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">quote_literal(value)
+quote_nullable(value)</code></pre>
+<p>The value as SQL text in single quotes, with every <code>&#39;</code> doubled: <code>quote_literal(&#39;it&#39;&#39;s&#39;)</code> is <code>&#39;it&#39;&#39;s&#39;</code>. A number is quoted too.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>quote_literal(NULL)</code> is <code>NULL</code>; <code>quote_nullable(NULL)</code> is the text <code>NULL</code>, so the SQL still works.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT quote_ident(&#39;close&#39;) AS a, quote_ident(&#39;Daily Prices&#39;) AS b, quote_literal(&#39;O&#39;&#39;Brien&#39;) AS c,
+       quote_literal(42) AS d, quote_nullable(NULL) AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>c (STRING)</th><th>d (STRING)</th><th>e (STRING)</th></tr></thead><tbody><tr><td>close</td><td>&quot;Daily Prices&quot;</td><td>&#39;O&#39;&#39;Brien&#39;</td><td>&#39;42&#39;</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: One CSV line per trading day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT concat_ws(&#39;,&#39;, symbol, open, high, low, close) AS csv_line
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39;
+ORDER BY time
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>csv_line (STRING)</th></tr></thead><tbody><tr><td>COAST,420.3,426.6,417.6,424.8</td></tr><tr><td>COAST,425.9,428.9,421.2,424.2</td></tr><tr><td>COAST,423.6,426.1,420.1,423</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="concat-operator">|| (join text)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">text || text</code></pre>
+<p>Joins two values into one text: <code>&#39;CITY&#39; || &#39;-&#39; || 2082</code> is <code>CITY-2082</code>. A number or date on one side is turned into text.</p>
+<div class="table-wrap"><table><thead><tr><th>Operand</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td>left, right</td><td>any type</td><td>the two values to join</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. Two <code>BYTES</code> values give <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>. Use <code>concat</code> or <code>coalesce</code> when a value can be <code>NULL</code>.</li><li><strong>Notes:</strong> <code>||</code> has the <strong>same</strong> priority as <code>+</code> and <code>-</code>, and they are done from left to right. So <code>&#39;a&#39; || 1 + 2</code> is <code>(&#39;a&#39; || 1) + 2</code>, which is an error. PostgreSQL does <code>+</code> first. Write <code>&#39;a&#39; || (1 + 2)</code>. MySQL reads <code>||</code> as OR unless a setting is changed; KDB always joins text.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT &#39;CITY&#39; || &#39;-&#39; || 2082 AS a, &#39;Close: &#39; || 512.5 AS b, &#39;a&#39; || NULL AS with_null, &#39;total &#39; || (1 + 2) AS brackets;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>with_null (STRING)</th><th>brackets (STRING)</th></tr></thead><tbody><tr><td>CITY-2082</td><td>Close: 512.5</td><td>NULL</td><td>total 3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A link to each news article</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE news (id LONG PRIMARY KEY AUTO, title STRING NOT NULL, symbol STRING);
+INSERT INTO news (title, symbol) VALUES (&#39;City Bank profit rises 18%&#39;, &#39;CITY&#39;), (&#39;Market index closes at 2,840&#39;, NULL);</code></pre>
+<pre><code class="language-sql">SELECT id, &#39;/news/&#39; || id || &#39;-&#39; || lower(replace(left(title, 20), &#39; &#39;, &#39;-&#39;)) AS url,
+       &#39;Stock: &#39; || symbol AS stock_line,
+       &#39;Stock: &#39; || coalesce(symbol, &#39;market&#39;) AS fixed
+FROM news ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>url (STRING)</th><th>stock_line (STRING)</th><th>fixed (STRING)</th></tr></thead><tbody><tr><td>1</td><td>/news/1-city-bank-profit-ris</td><td>Stock: CITY</td><td>Stock: CITY</td></tr><tr><td>2</td><td>/news/2-market-index-closes-</td><td>NULL</td><td>Stock: market</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Without brackets, + is done after ||</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT &#39;total &#39; || 1 + 2;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 22: &#39;total 1&#39; and &#39;2&#39; are not both numbers</code></p>
+<h2 id="initcap">initcap</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">initcap(text)</code></pre>
+<p>Every word gets a capital first letter and small letters after it: <code>initcap(&#39;city bank limited&#39;)</code> is <code>City Bank Limited</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text to change</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>initcap(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> a word ends at anything that is not a letter or a digit, so <code>ram-bahadur</code> becomes <code>Ram-Bahadur</code>. Letters of every script with capitals change (<code>élan</code> becomes <code>Élan</code>); Nepali letters stay as they are. Short words like &quot;and&quot; are capitalised too, so a company name that is already written correctly (<code>Coastal Bank</code>) is better left alone.</li></ul>
+<p><strong>Example: Tidy up a name a user typed</strong></p>
+<pre><code class="language-sql">SELECT initcap(&#39;city bank limited&#39;) AS company,
+       initcap(&#39;RAM BAHADUR SHRESTHA&#39;) AS person,
+       initcap(&#39;ram-bahadur kc&#39;) AS with_hyphen,
+       initcap(NULL) AS nothing;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>company (STRING)</th><th>person (STRING)</th><th>with_hyphen (STRING)</th><th>nothing (STRING)</th></tr></thead><tbody><tr><td>City Bank Limited</td><td>Ram Bahadur Shrestha</td><td>Ram-Bahadur Kc</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Company names in title case</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name, initcap(lower(name)) AS title_case
+FROM securities
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>title_case (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Acme Investment Company</td><td>Acme Investment Company</td></tr><tr><td>CITY</td><td>City Bank Limited</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td><td>Coastal Bank Limited</td></tr><tr><td>TELCO</td><td>Northwind Telecom Limited</td><td>Northwind Telecom Limited</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>Volt River Hydropower Limited</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="md5">md5</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">md5(text)</code></pre>
+<p>The MD5 hash of the text: 32 lower-case hex digits. The same text always gives the same digits.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number or time is turned into text)</td><td>the text to hash</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>, always 32 characters.</li><li><strong>NULL:</strong> <code>md5(NULL)</code> is <code>NULL</code>. <code>md5(&#39;&#39;)</code> is <code>d41d8cd98f00b204e9800998ecf8427e</code>.</li><li><strong>Notes:</strong> <strong>never use MD5 for passwords.</strong> It is broken for that: use <a href="functions-security.html#password_hash">password_hash</a>. MD5 is fine as a short fingerprint of a row, to see whether a file or a record changed. It is here because PostgreSQL apps call it. For a strong fingerprint use <a href="functions-security.html#sha256">sha256</a>.</li></ul>
+<p><strong>Example: A short fingerprint for each daily candle</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close, md5(symbol || &#39;:&#39; || CAST(time AS STRING)) AS row_key
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>row_key (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>8c227f18b2f287859fb2008492cc191a</td></tr><tr><td>COAST</td><td>376.1</td><td>7e95ad0adf2f1015de2a7078a3a221c6</td></tr><tr><td>VOLT</td><td>191.2</td><td>66b1f4d8c7af12a0fd60ade3702adfb1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The same text always gives the same digits</strong></p>
+<pre><code class="language-sql">SELECT md5(&#39;CITY&#39;) AS a, md5(&#39;CITY&#39;) = md5(&#39;CITY&#39;) AS always_same, md5(&#39;&#39;) AS empty_text, md5(NULL) AS nothing;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>always_same (BOOL)</th><th>empty_text (STRING)</th><th>nothing (STRING)</th></tr></thead><tbody><tr><td>859214628431995197c0558f7b5f8ffc</td><td>true</td><td>d41d8cd98f00b204e9800998ecf8427e</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="to-str">to_str</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_str(time, format)</code></pre>
+<p>Writes a time as text in the QuestDB format letters. QuestDB apps use this name; KDB&#39;s own name for the same job is <a href="functions-date-time.html#to_char">to_char</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>time</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time to write</td></tr><tr><td><code>format</code></td><td><code>STRING</code></td><td>the pattern, see the table below</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Letters</th><th>Gives</th><th>Example</th></tr></thead><tbody><tr><td><code>yyyy</code>, <code>yy</code></td><td>year, 4 or 2 digits</td><td><code>2026</code>, <code>26</code></td></tr><tr><td><code>MM</code>, <code>MMM</code></td><td>month number, month name</td><td><code>09</code>, <code>Sep</code></td></tr><tr><td><code>dd</code></td><td>day of the month</td><td><code>10</code></td></tr><tr><td><code>HH</code>, <code>hh</code></td><td>hour 0-23, hour 1-12</td><td><code>05</code>, <code>11</code></td></tr><tr><td><code>mm</code>, <code>ss</code>, <code>SSS</code></td><td>minute, second, millisecond</td><td><code>15</code>, <code>00</code>, <code>123</code></td></tr><tr><td><code>EEE</code></td><td>weekday name</td><td><code>Thu</code></td></tr><tr><td><code>a</code></td><td>AM or PM</td><td><code>AM</code></td></tr><tr><td><code>&#39;text&#39;</code></td><td>text in single quotes is written as it is</td><td><code>&#39;at&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when the time or the format is <code>NULL</code>.</li><li><strong>Notes:</strong> everything is <strong>UTC</strong>. For a local clock add its offset first, for example 20700000 for Nepal: <code>to_str(time + 20700000, &#39;HH:mm&#39;)</code>. Letters KDB does not know are written as they are. <code>UUU</code> (microseconds) is always <code>000</code>, because KDB keeps milliseconds.</li></ul>
+<p><strong>Example: Minute candles with a readable clock</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT to_str(time, &#39;yyyy-MM-dd&#39;) AS day,
+       to_str(time, &#39;HH:mm&#39;) AS utc_clock,
+       to_str(time + 20700000, &#39;HH:mm&#39;) AS nepal_clock,
+       close
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39;
+ORDER BY time
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (STRING)</th><th>utc_clock (STRING)</th><th>nepal_clock (STRING)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09</td><td>05:15</td><td>11:00</td><td>512.1</td></tr><tr><td>2026-09-09</td><td>05:16</td><td>11:01</td><td>511.9</td></tr><tr><td>2026-09-09</td><td>05:17</td><td>11:02</td><td>511.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A long date for a report heading</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT to_str(time, &#39;EEE dd MMM yyyy&#39;) AS trading_day, symbol, close
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>trading_day (STRING)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>Thu 10 Sep 2026</td><td>CITY</td><td>504.9</td></tr><tr><td>Thu 10 Sep 2026</td><td>COAST</td><td>376.1</td></tr><tr><td>Thu 10 Sep 2026</td><td>VOLT</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="string-to-array">string_to_array</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">string_to_array(text, separator)
+string_to_array(text, separator, null_text)</code></pre>
+<p>Cuts the text into a list at every <code>separator</code>. The PostgreSQL way to turn <code>&#39;CITY,COAST&#39;</code> into a list of symbols.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to cut</td></tr><tr><td><code>separator</code></td><td>STRING</td><td>the text between the parts; <code>NULL</code> cuts into single characters</td></tr><tr><td><code>null_text</code></td><td>STRING</td><td>a part equal to this becomes <code>NULL</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> an array (a <code>JSON</code> list). See <a href="functions-postgres.html#arrays">arrays</a>.</li><li><strong>NULL:</strong> <code>string_to_array(NULL, &#39;,&#39;)</code> is <code>NULL</code>. Empty text gives an empty list <code>[]</code>.</li><li><strong>Notes:</strong> an empty separator gives a list with the whole text in it. To go the other way use <a href="functions-postgres.html#array_to_string">array_to_string</a>; to make rows out of the list use <a href="functions-postgres.html#unnest">unnest</a>. To take one part only, <a href="#split-part">split_part</a> is simpler.</li></ul>
+<p><strong>Example: A watchlist typed as one line</strong></p>
+<pre><code class="language-sql">SELECT string_to_array(&#39;CITY,COAST,VOLT&#39;, &#39;,&#39;) AS symbols,
+       cardinality(string_to_array(&#39;CITY,COAST,VOLT&#39;, &#39;,&#39;)) AS how_many,
+       string_to_array(&#39;CITY,,VOLT&#39;, &#39;,&#39;, &#39;&#39;) AS empty_part_is_null,
+       string_to_array(&#39;MARKET&#39;, NULL) AS every_character;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbols (TEXT[])</th><th>how_many (LONG)</th><th>empty_part_is_null (TEXT[])</th><th>every_character (TEXT[])</th></tr></thead><tbody><tr><td>[&quot;CITY&quot;,&quot;COAST&quot;,&quot;VOLT&quot;]</td><td>3</td><td>[&quot;CITY&quot;,null,&quot;VOLT&quot;]</td><td>[&quot;M&quot;,&quot;A&quot;,&quot;R&quot;,&quot;K&quot;,&quot;E&quot;,&quot;T&quot;]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Show the companies of a typed watchlist</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name, sector
+FROM securities
+WHERE symbol IN (SELECT unnest(string_to_array(&#39;CITY,VOLT&#39;, &#39;,&#39;)))
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td><td>Banking</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>Energy</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="string-to-table">string_to_table</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">string_to_table(text, separator)
+string_to_table(text, separator, null_text)</code></pre>
+<p>The same cut as <a href="#string-to-array">string_to_array</a>, but one <strong>row</strong> per part instead of one list. Use it in <code>FROM</code> or in the <code>SELECT</code> list.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to cut</td></tr><tr><td><code>separator</code></td><td>STRING</td><td>the text between the parts; <code>NULL</code> cuts into single characters</td></tr><tr><td><code>null_text</code></td><td>STRING</td><td>a part equal to this becomes <code>NULL</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> rows of <code>STRING</code>, one per part. In <code>FROM</code> the column is named after the function, or after the alias: <code>AS t(sym)</code>.</li><li><strong>NULL:</strong> <code>NULL</code> text gives no rows. Empty text gives no rows.</li><li><strong>Notes:</strong> in <code>FROM</code> the arguments must be constants. For a column write <code>SELECT id, string_to_table(col, &#39;,&#39;) FROM t</code>.</li></ul>
+<p><strong>Example: A typed watchlist as rows</strong></p>
+<pre><code class="language-sql">SELECT sym FROM string_to_table(&#39;CITY,COAST,VOLT&#39;, &#39;,&#39;) AS t(sym);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sym (STRING)</th></tr></thead><tbody><tr><td>CITY</td></tr><tr><td>COAST</td></tr><tr><td>VOLT</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="ascii">ascii</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ascii(text)</code></pre>
+<p>The number of the first character of the text (its Unicode code point). <code>ascii(&#39;A&#39;)</code> is <code>65</code>, <code>ascii(&#39;न&#39;)</code> is <code>2344</code>.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>. Empty text gives <code>0</code>.</li><li><strong>NULL:</strong> <code>ascii(NULL)</code> is <code>NULL</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT ascii(&#39;A&#39;) AS a, ascii(&#39;é&#39;) AS e_accent, ascii(&#39;नेपाल&#39;) AS na, ascii(&#39;&#39;) AS empty;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>e_accent (LONG)</th><th>na (LONG)</th><th>empty (LONG)</th></tr></thead><tbody><tr><td>65</td><td>233</td><td>2344</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="chr">chr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">chr(number)</code></pre>
+<p>The character with this Unicode number: <code>chr(65)</code> is <code>A</code>, <code>chr(2344)</code> is <code>न</code>. The opposite of <a href="#ascii">ascii</a>.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code> of one character.</li><li><strong>Errors (as PostgreSQL, SQLSTATE 54000):</strong> <code>0</code> (&quot;null character not permitted&quot;), a negative number, a number above 1114111, and the numbers 55296-57343 (they are not characters on their own).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT chr(65) AS a, chr(2344) AS na, chr(10) = E&#39;\n&#39; AS newline;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>na (STRING)</th><th>newline (BOOL)</th></tr></thead><tbody><tr><td>A</td><td>न</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: 0 is not a character</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT chr(0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: chr: null character not permitted</code></p>
+<h2 id="translate">translate</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">translate(text, from, to)</code></pre>
+<p>Swaps single characters: each character of <code>from</code> becomes the character at the same place in <code>to</code>. A character of <code>from</code> with no partner in <code>to</code> is removed.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to change</td></tr><tr><td><code>from</code></td><td>STRING</td><td>the characters to find</td></tr><tr><td><code>to</code></td><td>STRING</td><td>what they become, place by place</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>Notes:</strong> <code>translate(&#39;12345&#39;, &#39;143&#39;, &#39;ax&#39;)</code> is <code>a2x5</code>: 1 becomes a, 4 becomes x, 3 is removed. A character named twice in <code>from</code> uses its first partner. It works on characters of any language. When <code>from</code> and <code>to</code> are written in the query, the swap table is made once for the whole query.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT translate(&#39;12345&#39;, &#39;143&#39;, &#39;ax&#39;) AS pg_example,
+       translate(&#39;résumé&#39;, &#39;é&#39;, &#39;e&#39;) AS no_accents,
+       translate(&#39;98-41-234567&#39;, &#39;-&#39;, &#39;&#39;) AS digits_only;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pg_example (STRING)</th><th>no_accents (STRING)</th><th>digits_only (STRING)</th></tr></thead><tbody><tr><td>a2x5</td><td>resume</td><td>9841234567</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="overlay">overlay</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">overlay(text PLACING new_text FROM start)
+overlay(text PLACING new_text FROM start FOR count)
+overlay(text, new_text, start [, count])</code></pre>
+<p>Puts <code>new_text</code> into <code>text</code> at character <code>start</code>, in place of <code>count</code> characters. Without <code>FOR</code>, as many characters as <code>new_text</code> has are replaced.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code> (<code>BYTES</code> when <code>text</code> is <code>BYTES</code>: then it counts bytes).</li><li><strong>Notes:</strong> <code>overlay(&#39;Txxxxas&#39; PLACING &#39;hom&#39; FROM 2 FOR 4)</code> is <code>Thomas</code>. <code>FOR 0</code> inserts without removing anything. A start past the end adds at the end.</li><li><strong>Errors:</strong> a start of <code>0</code> or less: &quot;negative substring length not allowed&quot; (SQLSTATE 22011), as PostgreSQL.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT overlay(&#39;Txxxxas&#39; PLACING &#39;hom&#39; FROM 2 FOR 4) AS thomas,
+       overlay(&#39;98XXXXXX45&#39; PLACING &#39;******&#39; FROM 3) AS masked,
+       overlay(&#39;abc&#39; PLACING &#39;-&#39; FROM 2 FOR 0) AS inserted;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>thomas (STRING)</th><th>masked (STRING)</th><th>inserted (STRING)</th></tr></thead><tbody><tr><td>Thomas</td><td>98******45</td><td>a-bc</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="normalize">normalize</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">normalize(text)
+normalize(text, NFC | NFD | NFKC | NFKD)</code></pre>
+<p>Brings text into one Unicode <strong>normal form</strong>. The same letter can be written two ways: <code>á</code> as one character, or as <code>a</code> followed by an accent mark. They look the same but do not compare equal until both are normalized.</p>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>What it does</th></tr></thead><tbody><tr><td><code>NFC</code> (the default)</td><td>joins a letter and its marks into one character where Unicode has one</td></tr><tr><td><code>NFD</code></td><td>takes such characters apart: letter, then marks</td></tr><tr><td><code>NFKC</code></td><td>like NFC, and turns look-alike characters into plain ones: <code>ﬁ</code> → <code>fi</code>, <code>²</code> → <code>2</code>, <code>①</code> → <code>1</code></td></tr><tr><td><code>NFKD</code></td><td>like NFD with the same look-alike rule</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>Notes:</strong> the form is written as a bare word, as in PostgreSQL; <code>&#39;NFC&#39;</code> in quotes works too. Text of plain English letters comes back at once, unchanged.</li><li><strong>Errors:</strong> another form name: &quot;invalid normalization form&quot; (SQLSTATE 22023).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT normalize(U&amp;&#39;\0061\0301&#39;, NFC) = U&amp;&#39;\00E1&#39; AS same_letter,
+       length(normalize(&#39;á&#39;, NFD)) AS letters_nfd,
+       normalize(&#39;ﬁle ²&#39;, NFKC) AS plain;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>same_letter (BOOL)</th><th>letters_nfd (LONG)</th><th>plain (STRING)</th></tr></thead><tbody><tr><td>true</td><td>2</td><td>file 2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>U&amp;&#39;...&#39;</code> is PostgreSQL&#39;s way to write characters by number: <code>\XXXX</code> (4 hex digits) or <code>\+XXXXXX</code> (6), and <code>\\</code> for a backslash.</p>
+<h2 id="to-ascii">to_ascii</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_ascii(text)
+to_ascii(text, &#39;LATIN1&#39;)</code></pre>
+<p>The text with accents taken off, in plain ASCII: <code>to_ascii(&#39;Karél&#39;)</code> is <code>Karel</code>.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>Notes:</strong> Latin-1 letters follow PostgreSQL&#39;s table (<code>Æ</code> → <code>A</code>, <code>ß</code> → <code>B</code>, <code>ÿ</code> → <code>y</code>). Other letters with accents keep their letter (<code>ě</code> → <code>e</code>). A PostgreSQL database in UTF-8 refuses <code>to_ascii</code> altogether; KDB answers as a PostgreSQL database in LATIN1 does.</li><li><strong>Errors:</strong> a character with no ASCII form, such as Nepali letters: &quot;has no ASCII equivalent&quot; (SQLSTATE 22P05). Encodings other than LATIN1 are not supported (0A000).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_ascii(&#39;Karél&#39;) AS a, to_ascii(&#39;Škoda Ørsted&#39;) AS b;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th></tr></thead><tbody><tr><td>Karel</td><td>Skoda Orsted</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="bit-length">bit_length</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">bit_length(text)</code></pre>
+<p>The size of the text in bits: 8 times <a href="#octet-length">octet_length</a>. <code>bit_length(&#39;jose&#39;)</code> is <code>32</code>; <code>bit_length(&#39;न&#39;)</code> is <code>24</code>.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>. Works on <code>BYTES</code> too.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT bit_length(&#39;jose&#39;) AS english, bit_length(&#39;न&#39;) AS nepali_letter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>english (LONG)</th><th>nepali_letter (LONG)</th></tr></thead><tbody><tr><td>32</td><td>24</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="to-hex">to_hex</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_hex(number)</code></pre>
+<p>A whole number in hexadecimal (base 16), small letters: <code>to_hex(255)</code> is <code>ff</code>.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>Notes:</strong> a negative number is written as PostgreSQL does: in 32 bits when it fits an <code>INT</code> (<code>to_hex(-1)</code> is <code>ffffffff</code>), else in 64 bits.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_hex(255) AS ff, to_hex(4096) AS big, to_hex(-1) AS minus_one;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>ff (STRING)</th><th>big (STRING)</th><th>minus_one (STRING)</th></tr></thead><tbody><tr><td>ff</td><td>1000</td><td>ffffffff</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="parse-ident">parse_ident</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">parse_ident(name)
+parse_ident(name, strict)</code></pre>
+<p>Splits a qualified name like <code>&quot;SomeSchema&quot;.someTable</code> into its parts, the PostgreSQL way: quotes are taken off, a name without quotes is made lower case, <code>&quot;&quot;</code> inside quotes is one quote.</p>
+<ul><li><strong>Returns:</strong> an array of <code>STRING</code> (a <code>JSON</code> list).</li><li><strong>Notes:</strong> with <code>strict</code> = <code>false</code>, text after the name is ignored: <code>parse_ident(&#39;a b&#39;, false)</code> is <code>{a}</code>.</li><li><strong>Errors:</strong> text that is not a valid name (&quot;string is not a valid identifier&quot;, SQLSTATE 22023).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT parse_ident(&#39;&quot;SomeSchema&quot;.someTable&#39;) AS parts,
+       parse_ident(&#39;market.Trades&#39;)[2] AS table_part;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>parts (TEXT[])</th><th>table_part (STRING)</th></tr></thead><tbody><tr><td>[&quot;SomeSchema&quot;,&quot;sometable&quot;]</td><td>trades</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="to_char-number">to_char for numbers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_char(number, format)</code></pre>
+<p>Writes a number as text with a picture of the digits, exactly as PostgreSQL does. (For times see <a href="functions-date-time.html#to_char">to_char</a>.)</p>
+<div class="table-wrap"><table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td><code>9</code></td><td>a digit; a blank when the number has no digit here</td></tr><tr><td><code>0</code></td><td>a digit, <code>0</code> when the number has none (leading zeros)</td></tr><tr><td><code>.</code> or <code>D</code></td><td>the decimal point</td></tr><tr><td><code>,</code> or <code>G</code></td><td>the thousands separator (left out before the first digit)</td></tr><tr><td><code>FM</code></td><td>no padding blanks and no trailing zeros</td></tr><tr><td><code>S</code>, <code>MI</code>, <code>PL</code>, <code>SG</code></td><td>the sign next to the number; <code>-</code> at that place; <code>+</code> at that place; <code>+</code> or <code>-</code> at that place</td></tr><tr><td><code>PR</code></td><td>a negative number in angle brackets: <code>&lt;485&gt;</code></td></tr><tr><td><code>L</code></td><td>the money sign <code>$</code></td></tr><tr><td><code>RN</code> / <code>rn</code></td><td>Roman numerals (1 to 3999)</td></tr><tr><td><code>TH</code> / <code>th</code></td><td>the ordinal ending: <code>1st</code>, <code>22nd</code>, <code>13th</code></td></tr><tr><td><code>V</code></td><td>multiplies by 10 for each <code>9</code> after it</td></tr><tr><td><code>EEEE</code></td><td>scientific notation: <code>4.86e-04</code></td></tr><tr><td><code>&quot;text&quot;</code></td><td>text as it is</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. Without <code>FM</code> the text starts with a place for the sign: <code>to_char(485, &#39;999&#39;)</code> is <code> 485</code>.</li><li><strong>Notes:</strong> a number with more digits than the picture has places shows <code>#</code> in every place. A <code>DECIMAL</code> (and a number written in the query, such as <code>1234.5</code>) is exact and rounds halves away from zero; a <code>DOUBLE</code> rounds as PostgreSQL&#39;s float8 does (at most 15 digits). A whole number with a time format (<code>&#39;YYYY-MM-DD&#39;</code>) is still read as milliseconds since 1970, as before. A format written in the query is read once for all rows.</li><li><strong>Errors:</strong> PostgreSQL&#39;s (SQLSTATE 42601): &quot;multiple decimal points&quot;, &quot;cannot use &quot;S&quot; twice&quot;, ...</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_char(1234.5, &#39;FM999,999.00&#39;) AS money,
+       to_char(-485, &#39;999PR&#39;) AS bracket,
+       to_char(7, &#39;FM000&#39;) AS padded,
+       to_char(0.0004859, &#39;9.99EEEE&#39;) AS sci,
+       to_char(2026, &#39;FMRN&#39;) AS roman,
+       to_char(22, &#39;FM99th&#39;) AS ordinal;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>money (STRING)</th><th>bracket (STRING)</th><th>padded (STRING)</th><th>sci (STRING)</th><th>roman (STRING)</th><th>ordinal (STRING)</th></tr></thead><tbody><tr><td>1,234.50</td><td>&lt;485&gt;</td><td>007</td><td>4.86e-04</td><td>MMXXVI</td><td>22nd</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Turnover in a report</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, to_char(sum(close * volume), &#39;FM999,999,999,990.00&#39;) AS turnover
+FROM ochl_day
+GROUP BY symbol
+ORDER BY symbol
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>turnover (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>1,012,051,301.00</td></tr><tr><td>COAST</td><td>640,748,179.00</td></tr><tr><td>VOLT</td><td>326,540,767.00</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-text.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GROUP BY and HAVING - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Make one row per group (per symbol, per broker, per account) with totals like count, sum and max, and filter the groups with HAVING.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/group-by.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/group-by.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="group-by-and-having">GROUP BY and HAVING</h1>
+<blockquote><p>Make one row per group (per symbol, per broker, per account) with totals like count, sum and max, and filter the groups with HAVING.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: group, groups, spill, ROLLUP, CUBE, GROUPING SETS, GROUPING, grand total, rollup, cube, grouping sets, subtotals, temporary files, many groups, max_groups, window with GROUP BY, GROUP BY, HAVING, aggregate, totals, subtotal, summary, report, implicit GROUP BY, group key, not grouped, count per, sum per, group by, having, implicit</li><li>See also: <a href="functions-aggregate.html">Aggregate functions</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="select.html#distinct">SELECT (distinct)</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="functions-window.html">Window and series functions</a>, <a href="joins.html">Joins</a></li></ul>
+<p><code>GROUP BY</code> puts the rows that have the same value (for example the same symbol) into one <strong>group</strong>, and gives <strong>one output row per group</strong>.
+In the select list you use <strong>aggregates</strong> like <code>count(*)</code>, <code>sum(x)</code>, <code>avg(x)</code>, <code>min(x)</code> and <code>max(x)</code>: they make one value from all the rows of a group. The full list is in <a href="functions-aggregate.html">aggregate functions</a>.</p>
+<p><code>HAVING</code> keeps only some groups, like <code>WHERE</code> keeps only some rows.
+For groups by time (candles per minute, day, week, month), use <a href="sample-by.html">SAMPLE BY</a>.</p>
+<p><strong>Example: September 2026 summary per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       count(*)             AS days,
+       min(low)             AS lowest,
+       max(high)            AS highest,
+       round(avg(close), 2) AS avg_close,
+       sum(volume)          AS total_volume
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol
+ORDER BY total_volume DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>lowest (DOUBLE)</th><th>highest (DOUBLE)</th><th>avg_close (DOUBLE)</th><th>total_volume (DOUBLE)</th></tr></thead><tbody><tr><td>COAST</td><td>8</td><td>364.1</td><td>398.8</td><td>374.73</td><td>910270</td></tr><tr><td>CITY</td><td>8</td><td>494.1</td><td>512.4</td><td>500.18</td><td>876210</td></tr><tr><td>VOLT</td><td>8</td><td>167.3</td><td>192.1</td><td>179.3</td><td>713310</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="group-by">GROUP BY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT key, ..., aggregate(...), ...
+FROM ...
+[WHERE condition]
+GROUP BY expression, ...
+[HAVING condition]
+[ORDER BY ...]</code></pre>
+<p>Rows with equal values in <strong>all</strong> the <code>GROUP BY</code> expressions are one group. A key can be a column or an expression (<code>date_trunc(&#39;month&#39;, time)</code>, <code>upper(symbol)</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>expression, ...</code></td><td>the group keys: one output row for each different combination</td></tr><tr><td><code>aggregate(...)</code></td><td>a value computed from all the rows of the group</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per group. The order of the groups is not fixed: add <code>ORDER BY</code>.</li><li><strong>NULL:</strong> <code>NULL</code> key values make their own group. Aggregates skip <code>NULL</code> values (<code>count(*)</code> counts every row).</li><li><strong>Notes:</strong> a select <strong>alias can be used in <code>GROUP BY</code></strong>: <code>GROUP BY month</code> groups by the column written as <code>date_trunc(&#39;month&#39;, time) AS month</code>. Writing the expression again does the same thing. An alias still cannot be used in <code>HAVING</code>.</li><li><code>GROUP BY 1</code> means the first column of the select list, as in PostgreSQL (<code>GROUP BY 1, 2</code>: the first two). It cannot point at an aggregate.</li><li><code>ORDER BY</code> after <code>GROUP BY</code> can use the output columns (names, aliases, positions) and expressions of them (<code>ORDER BY q / n</code>), but not other table columns and not new aggregates.</li><li>A window function (<code>rank() OVER</code>, <code>lag(...) OVER</code>, <code>sum(...) OVER ()</code>) can sit next to <code>GROUP BY</code>. It runs <strong>after</strong> the groups are made, over the grouped rows, as in PostgreSQL: its arguments and its <code>ORDER BY</code> use the group keys and aggregates, like <code>rank() OVER (ORDER BY sum(quantity) DESC)</code>. See <a href="functions-window.html">window functions</a>.</li><li>With no matching rows, <code>GROUP BY</code> gives <strong>0 rows</strong>. Without <code>GROUP BY</code>, aggregates give <strong>one row</strong> (<code>count(*)</code> is <code>0</code>, <code>sum</code> is <code>NULL</code>).</li></ul>
+<p><strong>Example: Broker turnover as buyer on 2026-09-10</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.buyer, b.name, count(*) AS trades, sum(f.amount) AS bought
+FROM trade_log f
+JOIN brokers b ON b.id = f.buyer
+WHERE f.date IN &#39;2026-09-10&#39;
+GROUP BY f.buyer, b.name
+ORDER BY bought DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>name (STRING)</th><th>trades (LONG)</th><th>bought (DOUBLE)</th></tr></thead><tbody><tr><td>49</td><td>Online Securities</td><td>5</td><td>960370</td></tr><tr><td>45</td><td>Imperial Securities</td><td>5</td><td>695950</td></tr><tr><td>58</td><td>Northgate Securities</td><td>4</td><td>260190</td></tr><tr><td>1</td><td>Keystone Securities</td><td>7</td><td>239420</td></tr><tr><td>34</td><td>Vision Securities</td><td>3</td><td>205450</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Two keys: shares per broker per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT buyer, symbol, sum(quantity) AS shares
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39; AND buyer IN (1, 58)
+GROUP BY buyer, symbol
+ORDER BY buyer, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>symbol (SYMBOL)</th><th>shares (LONG)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>170</td></tr><tr><td>1</td><td>COAST</td><td>200</td></tr><tr><td>1</td><td>TELCO</td><td>50</td></tr><tr><td>1</td><td>VOLT</td><td>150</td></tr><tr><td>58</td><td>COAST</td><td>560</td></tr><tr><td>58</td><td>VOLT</td><td>200</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: An expression as the key: average close per month</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;month&#39;, time) AS month, round(avg(close), 2) AS avg_close, count(*) AS days
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+GROUP BY date_trunc(&#39;month&#39;, time)
+ORDER BY month;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>month (TIMESTAMP)</th><th>avg_close (DOUBLE)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>540.9</td><td>4</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>508.49</td><td>7</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>500.18</td><td>8</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Accounting: debit, credit and balance per account</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT a.code, a.name,
+       coalesce(sum(l.debit), 0)  AS debit,
+       coalesce(sum(l.credit), 0) AS credit,
+       coalesce(sum(l.debit), 0) - coalesce(sum(l.credit), 0) AS balance
+FROM ledger l
+JOIN accounts a ON a.code = l.account
+GROUP BY a.code, a.name
+ORDER BY a.code;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>code (INT)</th><th>name (STRING)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1000</td><td>Cash</td><td>30000.00</td><td>25000.00</td><td>5000.00</td></tr><tr><td>1100</td><td>Bank - City</td><td>518850.00</td><td>288530.00</td><td>230320.00</td></tr><tr><td>1200</td><td>Shares at cost</td><td>257500.00</td><td>10300.00</td><td>247200.00</td></tr><tr><td>2000</td><td>Broker payable</td><td>257500.00</td><td>257500.00</td><td>0.00</td></tr><tr><td>3000</td><td>Owner capital</td><td>0</td><td>500000.00</td><td>-500000.00</td></tr><tr><td>4000</td><td>Dividend income</td><td>0</td><td>6250.00</td><td>-6250.00</td></tr><tr><td>4100</td><td>Gain on sale</td><td>0</td><td>2300.00</td><td>-2300.00</td></tr><tr><td>5000</td><td>Broker commission</td><td>1030.00</td><td>0</td><td>1030.00</td></tr><tr><td>5100</td><td>Office rent</td><td>25000.00</td><td>0</td><td>25000.00</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: App users per plan, with NULL cities counted apart</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT plan, count(*) AS users, count(city) AS with_city, min(created_at) AS first_signup
+FROM app_users
+GROUP BY plan
+ORDER BY users DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th><th>users (LONG)</th><th>with_city (LONG)</th><th>first_signup (TIMESTAMP)</th></tr></thead><tbody><tr><td>free</td><td>4</td><td>2</td><td>2026-02-11T03:45:00.000Z</td></tr><tr><td>pro</td><td>3</td><td>3</td><td>2026-01-05T04:15:00.000Z</td></tr><tr><td>admin</td><td>1</td><td>1</td><td>2026-01-01T03:15:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Posts per forum thread</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT t.title, count(*) AS posts, max(p.created_at) AS last_post
+FROM posts p
+JOIN threads t ON t.id = p.thread_id
+GROUP BY t.title
+ORDER BY posts DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>title (STRING)</th><th>posts (LONG)</th><th>last_post (TIMESTAMP)</th></tr></thead><tbody><tr><td>Is CITY a good buy?</td><td>6</td><td>2026-09-01T06:15:00.000Z</td></tr><tr><td>Hydropower IPOs this month</td><td>2</td><td>2026-09-02T03:25:00.000Z</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Sort by a calculation of the output columns: average trade size</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS n, sum(quantity) AS q
+FROM trade_log
+GROUP BY symbol
+ORDER BY q / n DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>n (LONG)</th><th>q (LONG)</th></tr></thead><tbody><tr><td>TELCO</td><td>6</td><td>2770</td></tr><tr><td>COAST</td><td>11</td><td>3070</td></tr><tr><td>CITY</td><td>11</td><td>2420</td></tr><tr><td>VOLT</td><td>4</td><td>400</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: No rows: GROUP BY gives nothing, a plain aggregate gives one row</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades FROM trade_log WHERE symbol = &#39;ACME&#39; GROUP BY symbol;
+SELECT count(*) AS trades, sum(quantity) AS shares FROM trade_log WHERE symbol = &#39;ACME&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol, count(*) AS trades FROM trade_log WHERE symbol = &#39;ACME&#39; GROUP BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><code>SELECT count(*) AS trades, sum(quantity) AS shares FROM trade_log WHERE symbol = &#39;ACME&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades (LONG)</th><th>shares (STRING)</th></tr></thead><tbody><tr><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An alias as the GROUP BY key</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;month&#39;, time) AS month, count(*) AS candles FROM ochl_day GROUP BY month ORDER BY month;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>month (TIMESTAMP)</th><th>candles (LONG)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>12</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>21</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>24</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: GROUP BY 1: the first column of the select list</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sum(quantity) AS shares FROM trade_log GROUP BY 1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>2420</td></tr><tr><td>COAST</td><td>3070</td></tr><tr><td>TELCO</td><td>2770</td></tr><tr><td>VOLT</td><td>400</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: A window function over the groups: each symbol&#39;s share of all trades</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades,
+       round(count(*) * 100.0 / sum(count(*)) OVER (), 1) AS pct
+FROM trade_log
+GROUP BY symbol
+ORDER BY trades DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>pct (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>34.4</td></tr><tr><td>COAST</td><td>11</td><td>34.4</td></tr><tr><td>TELCO</td><td>6</td><td>18.8</td></tr><tr><td>VOLT</td><td>4</td><td>12.5</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Rank the groups: a window function over sum()</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sum(quantity) AS shares,
+       rank() OVER (ORDER BY sum(quantity) DESC) AS place
+FROM trade_log
+GROUP BY symbol
+ORDER BY place;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th><th>place (LONG)</th></tr></thead><tbody><tr><td>COAST</td><td>3070</td><td>1</td></tr><tr><td>TELCO</td><td>2770</td><td>2</td></tr><tr><td>CITY</td><td>2420</td><td>3</td></tr><tr><td>VOLT</td><td>400</td><td>4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Month after month: lag() of the monthly average</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;month&#39;, time) AS month,
+       round(avg(close), 2) AS avg_close,
+       round(lag(avg(close)) OVER (ORDER BY date_trunc(&#39;month&#39;, time)), 2) AS previous_month
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+GROUP BY date_trunc(&#39;month&#39;, time)
+ORDER BY month;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>month (TIMESTAMP)</th><th>avg_close (DOUBLE)</th><th>previous_month (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>540.9</td><td>NULL</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>508.49</td><td>540.9</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>500.18</td><td>508.49</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="grouping-sets">ROLLUP, CUBE and GROUPING SETS</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GROUP BY ROLLUP (a, b)
+GROUP BY CUBE (a, b)
+GROUP BY GROUPING SETS ((a, b), (a), ())
+GROUP BY key, ROLLUP (a, b)
+GROUPING(a [, b ...])</code></pre>
+<p>Subtotals and a grand total in one query, as in PostgreSQL. The query groups once for each <strong>grouping set</strong> and gives the rows of all of them together.</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>The grouping sets</th></tr></thead><tbody><tr><td><code>ROLLUP (a, b)</code></td><td><code>(a, b)</code>, <code>(a)</code>, <code>()</code>: the groups, a subtotal per <code>a</code>, the grand total</td></tr><tr><td><code>CUBE (a, b)</code></td><td><code>(a, b)</code>, <code>(a)</code>, <code>(b)</code>, <code>()</code>: every combination</td></tr><tr><td><code>GROUPING SETS ((a, b), (a), ())</code></td><td>exactly the sets listed; <code>()</code> is the grand total</td></tr><tr><td><code>key, ROLLUP (a, b)</code></td><td><code>key</code> is in every set: <code>(key, a, b)</code>, <code>(key, a)</code>, <code>(key)</code></td></tr><tr><td><code>ROLLUP (a, (b, c))</code></td><td><code>(b, c)</code> counts as one item: <code>(a, b, c)</code>, <code>(a)</code>, <code>()</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the rows of each set, one set after the other. A key that is <strong>not in the row&#39;s set is <code>NULL</code></strong> there. Aggregates still use the real values of all the rows of the group.</li><li><code>GROUPING(a, b)</code> tells a subtotal <code>NULL</code> from a <code>NULL</code> in the data: one bit per argument, <code>1</code> when that key is not grouped in the row&#39;s set. The leftmost argument is the highest bit, so with <code>ROLLUP (a, b)</code> it is <code>0</code> for the groups, <code>1</code> for the subtotals and <code>3</code> for the grand total. Its arguments must be <code>GROUP BY</code> keys.</li><li><code>ORDER BY</code>, <code>LIMIT</code> and <code>DISTINCT</code> are for the whole result. <code>ORDER BY</code> may use a result column, an aggregate or <code>GROUPING(...)</code>.</li><li>The grand total <code>()</code> always gives one row, even when no row matches.</li><li><strong>Notes:</strong> a key may be a column, an expression, an alias or a position (<code>ROLLUP (1)</code>). <code>CUBE</code> takes at most 12 items; a query may have at most 4096 sets.</li><li>Not with <code>SAMPLE BY</code>, <code>LATEST ON</code>, <code>DISTINCT ON</code>, <code>SELECT *</code> or window functions (group in a subquery, and put the window outside).</li></ul>
+<p><strong>Example: Shares per symbol and buyer, a subtotal per symbol, and the grand total</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, buyer, sum(quantity) AS shares, GROUPING(symbol, buyer) AS level
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39; AND buyer IN (1, 58)
+GROUP BY ROLLUP (symbol, buyer)
+ORDER BY level, symbol, buyer;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>buyer (INT)</th><th>shares (LONG)</th><th>level (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>1</td><td>170</td><td>0</td></tr><tr><td>COAST</td><td>1</td><td>200</td><td>0</td></tr><tr><td>COAST</td><td>58</td><td>560</td><td>0</td></tr><tr><td>TELCO</td><td>1</td><td>50</td><td>0</td></tr><tr><td>VOLT</td><td>1</td><td>150</td><td>0</td></tr><tr><td>VOLT</td><td>58</td><td>200</td><td>0</td></tr><tr><td>CITY</td><td>NULL</td><td>170</td><td>1</td></tr><tr><td>COAST</td><td>NULL</td><td>760</td><td>1</td></tr><tr><td>TELCO</td><td>NULL</td><td>50</td><td>1</td></tr><tr><td>VOLT</td><td>NULL</td><td>350</td><td>1</td></tr><tr><td>NULL</td><td>NULL</td><td>1330</td><td>3</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<p><strong>Example: CUBE: totals per symbol, per buyer, and both</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, buyer, count(*) AS trades
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39; AND buyer IN (1, 58) AND symbol IN (&#39;CITY&#39;, &#39;VOLT&#39;)
+GROUP BY CUBE (symbol, buyer)
+ORDER BY GROUPING(symbol, buyer), symbol, buyer;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>buyer (INT)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>1</td><td>3</td></tr><tr><td>VOLT</td><td>1</td><td>2</td></tr><tr><td>VOLT</td><td>58</td><td>1</td></tr><tr><td>CITY</td><td>NULL</td><td>3</td></tr><tr><td>VOLT</td><td>NULL</td><td>3</td></tr><tr><td>NULL</td><td>1</td><td>5</td></tr><tr><td>NULL</td><td>58</td><td>1</td></tr><tr><td>NULL</td><td>NULL</td><td>6</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: GROUPING SETS: a row per month, a row per symbol, and the grand total</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;month&#39;, time) AS month, symbol, round(avg(close), 2) AS avg_close
+FROM ochl_day
+WHERE symbol IN (&#39;CITY&#39;, &#39;VOLT&#39;)
+GROUP BY GROUPING SETS ((month), (symbol), ())
+ORDER BY month, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>month (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>avg_close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>NULL</td><td>367.29</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>NULL</td><td>342.06</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>NULL</td><td>339.74</td></tr><tr><td>NULL</td><td>CITY</td><td>511.81</td></tr><tr><td>NULL</td><td>VOLT</td><td>180.97</td></tr><tr><td>NULL</td><td>NULL</td><td>346.39</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: GROUPING() names the total rows</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT CASE WHEN GROUPING(symbol) = 1 THEN &#39;all symbols&#39; ELSE symbol END AS symbol, sum(quantity) AS shares
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY ROLLUP (symbol)
+ORDER BY GROUPING(symbol), shares DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th></tr></thead><tbody><tr><td>COAST</td><td>2850</td></tr><tr><td>CITY</td><td>910</td></tr><tr><td>TELCO</td><td>770</td></tr><tr><td>VOLT</td><td>400</td></tr><tr><td>all symbols</td><td>4930</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: GROUPING() needs a GROUP BY key</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol, GROUPING(buyer), count(*) FROM trade_log GROUP BY ROLLUP (symbol);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 25: GROUPING(buyer): the argument must be one of the GROUP BY expressions</code></p>
+<h2 id="big-group-by">Big GROUP BY: many groups and memory</h2>
+<p>A <code>GROUP BY</code> can make millions of groups, for example one per day, symbol and broker. KDB keeps it fast and keeps the server safe.</p>
+<div class="table-wrap"><table><thead><tr><th>Situation</th><th>What happens</th></tr></thead><tbody><tr><td>Up to 5 keys, each a <code>SYMBOL</code>, a whole number, a <code>DATE</code> or a <code>TIMESTAMP</code> (also <code>date_trunc</code> or <code>to_char</code> of a time)</td><td>The groups are added up a block of rows at a time, on all threads. 30 days of one row per symbol and broker (31,500 groups) take about 16 ms. Two keys that are each a <code>SYMBOL</code> or an <code>INT</code> (<code>GROUP BY symbol, buyer</code>) are kept as one number per group, which is 5-15% faster again. What else keeps a query on this fast path: <a href="performance-tips.html#many-groups">GROUP BY with many groups</a>.</td></tr><tr><td>A <code>STRING</code> or <code>DOUBLE</code> key, or 5 keys and more</td><td>The same result, but the rows are grouped one by one, which is slower.</td></tr><tr><td>The groups need more than <strong>half of <code>--max-result-memory</code></strong> (1 GB by default), or more than <code>SET work_mem</code></td><td>Row by row: the rows of the groups that do not fit yet are written to sorted temporary files in the database folder (<code>_tmp/</code>) and added up after the scan, one group at a time. On the fast path (since 2026-10-02): the groups themselves, with their totals so far, go to 64 temporary files chosen by the key, and each file is finished on its own after the scan; about twice the time of the same query in memory, instead of many times. <strong>The result is the same, only slower</strong> (a sum of <code>DOUBLE</code> values may differ in its last digit). The files are removed when the query ends.</td></tr><tr><td>The temporary files would pass <strong>16 GB</strong> for one query</td><td>The query stops: <code>the GROUP BY needs more than 16384 MB of temporary files (max_spill_bytes)</code>.</td></tr><tr><td>More than <code>--max-groups</code> groups (5,000,000 by default)</td><td>The query stops: <code>the query makes more than N groups (max_groups)</code>.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>SAMPLE BY</code> and a read-only database never write temporary files: they keep every group in memory, and only <code>--max-groups</code> stops them.</li><li><code>ORDER BY ... LIMIT</code> over hundreds of thousands of groups still turns every group into a row before the sort, so it is slower than the same query without <code>ORDER BY</code>.</li><li>The limits are server settings: see <a href="protection.html">protection</a> and <a href="limits.html">limits</a>.</li><li>To make fewer groups: add a <code>WHERE</code> on time, group by fewer columns, or use a longer <a href="sample-by.html">SAMPLE BY</a> interval.</li></ul>
+<h2 id="implicit-group-by">Implicit GROUP BY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT key, ..., aggregate(...), ... FROM ... [WHERE ...]</code></pre>
+<p>Like QuestDB, KDB does not need the words <code>GROUP BY</code>. When the select list has an aggregate and there is no <code>GROUP BY</code>, <strong>every select item that is not an aggregate becomes a group key</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Select list</th><th>Groups by</th></tr></thead><tbody><tr><td><code>symbol, max(high)</code></td><td><code>symbol</code></td></tr><tr><td><code>symbol, buyer, sum(quantity)</code></td><td><code>symbol, buyer</code></td></tr><tr><td><code>upper(symbol) AS s, count(*)</code></td><td><code>upper(symbol)</code></td></tr><tr><td><code>count(*), sum(volume)</code></td><td>nothing: one row for all rows</td></tr><tr><td><code>&#39;orders&#39; AS t, count(*)</code></td><td>nothing: a fixed value is not a key, so there is one row even when no row matches (as in PostgreSQL)</td></tr><tr><td><code>time, symbol, last(close) ... SAMPLE BY 1d</code></td><td><code>symbol</code> (the time column is the bucket)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the same as the query with <code>GROUP BY</code> of those items.</li><li><strong>Notes:</strong> in PostgreSQL this is an error. In KDB it is allowed, but <strong>every extra column adds a key</strong>: adding <code>close</code> to <code>SELECT symbol, count(*)</code> splits the groups by close price. Writing <code>GROUP BY</code> makes the query clearer for readers.</li></ul>
+<p><strong>Example: No GROUP BY: symbol is not an aggregate, so it is the key</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, max(high) AS highest FROM ochl_day WHERE time IN &#39;2026-09&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>highest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>512.4</td></tr><tr><td>COAST</td><td>398.8</td></tr><tr><td>VOLT</td><td>192.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The same with GROUP BY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, max(high) AS highest FROM ochl_day WHERE time IN &#39;2026-09&#39; GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>highest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>512.4</td></tr><tr><td>COAST</td><td>398.8</td></tr><tr><td>VOLT</td><td>192.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Careful: one more column is one more key</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(close / 10) AS price_band, count(*) AS days
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39; AND symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>price_band (DOUBLE)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>COAST</td><td>37</td><td>3</td></tr><tr><td>COAST</td><td>38</td><td>5</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Only aggregates: one row for the whole table</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT count(*) AS lines, sum(debit) AS total_debit, sum(credit) AS total_credit FROM ledger;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>lines (LONG)</th><th>total_debit (DECIMAL(2))</th><th>total_credit (DECIMAL(2))</th></tr></thead><tbody><tr><td>17</td><td>1089880.00</td><td>1089880.00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="having">HAVING</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM ... [WHERE ...] GROUP BY ... HAVING condition</code></pre>
+<p><code>HAVING</code> keeps only the groups where the condition is true. It runs <strong>after</strong> the groups are made, so it can use aggregates. <code>WHERE</code> runs <strong>before</strong>, on single rows.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th><code>WHERE</code></th><th><code>HAVING</code></th></tr></thead><tbody><tr><td>runs on</td><td>rows</td><td>groups</td></tr><tr><td>can use aggregates (<code>sum(x) &gt; 10</code>)</td><td>no</td><td>yes</td></tr><tr><td>runs</td><td>before grouping</td><td>after grouping</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> only the groups where the condition is <code>true</code>.</li><li><strong>NULL:</strong> a condition that is <code>NULL</code> removes the group.</li><li><strong>Notes:</strong> a select <strong>alias cannot be used in <code>HAVING</code></strong>: write <code>HAVING sum(amount) &gt; 500000</code>, not <code>HAVING bought &gt; 500000</code>.</li><li><code>HAVING</code> needs <code>GROUP BY</code> or an aggregate in the query. A key column can be used too: <code>HAVING symbol LIKE &#39;N%&#39;</code> (but <code>WHERE</code> is faster for that).</li><li>Put conditions on single rows in <code>WHERE</code>: fewer rows are grouped, and time conditions skip partitions.</li></ul>
+<p><strong>Example: Symbols with 800 shares or more on 2026-09-10</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sum(quantity) AS shares, count(*) AS trades
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY symbol
+HAVING sum(quantity) &gt;= 800
+ORDER BY shares DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>COAST</td><td>2850</td><td>9</td></tr><tr><td>CITY</td><td>910</td><td>7</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Symbols that moved more than 20 dollars in September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, max(high) - min(low) AS price_range
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol
+HAVING max(high) - min(low) &gt; 20;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>price_range (DOUBLE)</th></tr></thead><tbody><tr><td>COAST</td><td>34.7</td></tr><tr><td>VOLT</td><td>24.8</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Journal entries that do not balance (none, in a correct book)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT entry_id, sum(debit) AS debit, sum(credit) AS credit
+FROM ledger
+GROUP BY entry_id
+HAVING sum(debit) != sum(credit);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>entry_id (INT)</th><th>debit (STRING)</th><th>credit (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><strong>Example: Cities with two or more app users</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT city, count(*) AS users
+FROM app_users
+WHERE city IS NOT NULL
+GROUP BY city
+HAVING count(*) &gt;= 2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>users (LONG)</th></tr></thead><tbody><tr><td>Kathmandu</td><td>2</td></tr><tr><td>Pokhara</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: An alias cannot be used in HAVING</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT buyer, sum(amount) AS bought FROM trade_log GROUP BY buyer HAVING bought &gt; 500000;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 74: unknown column &#39;bought&#39; (table &#39;trade_log&#39; has: date transaction_id symbol buyer seller quantity rate amount)</code></p>
+<p><strong>Example: HAVING without groups or aggregates</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol FROM trade_log HAVING symbol = &#39;TELCO&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 44: HAVING needs GROUP BY or aggregates</code></p>
+<h2 id="not-grouped">Columns that are not grouped</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT key, other_column, aggregate(...) FROM ... GROUP BY key</code></pre>
+<p>In PostgreSQL, a column in the select list that is neither a <code>GROUP BY</code> key nor inside an aggregate is an error. <strong>KDB gives no error.</strong> It shows the value of <strong>one row of the group</strong> (the first row it read), which is usually not the value you want.</p>
+<ul><li><strong>Notes:</strong> do not use this. Put the column in <code>GROUP BY</code>, or use an aggregate that says which value you want: <code>first(x)</code>, <code>last(x)</code> (by time), <code>min(x)</code>, <code>max(x)</code>.</li><li>Without <code>GROUP BY</code>, the same column becomes a key instead (see <a href="group-by.html#implicit-group-by">implicit GROUP BY</a>).</li></ul>
+<p><strong>Example: time is not grouped: KDB shows the time of one row (2025-12-28), not of the highest price</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, time, max(high) AS highest FROM ochl_day GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>highest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2025-12-28T00:00:00.000Z</td><td>546.2</td></tr><tr><td>COAST</td><td>2025-12-28T00:00:00.000Z</td><td>429.9</td></tr><tr><td>VOLT</td><td>2025-12-28T00:00:00.000Z</td><td>199.7</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Say what you want: the first and the last day of each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, min(time) AS first_day, max(time) AS last_day, max(high) AS highest
+FROM ochl_day
+GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>first_day (TIMESTAMP)</th><th>last_day (TIMESTAMP)</th><th>highest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2025-12-28T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td><td>546.2</td></tr><tr><td>COAST</td><td>2025-12-28T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td><td>429.9</td></tr><tr><td>VOLT</td><td>2025-12-28T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td><td>199.7</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The latest close of each symbol: last(close) uses the time order</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, last(close) AS latest_close, first(close) AS first_close
+FROM ochl_day
+GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>latest_close (DOUBLE)</th><th>first_close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>542.2</td></tr><tr><td>COAST</td><td>376.1</td><td>424.8</td></tr><tr><td>VOLT</td><td>191.2</td><td>191.7</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/group-by.md">This page as markdown</a>.</footer>
+</body>
+</html>

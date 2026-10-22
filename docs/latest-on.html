@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LATEST ON - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Keep only the newest row of each symbol (or of each group of columns).">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/latest-on.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/latest-on.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="latest-on">LATEST ON</h1>
+<blockquote><p>Keep only the newest row of each symbol (or of each group of columns).</p></blockquote>
+<ul><li>Category: Time-series</li><li>Keywords: LATEST, LATEST ON, PARTITION BY, newest row, last row, latest price, last price, LTP, live prices, last login, most recent, LATEST BY, QuestDB, top movers, gainers</li><li>See also: <a href="sample-by.html">SAMPLE BY</a>, <a href="where.html">WHERE</a>, <a href="time-and-time-zones.html">Time and time zones</a>, <a href="candles-cookbook.html#top-gainers">Candles cookbook (top-gainers)</a>, <a href="joins.html#asof-join">Joins (asof-join)</a></li></ul>
+<p><code>LATEST ON</code> keeps <strong>one row per group: the row with the newest time</strong>. The usual use is &quot;the last price of every symbol&quot; from a table of live price snapshots.</p>
+<ul><li>Write it after <code>WHERE</code> and before <code>SAMPLE BY</code>, <code>GROUP BY</code> and <code>ORDER BY</code>.</li><li>It works like QuestDB&#39;s <code>LATEST ON ... PARTITION BY ...</code>, so queries from the 006 app run unchanged.</li></ul>
+<p><strong>Example: Live market: the last snapshot of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, ltp, point_change, pct_change, timestamp
+FROM live_data
+LATEST ON timestamp PARTITION BY symbol
+ORDER BY pct_change DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>point_change (DOUBLE)</th><th>pct_change (DOUBLE)</th><th>timestamp (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>13.9</td><td>2.71</td><td>2026-09-10T09:14:00.000Z</td></tr><tr><td>TELCO</td><td>897.7</td><td>16.7</td><td>1.9</td><td>2026-09-10T09:14:00.000Z</td></tr><tr><td>COAST</td><td>401.9</td><td>2.8</td><td>0.7</td><td>2026-09-10T09:14:00.000Z</td></tr><tr><td>VOLT</td><td>184</td><td>-1.6</td><td>-0.86</td><td>2026-09-10T09:14:00.000Z</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="latest-on-2">LATEST ON</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ...
+FROM table
+[WHERE condition]
+LATEST ON time_column PARTITION BY column [, column ...]
+[GROUP BY ...] [HAVING ...]
+[ORDER BY ...] [LIMIT n]</code></pre>
+<p>For each different value of the <code>PARTITION BY</code> columns, keeps only the row with the biggest <code>time_column</code>. All other rows are dropped before the SELECT list is computed.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>time_column</code></td><td><code>TIMESTAMP</code> or <code>DATE</code> column</td><td>&quot;newest&quot; means the biggest value of this column</td></tr><tr><td><code>column, ...</code></td><td>column names</td><td>the groups: one row is kept per different value (or per different combination of values)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per group. Without <code>ORDER BY</code>, the rows come oldest first (by the kept time). Add <code>ORDER BY</code> when the order matters.</li><li><strong>NULL:</strong> rows whose time is <code>NULL</code> are skipped. A <code>NULL</code> in a <code>PARTITION BY</code> column is a group of its own.</li><li><strong>Notes:</strong>
+<ul><li><code>PARTITION BY</code> here means &quot;per group&quot;. It has nothing to do with the <code>PARTITION BY</code> of <code>CREATE TABLE</code> (the files on disk).</li><li>It works on one table, a view, or a subquery with an alias. It does <strong>not</strong> work with joins.</li><li>It also works on relational tables that have a <code>TIMESTAMP</code> column (for example the last login of every user).</li><li>When two rows of a group have the same newest time, KDB keeps the one it reads last.</li><li>On a table split by symbol (<code>PARTITION BY ..., SYMBOL(symbol)</code>, see <a href="partitions-and-dedup.html#partition-by-symbol">partitions</a>), <code>LATEST ON time PARTITION BY symbol</code> reads only the last rows of each symbol&#39;s newest file, on all threads, not the whole table. With <code>PARTITION BY YEAR</code> or <code>MONTH</code> that holds without a <code>WHERE</code> or with only <code>symbol = ...</code> / <code>symbol IN (...)</code>; other conditions read the files in full.</li><li><code>WHERE</code> runs <strong>before</strong> <code>LATEST ON</code> (see <a href="latest-on.html#where-first">the next part</a>).</li><li>Aggregates, window functions, <code>ORDER BY</code> and <code>LIMIT</code> run <strong>after</strong> it, on the kept rows only.</li><li>The column names must be plain names: <code>PARTITION BY upper(symbol)</code> is not allowed.</li><li>QuestDB&#39;s older <code>LATEST BY symbol</code> works too: it is <code>LATEST ON</code> the table&#39;s own time column <code>PARTITION BY symbol</code>. It needs a time-series table (one with <code>TIMESERIES(...)</code>), and it may stand before or after <code>WHERE</code>; the <code>WHERE</code> still picks the rows first.</li><li>KDB keeps one row per group while it reads. More groups than <code>--max-groups</code> (5,000,000 by default) stop the query with <code>the query makes more than N groups (max_groups)</code>; see <a href="protection.html">protection</a>.</li></ul></li></ul>
+<p><strong>Example: The newest daily candle of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, volume
+FROM ochl_day
+LATEST ON time PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>183040</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>186200</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>41470</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Two columns: the last trade of each broker in each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT buyer, symbol, date, transaction_id, quantity, rate
+FROM trade_log
+LATEST ON date PARTITION BY buyer, symbol
+ORDER BY buyer, symbol
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>symbol (SYMBOL)</th><th>date (TIMESTAMP)</th><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>100024</td><td>100</td><td>514.5</td></tr><tr><td>1</td><td>COAST</td><td>2026-09-10T00:00:00.000Z</td><td>100026</td><td>200</td><td>400</td></tr><tr><td>1</td><td>TELCO</td><td>2026-09-10T00:00:00.000Z</td><td>100021</td><td>50</td><td>878</td></tr><tr><td>1</td><td>VOLT</td><td>2026-09-10T00:00:00.000Z</td><td>100020</td><td>100</td><td>187</td></tr><tr><td>34</td><td>CITY</td><td>2026-09-09T00:00:00.000Z</td><td>100004</td><td>500</td><td>514.5</td></tr><tr><td>34</td><td>COAST</td><td>2026-09-10T00:00:00.000Z</td><td>100009</td><td>50</td><td>400</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: App users: the last person who logged in from each city</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT city, username, last_login
+FROM app_users
+LATEST ON last_login PARTITION BY city
+ORDER BY last_login DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>username (STRING)</th><th>last_login (TIMESTAMP)</th></tr></thead><tbody><tr><td>Lalitpur</td><td>bikash</td><td>2026-09-11T04:20:00.000Z</td></tr><tr><td>Dharan</td><td>gita</td><td>2026-09-11T00:45:00.000Z</td></tr><tr><td>Kathmandu</td><td>ram</td><td>2026-09-10T14:30:00.000Z</td></tr><tr><td>Pokhara</td><td>suman</td><td>2026-09-10T03:55:00.000Z</td></tr><tr><td>NULL</td><td>anita</td><td>2026-08-30T06:15:00.000Z</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: News: the newest article of each company</strong> (sample data: content-news)</p>
+<pre><code class="language-sql">SELECT symbol, published_at, title
+FROM news
+LATEST ON published_at PARTITION BY symbol
+ORDER BY published_at DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>published_at (TIMESTAMP)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>COAST</td><td>2026-09-02T03:15:00.000Z</td><td>Coastal Bank merger talks</td></tr><tr><td>NULL</td><td>2026-09-01T02:15:00.000Z</td><td>Market index closes at 2,840</td></tr><tr><td>VOLT</td><td>2026-08-15T04:15:00.000Z</td><td>Hydropower company plans IPO</td></tr><tr><td>CITY</td><td>2026-08-01T05:45:00.000Z</td><td>सिटी बैंकको नाफा बढ्यो</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Accounting: the last journal line of each account</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT account, entry_date, debit, credit, memo
+FROM ledger
+LATEST ON entry_date PARTITION BY account
+ORDER BY account;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>account (INT)</th><th>entry_date (TIMESTAMP)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th><th>memo (STRING)</th></tr></thead><tbody><tr><td>1000</td><td>2026-09-05T00:00:00.000Z</td><td>NULL</td><td>25000.00</td><td>September rent</td></tr><tr><td>1100</td><td>2026-09-10T00:00:00.000Z</td><td>12600.00</td><td>NULL</td><td>Sell 20 CITY at 630</td></tr><tr><td>1200</td><td>2026-09-10T00:00:00.000Z</td><td>NULL</td><td>10300.00</td><td>Sell 20 CITY at 630</td></tr><tr><td>2000</td><td>2026-09-03T00:00:00.000Z</td><td>257500.00</td><td>NULL</td><td>Pay the broker</td></tr><tr><td>3000</td><td>2026-09-01T00:00:00.000Z</td><td>NULL</td><td>500000.00</td><td>Owner puts money in the bank</td></tr><tr><td>4000</td><td>2026-09-08T00:00:00.000Z</td><td>NULL</td><td>6250.00</td><td>CITY cash dividend</td></tr><tr><td>4100</td><td>2026-09-10T00:00:00.000Z</td><td>NULL</td><td>2300.00</td><td>Sell 20 CITY at 630</td></tr><tr><td>5000</td><td>2026-09-03T00:00:00.000Z</td><td>1030.00</td><td>NULL</td><td>Commission on the CITY buy</td></tr><tr><td>5100</td><td>2026-09-05T00:00:00.000Z</td><td>25000.00</td><td>NULL</td><td>September rent</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<h2 id="where-first">WHERE with LATEST ON</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM table
+WHERE condition
+LATEST ON time_column PARTITION BY column, ...</code></pre>
+<p><code>WHERE</code> removes rows first. <code>LATEST ON</code> then picks the newest of the rows that are left. So <code>WHERE</code> changes <strong>which</strong> row is the newest.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>&quot;The last price before 13:30 Nepal time&quot; is <code>WHERE timestamp &lt; &#39;...13:30:00+05:45&#39;</code>, then <code>LATEST ON</code>.</li><li>&quot;The last price today&quot; is <code>WHERE timestamp IN &#39;2026-09-10&#39;</code>: a symbol with no row today is not in the result at all.</li><li>To filter the <strong>kept</strong> rows (for example &quot;only symbols that are up now&quot;), put the LATEST ON query in a subquery and write the condition outside. A condition in <code>WHERE</code> would pick an older row instead.</li><li>A time condition in <code>WHERE</code> also makes the query fast: KDB reads only the partitions of that time.</li></ul></li></ul>
+<p><strong>Example: The last price of each symbol before 13:30 Nepal time</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, ltp, timestamp
+FROM live_data
+WHERE timestamp &lt; &#39;2026-09-10T13:30:00+05:45&#39;
+LATEST ON timestamp PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>timestamp (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>515.6</td><td>2026-09-10T07:15:00.000Z</td></tr><tr><td>COAST</td><td>391.4</td><td>2026-09-10T07:15:00.000Z</td></tr><tr><td>TELCO</td><td>869</td><td>2026-09-10T07:15:00.000Z</td></tr><tr><td>VOLT</td><td>185</td><td>2026-09-10T07:15:00.000Z</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The same text as the 006 app (live_movers.go)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, ltp, point_change, pct_change, volume
+FROM live_data
+WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;) AND timestamp &gt;= &#39;2026-09-10T00:00:00.000000Z&#39;
+LATEST ON timestamp PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>point_change (DOUBLE)</th><th>pct_change (DOUBLE)</th><th>volume (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>13.9</td><td>2.71</td><td>75490</td></tr><tr><td>COAST</td><td>401.9</td><td>2.8</td><td>0.7</td><td>35210</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Wrong and right: symbols whose LAST change is below zero</strong> (sample data: sample)</p>
+<pre><code class="language-sql">-- Wrong: WHERE runs first, so you get the last FALLING row of each symbol (old rows).
+SELECT symbol, pct_change, timestamp
+FROM live_data
+WHERE pct_change &lt; 0
+LATEST ON timestamp PARTITION BY symbol;
+
+-- Right: take the newest row first, then filter.
+SELECT symbol, pct_change, timestamp
+FROM (SELECT symbol, pct_change, timestamp FROM live_data LATEST ON timestamp PARTITION BY symbol) t
+WHERE pct_change &lt; 0;</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol, pct_change, timestamp FROM live_data WHERE pct_change &lt; 0 LATEST ON timestamp PARTITI</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>pct_change (DOUBLE)</th><th>timestamp (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>-0.04</td><td>2026-09-10T05:20:00.000Z</td></tr><tr><td>COAST</td><td>-1.93</td><td>2026-09-10T07:15:00.000Z</td></tr><tr><td>TELCO</td><td>-1.36</td><td>2026-09-10T07:15:00.000Z</td></tr><tr><td>VOLT</td><td>-0.86</td><td>2026-09-10T09:14:00.000Z</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SELECT symbol, pct_change, timestamp FROM (SELECT symbol, pct_change, timestamp FROM live_data LATES</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>pct_change (DOUBLE)</th><th>timestamp (TIMESTAMP)</th></tr></thead><tbody><tr><td>VOLT</td><td>-0.86</td><td>2026-09-10T09:14:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The last close of 2025 (the year before)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_day
+WHERE time IN &#39;2025&#39;
+LATEST ON time PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-31T00:00:00.000Z</td><td>CITY</td><td>542.4</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>COAST</td><td>426.5</td></tr><tr><td>2025-12-31T00:00:00.000Z</td><td>VOLT</td><td>194.3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="latest-on-other-clauses">LATEST ON with other clauses</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM table [WHERE ...]
+LATEST ON time_column PARTITION BY column, ...
+[ORDER BY ...] [LIMIT n]</code></pre>
+<p>The other parts of the query see only the kept rows.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li><code>ORDER BY ... LIMIT n</code> after LATEST ON gives a &quot;top n&quot; list of the newest rows.</li><li><code>count(*)</code> after LATEST ON counts the kept rows, so it is <code>1</code> per group.</li><li>A view or a subquery can be the source: <code>FROM (SELECT ...) t LATEST ON ...</code>.</li></ul></li></ul>
+<p><strong>Example: Top 2 gainers right now</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, ltp, pct_change
+FROM live_data
+LATEST ON timestamp PARTITION BY symbol
+ORDER BY pct_change DESC
+LIMIT 2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>2.71</td></tr><tr><td>TELCO</td><td>897.7</td><td>1.9</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Up or down, with CASE</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, pct_change,
+       CASE WHEN pct_change &gt; 0 THEN &#39;up&#39; WHEN pct_change &lt; 0 THEN &#39;down&#39; ELSE &#39;flat&#39; END AS direction
+FROM live_data
+LATEST ON timestamp PARTITION BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>pct_change (DOUBLE)</th><th>direction (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>2.71</td><td>up</td></tr><tr><td>COAST</td><td>0.7</td><td>up</td></tr><tr><td>TELCO</td><td>1.9</td><td>up</td></tr><tr><td>VOLT</td><td>-0.86</td><td>down</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Aggregates run after LATEST ON: one row per symbol is left</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS rows_left
+FROM live_data
+LATEST ON timestamp PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>rows_left (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>1</td></tr><tr><td>COAST</td><td>1</td></tr><tr><td>TELCO</td><td>1</td></tr><tr><td>VOLT</td><td>1</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="latest-on-errors">Errors</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">LATEST ON time_column PARTITION BY column, ...</code></pre>
+<p>The common mistakes and their messages.</p>
+<div class="table-wrap"><table><thead><tr><th>Mistake</th><th>Message</th></tr></thead><tbody><tr><td><code>LATEST ON timestamp</code> without <code>PARTITION BY</code></td><td><code>expected PARTITION BY after LATEST ON timestamp</code></td></tr><tr><td>the column after <code>LATEST ON</code> is not a time</td><td><code>LATEST ON needs a TIMESTAMP or DATE column</code></td></tr><tr><td>an unknown column</td><td><code>LATEST ON: unknown column &#39;...&#39;</code></td></tr><tr><td>a query with a <code>JOIN</code></td><td><code>LATEST ON works on a single table (no joins)</code></td></tr><tr><td><code>LATEST BY</code> on a table without a time column</td><td><code>LATEST BY needs a table with a time column</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> to use LATEST ON rows in a join, put the LATEST ON query in a subquery and join the subquery.</li></ul>
+<p><strong>Example: PARTITION BY is needed</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol, ltp FROM live_data LATEST ON timestamp;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 54: expected PARTITION BY after LATEST ON timestamp, as in LATEST ON timestamp PARTITION BY symbol, but found &#39;;&#39;</code></p>
+<p><strong>Example: The column must be a time</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol, ltp FROM live_data LATEST ON symbol PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<p>Error: <code>LATEST ON needs a TIMESTAMP or DATE column, &#39;symbol&#39; is SYMBOL</code></p>
+<p><strong>Example: No joins</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT l.symbol, s.name, l.ltp
+FROM live_data l JOIN securities s ON s.symbol = l.symbol
+LATEST ON timestamp PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<p>Error: <code>LATEST ON works on a single table (no joins)</code></p>
+<p><strong>Example: The fix: LATEST ON in a subquery, then the join</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT l.symbol, s.name, l.ltp, l.pct_change
+FROM (SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol) l
+JOIN securities s ON s.symbol = l.symbol
+ORDER BY l.pct_change DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td><td>527.1</td><td>2.71</td></tr><tr><td>TELCO</td><td>Northwind Telecom Limited</td><td>897.7</td><td>1.9</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td><td>401.9</td><td>0.7</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>184</td><td>-0.86</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: QuestDB&#39;s LATEST BY: the same as LATEST ON the time column</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, ltp FROM live_data LATEST BY symbol ORDER BY symbol;
+SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol, ltp FROM live_data LATEST BY symbol ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td></tr><tr><td>COAST</td><td>401.9</td></tr><tr><td>TELCO</td><td>897.7</td></tr><tr><td>VOLT</td><td>184</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td></tr><tr><td>COAST</td><td>401.9</td></tr><tr><td>TELCO</td><td>897.7</td></tr><tr><td>VOLT</td><td>184</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: LATEST BY needs a time-series table</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT id FROM brokers LATEST BY id;</code></pre>
+<p>Result:</p>
+<p>Error: <code>LATEST BY needs a table with a time column (a TIMESERIES table); for other tables write LATEST ON &lt;time column&gt; PARTITION BY ...</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/latest-on.md">This page as markdown</a>.</footer>
+</body>
+</html>

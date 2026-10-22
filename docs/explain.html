@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EXPLAIN - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="See how KDB will read the tables for a query, without running it; with ANALYZE, run it and see what really happened.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/explain.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/explain.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="explain">EXPLAIN</h1>
+<blockquote><p>See how KDB will read the tables for a query, without running it; with ANALYZE, run it and see what really happened.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: EXPLAIN, plan, query plan, EXPLAIN ANALYZE, ANALYZE, actual rows, Execution Time, Planning Time, EXPLAIN (FORMAT JSON), FORMAT JSON, BUFFERS, VERBOSE, EXPLAIN WITH, EXPLAIN DELETE, EXPLAIN UPDATE, EXPLAIN INSERT, EXPLAIN CALL, depends on runtime value, explain plan, slow query, partitions skipped, key range, full scan, hash join, nested loop, filter while scanning, filter after joins, read only key range(s), use index, no index, a scan is cheaper, skipped by column stats, zone maps, KDB_NO_ZONE_MAPS, answer from saved stats, answer from the partition list, KDB_NO_PARTITION_ANSWERS, stored column(s) per row, KDB_NO_COLUMN_MASK, engine: column, engine: row, column engine, row engine, speed</li><li>See also: <a href="select.html#from">SELECT (from)</a>, <a href="joins.html#join">Joins (join)</a>, <a href="sample-by.html#sample-by">SAMPLE BY (sample-by)</a>, <a href="latest-on.html#latest-on">LATEST ON (latest-on)</a>, <a href="partitions-and-dedup.html#partition-by">Partitions, SORT BY and DEDUP KEY (partition-by)</a>, <a href="indexes.html">Indexes</a>, <a href="union-subqueries.html#from-subquery">UNION and subqueries (from-subquery)</a>, <a href="transactions.html">Transactions</a>, <a href="server-activity.html#pg-stat-statements">pg_stat_activity and pg_stat_statements (pg-stat-statements)</a></li></ul>
+<p><code>EXPLAIN</code> shows the <strong>plan</strong> of a query: which tables KDB reads, how many partitions it skips, how it joins, groups and sorts. It does not run the query and does not show rows. <a href="explain.html#explain-analyze"><code>EXPLAIN ANALYZE</code></a> runs it and adds the real rows and times.</p>
+<p>Use it when a query is slow. The most important lines are:</p>
+<ul><li><code>scan table ... (1 of 2 partitions ...)</code>: the time filter lets KDB skip whole partition files. &quot;2 of 2&quot; on a big table means <strong>every</strong> file is read. The <code>about N rows</code> in that line is an estimate of the whole table&#39;s size, not what the query reads.</li><li><code>..., 3 skipped by column stats)</code> inside that bracket: a condition like <code>rate &gt; 900</code> ruled those partitions out from the smallest and biggest value each one holds (see <a href="explain.html#zone-maps">zone maps</a>).</li><li><code>read only N key range(s) of each partition</code>: KDB jumps straight to the rows of the symbols you asked for.</li><li><code>answer from saved stats ...</code> or <code>answer from the partition list ...</code>: KDB answers without reading the rows at all (see <a href="explain.html#saved-stats">answers without reading rows</a>).</li></ul>
+<p><strong>Example: One symbol, one month: KDB reads 1 of 2 partitions, and only CITY&#39;s rows</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="explain-2">EXPLAIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">EXPLAIN SELECT ...
+EXPLAIN WITH name AS (SELECT ...) SELECT ...</code></pre>
+<p>Shows the plan of a <code>SELECT</code>, one line per step, in a result with one column called <code>plan</code>.</p>
+<ul><li><strong>Returns:</strong> rows of text, one step per row (see <a href="explain.html#plan-lines">the plan lines</a>).</li><li><strong>Notes:</strong>
+<ul><li>The main query does <strong>not</strong> run. But KDB checks it first: an unknown table or column gives the same error as the query itself.</li><li>A subquery in <code>FROM</code>, a view, and <code>IN (SELECT ...)</code> / <code>(SELECT ...)</code> values <strong>are</strong> run, because the plan needs their results. EXPLAIN of a query on a slow view is slow too.</li><li><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> and <code>CALL</code> can be explained too: see <a href="explain.html#explain-change">EXPLAIN INSERT, UPDATE, DELETE</a> and <a href="explain.html#explain-call">EXPLAIN CALL</a>. <code>EXPLAIN SELECT ... FOR UPDATE</code> is an error.</li><li><code>EXPLAIN SELECT</code> without <code>FROM</code> gives an empty plan.</li><li>With <code>UNION ALL</code>, only the first part is described, plus a line <code>union all with N more part(s)</code>.</li><li>In the command line table format long lines are cut. Use <code>kdb sql ... --format csv</code> to see the whole plan.</li><li>A user with the <code>read</code> role can run EXPLAIN.</li></ul></li></ul>
+<p><strong>Example: Candles: filter, sample, group, sort and limit</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT time, symbol, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close
+FROM ochl_minutes
+WHERE time IN &#39;2026-09-10&#39;
+SAMPLE BY 15m
+ORDER BY symbol, time
+LIMIT 10 OFFSET 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_minutes (1 of 1 partitions, about 956 rows)</td></tr><tr><td>build 6 of 7 stored column(s) per row: time, symbol, open, high, low, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>sample by SAMPLE BY 15m</td></tr><tr><td>group by 1 key(s), 4 aggregate(s)</td></tr><tr><td>sort by 2 key(s)</td></tr><tr><td>limit 10 offset 5</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Trade log with the buyer and seller names</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT f.transaction_id, b.name AS buyer, s.name AS seller, f.amount
+FROM trade_log f
+JOIN brokers b ON f.buyer = b.id
+LEFT JOIN brokers s ON f.seller = s.id
+WHERE f.date IN &#39;2026-09-10&#39; AND b.name LIKE &#39;N%&#39;
+ORDER BY f.amount DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (1 of 2 partitions, about 32 rows)</td></tr><tr><td>join (key lookup on id) table brokers (1 of 1 partitions, about 5 rows)</td></tr><tr><td>left join (key lookup on id) table brokers (1 of 1 partitions, about 5 rows)</td></tr><tr><td>build 6 of 7 stored column(s) per row: date, transaction_id, buyer, seller, quantity, rate</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>sort by 1 key(s)</td></tr><tr><td>limit 5</td></tr><tr><td>engine: row (a join)</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Latest live price of each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table live_data (1 of 1 partitions, about 12 rows)</td></tr><tr><td>build 4 of 12 stored column(s) per row: timestamp, symbol, ltp, pct_change</td></tr><tr><td>latest row per partition on timestamp</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: A subquery in FROM is run first: the plan shows its row count</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT t.symbol, t.trades
+FROM (SELECT symbol, count(*) AS trades FROM trade_log GROUP BY symbol) t
+WHERE t.trades &gt; 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan result of t (3 rows)</td></tr><tr><td>push 1 condition(s) into subquery t as HAVING</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (reads a subquery or view result)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The query is checked: unknown columns are errors</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">EXPLAIN SELECT time, clsoe FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 22: unknown column &#39;clsoe&#39; (table &#39;ochl_day&#39; has: time symbol open high low close volume)</code></p>
+<p><strong>Example: Schema statements have no plan</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">EXPLAIN DROP TABLE trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 9: expected SELECT, WITH, INSERT, UPDATE, DELETE or CALL after EXPLAIN but found &#39;DROP&#39;</code></p>
+<h2 id="explain-analyze">EXPLAIN ANALYZE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">EXPLAIN ANALYZE [VERBOSE] SELECT ...        (ANALYSE works too, as in PostgreSQL)
+EXPLAIN (ANALYZE [true | false] [, FORMAT TEXT | JSON] [, VERBOSE] [, BUFFERS] [, COSTS] [, TIMING] [, SUMMARY] [, SETTINGS] [, WAL]) SELECT ...</code></pre>
+<p>Runs the query, then shows its plan and what really happened: the rows and the time of every part of the query, which engine read each table, the partitions read and skipped, and the memory it held.</p>
+<ul><li><strong>Returns:</strong> the plan lines of <a href="explain.html#explain">EXPLAIN</a>, then:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Line</th><th>Meaning</th></tr></thead><tbody><tr><td><code>actual: N row(s) in T ms</code></td><td>the rows the query gave, and the time it took to run</td></tr><tr><td><code>-&gt; table: N row(s) in T ms, engine: ..., partitions: k of n read (s skipped)</code></td><td>one line per part of the query that ran: the query itself, then each subquery, view, <code>WITH</code> query and <code>UNION ALL</code> part, moved in by two spaces per level. <code>engine:</code> is <code>column</code> or <code>row (why)</code>, as in <a href="explain.html#plan-lines">the plan lines</a>. <code>(no FROM)</code> for a part without a table</td></tr><tr><td><code>steps: prepare ..., scan and aggregate ..., sort ..., limit and result ...</code></td><td>where that part&#39;s time went. <code>prepare</code> binds the query and runs the subqueries it reads; the main step is <code>scan and filter</code>, <code>scan and aggregate</code>, <code>scan and sample by</code>, <code>scan and window functions</code>, <code>scan, join and filter</code> or <code>answer from the partition list</code></td></tr><tr><td><code>partitions read: N</code></td><td>partition files read in all, subqueries included</td></tr><tr><td><code>memory: M held at most</code></td><td>the most the query held at one time, by its own count of kept rows, groups and join tables (the same count the <a href="cli-serve.html#memory-limit">memory limit</a> uses)</td></tr><tr><td><code>Planning Time: T ms</code>, <code>Execution Time: T ms</code></td><td>as in PostgreSQL: making the plan (with the subqueries it runs), and running the query</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>The query really runs, with its <a href="protection.html#statement-timeout">time limit</a> and memory limits, and can be cancelled. Its rows are not sent.</li><li>Only a <code>SELECT</code> that changes nothing is run. <code>EXPLAIN ANALYZE</code> of <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> or <code>CALL</code>, of <code>SELECT ... FOR UPDATE</code>, and of <code>WITH x AS (DELETE ...) SELECT ...</code> is refused, and nothing is changed: use <code>EXPLAIN</code> without <code>ANALYZE</code> for their plan. (PostgreSQL would run them and change the data.)</li><li><code>VERBOSE</code>, <code>BUFFERS</code>, <code>COSTS</code>, <code>SUMMARY</code> and <code>SETTINGS</code> are accepted; KDB has no costs or buffer counts to add. <code>TIMING</code> and <code>WAL</code> need <code>ANALYZE</code>, as in PostgreSQL. <code>FORMAT XML</code> and <code>YAML</code> are not supported.</li><li>Times are wall-clock milliseconds of this run; run it twice to see the effect of files already in memory.</li></ul></li></ul>
+<p><strong>Example: Where the time of a candle report goes: the column engine, 1 of 2 partitions</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN ANALYZE SELECT symbol, max(high) AS high, min(low) AS low FROM ochl_day WHERE time IN &#39;2026-09&#39; GROUP BY symbol ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>build 4 of 7 stored column(s) per row: time, symbol, high, low</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>group by 1 key(s), 2 aggregate(s)</td></tr><tr><td>sort by 1 key(s)</td></tr><tr><td>engine: column</td></tr><tr><td>actual: 3 row(s) in 0.360 ms</td></tr><tr><td>-&gt; ochl_day: 3 row(s) in 0.341 ms, engine: column, partitions: 1 of 2 read (1 skipped)</td></tr><tr><td>steps: prepare 0.014 ms, scan and aggregate 0.326 ms</td></tr><tr><td>partitions read: 1</td></tr><tr><td>memory: 2016 bytes held at most (the statement&#39;s own count of the rows, groups and joins it keeps)</td></tr><tr><td>Planning Time: 0.188 ms</td></tr><tr><td>Execution Time: 0.360 ms</td></tr></tbody></table></div>
+<p>(13 rows)</p>
+<p><strong>Example: A join runs on the row engine; its subquery is a part of its own</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN ANALYZE SELECT b.name, t.trades
+FROM (SELECT buyer, count(*) AS trades FROM trade_log GROUP BY buyer) t
+JOIN brokers b ON t.buyer = b.id
+ORDER BY t.trades DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan result of t (5 rows)</td></tr><tr><td>join (hash on 1 key(s)) table brokers (1 of 1 partitions, about 5 rows)</td></tr><tr><td>sort by 1 key(s)</td></tr><tr><td>limit 3</td></tr><tr><td>engine: row (a join)</td></tr><tr><td>actual: 3 row(s) in 0.270 ms</td></tr><tr><td>-&gt; t, brokers: 3 row(s) in 0.259 ms, engine: row (a join)</td></tr><tr><td>steps: prepare 0.054 ms, scan, join and filter 0.194 ms, sort 0.008 ms, limit and result 0.002 ms</td></tr><tr><td>-&gt; trade_log: 5 row(s) in 0.035 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read</td></tr><tr><td>steps: prepare 0.014 ms, scan and aggregate 0.020 ms, result 0.001 ms</td></tr><tr><td>partitions read: 3</td></tr><tr><td>memory: 1059 bytes held at most (the statement&#39;s own count of the rows, groups and joins it keeps)</td></tr><tr><td>Planning Time: 0.493 ms</td></tr><tr><td>Execution Time: 0.270 ms</td></tr></tbody></table></div>
+<p>(14 rows)</p>
+<p><strong>Example: A change is not run</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">EXPLAIN ANALYZE DELETE FROM trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>EXPLAIN ANALYZE runs the statement to measure it, and KDB does that for SELECT only: an INSERT, UPDATE, DELETE or CALL would really change data. Use EXPLAIN without ANALYZE for its plan</code></p>
+<h2 id="explain-json">EXPLAIN (FORMAT JSON)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">EXPLAIN (FORMAT JSON) SELECT | INSERT | UPDATE | DELETE | CALL ...
+EXPLAIN (ANALYZE, FORMAT JSON) SELECT ...</code></pre>
+<p>The plan as one JSON value, for tools: one row in the column <code>plan</code>.</p>
+<ul><li><strong>Returns:</strong> <code>[{&quot;Plan&quot;: {&quot;Node Type&quot;: &quot;Query&quot;, &quot;Plan Lines&quot;: [...]}}]</code>. With <code>ANALYZE</code> the plan also has <code>&quot;Actual Rows&quot;</code>, <code>&quot;Actual Total Time&quot;</code> and <code>&quot;Plans&quot;</code>: one object per part of the query that ran, with <code>&quot;Relation Name&quot;</code>, <code>&quot;Depth&quot;</code>, <code>&quot;Engine&quot;</code>, <code>&quot;Actual Rows&quot;</code>, <code>&quot;Actual Total Time&quot;</code>, <code>&quot;Steps&quot;</code> (<code>[{&quot;Step&quot;: ..., &quot;Time&quot;: ...}]</code>) and, for a table, <code>&quot;Partitions Total&quot;</code>, <code>&quot;Partitions Read&quot;</code>, <code>&quot;Partitions Skipped&quot;</code>, <code>&quot;Partitions Skipped By Column Stats&quot;</code>. Next to <code>&quot;Plan&quot;</code> come <code>&quot;Partitions Read&quot;</code>, <code>&quot;Peak Memory Bytes&quot;</code>, <code>&quot;Planning Time&quot;</code> and <code>&quot;Execution Time&quot;</code>.</li><li><strong>Notes:</strong> the shape is PostgreSQL&#39;s (an array with one object holding <code>&quot;Plan&quot;</code>), but KDB&#39;s plan is a list of steps, not a tree of costed nodes: its lines are in <code>&quot;Plan Lines&quot;</code>. Times are milliseconds.</li></ul>
+<p><strong>Example: The plan of a report, for a tool</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN (FORMAT JSON) SELECT symbol, last(close) AS close FROM ochl_day GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>[{&quot;Plan&quot;: {&quot;Node Type&quot;: &quot;Query&quot;, &quot;Plan Lines&quot;: [&quot;scan table ochl_day (2 of 2 partitions, about 57 rows)&quot;, &quot;build 3 of 7 stored column(s) per row: time, symbol, close&quot;, &quot;group by 1 key(s), 1 aggrega...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: What really happened, as JSON</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN (ANALYZE, FORMAT JSON) SELECT count(*) AS trades FROM trade_log WHERE date IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>[{&quot;Plan&quot;: {&quot;Node Type&quot;: &quot;Query&quot;, &quot;Plan Lines&quot;: [&quot;scan table trade_log (1 of 2 partitions, about 32 rows)&quot;, &quot;build 1 of 7 stored column(s) per row: date&quot;, &quot;filter while scanning: 1 condition(s)&quot;, &quot;g...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="explain-change">EXPLAIN INSERT, UPDATE, DELETE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">EXPLAIN DELETE FROM table [WHERE ...]
+EXPLAIN UPDATE table SET ... [WHERE ...]
+EXPLAIN INSERT INTO table [(columns)] SELECT ...
+EXPLAIN INSERT INTO table [(columns)] VALUES (...), ...</code></pre>
+<p>Shows how the statement finds its rows: partitions, key ranges, index. <strong>No row is changed.</strong></p>
+<ul><li><strong>Returns:</strong> rows of text in the column <code>plan</code>.</li><li><strong>Notes:</strong>
+<ul><li><code>DELETE</code> and <code>UPDATE</code> start with <code>delete from table t (k of n partitions, about r rows)</code> or <code>update table t (...)</code>. Then come the same lines as for a <code>SELECT</code> scan: <code>use index ...</code> or <code>read only k key range(s) ...</code>, and <code>filter while scanning: k condition(s)</code>. <code>UPDATE</code> ends with <code>set k column(s)</code>.</li><li><code>INSERT ... SELECT</code> shows <code>insert into table t the rows of this query:</code> and the plan of the <code>SELECT</code> under it, moved in by two spaces.</li><li><code>INSERT ... VALUES</code> shows only how many rows it has.</li><li>Other lines: <code>run the WITH queries first</code>, <code>find the rows with the column engine and take them from its scan</code> (a big keyed table, a condition without an index that the column engine checks; <code>KDB_NO_VECTOR_MATCHES=1</code> gives the older <code>find the rows with the column engine, then read only them by their keys</code>), <code>look up the key of every row for a clash</code> (<code>ON CONFLICT</code>, <code>INSERT OR REPLACE</code>), <code>find the target rows by t.id IN (1, 2), then match them with the rows of USING</code> (or <code>FROM</code>; <code>match every row with the rows of USING</code> when no part of the WHERE finds them first), <code>return k item(s) per row</code> (<code>RETURNING</code>).</li><li>An <code>UPDATE</code> or <code>DELETE</code> uses an index whenever one fits: it has no <code>no index: ...</code> choice. Partitions ruled out by column stats are left out of <code>k of n</code>, but the plan does not say how many.</li><li>The same rights are needed as for the statement itself: <code>EXPLAIN DELETE</code> needs <code>DELETE</code> on the table.</li><li>With <code>UPDATE ... FROM</code> or <code>DELETE ... USING</code>, conditions that use the other table are counted as <code>filter after matching</code>.</li></ul></li></ul>
+<p><strong>Example: Delete one day of one symbol: 1 partition, 1 key range</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN DELETE FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;
+SELECT count(*) AS rows_still_there FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN DELETE FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>delete from table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT count(*) AS rows_still_there FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows_still_there (LONG)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An update of the trades of one day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN UPDATE trade_log SET rate = rate * 1.01 WHERE date IN &#39;2026-09-10&#39; AND symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>update table trade_log (1 of 2 partitions, about 32 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>set 1 column(s)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Copy CITY&#39;s closes of September into another table</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE city_closes (time TIMESTAMP, close DOUBLE) TIMESERIES(time) PARTITION BY MONTH;</code></pre>
+<pre><code class="language-sql">EXPLAIN INSERT INTO city_closes SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>insert into table city_closes the rows of this query:</td></tr><tr><td>scan table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="explain-call">EXPLAIN CALL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">EXPLAIN CALL procedure(argument, ...)</code></pre>
+<p>Shows the plan of every statement in the <a href="procedures.html">procedure</a>, with the arguments you give. <strong>Nothing runs</strong> and nothing is changed.</p>
+<ul><li><strong>Returns:</strong> rows of text in the column <code>plan</code>: first <code>procedure name(param = value, ...)</code>, then <code>step N: &lt;statement&gt;</code> for each statement, with its plan moved in under it.</li><li><strong>Notes:</strong>
+<ul><li>A variable whose value needs no table (<code>DECLARE k LONG DEFAULT 5</code>, <code>SET d2 = dateadd(&#39;d&#39;, -1, d)</code>) is worked out, and its value is shown (<code>k = 5</code>).</li><li>A variable that needs a query (<code>DEFAULT (SELECT ...)</code>), a <code>FETCH</code> or a loop gets <code>depends on runtime value</code>. So does every statement that uses it.</li><li>An <code>IF</code> whose condition is known shows <code>true</code> or <code>false</code>, and only the branch that would run. Otherwise it shows <code>depends on runtime value</code> and every branch.</li><li><code>WHILE</code> and <code>FOR</code> bodies are shown once, as <code>every pass</code> or <code>every row</code>.</li><li>A <code>CALL</code> of another procedure is not opened: explain that one on its own.</li><li><code>WITH DEBUG</code> cannot be added: use <a href="procedures.html#with-debug">CALL ... WITH DEBUG</a> to run the procedure and see what each step did.</li></ul></li></ul>
+<p><strong>Example: The plan of a procedure that clears one day of one symbol</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE PROCEDURE clear_day(d TIMESTAMP, sym SYMBOL) AS BEGIN
+  DECLARE left_rows LONG DEFAULT (SELECT count(*) FROM ochl_day WHERE symbol = sym);
+  DECLARE d_end TIMESTAMP DEFAULT dateadd(&#39;d&#39;, 1, d);
+  DELETE FROM ochl_day WHERE symbol = sym AND time &gt;= d AND time &lt; d_end;
+  IF left_rows &gt; 100 THEN
+    PRINT &#39;many rows&#39;;
+  END IF;
+END;</code></pre>
+<pre><code class="language-sql">EXPLAIN CALL clear_day(&#39;2026-09-10T00:00:00Z&#39;, &#39;CITY&#39;);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>procedure clear_day(d = 2026-09-10T00:00:00.000Z, sym = &#39;CITY&#39;)</td></tr><tr><td>step 1: DECLARE left_rows LONG DEFAULT (SELECT count(*) FROM ochl_day WHERE symbol = sym)</td></tr><tr><td>left_rows: depends on runtime value</td></tr><tr><td>step 2: DECLARE d_end TIMESTAMP DEFAULT dateadd(&#39;d&#39;, 1, d)</td></tr><tr><td>d_end = 2026-09-11T00:00:00.000Z</td></tr><tr><td>step 3: DELETE FROM ochl_day WHERE symbol = sym AND time &gt;= d AND time &lt; d_end</td></tr><tr><td>delete from table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>filter while scanning: 3 condition(s)</td></tr><tr><td>step 4: IF left_rows &gt; 100 THEN: depends on runtime value</td></tr><tr><td>step 5: PRINT &#39;many rows&#39;</td></tr></tbody></table></div>
+<p>(11 rows)</p>
+<p><strong>Example: EXPLAIN CALL does not take WITH DEBUG</strong> (sample data: sample; shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE PROCEDURE clear_day(d TIMESTAMP, sym SYMBOL) AS BEGIN
+  DELETE FROM ochl_day WHERE symbol = sym AND time &gt;= d;
+END;</code></pre>
+<pre><code class="language-sql">EXPLAIN CALL clear_day(&#39;2026-09-10T00:00:00Z&#39;, &#39;CITY&#39;) WITH DEBUG;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 9: EXPLAIN CALL does not run the procedure, so WITH DEBUG has nothing to show; use CALL ... WITH DEBUG</code></p>
+<h2 id="plan-lines">The plan lines</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregates pushed into the k UNION ALL parts: each part groups its own table first
+window functions over grouped rows: the grouping runs first as a subquery
+answer from the partition list of table name (k of n partitions; no other rows read)
+scan table name (k of n partitions, about r rows[, s skipped by column stats])
+scan result of name (r rows)
+push k condition(s) into view | subquery name [after its windows]
+push k rank limit(s) into subquery name
+time range from the calendar condition(s): col &gt;= &#39;start&#39; AND &lt; &#39;end&#39;
+use index name (...)
+no index: name would read r row(s), a scan is cheaper[; it reads only the storage keys those rows lie between]
+no index: the column stats rule out every partition
+answer from saved stats of table name: ...
+join | left join | asof join | cross join (hash on k key(s) | key lookup on columns | index lookup on column | nested loop) table name (...)
+read only k key range(s) of each partition
+build k of n stored column(s) per row: columns
+filter while scanning: k condition(s)
+filter after joins: k condition(s)
+latest row per partition on column
+sample by SAMPLE BY ...
+group by k key(s), m aggregate(s)
+k window/series function(s)
+distinct
+sort by k key(s)
+limit n [offset m]
+union all with k more part(s)
+delete from | update table name (k of n partitions, about r rows)
+set k column(s)
+insert into table name the rows of this query:</code></pre>
+<p>The lines come in this order. A line is missing when the query does not have that step.</p>
+<div class="table-wrap"><table><thead><tr><th>Line</th><th>Meaning</th></tr></thead><tbody><tr><td><code>aggregates pushed into the k UNION ALL parts ...</code></td><td>A <code>GROUP BY</code> over a <code>UNION ALL</code> in <code>FROM</code>: each part groups its own table first (see <a href="union-subqueries.html">UNION ALL</a>).</td></tr><tr><td><code>window functions over grouped rows ...</code></td><td>A window function over a <code>GROUP BY</code> result: the grouping runs first.</td></tr><tr><td><code>answer from the partition list ...</code></td><td>See <a href="explain.html#saved-stats">answers without reading rows</a>. It is then the whole plan, with <code>sort by</code> and <code>limit</code> after it.</td></tr><tr><td><code>scan table t (k of n partitions, about r rows)</code></td><td>The first table of <code>FROM</code>. KDB reads <code>k</code> of its <code>n</code> partition files; the others are skipped because of the time filter, the symbols, or <a href="explain.html#zone-maps">column stats</a>. <code>about r rows</code> is only an <strong>estimate</strong> of the size of the <strong>whole</strong> table. It is not the number of rows this query reads or matches: for that, run <code>SELECT count(*)</code> with the same <code>WHERE</code>.</td></tr><tr><td><code>scan result of name (r rows)</code></td><td>The first source is a subquery or a view. It has already run and gave <code>r</code> rows. A subquery without a name (<code>FROM (SELECT ...)</code> with no alias) shows as <code>a subquery</code>; in part n of a <code>UNION ALL</code> it shows as <code>subquery n</code>, so the parts can be told apart (also in <code>EXPLAIN ANALYZE</code>).</td></tr><tr><td><code>push k condition(s) into ...</code></td><td>Conditions of your <code>WHERE</code> also run inside the view or subquery, so it makes fewer rows (see <a href="views.html">views</a>). With <code>after its windows</code>: they run inside a window query right after its window values are worked out, so it makes only the rows you keep (see <a href="views.html#where-pushdown">views</a>).</td></tr><tr><td><code>push k rank limit(s) into ...</code></td><td><code>rn &lt;= N</code> on a <code>row_number</code>, <code>rank</code> or <code>dense_rank</code> column of a window query: the rows above N are dropped inside it, and <code>row_number()</code> orders only the first N rows of each partition (see <a href="views.html#where-pushdown">views</a>).</td></tr><tr><td><code>time range from the calendar condition(s): ...</code></td><td><code>EXTRACT(YEAR FROM ts) = 2026 AND EXTRACT(MONTH FROM ts) = 8</code>, <code>year(ts) = 2026</code>, <code>date_trunc(&#39;month&#39;, ts) = &#39;2026-08-01&#39;</code> and the like on a <code>TIMESTAMP</code> column: KDB puts the time range they mean (in UTC) in their place: it keeps exactly the same rows, and partitions, indexes, key ranges and the column engine can use it.</td></tr><tr><td><code>use index name (...)</code></td><td>A secondary index finds the rows (see <a href="indexes.html">indexes</a>).</td></tr><tr><td><code>count from the index (no rows read)</code></td><td><code>SELECT count(*)</code> whose whole <code>WHERE</code> the index answers exactly (a <a href="full-text-search.html">full-text</a> <code>MATCH</code>, or the <code>WHERE</code> of a partial index): the answer is the index&#39;s own count, and no row is read.</td></tr><tr><td><code>index gives the first n row(s) in order</code></td><td>A <code>LIMIT</code> (plus <code>OFFSET</code>) the index answers alone, with no <code>ORDER BY</code> or one by the table&#39;s key: only the first <code>n</code> rows the index finds are read.</td></tr><tr><td><code>no index: the column stats rule out every partition</code></td><td>The <a href="explain.html#zone-maps">column stats</a> show that no partition can hold a match, so the answer is empty and no index is read.</td></tr><tr><td><code>no index: name would read r row(s), a scan is cheaper</code></td><td>An index fits, but it finds so many rows that reading the partitions is faster (see <a href="indexes.html#when-used">when an index is used</a>).</td></tr><tr><td><code>...; it reads only the storage keys those rows lie between</code></td><td>A relational table with an index on a time column: rows written together have nearby times, so the rows the index finds lie in one stretch of the table. The scan reads only that stretch (the <code>read only 1 key range(s)</code> line), on all threads. When the index finds more than a quarter of the table, KDB scans the whole table instead: that is faster than walking the index.</td></tr><tr><td><code>answer from saved stats of table t: ...</code></td><td><code>count</code>, <code>sum</code>, <code>min</code>, <code>max</code> of whole partitions come from numbers the files keep (see <a href="explain.html#saved-stats">answers without reading rows</a>).</td></tr><tr><td><code>join (hash on k key(s)) table t</code></td><td>An inner join. KDB builds a lookup on the <code>a = b</code> conditions of <code>ON</code>: fast.</td></tr><tr><td><code>join (key lookup on columns) table t</code></td><td>The <code>ON</code> conditions give the first columns of <code>t</code>&#39;s key (its <code>PRIMARY KEY</code>, or <code>SORT BY</code> / <code>DEDUP KEY</code> with the time column): each left row reads only its own rows of <code>t</code>, and nothing is built first. Chosen when the left side is small next to <code>t</code> (see <a href="joins.html#join-speed">joins</a>).</td></tr><tr><td><code>join (index lookup on column) table t</code></td><td>The same through an index on that column of <code>t</code>.</td></tr><tr><td><code>left join ...</code>, <code>asof join ...</code>, <code>cross join ...</code></td><td>The other kinds of <a href="joins.html#join">joins</a>.</td></tr><tr><td><code>(nested loop)</code></td><td>The join has no <code>a = b</code> condition, so every left row is checked with every right row: slow for big tables.</td></tr><tr><td><code>read only k key range(s) of each partition</code></td><td>Rows are stored sorted (by symbol, then time). <code>symbol = &#39;...&#39;</code> or <code>symbol IN (...)</code> lets KDB read only those parts of each file. It also follows a <code>...reads only the storage keys ...</code> line.</td></tr><tr><td><code>build k of n stored column(s) per row: ...</code></td><td>The columns KDB takes out of each stored row: only the ones the query uses. A <code>SELECT *</code> reads them all and has no such line.</td></tr><tr><td><code>filter while scanning: k condition(s)</code></td><td>Parts of <code>WHERE</code> (joined by <code>AND</code>) that use only the first table. They are checked while the rows are read.</td></tr><tr><td><code>filter after joins: k condition(s)</code></td><td>Parts of <code>WHERE</code> that use a joined table. They are checked after the join.</td></tr><tr><td><code>latest row per partition on col</code></td><td><a href="latest-on.html#latest-on">LATEST ON</a>.</td></tr><tr><td><code>sample by ...</code></td><td><a href="sample-by.html#sample-by">SAMPLE BY</a> with its options.</td></tr><tr><td><code>group by k key(s), m aggregate(s)</code></td><td>Grouping. Aggregates in <code>HAVING</code> are counted too.</td></tr><tr><td><code>k window/series function(s)</code></td><td><code>sma</code>, <code>lag</code>, <code>row_number</code>, ...</td></tr><tr><td><code>distinct</code>, <code>sort by k key(s)</code>, <code>limit n offset m</code></td><td><code>SELECT DISTINCT</code>, <code>ORDER BY</code>, <code>LIMIT</code> / <code>OFFSET</code>.</td></tr><tr><td><code>newest first: reads time &gt;= &#39;...&#39; first, then older time windows only while fewer than n rows are found</code></td><td><code>ORDER BY time DESC LIMIT n</code> (also the newest <code>n</code> buckets of a <code>SAMPLE BY</code>) reads the newest rows first and stops once it has <code>n</code> (see <a href="performance-tips.html#limit">LIMIT</a>). The time is where the first stretch starts; when the table has few rows, the line is left out and the query reads them all. After a view or subquery that only filters one table it says <code>(the view v read as a filter on its table)</code>.</td></tr><tr><td><code>oldest first: reads time &lt; &#39;...&#39; first, then newer time windows only while fewer than n rows are found</code></td><td>The same for <code>ORDER BY time LIMIT n</code>: the oldest rows or buckets.</td></tr><tr><td><code>union all with k more part(s)</code></td><td>The other parts of a <code>UNION ALL</code>.</td></tr><tr><td><code>engine: column</code></td><td>The last line. The <strong>column engine</strong> reads the table: whole columns at a time, on all threads. This is the fast way. With window functions it says <code>engine: column (finds the rows; ...)</code>: the rows are found that way, then the window functions go row by row. A <code>GROUP BY</code> over two joined tables says <code>engine: column (hash join)</code> (see <a href="joins.html#join-column-engine">GROUP BY over a join</a>).</td></tr><tr><td><code>engine: row (why)</code></td><td>The <strong>row engine</strong> reads the table one row at a time: slower on big tables. The brackets say why, for example <code>a join</code>, <code>an expression in the SELECT list</code>, <code>SAMPLE BY months or years</code>, or <code>a condition the column engine does not do</code> (see <a href="where.html#fast-conditions">WHERE: fast conditions</a>).</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Only the <strong>first</strong> table in <code>FROM</code> skips partitions. A time filter on a joined table does not make it read less: its line always shows all partitions. Put the big time-series table first.</li><li>A function around the column (<code>upper(symbol) = &#39;CITY&#39;</code>) stops the key ranges: the <code>read only ...</code> line disappears.</li><li>For a <code>DATE</code> time column, KDB also reads the partition of the next day, to be safe.</li><li>The <code>engine:</code> line uses the same tests the query uses when it runs. Only the data can still change it: a partition whose <code>min</code> / <code>max</code> column holds a NaN is read by the row engine. Which conditions keep a query in the fast column engine: see <a href="where.html#fast-conditions">WHERE: fast conditions</a>.</li></ul></li></ul>
+<p><strong>Example: Good: the symbol is written plainly, so KDB reads 2 key ranges</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT time, symbol, close FROM ochl_day WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;) AND time &gt;= &#39;2026-09-01&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (1 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 2 key range(s) of each partition</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 2 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Slow: a function around symbol reads every row of every partition</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT time, symbol, close FROM ochl_day WHERE upper(symbol) = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (2 of 2 partitions, about 57 rows)</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Which engine: the same report, fast and slow</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT symbol, avg(close) AS avg_close FROM ochl_day WHERE close &gt; 500 GROUP BY symbol;
+EXPLAIN SELECT symbol, avg(close) AS avg_close FROM ochl_day WHERE upper(symbol) = &#39;CITY&#39; GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT symbol, avg(close) AS avg_close FROM ochl_day WHERE close &gt; 500 GROUP BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (2 of 2 partitions, about 57 rows)</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>group by 1 key(s), 1 aggregate(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><code>EXPLAIN SELECT symbol, avg(close) AS avg_close FROM ochl_day WHERE upper(symbol) = &#39;CITY&#39; GROUP BY s</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (2 of 2 partitions, about 57 rows)</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>group by 1 key(s), 1 aggregate(s)</td></tr><tr><td>engine: row (a condition, group key or aggregate the column engine does not do)</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Big table first: the time filter skips partitions</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT b.name, sum(f.amount) AS turnover
+FROM trade_log f JOIN brokers b ON f.buyer = b.id
+WHERE f.date IN &#39;2026-09-10&#39;
+GROUP BY b.name ORDER BY turnover DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (1 of 2 partitions, about 32 rows)</td></tr><tr><td>join (key lookup on id) table brokers (1 of 1 partitions, about 5 rows)</td></tr><tr><td>build 4 of 7 stored column(s) per row: date, buyer, quantity, rate</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>group by 1 key(s), 1 aggregate(s)</td></tr><tr><td>sort by 1 key(s)</td></tr><tr><td>limit 3</td></tr><tr><td>engine: row (a condition, join column, group key or aggregate the column engine does not do)</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Big table second: every trade log partition is read</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT b.name, sum(f.amount) AS turnover
+FROM brokers b JOIN trade_log f ON f.buyer = b.id
+WHERE f.date IN &#39;2026-09-10&#39;
+GROUP BY b.name ORDER BY turnover DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table brokers (1 of 1 partitions, about 5 rows)</td></tr><tr><td>join (hash on 1 key(s)) table trade_log (2 of 2 partitions, about 32 rows)</td></tr><tr><td>group by 1 key(s), 1 aggregate(s)</td></tr><tr><td>sort by 1 key(s)</td></tr><tr><td>limit 3</td></tr><tr><td>engine: row (a condition, join column, group key or aggregate the column engine does not do)</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: No a = b condition: a nested loop</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT s.symbol, b.name FROM securities s CROSS JOIN brokers b;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table securities (1 of 1 partitions, about 5 rows)</td></tr><tr><td>cross join (nested loop) table brokers (1 of 1 partitions, about 5 rows)</td></tr><tr><td>build 1 of 3 stored column(s) per row: symbol</td></tr><tr><td>engine: row (a join)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Live prices with the last minute candle, and a moving average</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT l.timestamp, l.symbol, l.ltp, m.close
+FROM live_data l
+ASOF JOIN ochl_minutes m ON l.symbol = m.symbol;
+EXPLAIN SELECT time, close, sma(close, 3) AS sma3 FROM ochl_day WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT l.timestamp, l.symbol, l.ltp, m.close FROM live_data AS l ASOF JOIN ochl_minutes AS m</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table live_data (1 of 1 partitions, about 12 rows)</td></tr><tr><td>asof join (hash on 1 key(s)) table ochl_minutes (1 of 1 partitions, about 956 rows)</td></tr><tr><td>build 3 of 12 stored column(s) per row: timestamp, symbol, ltp</td></tr><tr><td>engine: row (a join)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>EXPLAIN SELECT time, close, sma(close, 3) AS sma3 FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (2 of 2 partitions, about 57 rows)</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>build 3 of 7 stored column(s) per row: time, symbol, close</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>1 window/series function(s)</td></tr><tr><td>engine: column (finds the rows; the window functions then run row by row)</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: DISTINCT and UNION ALL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT DISTINCT symbol FROM trade_log;
+EXPLAIN SELECT symbol FROM trade_log WHERE buyer = 58 UNION ALL SELECT symbol FROM trade_log WHERE seller = 58;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT DISTINCT symbol FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (2 of 2 partitions, about 32 rows)</td></tr><tr><td>build 2 of 7 stored column(s) per row: date, symbol</td></tr><tr><td>distinct</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>EXPLAIN SELECT symbol FROM trade_log WHERE buyer = 58 UNION ALL SELECT symbol FROM trade_log WHERE s</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (2 of 2 partitions, about 32 rows)</td></tr><tr><td>build 3 of 7 stored column(s) per row: date, symbol, buyer</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr><tr><td>union all with 1 more part(s)</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A DATE time column also reads the next day&#39;s partition</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE daily_nav (day DATE, fund SYMBOL, nav DOUBLE) TIMESERIES(day) PARTITION BY DAY;
+INSERT INTO daily_nav VALUES (&#39;2026-09-08&#39;, &#39;GRWF&#39;, 10.2), (&#39;2026-09-09&#39;, &#39;GRWF&#39;, 10.3), (&#39;2026-09-10&#39;, &#39;GRWF&#39;, 10.1);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT day, nav FROM daily_nav WHERE day = &#39;2026-09-09&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table daily_nav (2 of 3 partitions, about 3 rows)</td></tr><tr><td>build 2 of 3 stored column(s) per row: day, nav</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Over 10,000 rows: an index that finds a fifth of them is not used</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, broker INT, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks SELECT m.time, m.symbol, b.id, m.close FROM ochl_minutes m CROSS JOIN brokers b CROSS JOIN securities s;
+CREATE INDEX ticks_broker ON ticks (broker);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT time, price FROM ticks WHERE broker = 58;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ticks (2 of 2 partitions, about 23900 rows)</td></tr><tr><td>no index: ticks_broker would read 4780 row(s), a scan is cheaper; it reads only the storage keys those rows lie between</td></tr><tr><td>read only 1 key range(s) of each partition</td></tr><tr><td>build 3 of 4 stored column(s) per row: time, broker, price</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: An index on buyer: buyer = 58 uses it, a condition with OR does not</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE INDEX trade_log_buyer ON trade_log (buyer);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT transaction_id, symbol, quantity FROM trade_log WHERE buyer = 58;
+EXPLAIN SELECT transaction_id, symbol, quantity FROM trade_log WHERE buyer = 58 OR seller = 58;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT transaction_id, symbol, quantity FROM trade_log WHERE buyer = 58</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (2 of 2 partitions, about 32 rows)</td></tr><tr><td>use index trade_log_buyer (buyer = value)</td></tr><tr><td>build 5 of 7 stored column(s) per row: date, transaction_id, symbol, buyer, quantity</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><code>EXPLAIN SELECT transaction_id, symbol, quantity FROM trade_log WHERE buyer = 58 OR seller = 58</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (2 of 2 partitions, about 32 rows)</td></tr><tr><td>build 6 of 7 stored column(s) per row: date, transaction_id, symbol, buyer, seller, quantity</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: A full-text count and a first page: the index answers them alone</strong> (sample data: content-news)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE FULLTEXT INDEX news_text ON news (title, body);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT count(*) FROM news WHERE MATCH(title, body, &#39;bank&#39;);
+EXPLAIN SELECT id FROM news WHERE MATCH(title, body, &#39;bank&#39;) LIMIT 2;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT count(*) FROM news WHERE match(title, body, &#39;bank&#39;)</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table news (1 of 1 partitions, about 5 rows)</td></tr><tr><td>use index news_text (full-text search)</td></tr><tr><td>count from the index (no rows read)</td></tr><tr><td>answer from saved stats of table news: 1 of 1 partitions from the partition list and their files&#39; stats (0 in memory, 0 partitions loaded, 0 file headers read); 0 partitions scanned</td></tr><tr><td>build 0 of 5 stored column(s) per row:</td></tr><tr><td>group by 0 key(s), 1 aggregate(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<p><code>EXPLAIN SELECT id FROM news WHERE match(title, body, &#39;bank&#39;) LIMIT 2</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table news (1 of 1 partitions, about 5 rows)</td></tr><tr><td>use index news_text (full-text search)</td></tr><tr><td>index gives the first 2 row(s) in order</td></tr><tr><td>build 1 of 5 stored column(s) per row: id</td></tr><tr><td>limit 2</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Unnamed subqueries in a UNION ALL: subquery 1, subquery 2</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN ANALYZE SELECT symbol FROM (SELECT symbol FROM trade_log WHERE buyer = 58)
+UNION ALL SELECT symbol FROM (SELECT symbol FROM trade_log WHERE seller = 58);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan result of subquery 1 (6 rows)</td></tr><tr><td>engine: row (reads a subquery or view result)</td></tr><tr><td>union all with 1 more part(s)</td></tr><tr><td>actual: 10 row(s) in 0.065 ms</td></tr><tr><td>-&gt; subquery 1: 6 row(s) in 0.039 ms, engine: row (reads a subquery or view result)</td></tr><tr><td>steps: prepare 0.037 ms, scan and filter 0.002 ms, result 0.000 ms</td></tr><tr><td>-&gt; trade_log: 6 row(s) in 0.024 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read</td></tr><tr><td>steps: prepare 0.013 ms, scan and filter 0.010 ms, result 0.001 ms</td></tr><tr><td>-&gt; subquery 2: 4 row(s) in 0.018 ms, engine: row (reads a subquery or view result)</td></tr><tr><td>steps: prepare 0.017 ms, scan and filter 0.001 ms, result 0.000 ms</td></tr><tr><td>-&gt; trade_log: 4 row(s) in 0.011 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats)</td></tr><tr><td>steps: prepare 0.004 ms, scan and filter 0.007 ms, result 0.000 ms</td></tr><tr><td>partitions read: 3</td></tr><tr><td>memory: 0 bytes held at most (the statement&#39;s own count of the rows, groups and joins it keeps)</td></tr><tr><td>Planning Time: 0.428 ms</td></tr><tr><td>Execution Time: 0.065 ms</td></tr></tbody></table></div>
+<p>(16 rows)</p>
+<h2 id="zone-maps">Zone maps: partitions skipped by column stats</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">scan table t (k of n partitions, about r rows, s skipped by column stats)</code></pre>
+<p>Every partition file keeps the smallest and the biggest value of each column. When a condition cannot be true for any value in that range, KDB skips the whole partition. <code>rate &gt; 900</code> skips a partition whose biggest <code>rate</code> is 883.</p>
+<div class="table-wrap"><table><thead><tr><th>Condition</th><th>Skips partitions</th></tr></thead><tbody><tr><td><code>col = value</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></td><td>yes</td></tr><tr><td><code>col BETWEEN a AND b</code>, <code>col IN (a, b, c)</code></td><td>yes</td></tr><tr><td><code>time IN &#39;2026-09&#39;</code> on another <code>TIMESTAMP</code> or <code>DATE</code> column</td><td>yes</td></tr><tr><td><code>!=</code>, <code>NOT BETWEEN</code>, <code>NOT IN</code>, <code>IS NULL</code>, <code>col1 &gt; col2</code></td><td>no</td></tr></tbody></table></div>
+<ul><li><strong>Columns:</strong> whole numbers, <code>FLOAT</code>, <code>DOUBLE</code>, <code>DECIMAL</code>, <code>DATE</code> and <code>TIMESTAMP</code>. <code>SYMBOL</code> columns are skipped in their own way, by the names each partition holds.</li><li><strong>Notes:</strong>
+<ul><li>It works whether the partition is <strong>in memory or not</strong>. For a partition not in memory, KDB reads only the stats part of its file (a few hundred bytes) once and keeps it, also after the rows are pushed out of memory. A file written again (after <code>UPDATE</code>, <code>DELETE</code> or new rows) has its stats read again.</li><li>Rows written since the last checkpoint are checked one by one (up to 4,096 per partition). More than that and the partition is read.</li><li>It works for <code>SELECT</code>, <code>UPDATE</code> and <code>DELETE</code>, in both engines. The result never changes: only what is read.</li><li>Set <code>KDB_NO_ZONE_MAPS=1</code> in the environment to turn it off (and the <a href="explain.html#saved-stats">saved stats answers</a> with it), for a before-and-after timing.</li></ul></li></ul>
+<p><strong>Example: The biggest rate is 883, so rate &gt; 900 skips both partitions</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date, max(rate) AS top_rate FROM trade_log GROUP BY date ORDER BY date;
+EXPLAIN SELECT transaction_id, rate FROM trade_log WHERE rate &gt; 900;</code></pre>
+<p>Result:</p>
+<p><code>SELECT date, max(rate) AS top_rate FROM trade_log GROUP BY date ORDER BY date</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>top_rate (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>881</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>883</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>EXPLAIN SELECT transaction_id, rate FROM trade_log WHERE rate &gt; 900</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (0 of 2 partitions, about 32 rows, 2 skipped by column stats)</td></tr><tr><td>build 3 of 7 stored column(s) per row: date, transaction_id, rate</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a condition the column engine does not do)</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="saved-stats">Answers without reading rows</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">answer from saved stats of table t: a of p partitions from the partition list and their files&#39; stats (...); k partitions scanned
+answer from the partition list of table t (k of n partitions; no other rows read)</code></pre>
+<p>Some questions are answered from what KDB already knows about each partition, without loading its rows.</p>
+<div class="table-wrap"><table><thead><tr><th>Query</th><th>Answered from</th></tr></thead><tbody><tr><td><code>SELECT count(*), count(col), sum(col), avg(col), min(col), max(col) FROM t</code></td><td>the row count of each partition and the stats its file keeps</td></tr><tr><td><code>SELECT DISTINCT day FROM t</code> on a table <code>PARTITION BY DAY</code>, and <code>min</code>, <code>max</code>, <code>count(DISTINCT ...)</code> of it</td><td>the list of partitions</td></tr></tbody></table></div>
+<ul><li><strong>Saved stats:</strong> the query has no <code>GROUP BY</code>, no math inside the aggregate, and a <code>WHERE</code> only on the time column (a comparison, <code>BETWEEN</code> or <code>time IN &#39;...&#39;</code>). A partition is answered from its stats when it has no unsaved changes and all its rows are inside the time range. The other partitions are read as usual: <code>k partitions scanned</code>. A plain <code>SELECT count(*) FROM t</code> also counts a partition with unsaved changes without reading it, when the changes are new rows: rows timed after (or before) every saved row of that partition, as a live feed writes them, or rows of a table without a key. A delete, or a change inside the saved time range, makes that partition read. A <code>sum</code> of <code>DOUBLE</code> values may differ in the last digit from reading every row.</li><li><strong>Partition list:</strong> the time value must be the same for every row of a partition, like a <code>DATE</code> column of a table with daily partitions.</li><li><strong>Notes:</strong>
+<ul><li>Not on a table with <a href="create-table.html">computed columns</a>, not with a <code>symbol = ...</code> condition, and not with <code>first</code> or <code>last</code>.</li><li>Set <code>KDB_NO_PARTITION_ANSWERS=1</code> to turn off the partition list answers.</li></ul></li></ul>
+<p><strong>Example: Count, lowest, highest and total volume of every daily candle: no row is read</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT count(*) AS candles, min(low) AS lowest, max(high) AS highest, sum(volume) AS volume FROM ochl_day;
+SELECT count(*) AS candles, min(low) AS lowest, max(high) AS highest, sum(volume) AS volume FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT count(*) AS candles, min(low) AS lowest, max(high) AS highest, sum(volume) AS volume </code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table ochl_day (2 of 2 partitions, about 57 rows)</td></tr><tr><td>answer from saved stats of table ochl_day: 2 of 2 partitions from the partition list and their files&#39; stats (0 in memory, 0 partitions loaded, 2 file headers read); 0 partitions scanned</td></tr><tr><td>build 4 of 7 stored column(s) per row: time, high, low, volume</td></tr><tr><td>group by 0 key(s), 4 aggregate(s)</td></tr><tr><td>engine: column</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><code>SELECT count(*) AS candles, min(low) AS lowest, max(high) AS highest, sum(volume) AS volume FROM och</code></p>
+<div class="table-wrap"><table><thead><tr><th>candles (LONG)</th><th>lowest (DOUBLE)</th><th>highest (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>57</td><td>167.3</td><td>546.2</td><td>5461390</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The days of a table with daily partitions come from the partition list</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE fills (day DATE, symbol SYMBOL, qty LONG) TIMESERIES(day) PARTITION BY DAY;
+INSERT INTO fills VALUES (&#39;2026-09-08&#39;, &#39;CITY&#39;, 10), (&#39;2026-09-09&#39;, &#39;CITY&#39;, 20), (&#39;2026-09-09&#39;, &#39;VOLT&#39;, 5), (&#39;2026-09-10&#39;, &#39;VOLT&#39;, 7);</code></pre>
+<pre><code class="language-sql">EXPLAIN SELECT DISTINCT day FROM fills ORDER BY day;
+SELECT DISTINCT day FROM fills ORDER BY day;</code></pre>
+<p>Result:</p>
+<p><code>EXPLAIN SELECT DISTINCT day FROM fills ORDER BY day</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>answer from the partition list of table fills (3 of 3 partitions; no other rows read)</td></tr><tr><td>sort by 1 key(s)</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT DISTINCT day FROM fills ORDER BY day</code></p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th></tr></thead><tbody><tr><td>2026-09-08</td></tr><tr><td>2026-09-09</td></tr><tr><td>2026-09-10</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/explain.md">This page as markdown</a>.</footer>
+</body>
+</html>

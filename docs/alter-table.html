@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALTER, RENAME and DROP TABLE - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Add, drop, rename and change columns, drop partitions, set a TTL, add and drop rules and keys, turn DEDUP on or off, rename and drop tables.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/alter-table.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/alter-table.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="alter-rename-and-drop-table">ALTER, RENAME and DROP TABLE</h1>
+<blockquote><p>Add, drop, rename and change columns, drop partitions, set a TTL, add and drop rules and keys, turn DEDUP on or off, rename and drop tables.</p></blockquote>
+<ul><li>Category: Tables</li><li>Keywords: alter table, change table, add column, new column, drop column, remove column, rename column, COLUMN, TO, drop partition, delete old data, OLDER THAN, DROP PARTITION LIST, DROP PARTITION WHERE, add constraint, add check, drop constraint, rename table, drop table, delete table, remove table, IF EXISTS, IF NOT EXISTS, ALTER COLUMN, SET DATA TYPE, TYPE ... USING, USING, change column type, SET DEFAULT, DROP DEFAULT, SET NOT NULL, DROP NOT NULL, ADD UNIQUE, ADD FOREIGN KEY, FOREIGN KEY, NOT VALID, DEDUP ENABLE, DEDUP DISABLE, DEDUP ENABLE UPSERT KEYS, SET (dedup_insert, RESET (dedup_insert, SET (compression, RESET (compression, compression, SET (resident, RESET (resident, resident, keep in memory, ALTER TABLE RENAME TO, schema change, migration</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="constraints.html">Constraints</a>, <a href="show-tables.html">SHOW TABLES, COLUMNS, CREATE TABLE</a>, <a href="update-delete.html">UPDATE and DELETE</a>, <a href="triggers.html">Triggers</a>, <a href="indexes.html">Indexes</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a></li></ul>
+<p>Tables change when your app grows: a new column for the phone number, a better column name, old data to remove. Most of these statements change a table <strong>without</strong> copying its rows; changing a column&#39;s type and turning DEDUP on or off rewrite the rows.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>What it does</th></tr></thead><tbody><tr><td><code>ALTER TABLE t ADD [COLUMN] c TYPE [rules]</code></td><td>adds a column at the end</td></tr><tr><td><code>ALTER TABLE t DROP [COLUMN] c</code></td><td>removes a column and its data</td></tr><tr><td><code>ALTER TABLE t RENAME [COLUMN] a TO b</code></td><td>renames a column</td></tr><tr><td><code>ALTER TABLE t ALTER [COLUMN] c TYPE LONG</code></td><td>changes a column&#39;s type; also <code>SET</code>/<code>DROP DEFAULT</code>, <code>SET</code>/<code>DROP NOT NULL</code></td></tr><tr><td><code>ALTER TABLE t DROP PARTITION &#39;key&#39;, ...</code></td><td>deletes whole days, months or years of a time-series table</td></tr><tr><td><code>ALTER TABLE t DROP PARTITION OLDER THAN 6 MONTHS</code></td><td>deletes the partitions that ended more than 6 months ago, once, now</td></tr><tr><td><code>ALTER TABLE t DROP PARTITION WHERE time &lt; &#39;2026-09-01&#39;</code></td><td>deletes the partitions whose whole time range matches (QuestDB&#39;s form)</td></tr><tr><td><code>ALTER TABLE t SET TTL 90 DAYS</code></td><td>drops partitions older than 90 days, by itself, from now on</td></tr><tr><td><code>ALTER TABLE t ADD [CONSTRAINT name] CHECK (...)</code></td><td>adds a rule for every row</td></tr><tr><td><code>ALTER TABLE t ADD [CONSTRAINT name] UNIQUE (...)</code> or <code>FOREIGN KEY (...) REFERENCES ...</code></td><td>adds a key</td></tr><tr><td><code>ALTER TABLE t DROP CONSTRAINT name</code></td><td>removes a rule or a key</td></tr><tr><td><code>ALTER TABLE t DEDUP ENABLE UPSERT KEYS (...)</code> / <code>DEDUP DISABLE</code></td><td>sets or removes the <code>DEDUP KEY</code> of a time-series table</td></tr><tr><td><code>ALTER TABLE t SET (dedup_insert = &#39;upsert&#39;)</code> / <code>RESET (dedup_insert)</code></td><td>a plain <code>INSERT</code> of a key that is there replaces the row, or fails again (<a href="partitions-and-dedup.html#dedup-insert">dedup_insert</a>)</td></tr><tr><td><code>ALTER TABLE t SET (compression = on)</code> / <code>SET (compression = off)</code> / <code>RESET (compression)</code></td><td>stores the sealed partitions packed, about 5 times smaller on disk, or plain again (<a href="partitions-and-dedup.html#compression">compression</a>)</td></tr><tr><td><code>ALTER TABLE t SET (resident = on)</code> / <code>SET (resident = off)</code> / <code>RESET (resident)</code></td><td>keeps the table&#39;s partitions in memory once read, whoever needs memory (<a href="#resident">resident</a>)</td></tr><tr><td><code>RENAME TABLE a TO b</code>, <code>ALTER TABLE a RENAME TO b</code></td><td>renames a table</td></tr><tr><td><code>DROP TABLE [IF EXISTS] t</code></td><td>deletes a table and all its rows</td></tr></tbody></table></div>
+<p>What you <strong>cannot</strong> change: <code>PARTITION BY</code>, <code>SORT BY</code>, the kind of table, and the type of the time column, of a <code>SORT BY</code> or <code>DEDUP KEY</code> column and of the <code>PRIMARY KEY</code>. To change those, make a new table with <a href="create-table.html#create-table-as">CREATE TABLE ... AS</a> or <code>INSERT INTO new SELECT ... FROM old</code>, and drop the old table. <code>ALTER TABLE ... ENABLE TRIGGER</code> and <code>DISABLE TRIGGER</code> are explained in <a href="triggers.html">triggers</a>.</p>
+<p>Several actions can go in one statement, with commas: <code>ALTER TABLE t ADD COLUMN a INT, DROP COLUMN b</code>. <code>DROP PARTITION</code> must be on its own. These statements cannot be used inside <code>BEGIN ... COMMIT</code>.</p>
+<p><strong>Example: The users table of an app grows</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE);
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE users ADD COLUMN phone STRING;
+ALTER TABLE users ADD COLUMN verified BOOL NOT NULL DEFAULT FALSE;
+ALTER TABLE users RENAME COLUMN email TO login_email;
+SELECT id, login_email, phone, verified FROM users;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE users ADD COLUMN phone STRING</code></p>
+<pre><code class="language-text">table &#39;users&#39; altered</code></pre>
+<p><code>ALTER TABLE users ADD COLUMN verified BOOL NOT NULL DEFAULT FALSE</code></p>
+<pre><code class="language-text">table &#39;users&#39; altered</code></pre>
+<p><code>ALTER TABLE users RENAME COLUMN email TO login_email</code></p>
+<pre><code class="language-text">table &#39;users&#39; altered</code></pre>
+<p><code>SELECT id, login_email, phone, verified FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>login_email (STRING)</th><th>phone (STRING)</th><th>verified (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>NULL</td><td>false</td></tr><tr><td>2</td><td>sita@example.com</td><td>NULL</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="add-column">ADD COLUMN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table ADD [COLUMN] [IF NOT EXISTS] column TYPE [NOT NULL] [UNIQUE] [DEFAULT expr]
+                                          [REFERENCES table(column)] [ROUND interval]
+                                          [AS (expr) | GENERATED ALWAYS AS (expr) STORED]
+                                          [[CONSTRAINT name] CHECK (condition)]</code></pre>
+<p>Adds a new column <strong>at the end</strong> of the table. The word <code>COLUMN</code> is optional.</p>
+<ul><li>Rows already in the table get the <code>DEFAULT</code> value, or <code>NULL</code> when there is no default.</li><li>A <a href="create-table.html#generated">stored generated column</a> (<code>GENERATED ALWAYS AS (...) STORED</code>) is worked out for every row already in the table: the rows are written again, so this takes longer on a big table.</li><li><strong>Returns:</strong> <code>table &#39;name&#39; altered</code>.</li><li><strong>Notes:</strong> a <code>NOT NULL</code> column needs a <code>DEFAULT</code> (old rows need a value). You cannot add a <code>PRIMARY KEY</code> column. With <code>IF NOT EXISTS</code>, a column that is already there is not an error. A default like <code>now()</code> or <code>gen_random_uuid()</code> is worked out <strong>once</strong> for all old rows, so they all get the same value; new rows get their own.</li><li><strong>Notes:</strong> <code>INSERT INTO t VALUES (...)</code> without a column list now needs a value for the new column too.</li></ul>
+<p><strong>Example: Add a phone number and a verified flag</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL);
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE users ADD COLUMN phone STRING;
+ALTER TABLE users ADD verified BOOL NOT NULL DEFAULT FALSE;
+INSERT INTO users (email, phone, verified) VALUES (&#39;sita@example.com&#39;, &#39;9800000000&#39;, TRUE);
+SELECT id, email, phone, verified FROM users;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE users ADD COLUMN phone STRING</code></p>
+<pre><code class="language-text">table &#39;users&#39; altered</code></pre>
+<p><code>ALTER TABLE users ADD COLUMN verified BOOL NOT NULL DEFAULT FALSE</code></p>
+<pre><code class="language-text">table &#39;users&#39; altered</code></pre>
+<p><code>INSERT INTO users (email, phone, verified) VALUES (&#39;sita@example.com&#39;, &#39;9800000000&#39;, TRUE)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, email, phone, verified FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>phone (STRING)</th><th>verified (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>NULL</td><td>false</td></tr><tr><td>2</td><td>sita@example.com</td><td>9800000000</td><td>true</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Add a sector link to securities (REFERENCES)</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE sectors (name STRING PRIMARY KEY);
+CREATE TABLE securities (symbol SYMBOL PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO sectors VALUES (&#39;Banking&#39;), (&#39;Energy&#39;);
+INSERT INTO securities VALUES (&#39;CITY&#39;, &#39;City Bank Limited&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE securities ADD COLUMN sector STRING REFERENCES sectors(name);
+UPDATE securities SET sector = &#39;Banking&#39; WHERE symbol = &#39;CITY&#39;;
+SELECT symbol, name, sector FROM securities;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE securities ADD COLUMN sector STRING REFERENCES sectors(name)</code></p>
+<pre><code class="language-text">table &#39;securities&#39; altered</code></pre>
+<p><code>UPDATE securities SET sector = &#39;Banking&#39; WHERE symbol = &#39;CITY&#39;</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT symbol, name, sector FROM securities</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td><td>Banking</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Add a computed column to the trade log</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (date TIMESTAMP, transaction_id LONG, quantity LONG, rate DOUBLE) TIMESERIES(date) DEDUP KEY (date, transaction_id);
+INSERT INTO trade_log VALUES (&#39;2026-09-10&#39;, 100010, 50, 517.0);</code></pre>
+<pre><code class="language-sql">ALTER TABLE trade_log ADD COLUMN amount DOUBLE AS (quantity * rate);
+SELECT transaction_id, quantity, rate, amount FROM trade_log;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE trade_log ADD COLUMN amount DOUBLE AS (quantity * rate)</code></p>
+<pre><code class="language-text">table &#39;trade_log&#39; altered</code></pre>
+<p><code>SELECT transaction_id, quantity, rate, amount FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>100010</td><td>50</td><td>517</td><td>25850</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: NOT NULL without a DEFAULT</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">ALTER TABLE users ADD COLUMN verified BOOL NOT NULL;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot add column &#39;verified&#39; to table &#39;users&#39;: rows already in the table need a value for a NOT NULL column; expected NOT NULL DEFAULT &lt;value&gt;</code></p>
+<h2 id="drop-column">DROP COLUMN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table DROP [COLUMN] [IF EXISTS] column</code></pre>
+<p>Removes a column and all its values. The word <code>COLUMN</code> is optional.</p>
+<p>These columns <strong>cannot</strong> be dropped:</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Message says</th></tr></thead><tbody><tr><td>the <code>TIMESERIES</code> column</td><td><code>it is the TIMESERIES column</code></td></tr><tr><td>a <code>SORT BY</code> or <code>DEDUP KEY</code> column</td><td><code>it is part of SORT BY</code> / <code>DEDUP KEY</code></td></tr><tr><td>the <code>PRIMARY KEY</code></td><td><code>it is the PRIMARY KEY</code></td></tr><tr><td>a column that another table <code>REFERENCES</code></td><td><code>... REFERENCES it; drop that column first</code></td></tr><tr><td>a column used by a computed column, a <code>CHECK</code> or an index</td><td><code>... uses it</code></td></tr><tr><td>the only column of the table</td><td><code>drop the table instead</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; altered</code>.</li><li><strong>Notes:</strong> there is no undo. Make a backup first when the data matters (<a href="backup-and-safety.html">backup</a>). With <code>IF EXISTS</code>, a column that is not there is not an error.</li></ul>
+<p><strong>Example: Remove a column nobody uses</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE news (id LONG PRIMARY KEY AUTO, title STRING NOT NULL, old_category STRING);
+INSERT INTO news (title, old_category) VALUES (&#39;City Bank profit rises 18%&#39;, &#39;banking&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE news DROP COLUMN old_category;
+SELECT * FROM news;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE news DROP COLUMN old_category</code></p>
+<pre><code class="language-text">table &#39;news&#39; altered</code></pre>
+<p><code>SELECT * FROM news</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>1</td><td>City Bank profit rises 18%</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The symbol is part of the sort order</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks DROP COLUMN symbol;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop column &#39;symbol&#39; from table &#39;ticks&#39;: it is part of SORT BY</code></p>
+<p><strong>Example: A computed column still uses it</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (quantity LONG, rate DOUBLE, amount DOUBLE AS (quantity * rate));</code></pre>
+<pre><code class="language-sql">ALTER TABLE trade_log DROP COLUMN rate;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop column &#39;rate&#39; from table &#39;trade_log&#39;: computed column &#39;amount&#39; uses it in AS (quantity * rate); drop &#39;amount&#39; first</code></p>
+<h2 id="rename-column">RENAME COLUMN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table RENAME [COLUMN] old_name TO new_name</code></pre>
+<p>Gives a column a new name. The rows do not change. The word <code>COLUMN</code> is optional.</p>
+<ul><li>KDB also renames the column inside computed columns, <code>CHECK</code> rules, and <code>REFERENCES</code> of other tables.</li><li><strong>Returns:</strong> <code>table &#39;name&#39; altered</code>.</li><li><strong>Notes:</strong> views, saved functions, procedures and triggers that use the old name are <strong>not</strong> changed; fix them yourself. Your app&#39;s SQL must use the new name too.</li></ul>
+<p><strong>Example: Rename price to ltp in a live prices table</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_prices (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time);
+INSERT INTO live_prices VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 513.0);</code></pre>
+<pre><code class="language-sql">ALTER TABLE live_prices RENAME COLUMN price TO ltp;
+SELECT time, symbol, ltp FROM live_prices;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE live_prices RENAME COLUMN price TO ltp</code></p>
+<pre><code class="language-text">table &#39;live_prices&#39; altered</code></pre>
+<p><code>SELECT time, symbol, ltp FROM live_prices</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>513</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A REFERENCES of another table follows the new name</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING);
+CREATE TABLE trades (id LONG PRIMARY KEY, buyer INT REFERENCES brokers(id));</code></pre>
+<pre><code class="language-sql">ALTER TABLE brokers RENAME id TO broker_no;
+SHOW COLUMNS FROM trades;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE brokers RENAME COLUMN id TO broker_no</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; altered</code></pre>
+<p><code>SHOW COLUMNS FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>id</td><td>LONG</td><td>true</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>buyer</td><td>INT</td><td>false</td><td>false</td><td>false</td><td>brokers(broker_no)</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The new name is already used</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY, email STRING, mail STRING);</code></pre>
+<pre><code class="language-sql">ALTER TABLE users RENAME COLUMN mail TO email;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot rename column &#39;mail&#39; of table &#39;users&#39; to &#39;email&#39;: the table already has a column named &#39;email&#39;</code></p>
+<h2 id="alter-column">ALTER COLUMN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table ALTER [COLUMN] column [SET DATA] TYPE type [USING expression]
+ALTER TABLE table ALTER [COLUMN] column SET DEFAULT expression
+ALTER TABLE table ALTER [COLUMN] column DROP DEFAULT
+ALTER TABLE table ALTER [COLUMN] column SET NOT NULL
+ALTER TABLE table ALTER [COLUMN] column DROP NOT NULL</code></pre>
+<p>Changes one column. These are the PostgreSQL forms, so a PostgreSQL migration script runs.</p>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>What it does</th></tr></thead><tbody><tr><td><code>TYPE type</code></td><td>converts every stored value to the new type, like <code>CAST</code>. It rewrites the rows</td></tr><tr><td><code>TYPE type USING expression</code></td><td>the new value of each row is <code>expression</code>, over the columns of that row</td></tr><tr><td><code>SET DEFAULT</code> / <code>DROP DEFAULT</code></td><td>the value new rows get when they do not give one; old rows keep theirs</td></tr><tr><td><code>SET NOT NULL</code></td><td>from now on the column needs a value. Refused while a row has <code>NULL</code> there</td></tr><tr><td><code>DROP NOT NULL</code></td><td>the column may be <code>NULL</code> again</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; altered</code>, with <code>(N row change(s) written)</code> when rows were rewritten, or <code>table &#39;name&#39; not changed (already as asked)</code>.</li><li><strong>Notes:</strong>
+<ul><li>When one stored value does not fit the new type, nothing changes and the message names the value: <code>12.7 is not a whole number</code>. Write a <code>USING</code> that fits, or fix the rows first.</li><li>The time column, a <code>SORT BY</code> column and a <code>DEDUP KEY</code> column cannot change type: the rows are stored by them, and KDB refuses. A <code>PRIMARY KEY</code> column can: KDB writes the whole table again in the new key order, in one commit (it takes as long as a copy of the table). A change that makes two keys equal, such as <code>TYPE INT USING round(id)</code>, is refused with &quot;(duplicate)&quot;.</li><li>An index on the column is built again for the new type.</li><li><code>COLLATE</code> after the type is read and ignored. Write <code>COLLATE</code> in the query instead (<a href="order-by-limit.html#collate">ORDER BY</a>).</li></ul></li></ul>
+<p><strong>Example: Ages were saved as text: make them numbers</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING, age STRING);
+INSERT INTO users (email, age) VALUES (&#39;ram@example.com&#39;, &#39;31&#39;), (&#39;sita@example.com&#39;, &#39;unknown&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE users ALTER COLUMN age TYPE INT USING CASE WHEN age = &#39;unknown&#39; THEN NULL ELSE CAST(age AS INT) END;
+SELECT id, email, age FROM users ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE users ALTER COLUMN age TYPE INT USING CASE WHEN age = &#39;unknown&#39; THEN NULL ELSE CAST(age </code></p>
+<pre><code class="language-text">table &#39;users&#39; altered (2 row change(s) written)</code></pre>
+<p><code>SELECT id, email, age FROM users ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>age (INT)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>31</td></tr><tr><td>2</td><td>sita@example.com</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A default for new rows, then a NOT NULL rule</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, author STRING, lang STRING);
+INSERT INTO posts (author, lang) VALUES (&#39;ram&#39;, &#39;en&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE posts ALTER COLUMN lang SET DEFAULT &#39;ne&#39;;
+ALTER TABLE posts ALTER COLUMN author SET NOT NULL;
+INSERT INTO posts (author) VALUES (&#39;sita&#39;);
+SELECT id, author, lang FROM posts ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE posts ALTER COLUMN lang SET DEFAULT &#39;ne&#39;</code></p>
+<pre><code class="language-text">table &#39;posts&#39; altered</code></pre>
+<p><code>ALTER TABLE posts ALTER COLUMN author SET NOT NULL</code></p>
+<pre><code class="language-text">table &#39;posts&#39; altered</code></pre>
+<p><code>INSERT INTO posts (author) VALUES (&#39;sita&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, author, lang FROM posts ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>lang (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>en</td></tr><tr><td>2</td><td>sita</td><td>ne</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A value that does not fit the new type</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (id INT PRIMARY KEY, price DOUBLE);
+INSERT INTO prices VALUES (1, 12.7);</code></pre>
+<pre><code class="language-sql">ALTER TABLE prices ALTER COLUMN price TYPE INT;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot change column &#39;price&#39; of table &#39;prices&#39;: a row already there does not fit (column &#39;price&#39; (INT): 12.7 is not a whole number)</code></p>
+<p><strong>Example: SET NOT NULL while a row has NULL</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING);
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;), (NULL);</code></pre>
+<pre><code class="language-sql">ALTER TABLE users ALTER COLUMN email SET NOT NULL;</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;email&#39; of table &#39;users&#39; contains NULL values; set them first (UPDATE ... SET email = ... WHERE email IS NULL)</code></p>
+<p><strong>Example: A SORT BY column keeps its type</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, qty INT) TIMESERIES(time);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks ALTER COLUMN symbol TYPE STRING;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot alter column &#39;symbol&#39; of table &#39;ticks&#39;: it is the TIMESERIES column or part of SORT BY / DEDUP KEY</code></p>
+<h2 id="drop-partition">DROP PARTITION</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table DROP PARTITION [LIST] &#39;key&#39; [, &#39;key&#39; ...]
+ALTER TABLE table DROP PARTITION OLDER THAN n HOURS | DAYS | WEEKS | MONTHS | YEARS
+ALTER TABLE table DROP PARTITION WHERE time_column &lt; &#39;2026-09-01&#39;</code></pre>
+<p>Deletes whole partitions of a time-series table: all rows of that day, month or year. It is much faster than <code>DELETE</code> for old data. <code>OLDER THAN</code> works out the keys itself, by the same rule as a <a href="#set-ttl">TTL</a>: a partition goes when its <strong>last</strong> moment is more than that long ago. It is the form for a <a href="timers.html">timer</a> that cleans up on a set day, where a TTL cleans up by itself all the time.</p>
+<p><code>LIST</code> and <code>WHERE</code> are QuestDB&#39;s forms. <code>LIST &#39;a&#39;, &#39;b&#39;</code> is the same as <code>&#39;a&#39;, &#39;b&#39;</code>. <code>WHERE</code> drops each partition whose <strong>whole</strong> time range matches the condition:</p>
+<div class="table-wrap"><table><thead><tr><th><code>WHERE</code></th><th>Partitions dropped</th></tr></thead><tbody><tr><td><code>time &lt; &#39;2026-09-22&#39;</code> (a day boundary, DAY partitions)</td><td>every day before 2026-09-22</td></tr><tr><td><code>time &lt; &#39;2026-09-22T12:00&#39;</code> (inside a day)</td><td>every day before 2026-09-22; the day 2026-09-22 is <strong>kept</strong> and named in the answer</td></tr><tr><td><code>time IN &#39;2026-08&#39; OR time &gt;= &#39;2026-09-20&#39;</code></td><td>August, and every day from 2026-09-20 on</td></tr></tbody></table></div>
+<ul><li>The condition may only compare the time column with fixed times: <code>=</code>, <code>&lt;&gt;</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>BETWEEN</code>, <code>IN (...)</code>, <code>IN &#39;2026-09&#39;</code>, joined by <code>AND</code>, <code>OR</code> and <code>NOT</code>. <code>now()</code> and <code>dateadd(&#39;d&#39;, -30, now())</code> count as fixed. Anything else (another column, a function of the time column) is an error, and nothing is dropped.</li><li>A partition the condition cuts through is kept whole, because dropping it would delete rows the condition does not name. Delete those rows with <a href="update-delete.html#delete">DELETE</a>. QuestDB only tests a partition&#39;s first moment, so it would drop that partition too.</li><li><strong>Returns (WHERE):</strong> <code>N partition(s) of &#39;table&#39; dropped</code>, then <code>; kept partition(s) only part of which matches: ...</code> when there are some; <code>no partition of &#39;table&#39; matches as a whole</code> when nothing goes.</li><li>The partitions it finds are written to the database log by name, so a restart or power cut repeats exactly the same drop.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Table has</th><th>Partition keys look like</th></tr></thead><tbody><tr><td><code>PARTITION BY YEAR</code></td><td><code>&#39;2025&#39;</code></td></tr><tr><td><code>PARTITION BY MONTH</code></td><td><code>&#39;2026-08&#39;</code></td></tr><tr><td><code>PARTITION BY DAY</code></td><td><code>&#39;2026-09-09&#39;</code></td></tr></tbody></table></div>
+<ul><li>The keys are <strong>UTC</strong> dates, in single quotes.</li><li><strong>Returns:</strong> <code>N partition(s) of &#39;table&#39; dropped</code>, or for <code>OLDER THAN</code> with nothing that old, <code>no partition of &#39;table&#39; is older than 6 MONTHS</code>.</li><li><strong>Notes:</strong> a key that does not exist is an error, and the message lists the keys that do. A relational table and a table with <code>PARTITION BY NONE</code> have no partitions to drop; use <a href="update-delete.html#delete">DELETE</a> or <a href="update-delete.html#truncate">TRUNCATE</a>.</li><li><strong>Notes:</strong> with <a href="partitions-and-dedup.html#partition-by-symbol">PARTITION BY YEAR, SYMBOL(col)</a> the key is the time part: <code>&#39;2025&#39;</code> drops every symbol of 2025.</li><li><strong>Notes:</strong> it answers at once, even for hundreds of partitions on a busy database. The rows are gone for every query straight away; their files move to the database&#39;s <code>_trash</code> a moment later, in the background.</li></ul>
+<p><strong>Example: Remove the 2025 daily candles</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);
+INSERT INTO ochl_day VALUES (&#39;2025-12-31&#39;, &#39;CITY&#39;, 542.4), (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.9);</code></pre>
+<pre><code class="language-sql">SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;;
+ALTER TABLE ochl_day DROP PARTITION &#39;2025&#39;;
+SELECT time, symbol, close FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows_2025 (LONG)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>ALTER TABLE ochl_day DROP PARTITION &#39;2025&#39;</code></p>
+<pre><code class="language-text">1 partition(s) of &#39;ochl_day&#39; dropped</code></pre>
+<p><code>SELECT time, symbol, close FROM ochl_day</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Drop what ended more than a year ago (by hand, or from a monthly timer)</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades_log (time TIMESTAMP, symbol SYMBOL, qty LONG) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO trades_log VALUES (&#39;2024-01-15&#39;, &#39;CITY&#39;, 100), (&#39;2024-02-15&#39;, &#39;CITY&#39;, 200), (&#39;2099-01-15&#39;, &#39;CITY&#39;, 300);</code></pre>
+<pre><code class="language-sql">ALTER TABLE trades_log DROP PARTITION OLDER THAN 1 YEAR;
+SELECT time, symbol, qty FROM trades_log;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE trades_log DROP PARTITION OLDER THAN 1 YEAR</code></p>
+<pre><code class="language-text">2 partition(s) of &#39;trades_log&#39; dropped</code></pre>
+<p><code>SELECT time, symbol, qty FROM trades_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>2099-01-15T00:00:00.000Z</td><td>CITY</td><td>300</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Drop two days of trade log at once</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (date TIMESTAMP ROUND 1d, transaction_id LONG, symbol SYMBOL) TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, transaction_id);
+INSERT INTO trade_log VALUES (&#39;2026-09-08&#39;, 1, &#39;CITY&#39;), (&#39;2026-09-09&#39;, 2, &#39;COAST&#39;), (&#39;2026-09-10&#39;, 3, &#39;TELCO&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE trade_log DROP PARTITION &#39;2026-09-08&#39;, &#39;2026-09-09&#39;;
+SELECT date, transaction_id, symbol FROM trade_log;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE trade_log DROP PARTITION &#39;2026-09-08&#39;, &#39;2026-09-09&#39;</code></p>
+<pre><code class="language-text">2 partition(s) of &#39;trade_log&#39; dropped</code></pre>
+<p><code>SELECT date, transaction_id, symbol FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>3</td><td>TELCO</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: QuestDB&#39;s forms: LIST, and WHERE on the time column</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE floorsheet (date TIMESTAMP, symbol SYMBOL, qty LONG) TIMESTAMP(date) PARTITION BY DAY;
+INSERT INTO floorsheet VALUES (&#39;2026-09-20T10:00&#39;, &#39;CITY&#39;, 1), (&#39;2026-09-21T10:00&#39;, &#39;CITY&#39;, 2), (&#39;2026-09-22T10:00&#39;, &#39;CITY&#39;, 3), (&#39;2026-09-23T10:00&#39;, &#39;CITY&#39;, 4);</code></pre>
+<pre><code class="language-sql">ALTER TABLE floorsheet DROP PARTITION LIST &#39;2026-09-20&#39;;
+ALTER TABLE floorsheet DROP PARTITION WHERE date &lt; &#39;2026-09-22T12:00&#39;;
+SELECT date, qty FROM floorsheet;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE floorsheet DROP PARTITION &#39;2026-09-20&#39;</code></p>
+<pre><code class="language-text">1 partition(s) of &#39;floorsheet&#39; dropped</code></pre>
+<p><code>ALTER TABLE floorsheet DROP PARTITION WHERE date &lt; &#39;2026-09-22T12:00&#39;</code></p>
+<pre><code class="language-text">1 partition(s) of &#39;floorsheet&#39; dropped; kept partition(s) only part of which matches: 2026-09-22 (use DELETE for those rows)</code></pre>
+<p><code>SELECT date, qty FROM floorsheet</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>2026-09-22T10:00:00.000Z</td><td>3</td></tr><tr><td>2026-09-23T10:00:00.000Z</td><td>4</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p>With <code>LIST</code>, as in QuestDB, a partition that is not there is skipped and the others are still dropped. Without <code>LIST</code>, a partition that is not there is an error and nothing is dropped.</p>
+<p><strong>Example: LIST skips a day that has no partition</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE floorsheet (date TIMESTAMP, symbol SYMBOL, qty LONG) TIMESTAMP(date) PARTITION BY DAY;
+INSERT INTO floorsheet VALUES (&#39;2026-09-20T10:00&#39;, &#39;CITY&#39;, 1), (&#39;2026-09-21T10:00&#39;, &#39;CITY&#39;, 2);</code></pre>
+<pre><code class="language-sql">ALTER TABLE floorsheet DROP PARTITION LIST &#39;2026-09-20&#39;, &#39;2000-01-01&#39;;
+SELECT date, qty FROM floorsheet;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE floorsheet DROP PARTITION &#39;2026-09-20&#39;, &#39;2000-01-01&#39;</code></p>
+<pre><code class="language-text">1 partition(s) of &#39;floorsheet&#39; dropped</code></pre>
+<p><code>SELECT date, qty FROM floorsheet</code></p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>2026-09-21T10:00:00.000Z</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: WHERE takes only the time column</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE floorsheet (date TIMESTAMP, symbol SYMBOL, qty LONG) TIMESTAMP(date) PARTITION BY DAY;
+INSERT INTO floorsheet VALUES (&#39;2026-09-20T10:00&#39;, &#39;CITY&#39;, 1);</code></pre>
+<pre><code class="language-sql">ALTER TABLE floorsheet DROP PARTITION WHERE qty &gt; 0;</code></pre>
+<p>Result:</p>
+<p>Error: <code>DROP PARTITION WHERE compares the time column &#39;date&#39; with fixed times only (=, &lt;&gt;, &lt;, &lt;=, &gt;, &gt;=, BETWEEN, IN, joined by AND, OR, NOT), as in WHERE date &lt; &#39;2026-09-01&#39;</code></p>
+<p><strong>Example: A month key for a table partitioned by day</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (date TIMESTAMP, transaction_id LONG) TIMESERIES(date) PARTITION BY DAY;
+INSERT INTO trade_log VALUES (&#39;2026-09-10&#39;, 1);</code></pre>
+<pre><code class="language-sql">ALTER TABLE trade_log DROP PARTITION &#39;2026-09&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;trade_log&#39; has no partition &#39;2026-09&#39;; partitions: 2026-09-10</code></p>
+<h2 id="set-ttl">SET TTL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table SET TTL n HOURS | DAYS | WEEKS | MONTHS | YEARS
+ALTER TABLE table SET TTL NONE
+CREATE TABLE ... TIMESERIES(time) PARTITION BY DAY TTL 90 DAYS</code></pre>
+<p>A TTL (time to live) keeps a time-series table small. KDB drops <strong>whole partitions</strong> whose time ended more than the TTL ago. It never deletes single rows.</p>
+<ul><li>A background thread checks once a minute. It only runs when no statement is writing.</li><li>A partition goes when its <strong>last</strong> moment is older than the TTL. With <code>TTL 3 DAYS</code> on 2026-09-10 12:00, the day <code>2026-09-06</code> goes and <code>2026-09-07</code> stays.</li><li><code>MONTHS</code> and <code>YEARS</code> are calendar months and years.</li><li><strong>Returns:</strong> <code>table &#39;name&#39; drops partitions older than 90 DAYS</code>, or <code>table &#39;name&#39; keeps its partitions (no TTL)</code> for <code>NONE</code>.</li><li><strong>Notes:</strong>
+<ul><li>Only for time-series tables with <code>PARTITION BY DAY</code>, <code>MONTH</code> or <code>YEAR</code>.</li><li><code>SHOW CREATE TABLE</code> shows the TTL.</li><li>Every drop is written to the audit log (event <code>ttl_drop</code>) and to the database log, like <code>DROP PARTITION</code>.</li><li>A <a href="views.html#materialized-view">materialized view</a> keeps its rows when the TTL drops partitions of its table.</li><li>The TTL is checked every minute. It also runs on a busy database. It locks only a table that has a partition past its TTL, one table at a time, and waits only briefly for it. A table held by a long load or an open transaction is left for the next check, and writers of other tables never wait for it. Writers of the table being trimmed wait while the old partitions go, which is quick.</li></ul></li></ul>
+<p><strong>Example: Keep 90 days of live prices</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_prices (time TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(time) PARTITION BY DAY;</code></pre>
+<pre><code class="language-sql">ALTER TABLE live_prices SET TTL 90 DAYS;
+SHOW CREATE TABLE live_prices;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE live_prices SET TTL 90 DAYS</code></p>
+<pre><code class="language-text">table &#39;live_prices&#39; drops partitions older than 90 DAYS</code></pre>
+<p><code>SHOW CREATE TABLE live_prices</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE live_prices (   time TIMESTAMP,   symbol SYMBOL,   ltp DOUBLE ) TIMESERIES(time) PARTITION BY DAY SORT BY (symbol, time) TTL 90 DAYS</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: TTL when the table is made, and taken off again</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE candles_1m (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY MONTH TTL 2 YEARS;</code></pre>
+<pre><code class="language-sql">ALTER TABLE candles_1m SET TTL NONE;
+SHOW CREATE TABLE candles_1m;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE candles_1m SET TTL NONE</code></p>
+<pre><code class="language-text">table &#39;candles_1m&#39; keeps its partitions (no TTL)</code></pre>
+<p><code>SHOW CREATE TABLE candles_1m</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE candles_1m (   time TIMESTAMP,   symbol SYMBOL,   close DOUBLE ) TIMESERIES(time) PARTITION BY MONTH SORT BY (symbol, time)</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A relational table has no partitions to drop</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE notes (id LONG PRIMARY KEY, body STRING);</code></pre>
+<pre><code class="language-sql">ALTER TABLE notes SET TTL 30 DAYS;</code></pre>
+<p>Result:</p>
+<p>Error: <code>TTL drops whole time partitions, so it needs a time-series table with PARTITION BY DAY, MONTH or YEAR; table &#39;notes&#39; has none</code></p>
+<h2 id="dedup-enable">DEDUP ENABLE and DEDUP DISABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table DEDUP ENABLE UPSERT KEYS (column, ..., time_column)
+ALTER TABLE table DEDUP DISABLE</code></pre>
+<p>Sets or removes the <a href="partitions-and-dedup.html#dedup-key">DEDUP KEY</a> of a time-series table. It is QuestDB&#39;s statement; <code>UPSERT</code> may be left out.</p>
+<ul><li><code>DEDUP ENABLE</code> rewrites the rows by the new key. Rows that already share a key are <strong>folded</strong>: the newest of each key stays.</li><li><code>DEDUP DISABLE</code> takes the key off. From then on every row is kept, also exact copies.</li><li><strong>Returns:</strong> <code>table &#39;t&#39; now dedups on (time, symbol) (N row(s) rewritten, M duplicate row(s) folded: the newest row of each key was kept)</code>, or <code>table &#39;t&#39; no longer dedups (N row(s) rewritten)</code>.</li><li><strong>Notes:</strong>
+<ul><li>The key must include the time column, as in <code>CREATE TABLE</code>. With <a href="partitions-and-dedup.html#partition-by-symbol">SYMBOL(col) partitions</a> it must include that column too.</li><li>It reads and rewrites every row, so on a big table it takes a while. Folded rows cannot be brought back: make a backup first when they matter.</li><li>Only for time-series tables. A relational table uses a <code>PRIMARY KEY</code>.</li><li>This statement leaves the table&#39;s <a href="partitions-and-dedup.html#dedup-insert">dedup_insert</a> as it was: on a table that did not have it, a plain <code>INSERT</code> of a key that is there still fails. To make it replace the row, as QuestDB does, add <code>ALTER TABLE t SET (dedup_insert = &#39;upsert&#39;)</code>. (A table made with <code>CREATE TABLE ... DEDUP UPSERT KEYS (...)</code> has it from the start.)</li></ul></li></ul>
+<p><strong>Example: A tick table loaded twice: turn DEDUP on and the copies fold</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510), (&#39;2026-09-10T11:01:00+05:45&#39;, &#39;CITY&#39;, 511);
+INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510.5);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks DEDUP ENABLE UPSERT KEYS (time, symbol);
+SELECT time, symbol, price FROM ticks;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE ticks DEDUP ENABLE UPSERT KEYS (time, symbol)</code></p>
+<pre><code class="language-text">table &#39;ticks&#39; now dedups on (time, symbol) (2 row(s) rewritten, 1 duplicate row(s) folded: the newest row of each key was kept)</code></pre>
+<p><code>SELECT time, symbol, price FROM ticks</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>510.5</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>CITY</td><td>511</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The key needs the time column</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ticks DEDUP ENABLE UPSERT KEYS (symbol);</code></pre>
+<p>Result:</p>
+<p>Error: <code>DEDUP UPSERT KEYS must include the time column &#39;time&#39; of table &#39;ticks&#39;, or a stored column GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, time)) STORED</code></p>
+<h2 id="add-check">ADD CONSTRAINT ... CHECK</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table ADD [CONSTRAINT name] CHECK (condition)</code></pre>
+<p>Adds a rule that every row must follow. KDB first reads <strong>every</strong> row: if one row already breaks the rule, the rule is refused and the message names that row.</p>
+<ul><li>Without <code>CONSTRAINT name</code>, KDB makes the name <code>table_check</code> (or <code>table_check1</code>, ...).</li><li><strong>Returns:</strong> <code>table &#39;name&#39; altered</code>.</li><li><strong>Notes:</strong> on a very big time-series table this reads all rows once, so it can take a while. The rules for the condition are in <a href="constraints.html#check">CHECK</a>.</li></ul>
+<p><strong>Example: No negative balances from now on: the rule stops a bad UPDATE</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY AUTO, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+INSERT INTO accounts (owner, balance) VALUES (&#39;Ram&#39;, 1000.00), (&#39;Sita&#39;, 0);</code></pre>
+<pre><code class="language-sql">ALTER TABLE accounts ADD CONSTRAINT balance_not_negative CHECK (balance &gt;= 0);
+UPDATE accounts SET balance = balance - 50 WHERE owner = &#39;Sita&#39;;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">table &#39;accounts&#39; altered</code></pre>
+<p>Error: <code>CHECK constraint &#39;balance_not_negative&#39; of table &#39;accounts&#39; failed: balance &gt;= 0 is false for the row id=&#39;2&#39;, balance=&#39;-50.00&#39;</code></p>
+<p><strong>Example: A row already breaks the rule</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY AUTO, owner STRING NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0);
+INSERT INTO accounts (owner, balance) VALUES (&#39;Ram&#39;, -20.00);</code></pre>
+<pre><code class="language-sql">ALTER TABLE accounts ADD CONSTRAINT balance_not_negative CHECK (balance &gt;= 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot add the constraint: a row already in table &#39;accounts&#39; breaks it (CHECK constraint &#39;balance_not_negative&#39; of table &#39;accounts&#39; failed: balance &gt;= 0 is false for the row id=&#39;1&#39;, balance=&#39;-20.00&#39;); fix or delete such rows first</code></p>
+<h2 id="add-key">ADD UNIQUE, ADD FOREIGN KEY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table ADD [CONSTRAINT name] UNIQUE (column [, column ...])
+ALTER TABLE table ADD [CONSTRAINT name] FOREIGN KEY (column [, ...]) REFERENCES other (column [, ...])
+                      [ON DELETE action] [ON UPDATE action] [NOT VALID]</code></pre>
+<p>Adds a key to a table that already has rows, the PostgreSQL way. KDB first reads every row.</p>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>KDB checks first</th><th>After it</th></tr></thead><tbody><tr><td><code>UNIQUE (...)</code></td><td>no two rows have the same values</td><td>a new duplicate is refused</td></tr><tr><td><code>FOREIGN KEY (...) REFERENCES other (...)</code></td><td>every row has a matching row in <code>other</code></td><td>a new row must point at a row that is there</td></tr><tr><td><code>... NOT VALID</code></td><td>nothing: rows already there are not checked</td><td>new rows are checked</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; altered</code>.</li><li><strong>Notes:</strong>
+<ul><li>Without <code>CONSTRAINT name</code>, KDB makes the name: <code>trades_ref_key</code>, <code>trades_buyer_fkey</code>. <code>SHOW CREATE TABLE</code> shows it, and <a href="#drop-constraint">DROP CONSTRAINT</a> removes it.</li><li>A <code>FOREIGN KEY</code> must point at the <code>PRIMARY KEY</code> or a <code>UNIQUE</code> column of the other table, of the same kind of type. The <code>ON DELETE</code> actions are in <a href="constraints.html#references">REFERENCES</a>.</li><li>When a row breaks the rule, nothing changes and the message names the row.</li></ul></li></ul>
+<p><strong>Example: Trades point at brokers from now on</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY, buyer INT, qty LONG);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (45, &#39;Imperial Securities&#39;);
+INSERT INTO trades VALUES (1, 1, 10), (2, 45, 20);</code></pre>
+<pre><code class="language-sql">ALTER TABLE trades ADD CONSTRAINT trades_buyer_fk FOREIGN KEY (buyer) REFERENCES brokers(id);
+ALTER TABLE brokers ADD CONSTRAINT brokers_name_key UNIQUE (name);
+SHOW CREATE TABLE trades;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE trades ADD CONSTRAINT trades_buyer_fk FOREIGN KEY (buyer) REFERENCES brokers (id)</code></p>
+<pre><code class="language-text">table &#39;trades&#39; altered</code></pre>
+<p><code>ALTER TABLE brokers ADD CONSTRAINT brokers_name_key UNIQUE (name)</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; altered</code></pre>
+<p><code>SHOW CREATE TABLE trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE trades (   id LONG PRIMARY KEY,   buyer INT CONSTRAINT trades_buyer_fk REFERENCES brokers(id),   qty LONG )</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Old rows break the rule: NOT VALID checks only new rows</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE trades (id LONG PRIMARY KEY, buyer INT);
+INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;);
+INSERT INTO trades VALUES (1, 1), (2, 77);</code></pre>
+<pre><code class="language-sql">ALTER TABLE trades ADD CONSTRAINT trades_buyer_fk FOREIGN KEY (buyer) REFERENCES brokers(id) NOT VALID;
+INSERT INTO trades VALUES (3, 99);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">table &#39;trades&#39; altered</code></pre>
+<p>Error: <code>column &#39;buyer&#39; = &#39;99&#39; has no matching row in brokers(id)</code></p>
+<p><strong>Example: Two rows already have the same value</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY, email STRING);
+INSERT INTO users VALUES (1, &#39;ram@example.com&#39;), (2, &#39;ram@example.com&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE users ADD UNIQUE (email);</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot add constraint &#39;users_email_key&#39;: two rows of table &#39;users&#39; have email=&#39;ram@example.com&#39; (duplicate)</code></p>
+<h2 id="drop-constraint">DROP CONSTRAINT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE table DROP CONSTRAINT name</code></pre>
+<p>Removes a <code>CHECK</code> rule, a <code>UNIQUE</code> key or a <code>FOREIGN KEY</code> by its name. <code>SHOW CREATE TABLE</code> shows the names, also the names KDB made for you (like <code>accounts_balance_check</code>). The <code>PRIMARY KEY</code> cannot be dropped: the rows are stored by it.</p>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; altered</code>.</li><li><strong>Notes:</strong> a name that does not exist is an error; the message lists the names the table has. A column called <code>constraint</code> is dropped with <code>ALTER TABLE t DROP constraint</code> (no name after it).</li></ul>
+<p><strong>Example: Remove a limit that is too strict</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ledger (id LONG PRIMARY KEY AUTO, amount DECIMAL(2) NOT NULL, CONSTRAINT max_amount CHECK (amount &lt;= 100000));</code></pre>
+<pre><code class="language-sql">ALTER TABLE ledger DROP CONSTRAINT max_amount;
+INSERT INTO ledger (amount) VALUES (250000.00);
+SELECT id, amount FROM ledger;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE ledger DROP CONSTRAINT max_amount</code></p>
+<pre><code class="language-text">table &#39;ledger&#39; altered</code></pre>
+<p><code>INSERT INTO ledger (amount) VALUES (250000.00)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, amount FROM ledger</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>amount (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>250000.00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A wrong constraint name</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, balance DECIMAL(2) CHECK (balance &gt;= 0));</code></pre>
+<pre><code class="language-sql">ALTER TABLE accounts DROP CONSTRAINT balance_check;</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;accounts&#39; has no constraint &#39;balance_check&#39; (it has: accounts_pkey, accounts_balance_check)</code></p>
+<h2 id="rename-table">RENAME TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">RENAME TABLE old_name TO new_name</code></pre>
+<p>Gives a table a new name. <code>REFERENCES</code> in other tables follow the new name.</p>
+<ul><li><strong>Returns:</strong> <code>table &#39;old&#39; renamed to &#39;new&#39;</code>.</li><li><strong>Notes:</strong> refused when a table with the new name exists, and while the table has triggers (drop them first). Views, procedures and triggers that use the old name are not changed. The PostgreSQL form <code>ALTER TABLE a RENAME TO b</code> works the same.</li></ul>
+<p><strong>Example: Rename a table; the REFERENCES follows</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING);
+CREATE TABLE trades (id LONG PRIMARY KEY, buyer INT REFERENCES brokers(id));</code></pre>
+<pre><code class="language-sql">RENAME TABLE brokers TO members;
+SHOW COLUMNS FROM trades;</code></pre>
+<p>Result:</p>
+<p><code>RENAME TABLE brokers TO members</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; renamed to &#39;members&#39;</code></pre>
+<p><code>SHOW COLUMNS FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>id</td><td>LONG</td><td>true</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>buyer</td><td>INT</td><td>false</td><td>false</td><td>false</td><td>members(id)</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The new name is taken</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY);
+CREATE TABLE posts_old (id LONG PRIMARY KEY);</code></pre>
+<pre><code class="language-sql">RENAME TABLE posts TO posts_old;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot rename table &#39;posts&#39; to &#39;posts_old&#39;: a table named &#39;posts_old&#39; already exists</code></p>
+<h2 id="drop-table">DROP TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP TABLE [IF EXISTS] table [CASCADE | RESTRICT]</code></pre>
+<p>Deletes a table with all its rows and its indexes. With <code>IF EXISTS</code>, a table that is not there is not an error.</p>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; dropped</code>, or <code>table &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong> the table goes to the <a href="trash.html">trash</a> for some days, and <code>UNDROP TABLE</code> brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while another table <code>REFERENCES</code> it, and while it has triggers. To remove all rows and keep the table, use <a href="update-delete.html#truncate">TRUNCATE</a>.</li><li><strong>CASCADE and RESTRICT:</strong> PostgreSQL writes <code>DROP TABLE t CASCADE</code> (drop what depends on it too) or <code>DROP TABLE t RESTRICT</code> (refuse while something depends on it). KDB always works like <code>RESTRICT</code>: it never drops anything but the table.
+<ul><li><code>RESTRICT</code> is read and changes nothing.</li><li><code>CASCADE</code> works when nothing uses the table, so a PostgreSQL script with <code>DROP TABLE IF EXISTS t CASCADE</code> runs.</li><li><code>CASCADE</code> is <strong>refused</strong> while a view, a materialized view or another table&#39;s foreign key uses the table: <code>DROP TABLE ... CASCADE is not supported</code> (PostgreSQL <code>0A000</code>). The message names what uses it. Drop those first, then the table.</li><li>Without <code>CASCADE</code>, a plain view that reads the table does not stop the drop: the view stays and fails when it is read (see <a href="views.html">views</a>).</li><li><code>DROP FUNCTION</code>, <code>DROP PROCEDURE</code> and <code>DROP TRIGGER</code> read both words and ignore them.</li></ul></li></ul>
+<p><strong>Example: Remove a test table; safe to run twice</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE test_ticks (time TIMESTAMP, price DOUBLE) TIMESERIES(time);</code></pre>
+<pre><code class="language-sql">DROP TABLE test_ticks;
+DROP TABLE IF EXISTS test_ticks;
+SHOW TABLES;</code></pre>
+<p>Result:</p>
+<p><code>DROP TABLE test_ticks</code></p>
+<pre><code class="language-text">table &#39;test_ticks&#39; dropped; UNDROP TABLE test_ticks brings it back within 7 days</code></pre>
+<p><code>DROP TABLE IF EXISTS test_ticks</code></p>
+<pre><code class="language-text">table &#39;test_ticks&#39; does not exist</code></pre>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><strong>Example: Brokers are still used by the trades</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING);
+CREATE TABLE trades (id LONG PRIMARY KEY, buyer INT REFERENCES brokers(id));</code></pre>
+<pre><code class="language-sql">DROP TABLE brokers;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop table &#39;brokers&#39;: column &#39;buyer&#39; of table &#39;trades&#39; REFERENCES it; drop that column or table first</code></p>
+<p><strong>Example: A table that is not there</strong> (shows an error)</p>
+<pre><code class="language-sql">DROP TABLE nothing;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop table &#39;nothing&#39;: it does not exist</code></p>
+<p><strong>Example: CASCADE and RESTRICT on tables nothing uses</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE test_a (id INT PRIMARY KEY);
+CREATE TABLE test_b (id INT PRIMARY KEY);</code></pre>
+<pre><code class="language-sql">DROP TABLE test_a CASCADE;
+DROP TABLE test_b RESTRICT;
+SHOW TABLES;</code></pre>
+<p>Result:</p>
+<p><code>DROP TABLE test_a</code></p>
+<pre><code class="language-text">table &#39;test_a&#39; dropped; UNDROP TABLE test_a brings it back within 7 days</code></pre>
+<p><code>DROP TABLE test_b</code></p>
+<pre><code class="language-text">table &#39;test_b&#39; dropped; UNDROP TABLE test_b brings it back within 7 days</code></pre>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><strong>Example: CASCADE would have to drop a view: refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE test_prices (symbol SYMBOL, price DOUBLE);
+CREATE VIEW test_expensive AS SELECT symbol FROM test_prices WHERE price &gt; 1000;</code></pre>
+<pre><code class="language-sql">DROP TABLE test_prices CASCADE;</code></pre>
+<p>Result:</p>
+<p>Error: <code>DROP TABLE ... CASCADE is not supported: it would not drop view &#39;test_expensive&#39;, which uses table &#39;test_prices&#39;. Drop the dependent views first (DROP VIEW test_expensive), then DROP TABLE test_prices</code></p>
+<h2 id="resident">SET (resident = on): keep a table in memory</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE &lt;t&gt; SET (resident = on | off)
+ALTER TABLE &lt;t&gt; RESET (resident)
+CREATE TABLE &lt;t&gt; (...) WITH (resident = on)</code></pre>
+<p>A table an app reads on every request (sessions, users, symbols) should not be read from disk again because another query needed memory. With <code>resident = on</code>, its partitions are <strong>never unloaded</strong> once a read has loaded them: not for a big scan of the same database, not for another database, not for the <a href="cli-serve.html#memory-limit">process memory limit</a>.</p>
+<ul><li><strong>Returns:</strong> <code>table &#39;t&#39; stays in memory once loaded (resident = on); it counts against the database&#39;s MEMORY_LIMIT</code>.</li><li><strong>Notes:</strong>
+<ul><li>It loads nothing by itself: the first read that needs the rows loads them.</li><li>What it holds still counts in <code>--memory</code> and in the database&#39;s <a href="databases.html#memory"><code>MEMORY_LIMIT</code></a>, so keep it for small and medium tables.</li><li><code>GET /api/stats</code> shows what resident tables hold as <code>resident_bytes</code> in each database&#39;s <code>memory</code>.</li><li>A database with a resident table needs KDB 2026-10-02 or newer; <code>RESET (resident)</code> lets an older KDB open it again.</li></ul></li></ul>
+<p><strong>Example: The sessions table of an app stays loaded</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE sessions (token STRING PRIMARY KEY, user_id LONG);</code></pre>
+<pre><code class="language-sql">ALTER TABLE sessions SET (resident = on);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">table &#39;sessions&#39; stays in memory once loaded (resident = on); it counts against the database&#39;s MEMORY_LIMIT</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/alter-table.md">This page as markdown</a>.</footer>
+</body>
+</html>

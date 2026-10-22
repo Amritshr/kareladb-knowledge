@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aggregate functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Make one value from many rows: count, sum, avg, min, max, first, last, median, percentile, vwap, twap, conditional counts and sums, the row of the maximum, and lists of text.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-aggregate.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-aggregate.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="aggregate-functions">Aggregate functions</h1>
+<blockquote><p>Make one value from many rows: count, sum, avg, min, max, first, last, median, percentile, vwap, twap, conditional counts and sums, the row of the maximum, and lists of text.</p></blockquote>
+<ul><li>Category: Functions — aggregate</li><li>Keywords: aggregate, group, total, average, mean, count rows, how many, number of rows, biggest, smallest, highest, lowest, open high low close, candle, turnover, count(), distinct count, uniq, quantile, p90, p95, volume weighted average price, implicit GROUP BY, HAVING, aggregate in WHERE, conditional count, countif, COUNT FILTER, sumif, SUM FILTER, averageif, multiply all, all true, any true, bool_all, row of the maximum, day of the highest close, row of the minimum, group_concat, join text, comma list, collect list, JSON array, jsonb_agg, JSON object, jsonb_object_agg, weighted average, SUMPRODUCT, time weighted average price, TWAP</li><li>See also: <a href="group-by.html">GROUP BY and HAVING</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="functions-window.html#aggregates">Window and series functions (aggregates)</a>, <a href="functions-conditional.html#coalesce">Conditional and NULL functions (coalesce)</a>, <a href="candles-cookbook.html">Candles cookbook</a>, <a href="pivot.html">PIVOT</a></li></ul>
+<p>An <strong>aggregate</strong> function reads many rows and gives back one value. For example, <code>sum(quantity)</code> adds up the quantity of every row.</p>
+<ul><li>With <code>GROUP BY</code> (or <code>SAMPLE BY</code>) you get one result row for each <strong>group</strong>. A group is all the rows with the same key, for example the same symbol.</li><li>Without <code>GROUP BY</code>, all rows are one group, and you get one row.</li><li><strong>Implicit GROUP BY:</strong> like QuestDB, KDB groups by itself. Every select item that is <strong>not</strong> inside an aggregate becomes a group key. <code>SELECT symbol, max(high) FROM ochl_day</code> gives one row per symbol.</li><li>Aggregates <strong>skip NULL values</strong>. <code>avg</code> of 10, NULL and 20 is 15. Only <code>count(*)</code> counts every row, and <code>first</code> and <code>last</code> take the first / last row&#39;s value even when it is NULL (as in QuestDB; <code>first_not_null</code> and <code>last_not_null</code> skip NULLs).</li><li>On <strong>no rows</strong> (without GROUP BY) <code>count</code> gives <code>0</code> and the others give <code>NULL</code>. With GROUP BY, no rows give no groups.</li><li>Aggregates can only be in the select list and in <code>HAVING</code>. To keep only some groups, use <code>HAVING</code> (<a href="group-by.html">group-by</a>), not <code>WHERE</code>.</li><li><code>GROUP BY</code> can use a name from the select list (<code>GROUP BY band</code> when <code>band</code> is an alias) or a position: <code>GROUP BY 1</code> is the first column, as in PostgreSQL.</li><li>Put <code>OVER (...)</code> after an aggregate to get a running total or a moving value for <strong>every</strong> row instead of one row per group (<a href="functions-window.html#aggregates">window functions</a>).</li><li>More aggregates have their own pages: spread and shape (<a href="functions-statistics.html">statistics</a>), correlation and regression (<a href="functions-correlation.html">correlation</a>), Sharpe ratio and drawdown (<a href="functions-returns-risk.html">returns and risk</a>), and <code>xnpv</code>, <code>xirr</code> (<a href="functions-finance.html">finance</a>).</li></ul>
+<p><strong>Example: A daily candle for each symbol, made from one-minute candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       first(open)  AS open,
+       max(high)    AS high,
+       min(low)     AS low,
+       last(close)  AS close,
+       sum(volume)  AS volume,
+       count(*)     AS minutes
+FROM ochl_minutes
+WHERE time IN &#39;2026-09-10&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>504.6</td><td>507</td><td>500.7</td><td>504.9</td><td>183040</td><td>240</td></tr><tr><td>COAST</td><td>380.1</td><td>382</td><td>373.2</td><td>376.1</td><td>186200</td><td>236</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Aggregates cannot be used in WHERE</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol FROM trade_log WHERE sum(quantity) &gt; 1000;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 36: &#39;sum&#39; works on many rows and can only be used in a SELECT list or HAVING</code></p>
+<p><strong>Example: GROUP BY can use the AS name of a column</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT floor(rate / 100) * 100 AS band, count(*) AS trades
+FROM trade_log
+GROUP BY band
+ORDER BY band;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>band (DOUBLE)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>100</td><td>4</td></tr><tr><td>300</td><td>7</td></tr><tr><td>400</td><td>4</td></tr><tr><td>500</td><td>11</td></tr><tr><td>800</td><td>6</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="count-star">count(*)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">count(*)
+count()</code></pre>
+<p>The number of rows. NULL values do not matter here: every row counts. <code>count()</code> without <code>*</code> is the same (QuestDB style).</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> rows with NULL values are counted too.</li><li><strong>Notes:</strong> on no rows, <code>count(*)</code> is <code>0</code> (without GROUP BY). With GROUP BY, a group with no rows does not exist, so you do not get a <code>0</code> row for it.</li></ul>
+<p><strong>Example: Trades per symbol on one day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY symbol
+ORDER BY trades DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>COAST</td><td>9</td></tr><tr><td>CITY</td><td>7</td></tr><tr><td>TELCO</td><td>4</td></tr><tr><td>VOLT</td><td>4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: New app users per Nepal day</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT to_date(created_at + 20700000) AS nepal_day, count(*) AS signups
+FROM signups
+GROUP BY to_date(created_at + 20700000)
+ORDER BY nepal_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_day (DATE)</th><th>signups (LONG)</th></tr></thead><tbody><tr><td>2026-09-01</td><td>3</td></tr><tr><td>2026-09-02</td><td>2</td></tr><tr><td>2026-09-03</td><td>3</td></tr><tr><td>2026-09-04</td><td>1</td></tr><tr><td>2026-09-06</td><td>1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: No rows: count is 0, sum is NULL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows, count() AS rows_again, sum(close) AS total
+FROM ochl_day
+WHERE symbol = &#39;TELCO&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th><th>rows_again (LONG)</th><th>total (STRING)</th></tr></thead><tbody><tr><td>0</td><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="count">count(x)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">count(x)</code></pre>
+<p>The number of rows where <code>x</code> is <strong>not</strong> NULL.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to look at</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> rows where <code>x</code> is NULL are not counted.</li><li><strong>Notes:</strong> <code>count(*) - count(x)</code> is the number of NULL values.</li></ul>
+<p><strong>Example: Users who gave their city, and users who never logged in</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT count(*) AS users,
+       count(city) AS with_city,
+       count(*) - count(last_login) AS never_logged_in
+FROM app_users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>users (LONG)</th><th>with_city (LONG)</th><th>never_logged_in (LONG)</th></tr></thead><tbody><tr><td>8</td><td>6</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="count-distinct">count(DISTINCT x)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">count(DISTINCT x)</code></pre>
+<p>The number of <strong>different</strong> values of <code>x</code>. The same value many times counts once.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> NULL is not counted as a value.</li><li><strong>Notes:</strong> numbers are compared by value, so <code>1</code> and <code>1.0</code> are one value. <code>count(DISTINCT x)</code> and <a href="functions-aggregate.html#count_distinct">count_distinct</a> are the same. Only <code>count</code> accepts <code>DISTINCT</code> inside.</li></ul>
+<p><strong>Example: How many different brokers bought each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades, count(DISTINCT buyer) AS buying_brokers
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>buying_brokers (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>4</td></tr><tr><td>COAST</td><td>11</td><td>5</td></tr><tr><td>TELCO</td><td>6</td><td>5</td></tr><tr><td>VOLT</td><td>4</td><td>3</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: NULL is not a value; 1 and 1.0 are the same value</strong></p>
+<pre><code class="language-sql">SELECT count(*) AS rows, count(x) AS not_null, count(DISTINCT x) AS different
+FROM (SELECT NULL AS x UNION ALL SELECT 1 UNION ALL SELECT 1 UNION ALL SELECT 1.0 UNION ALL SELECT 2) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th><th>not_null (LONG)</th><th>different (LONG)</th></tr></thead><tbody><tr><td>5</td><td>4</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="count_distinct">count_distinct</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">count_distinct(x)</code></pre>
+<p>The number of different values of <code>x</code>, without NULL. The same as <code>count(DISTINCT x)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to look at</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> NULL is not counted.</li></ul>
+<p><strong>Example: Posts and different writers per forum topic</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT topic, count(*) AS posts, count_distinct(author) AS writers
+FROM forum_posts
+GROUP BY topic
+ORDER BY posts DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>topic (STRING)</th><th>posts (LONG)</th><th>writers (LONG)</th></tr></thead><tbody><tr><td>Market today</td><td>5</td><td>5</td></tr><tr><td>CITY dividend</td><td>3</td><td>3</td></tr><tr><td>Hydro IPOs</td><td>3</td><td>2</td></tr><tr><td>COAST merger</td><td>3</td><td>3</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="sum">sum</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sum(x)</code></pre>
+<p>The total of all values of <code>x</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to add up</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code> when every value is a whole number, an exact <code>DECIMAL</code> when every value is a <code>DECIMAL</code> (with the largest scale of them), else <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. When there are no values (or all are NULL), the result is <code>NULL</code>, not <code>0</code>. Write <code>coalesce(sum(x), 0)</code> to get <code>0</code> (<a href="functions-conditional.html#coalesce">coalesce</a>); for a <code>DECIMAL(2)</code> column write <code>coalesce(sum(x), CAST(0 AS DECIMAL(2)))</code>, because a plain <code>0</code> is a <code>LONG</code>.</li><li><strong>Notes:</strong> a <code>LONG</code> total too big for 64 bits (more than about 9.2e18) is an error: <code>sum() is out of range</code> (SQLSTATE <code>22003</code>). A <code>DECIMAL</code> total is exact up to 38 digits, also past 64 bits; only past that is it an error. It never comes back rounded. For an approximate total add <code>DOUBLE</code> values: <code>sum(x::DOUBLE)</code>. Text gives an error (<code>sum needs numbers</code>). For money, use <code>DECIMAL(2)</code> columns: their sum is exact.</li><li><strong>DOUBLE totals:</strong> a <code>DOUBLE</code> total is <strong>compensated</strong> (the Neumaier method): the rounding error of each step is carried along and added back, so the total does not depend on the order of the rows and is as close to the exact total as a <code>DOUBLE</code> can be. QuestDB&#39;s plain <code>sum</code> adds without this, so its last digit can differ: five NEPSE volumes that add up to exactly 55128735 give 55128734.99999999 there. QuestDB&#39;s <code>ksum</code> and <code>nsum</code> give KDB&#39;s answer; KDB accepts both names as <code>sum</code>.</li></ul>
+<p><strong>Example: Broker buy totals on one day (trade log)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT buyer, b.name, count(*) AS trades, sum(quantity) AS shares, sum(amount) AS turnover
+FROM trade_log f JOIN brokers b ON b.id = f.buyer
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY buyer, b.name
+ORDER BY turnover DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>name (STRING)</th><th>trades (LONG)</th><th>shares (LONG)</th><th>turnover (DOUBLE)</th></tr></thead><tbody><tr><td>49</td><td>Online Securities</td><td>5</td><td>1740</td><td>960370</td></tr><tr><td>45</td><td>Imperial Securities</td><td>5</td><td>1560</td><td>695950</td></tr><tr><td>58</td><td>Northgate Securities</td><td>4</td><td>760</td><td>260190</td></tr><tr><td>1</td><td>Keystone Securities</td><td>7</td><td>570</td><td>239420</td></tr><tr><td>34</td><td>Vision Securities</td><td>3</td><td>300</td><td>205450</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Accounting month report: debit and credit per account type (DECIMAL stays exact)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT a.type, sum(l.debit) AS debit, sum(l.credit) AS credit
+FROM ledger l JOIN accounts a ON a.code = l.account
+WHERE l.entry_date IN &#39;2026-09&#39;
+GROUP BY a.type
+ORDER BY a.type;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>type (STRING)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th></tr></thead><tbody><tr><td>asset</td><td>806350.00</td><td>323830.00</td></tr><tr><td>equity</td><td>NULL</td><td>500000.00</td></tr><tr><td>expense</td><td>26030.00</td><td>NULL</td></tr><tr><td>income</td><td>NULL</td><td>8550.00</td></tr><tr><td>liability</td><td>257500.00</td><td>257500.00</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: No values give NULL; coalesce makes it 0.00</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT sum(debit) AS debit,
+       coalesce(sum(debit), CAST(0 AS DECIMAL(2))) AS debit_or_zero
+FROM ledger
+WHERE account = 3000;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>debit (STRING)</th><th>debit_or_zero (DECIMAL(2))</th></tr></thead><tbody><tr><td>NULL</td><td>0.00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Check the books: every journal entry must have debits = credits</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT entry_id, count(*) AS lines, sum(debit) AS debit, sum(credit) AS credit,
+       sum(debit) = sum(credit) AS balanced
+FROM ledger
+GROUP BY entry_id
+ORDER BY entry_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>entry_id (INT)</th><th>lines (LONG)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th><th>balanced (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>500000.00</td><td>500000.00</td><td>true</td></tr><tr><td>2</td><td>2</td><td>257500.00</td><td>257500.00</td><td>true</td></tr><tr><td>3</td><td>2</td><td>257500.00</td><td>257500.00</td><td>true</td></tr><tr><td>4</td><td>2</td><td>1030.00</td><td>1030.00</td><td>true</td></tr><tr><td>5</td><td>2</td><td>30000.00</td><td>30000.00</td><td>true</td></tr><tr><td>6</td><td>2</td><td>25000.00</td><td>25000.00</td><td>true</td></tr><tr><td>7</td><td>2</td><td>6250.00</td><td>6250.00</td><td>true</td></tr><tr><td>8</td><td>3</td><td>12600.00</td><td>12600.00</td><td>true</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: A DOUBLE total is compensated: exactly 55128735, not 55128734.99999999</strong></p>
+<pre><code class="language-sql">CREATE TABLE vol (v DOUBLE);
+INSERT INTO vol VALUES (15380798.2), (10594146.6), (12320992.8), (6619323.5), (10213473.9);
+SELECT sum(v) = 55128735 AS exact, ksum(v) = sum(v) AS same_as_ksum FROM vol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE vol (</code></p>
+<pre><code class="language-text">table &#39;vol&#39; created</code></pre>
+<p><code>INSERT INTO vol VALUES (15380798.2), (10594146.6), (12320992.8), (6619323.5), (10213473.9)</code></p>
+<pre><code class="language-text">5 row(s) inserted</code></pre>
+<p><code>SELECT sum(v) = 55128735 AS exact, sum(v) = sum(v) AS same_as_ksum FROM vol</code></p>
+<div class="table-wrap"><table><thead><tr><th>exact (BOOL)</th><th>same_as_ksum (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Text cannot be added</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT sum(symbol) FROM trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: sum needs numbers, got &#39;CITY&#39;</code></p>
+<h2 id="avg">avg</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">avg(x)</code></pre>
+<p>The average (mean): the sum of the values divided by how many values there are.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, also for <code>LONG</code> input. For <code>DECIMAL</code> input an exact <code>DECIMAL</code> with at least 16 significant digits, as in PostgreSQL: <code>avg</code> of <code>1.50</code> and <code>2.50</code> is <code>2.0000000000000000</code>. Use <code>round(avg(x), 2)</code> for a report (<a href="functions-math.html#round">round</a>).</li><li><strong>NULL:</strong> NULL values are skipped: they do not count as 0. No values give <code>NULL</code>.</li></ul>
+<p><strong>Example: Average close and volume per symbol in September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(avg(close), 2) AS avg_close, round(avg(volume)) AS avg_volume
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>avg_close (DOUBLE)</th><th>avg_volume (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>500.18</td><td>109526</td></tr><tr><td>COAST</td><td>374.73</td><td>113784</td></tr><tr><td>VOLT</td><td>179.3</td><td>89164</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: NULL is skipped, not counted as 0</strong></p>
+<pre><code class="language-sql">SELECT avg(x) AS avg, sum(x) / count(*) AS sum_by_all_rows
+FROM (SELECT 10 AS x UNION ALL SELECT NULL UNION ALL SELECT 20) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>avg (DOUBLE)</th><th>sum_by_all_rows (DOUBLE)</th></tr></thead><tbody><tr><td>15</td><td>10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="min">min</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">min(x)</code></pre>
+<p>The smallest value. Works for numbers, text (A before B), times and dates, and <code>BOOL</code> (<code>false</code> before <code>true</code>).</p>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> values of different kinds (a number and a text) give an error.</li></ul>
+<p><strong>Example: Lowest price and first trade day of each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, min(low) AS lowest, min(time) AS first_day
+FROM ochl_day
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>lowest (DOUBLE)</th><th>first_day (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>494.1</td><td>2025-12-28T00:00:00.000Z</td></tr><tr><td>COAST</td><td>364.1</td><td>2025-12-28T00:00:00.000Z</td></tr><tr><td>VOLT</td><td>167.3</td><td>2025-12-28T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Text and dates</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT min(username) AS first_name_a_to_z, min(created_at) AS first_signup, min(last_login) AS oldest_login
+FROM app_users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_name_a_to_z (STRING)</th><th>first_signup (TIMESTAMP)</th><th>oldest_login (TIMESTAMP)</th></tr></thead><tbody><tr><td>anita</td><td>2026-01-01T03:15:00.000Z</td><td>2026-08-30T06:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="max">max</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">max(x)</code></pre>
+<p>The biggest value. Works for numbers, text, times and dates, and <code>BOOL</code>.</p>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> values of different kinds give an error.</li></ul>
+<p><strong>Example: High, low and range of each symbol since 23 August</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, max(high) AS highest, min(low) AS lowest, round(max(high) - min(low), 2) AS range
+FROM ochl_day
+WHERE time &gt;= &#39;2026-08-23&#39;
+GROUP BY symbol
+ORDER BY range DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>highest (DOUBLE)</th><th>lowest (DOUBLE)</th><th>range (DOUBLE)</th></tr></thead><tbody><tr><td>COAST</td><td>398.8</td><td>364.1</td><td>34.7</td></tr><tr><td>VOLT</td><td>192.1</td><td>167.3</td><td>24.8</td></tr><tr><td>CITY</td><td>517</td><td>494.1</td><td>22.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The last login of every plan</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT plan, count(*) AS users, max(last_login) AS latest_login
+FROM app_users
+GROUP BY plan
+ORDER BY plan;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th><th>users (LONG)</th><th>latest_login (TIMESTAMP)</th></tr></thead><tbody><tr><td>admin</td><td>1</td><td>2026-09-11T04:20:00.000Z</td></tr><tr><td>free</td><td>4</td><td>2026-09-09T02:15:00.000Z</td></tr><tr><td>pro</td><td>3</td><td>2026-09-11T00:45:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="first">first</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">first(x)</code></pre>
+<p>The value of <code>x</code> in the <strong>earliest</strong> row. On a time-series table, earliest means the smallest time. <code>first(open)</code> is the open price of a candle.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> the earliest row&#39;s value, <strong>even when it is NULL</strong>, as in QuestDB. To skip NULLs, use <a href="#first_not_null">first_not_null</a>. No rows give <code>NULL</code>.</li><li><strong>Notes:</strong> the order is the table&#39;s time column, not <code>ORDER BY</code>. On a relational table (no time column) it is the order of the primary key. When many rows have the <strong>same</strong> time, KDB takes the first in storage order; do not count on which one.</li><li><strong>Changed 2026-09-25:</strong> before, <code>first</code> and <code>last</code> skipped NULLs (what <code>first_not_null</code> and <code>last_not_null</code> do now).</li></ul>
+<p><strong>Example: Open, close and change of each symbol in September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, first(open) AS open, last(close) AS close,
+       round((last(close) - first(open)) / first(open) * 100, 2) AS change_pct
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol
+ORDER BY change_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>171.3</td><td>191.2</td><td>11.62</td></tr><tr><td>COAST</td><td>367</td><td>376.1</td><td>2.48</td></tr><tr><td>CITY</td><td>504.9</td><td>504.9</td><td>0</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The first post of each thread</strong> (sample data: content-forum)</p>
+<pre><code class="language-sql">SELECT thread_id, first(author) AS started_by, first(created_at) AS started, count(*) AS posts
+FROM posts
+GROUP BY thread_id
+ORDER BY thread_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>thread_id (LONG)</th><th>started_by (STRING)</th><th>started (TIMESTAMP)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>2026-09-01T04:15:00.000Z</td><td>6</td></tr><tr><td>2</td><td>hari</td><td>2026-09-02T03:15:00.000Z</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="last">last</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">last(x)</code></pre>
+<p>The value of <code>x</code> in the <strong>latest</strong> row (the biggest time). <code>last(close)</code> is the close price of a candle.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> the latest row&#39;s value, <strong>even when it is NULL</strong>, as in QuestDB. To skip NULLs, use <a href="#first_not_null">last_not_null</a>.</li><li><strong>Notes:</strong> same order rules as <a href="functions-aggregate.html#first">first</a>. For the newest <strong>row</strong> per symbol, <a href="latest-on.html">LATEST ON</a> is faster.</li></ul>
+<p><strong>Example: The last price of every symbol in the live data</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, last(ltp) AS ltp, last(timestamp) AS at, max(high) AS day_high
+FROM live_data
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>at (TIMESTAMP)</th><th>day_high (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>2026-09-10T09:14:00.000Z</td><td>528.1</td></tr><tr><td>COAST</td><td>401.9</td><td>2026-09-10T09:14:00.000Z</td><td>402.9</td></tr><tr><td>TELCO</td><td>897.7</td><td>2026-09-10T09:14:00.000Z</td><td>898.7</td></tr><tr><td>VOLT</td><td>184</td><td>2026-09-10T09:14:00.000Z</td><td>186.6</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: 15-minute candles with SAMPLE BY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+SAMPLE BY 15m
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>504.6</td><td>505.3</td><td>503.9</td><td>504.4</td><td>13210</td></tr><tr><td>2026-09-10T05:30:00.000Z</td><td>504.4</td><td>506.8</td><td>503.8</td><td>506.5</td><td>11690</td></tr><tr><td>2026-09-10T05:45:00.000Z</td><td>506.5</td><td>507</td><td>505.3</td><td>506.4</td><td>11270</td></tr><tr><td>2026-09-10T06:00:00.000Z</td><td>506.4</td><td>506.6</td><td>504.9</td><td>505.3</td><td>10850</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="first_not_null">first_not_null, last_not_null</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">first_not_null(x)
+last_not_null(x)</code></pre>
+<p>The value of <code>x</code> in the earliest / latest row where <code>x</code> is <strong>not</strong> NULL (QuestDB). Use them when a missing value must not become the answer, for example a candle whose first minute has no open price yet.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value to take</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>x</code>.</li><li><strong>NULL:</strong> rows where <code>x</code> is NULL are skipped. When every value is NULL (or there are no rows), the result is <code>NULL</code>.</li><li><strong>Notes:</strong> same order rules as <a href="#first">first</a>. They work with <code>GROUP BY</code>, <code>SAMPLE BY</code> and <code>OVER (...)</code>.</li></ul>
+<p><strong>Example: first keeps a NULL first row, first_not_null skips it</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE px (time TIMESTAMP, symbol SYMBOL, open DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO px VALUES (&#39;2026-09-10T05:00:00Z&#39;, &#39;CITY&#39;, NULL), (&#39;2026-09-10T05:01:00Z&#39;, &#39;CITY&#39;, 512.5),
+                      (&#39;2026-09-10T05:02:00Z&#39;, &#39;CITY&#39;, 513), (&#39;2026-09-10T05:03:00Z&#39;, &#39;CITY&#39;, NULL);</code></pre>
+<pre><code class="language-sql">SELECT symbol, first(open), first_not_null(open), last(open), last_not_null(open) FROM px GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>first(open) (DOUBLE)</th><th>first_not_null(open) (DOUBLE)</th><th>last(open) (DOUBLE)</th><th>last_not_null(open) (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>NULL</td><td>512.5</td><td>NULL</td><td>513</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="median">median</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">median(x)</code></pre>
+<p>The middle value: half of the values are smaller, half are bigger. With an even number of values, it is the average of the two in the middle. Unlike <code>avg</code>, one very big trade does not move the median much.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>percentile(x, 0.5)</code>. KDB keeps all values of a group in memory to find it.</li></ul>
+<p><strong>Example: Typical trade size: median against average</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades, median(quantity) AS median_qty, round(avg(quantity), 1) AS avg_qty
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>median_qty (DOUBLE)</th><th>avg_qty (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>100</td><td>220</td></tr><tr><td>COAST</td><td>11</td><td>50</td><td>279.1</td></tr><tr><td>TELCO</td><td>6</td><td>350</td><td>461.7</td></tr><tr><td>VOLT</td><td>4</td><td>75</td><td>100</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Even number of values: the average of the two in the middle</strong></p>
+<pre><code class="language-sql">SELECT median(x) AS median
+FROM (SELECT 1 AS x UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 100) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>median (DOUBLE)</th></tr></thead><tbody><tr><td>2.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="percentile">percentile</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">percentile(x, p)</code></pre>
+<p>The value below which a part <code>p</code> of the values lie. <code>percentile(x, 0.9)</code> is the value that 90% of the values are at or below. Between two values, KDB goes the right part of the way from one to the other (linear interpolation, like PostgreSQL <code>percentile_cont</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr><tr><td><code>p</code></td><td>number</td><td>the part, from <code>0</code> to <code>1</code> (<code>0.9</code>). A number <strong>above 1</strong> is read as a percent (<code>90</code> means <code>0.9</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values of <code>x</code> are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> <code>p</code> below 0 is taken as 0 (the smallest value); a percent above 100 is taken as 100. Careful: <code>1</code> means 100%, but <code>1.5</code> means <strong>1.5%</strong>. <code>p</code> is read once, from the first row. A <code>p</code> that is not a number is an error.</li></ul>
+<p><strong>Example: Big trades: 90th percentile of the trade amount per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, percentile(amount, 0.9) AS p90_amount, max(amount) AS biggest
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>p90_amount (DOUBLE)</th><th>biggest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>258000</td><td>258500</td></tr><tr><td>COAST</td><td>398000</td><td>402000</td></tr><tr><td>TELCO</td><td>880000</td><td>881000</td></tr><tr><td>VOLT</td><td>31370</td><td>36800</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: 0.9 and 90 are the same; values in between are interpolated</strong></p>
+<pre><code class="language-sql">SELECT percentile(x, 0.9) AS p90, percentile(x, 90) AS p90_percent, percentile(x, 0.25) AS p25, percentile(x, 0) AS p0, percentile(x, 1) AS p100
+FROM (SELECT 10 AS x UNION ALL SELECT 20 UNION ALL SELECT 30 UNION ALL SELECT 40 UNION ALL SELECT 50) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>p90 (DOUBLE)</th><th>p90_percent (DOUBLE)</th><th>p25 (DOUBLE)</th><th>p0 (DOUBLE)</th><th>p100 (DOUBLE)</th></tr></thead><tbody><tr><td>46</td><td>46</td><td>20</td><td>10</td><td>50</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: p must be a number</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT percentile(rate, &#39;high&#39;) FROM trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: percentile needs a number like 0.95</code></p>
+<h2 id="vwap">vwap</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">vwap(price, volume)</code></pre>
+<p>The <strong>volume-weighted average price</strong>: <code>sum(price × volume) / sum(volume)</code>. A trade of 1,000 shares counts 100 times more than a trade of 10 shares. Traders use VWAP as the &quot;fair&quot; average price of a day.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>price</code></td><td>number</td><td>price of each trade or candle</td></tr><tr><td><code>volume</code></td><td>number</td><td>how many shares</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> a row where <code>price</code> or <code>volume</code> is NULL is skipped. When the total volume is 0 (or there are no rows), the result is <code>NULL</code>.</li></ul>
+<p><strong>Example: VWAP per symbol from the trade log</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sum(quantity) AS shares, round(vwap(rate, quantity), 2) AS vwap, round(avg(rate), 2) AS plain_avg
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th><th>vwap (DOUBLE)</th><th>plain_avg (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>910</td><td>516.3</td><td>516</td></tr><tr><td>COAST</td><td>2850</td><td>399.77</td><td>399.28</td></tr><tr><td>TELCO</td><td>770</td><td>880.86</td><td>880.75</td></tr><tr><td>VOLT</td><td>400</td><td>184.88</td><td>185</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Hourly VWAP from one-minute candles (Nepal hours)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, round(vwap(close, volume), 2) AS vwap, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>vwap (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>380.44</td><td>47660</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>379.71</td><td>45870</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>377.6</td><td>43950</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>375.67</td><td>48720</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Both arguments are needed</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT vwap(rate) FROM trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: function &#39;vwap&#39; takes 2 argument(s), got 1</code></p>
+<h2 id="twap">twap</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">twap(price, time)</code></pre>
+<p>The <strong>time-weighted average price</strong>. Each price counts for the time until the next price. A price that stayed for 2 hours counts twice as much as a price that stayed for 1 hour. Traders use TWAP to judge a price when trades came at uneven times, for example live price snapshots.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>price</code></td><td>number</td><td>the price</td></tr><tr><td><code>time</code></td><td><code>TIMESTAMP</code>, <code>DATE</code> or whole number (milliseconds)</td><td>when this price started</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> a row where <code>price</code> or <code>time</code> is NULL is skipped. No rows give <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>The rows are sorted by <code>time</code> first; the order in the table does not matter.</li><li>The <strong>last</strong> price has no time after it, so it gets no weight (it is only used when it is the only price).</li><li>When every price has the same time, the result is the plain average.</li><li>Unlike <a href="functions-aggregate.html#vwap">vwap</a>, the volume does not matter. With prices at even steps (one-minute candles) TWAP is almost the plain average.</li></ul></li></ul>
+<p><strong>Example: Live prices came at 11:05, 13:00 and 14:59: TWAP against the plain average</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(twap(ltp, timestamp), 2) AS twap, round(avg(ltp), 2) AS plain_avg
+FROM live_data
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>twap (DOUBLE)</th><th>plain_avg (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>514.32</td><td>518.57</td></tr><tr><td>COAST</td><td>391.01</td><td>394.63</td></tr><tr><td>TELCO</td><td>864.82</td><td>875.73</td></tr><tr><td>VOLT</td><td>184.51</td><td>184.33</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: How it works: 513 for 115 minutes and 515.6 for 119 minutes; 527.1 is the last price</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT timestamp, ltp FROM live_data WHERE symbol = &#39;CITY&#39; ORDER BY timestamp;
+SELECT round((513 * 115 + 515.6 * 119) / 234.0, 2) AS by_hand, round(twap(ltp, timestamp), 2) AS twap
+FROM live_data
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT timestamp, ltp FROM live_data WHERE symbol = &#39;CITY&#39; ORDER BY timestamp</code></p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>513</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>515.6</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>527.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT round((513 * 115 + 515.6 * 119) / 234.0, 2) AS by_hand, round(twap(ltp, timestamp), 2) AS twa</code></p>
+<div class="table-wrap"><table><thead><tr><th>by_hand (DOUBLE)</th><th>twap (DOUBLE)</th></tr></thead><tbody><tr><td>514.32</td><td>514.32</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Hourly TWAP of one-minute closes</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, round(twap(close, time), 2) AS twap, round(avg(close), 2) AS plain_avg
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+SAMPLE BY 1h
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>twap (DOUBLE)</th><th>plain_avg (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:00:00.000Z</td><td>380.41</td><td>380.39</td></tr><tr><td>2026-09-10T06:00:00.000Z</td><td>380.32</td><td>380.31</td></tr><tr><td>2026-09-10T07:00:00.000Z</td><td>378.05</td><td>378.06</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="weighted_avg">weighted_avg, wavg</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">weighted_avg(x, weight)
+wavg(x, weight)</code></pre>
+<p>The <strong>weighted average</strong>: <code>sum(x × weight) / sum(weight)</code>. A row with weight 2 counts twice as much as a row with weight 1. <code>wavg</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the values</td></tr><tr><td><code>weight</code></td><td>number</td><td>how much each value counts</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> a row where <code>x</code> or <code>weight</code> is NULL is skipped. When the total weight is 0 (or there are no rows), the result is <code>NULL</code>.</li><li><strong>Notes:</strong> with price and volume it is the same as <a href="functions-aggregate.html#vwap">vwap</a>. Use it for other weights: the average buy price of a portfolio (weight = shares), the average interest rate of loans (weight = loan amount).</li></ul>
+<p><strong>Example: Average buy rate of each broker, weighted by the shares bought</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT buyer, count(*) AS trades, sum(quantity) AS shares,
+       round(weighted_avg(rate, quantity), 2) AS avg_rate_weighted,
+       round(avg(rate), 2) AS avg_rate_plain
+FROM trade_log
+WHERE symbol = &#39;CITY&#39;
+GROUP BY buyer
+ORDER BY buyer;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>trades (LONG)</th><th>shares (LONG)</th><th>avg_rate_weighted (DOUBLE)</th><th>avg_rate_plain (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>5</td><td>1170</td><td>515.06</td><td>515.5</td></tr><tr><td>34</td><td>1</td><td>500</td><td>514.5</td><td>514.5</td></tr><tr><td>45</td><td>3</td><td>530</td><td>515.94</td><td>515.33</td></tr><tr><td>49</td><td>2</td><td>220</td><td>517.77</td><td>516.75</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Average interest rate of three loans</strong></p>
+<pre><code class="language-sql">SELECT round(wavg(rate_pct, amount), 3) AS weighted_rate, round(avg(rate_pct), 3) AS plain_avg
+FROM (SELECT 500000 AS amount, 9.5 AS rate_pct
+      UNION ALL SELECT 100000, 12.0
+      UNION ALL SELECT 50000, 14.0) loans;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>weighted_rate (DOUBLE)</th><th>plain_avg (DOUBLE)</th></tr></thead><tbody><tr><td>10.231</td><td>11.833</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="count_if">count_if</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">count_if(condition)</code></pre>
+<p>Counts the rows where the condition is <strong>true</strong>. <code>count_if(plan = &#39;pro&#39;)</code> is the number of pro users. It is shorter than <code>sum(CASE WHEN plan = &#39;pro&#39; THEN 1 ELSE 0 END)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>condition</code></td><td>true/false</td><td>a comparison or any true/false expression</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> rows where the condition is NULL are not counted. No rows give <code>0</code>, not NULL.</li><li><strong>Notes:</strong> the condition must be true/false: <code>count_if(plan)</code> is an error. PostgreSQL writes <code>count(*) FILTER (WHERE ...)</code>; KDB has no <code>FILTER</code>, use <code>count_if</code>.</li></ul>
+<p><strong>Example: App users per city: all, pro, and who logged in since 10 September</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT city, count(*) AS users,
+       count_if(plan = &#39;pro&#39;) AS pro_users,
+       count_if(last_login &gt;= &#39;2026-09-10&#39;) AS active_users
+FROM app_users
+GROUP BY city
+ORDER BY users DESC, city;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>users (LONG)</th><th>pro_users (LONG)</th><th>active_users (LONG)</th></tr></thead><tbody><tr><td>Kathmandu</td><td>2</td><td>1</td><td>1</td></tr><tr><td>Pokhara</td><td>2</td><td>1</td><td>1</td></tr><tr><td>NULL</td><td>2</td><td>0</td><td>0</td></tr><tr><td>Dharan</td><td>1</td><td>1</td><td>1</td></tr><tr><td>Lalitpur</td><td>1</td><td>0</td><td>1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Up days of each symbol in the last 5 days (with OVER)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, open, close,
+       count_if(close &gt; open) OVER (PARTITION BY symbol ORDER BY time ROWS 4 PRECEDING) AS up_days_of_5
+FROM ochl_day
+WHERE time &gt;= &#39;2026-08-30&#39;
+ORDER BY symbol, time
+LIMIT 8;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>up_days_of_5 (LONG)</th></tr></thead><tbody><tr><td>2026-08-30T00:00:00.000Z</td><td>CITY</td><td>507.3</td><td>503.1</td><td>0</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>CITY</td><td>502.5</td><td>505.7</td><td>1</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>502.4</td><td>1</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>CITY</td><td>502.1</td><td>496.4</td><td>1</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>CITY</td><td>497.7</td><td>497.9</td><td>2</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>CITY</td><td>497.4</td><td>499</td><td>3</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>CITY</td><td>497.3</td><td>498.7</td><td>3</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>498.2</td><td>497.5</td><td>3</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: The argument must be a condition</strong> (sample data: query-app; shows an error)</p>
+<pre><code class="language-sql">SELECT count_if(plan) FROM app_users;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: count_if: needs a condition (true/false), got &#39;pro&#39;</code></p>
+<h2 id="sum_if">sum_if</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sum_if(x, condition)</code></pre>
+<p>Adds up <code>x</code> only in the rows where the condition is <strong>true</strong>. Shorter than <code>sum(CASE WHEN condition THEN x END)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value to add</td></tr><tr><td><code>condition</code></td><td>true/false</td><td>which rows to add</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code> when every added value is a whole number, <code>DECIMAL</code> when they are all <code>DECIMAL</code> of the same scale (money stays exact), else <code>DOUBLE</code>.</li><li><strong>NULL:</strong> rows where <code>x</code> is NULL or the condition is not true are skipped. When no row is added, the result is <code>NULL</code> (like <code>sum</code>); wrap it in <code>coalesce(..., 0)</code> for 0.</li><li><strong>Notes:</strong> a condition that is not true/false is an error. A whole-number total too big for 64 bits (a <code>DECIMAL</code> one past 38 digits) is an error, as for <a href="#sum">sum</a>.</li></ul>
+<p><strong>Example: Money into and out of the bank account, and only the CITY entries</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT sum(debit) AS money_in, sum(credit) AS money_out,
+       sum_if(debit, memo LIKE &#39;%CITY%&#39;) AS city_in,
+       sum_if(credit, memo LIKE &#39;%CITY%&#39;) AS city_out
+FROM ledger
+WHERE account = 1100;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>money_in (DECIMAL(2))</th><th>money_out (DECIMAL(2))</th><th>city_in (DECIMAL(2))</th><th>city_out (DECIMAL(2))</th></tr></thead><tbody><tr><td>518850.00</td><td>288530.00</td><td>18850.00</td><td>1030.00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Buy and sell turnover of broker 1 on each day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date,
+       sum_if(amount, buyer = 1) AS bought,
+       sum_if(amount, seller = 1) AS sold,
+       coalesce(sum_if(amount, buyer = 1), 0) - coalesce(sum_if(amount, seller = 1), 0) AS net
+FROM trade_log
+GROUP BY date
+ORDER BY date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>bought (DOUBLE)</th><th>sold (DOUBLE)</th><th>net (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>515000</td><td>5150</td><td>509850</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>239420</td><td>486650</td><td>-247230</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="avg_if">avg_if</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">avg_if(x, condition)</code></pre>
+<p>The average of <code>x</code> over only the rows where the condition is <strong>true</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr><tr><td><code>condition</code></td><td>true/false</td><td>which rows to use</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> rows where <code>x</code> is NULL or the condition is not true are skipped. When no row is left, the result is <code>NULL</code>.</li></ul>
+<p><strong>Example: Average volume on up days and on down days</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       round(avg_if(volume, close &gt; open)) AS avg_volume_up_days,
+       round(avg_if(volume, close &lt; open)) AS avg_volume_down_days
+FROM ochl_day
+WHERE time &gt;= &#39;2026-08-23&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>avg_volume_up_days (DOUBLE)</th><th>avg_volume_down_days (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>123828</td><td>102885</td></tr><tr><td>COAST</td><td>95953</td><td>99090</td></tr><tr><td>VOLT</td><td>87421</td><td>97304</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="product">product</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">product(x)</code></pre>
+<p>All values multiplied together. Traders use it to <strong>compound</strong> daily returns: a rise of 1% and then 2% is <code>1.01 × 1.02 = 1.0302</code>, a growth of 3.02%.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. A result too big for a <code>DOUBLE</code> is <code>NULL</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> for a running product on every row, use <a href="functions-window.html#cumprod">cumprod</a>.</li></ul>
+<p><strong>Example: Growth in September: multiply the daily price ratios</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(ratio) AS days, round(product(ratio), 4) AS growth
+FROM (SELECT symbol, close / lag(close) OVER (PARTITION BY symbol ORDER BY time) AS ratio
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-01&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>growth (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>7</td><td>1.005</td></tr><tr><td>COAST</td><td>7</td><td>1.0237</td></tr><tr><td>VOLT</td><td>7</td><td>1.1314</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT product(x) AS product FROM (SELECT 2 AS x UNION ALL SELECT 3 UNION ALL SELECT NULL UNION ALL SELECT 4) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>product (DOUBLE)</th></tr></thead><tbody><tr><td>24</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="bool_and">bool_and, every</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">bool_and(condition)
+every(condition)</code></pre>
+<p><code>true</code> when the condition is true in <strong>every</strong> row, else <code>false</code>. <code>every</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>condition</code></td><td>true/false</td><td>the check for each row</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOLEAN</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> the argument must be true/false: <code>bool_and(plan)</code> is an error.</li></ul>
+<p><strong>Example: Did every user log in? Is every email good? Is there an admin?</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT bool_and(last_login IS NOT NULL) AS all_logged_in,
+       every(email LIKE &#39;%@%&#39;) AS all_emails_have_at,
+       bool_or(plan = &#39;admin&#39;) AS has_admin
+FROM app_users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>all_logged_in (BOOL)</th><th>all_emails_have_at (BOOL)</th><th>has_admin (BOOL)</th></tr></thead><tbody><tr><td>false</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Did the share close above its open on every day of the week?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, bool_and(close &gt; open) AS up_every_day, bool_or(close &gt; open) AS up_some_day
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-06&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>up_every_day (BOOL)</th><th>up_some_day (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>false</td><td>true</td></tr><tr><td>COAST</td><td>false</td><td>true</td></tr><tr><td>VOLT</td><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="bool_or">bool_or</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">bool_or(condition)</code></pre>
+<p><code>true</code> when the condition is true in <strong>at least one</strong> row, else <code>false</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>condition</code></td><td>true/false</td><td>the check for each row</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOLEAN</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> see the examples of <a href="functions-aggregate.html#bool_and">bool_and</a>.</li></ul>
+<p><strong>Example: Which brokers made a trade of 1,000 shares or more?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT buyer, count(*) AS trades, bool_or(quantity &gt;= 1000) AS has_big_trade
+FROM trade_log
+GROUP BY buyer
+ORDER BY buyer;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>trades (LONG)</th><th>has_big_trade (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>9</td><td>false</td></tr><tr><td>34</td><td>5</td><td>false</td></tr><tr><td>45</td><td>6</td><td>true</td></tr><tr><td>49</td><td>6</td><td>true</td></tr><tr><td>58</td><td>6</td><td>true</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="arg_max">arg_max, argmax, max_by</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">arg_max(value, by)
+argmax(value, by)
+max_by(value, by)</code></pre>
+<p>The <code>value</code> from the row where <code>by</code> is <strong>biggest</strong>. <code>arg_max(time, close)</code> answers &quot;on which day was the close highest?&quot;. <code>max(close)</code> only gives the highest close, not its day. <code>argmax</code> and <code>max_by</code> are the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any type</td><td>what to give back</td></tr><tr><td><code>by</code></td><td>number, text or time</td><td>what to find the biggest of</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>value</code>.</li><li><strong>NULL:</strong> rows where <code>by</code> is NULL are skipped. When the best row&#39;s <code>value</code> is NULL, the result is NULL. No rows give <code>NULL</code>.</li><li><strong>Notes:</strong> when several rows share the biggest <code>by</code>, the first one in time order wins.</li></ul>
+<p><strong>Example: The day of the highest close and of the lowest close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       max(close) AS highest_close, arg_max(time, close) AS highest_day,
+       min(close) AS lowest_close, arg_min(time, close) AS lowest_day
+FROM ochl_day
+WHERE time &gt;= &#39;2026-08-23&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>highest_close (DOUBLE)</th><th>highest_day (TIMESTAMP)</th><th>lowest_close (DOUBLE)</th><th>lowest_day (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>513.3</td><td>2026-08-25T00:00:00.000Z</td><td>496.4</td><td>2026-09-02T00:00:00.000Z</td></tr><tr><td>COAST</td><td>391</td><td>2026-08-23T00:00:00.000Z</td><td>367.1</td><td>2026-08-27T00:00:00.000Z</td></tr><tr><td>VOLT</td><td>191.2</td><td>2026-09-10T00:00:00.000Z</td><td>169</td><td>2026-09-01T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The user who logged in last, and the newest user&#39;s plan</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT max_by(username, last_login) AS last_seen_user,
+       argmax(plan, created_at) AS newest_users_plan
+FROM app_users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>last_seen_user (STRING)</th><th>newest_users_plan (STRING)</th></tr></thead><tbody><tr><td>bikash</td><td>free</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="arg_min">arg_min, argmin, min_by</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">arg_min(value, by)
+argmin(value, by)
+min_by(value, by)</code></pre>
+<p>The <code>value</code> from the row where <code>by</code> is <strong>smallest</strong>. <code>arg_min(username, created_at)</code> is the first user who signed up. <code>argmin</code> and <code>min_by</code> are the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any type</td><td>what to give back</td></tr><tr><td><code>by</code></td><td>number, text or time</td><td>what to find the smallest of</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the type of <code>value</code>.</li><li><strong>NULL:</strong> rows where <code>by</code> is NULL are skipped. No rows give <code>NULL</code>.</li><li><strong>Notes:</strong> when several rows share the smallest <code>by</code>, the first one in time order wins. See also the example of <a href="functions-aggregate.html#arg_max">arg_max</a>.</li></ul>
+<p><strong>Example: First user of each plan, and the cheapest trade of each symbol</strong> (sample data: sample, query-app)</p>
+<pre><code class="language-sql">SELECT plan, arg_min(username, created_at) AS first_user FROM app_users GROUP BY plan ORDER BY plan;
+SELECT symbol, min(rate) AS lowest_rate, min_by(transaction_id, rate) AS trade, argmin(buyer, rate) AS buyer
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>SELECT plan, arg_min(username, created_at) AS first_user FROM app_users GROUP BY plan ORDER BY plan</code></p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th><th>first_user (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>bikash</td></tr><tr><td>free</td><td>sita</td></tr><tr><td>pro</td><td>ram</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT symbol, min(rate) AS lowest_rate, min_by(transaction_id, rate) AS trade, argmin(buyer, rate) </code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>lowest_rate (DOUBLE)</th><th>trade (LONG)</th><th>buyer (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>513</td><td>100003</td><td>1</td></tr><tr><td>COAST</td><td>398</td><td>100013</td><td>58</td></tr><tr><td>TELCO</td><td>878</td><td>100021</td><td>1</td></tr><tr><td>VOLT</td><td>184</td><td>100011</td><td>1</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="string_agg">string_agg</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">string_agg(text, separator)</code></pre>
+<p>Joins the values of many rows into one text, with <code>separator</code> between them: <code>&#39;ram, hari_99&#39;</code>. Useful for a short list per group in a report.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>any type</td><td>the value of each row (numbers and times are written as text)</td></tr><tr><td><code>separator</code></td><td>text</td><td>what goes between two values, like <code>&#39;, &#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>. A NULL separator joins without anything between.</li><li><strong>Notes:</strong>
+<ul><li>The values come in the order of the rows: time order for a time-series table, else the order the rows come in. <code>string_agg(x, &#39;,&#39; ORDER BY x)</code> is not supported: sort the rows in a subquery first.</li><li>Both arguments are needed; <a href="functions-aggregate.html#listagg">listagg</a> has <code>&#39;,&#39;</code> as the default.</li></ul></li></ul>
+<p><strong>Example: Usernames per city</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT city, count(*) AS users, string_agg(username, &#39;, &#39;) AS usernames
+FROM app_users
+GROUP BY city
+ORDER BY city;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>users (LONG)</th><th>usernames (STRING)</th></tr></thead><tbody><tr><td>Dharan</td><td>1</td><td>gita</td></tr><tr><td>Kathmandu</td><td>2</td><td>ram, hari_99</td></tr><tr><td>Lalitpur</td><td>1</td><td>bikash</td></tr><tr><td>Pokhara</td><td>2</td><td>sita, suman</td></tr><tr><td>NULL</td><td>2</td><td>anita, test_user</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The trades of VOLT on each day, in one line</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date, string_agg(quantity || &#39; @ &#39; || rate, &#39; | &#39;) AS trades
+FROM trade_log
+WHERE symbol = &#39;VOLT&#39;
+GROUP BY date
+ORDER BY date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>trades (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>50 @ 184 | 200 @ 184 | 50 @ 185 | 100 @ 187</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Sort the rows in a subquery to choose the order</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT string_agg(symbol, &#39; &gt; &#39;) AS biggest_first
+FROM (SELECT symbol, sum(amount) AS turnover FROM trade_log GROUP BY symbol ORDER BY turnover DESC) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>biggest_first (STRING)</th></tr></thead><tbody><tr><td>TELCO &gt; CITY &gt; COAST &gt; VOLT</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="listagg">listagg</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">listagg(text)
+listagg(text, separator)</code></pre>
+<p>The same as <a href="functions-aggregate.html#string_agg">string_agg</a>, but the separator is optional: without it, the values are joined with <code>&#39;,&#39;</code>. The name comes from Oracle and Snowflake.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>any type</td><td>the value of each row</td></tr><tr><td><code>separator</code></td><td>text</td><td>what goes between two values; default <code>&#39;,&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li></ul>
+<p><strong>Example: Symbols per sector</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT sector, listagg(symbol) AS symbols, listagg(symbol, &#39; / &#39;) AS with_slash
+FROM securities
+GROUP BY sector
+ORDER BY sector;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sector (STRING)</th><th>symbols (STRING)</th><th>with_slash (STRING)</th></tr></thead><tbody><tr><td>Banking</td><td>CITY,COAST</td><td>CITY / COAST</td></tr><tr><td>Energy</td><td>VOLT</td><td>VOLT</td></tr><tr><td>Investment</td><td>ACME</td><td>ACME</td></tr><tr><td>Telecom</td><td>TELCO</td><td>TELCO</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="array_agg">array_agg, json_agg, jsonb_agg</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_agg(x)
+json_agg(x)
+jsonb_agg(x)</code></pre>
+<p>Collects the values of many rows into one <strong>JSON array</strong>: <code>[513,515.6,527.1]</code>. An app can read the array in one piece, for example the points of a small chart. <code>json_agg</code> and <code>jsonb_agg</code> are the same function; Postgres clients get <code>jsonb_agg</code> as PostgreSQL&#39;s <code>jsonb</code> type (<code>[513, 515.6, 527.1]</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the value of each row</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. Numbers stay numbers, text and times become JSON text (<code>&quot;...&quot;</code>).</li><li><strong>NULL:</strong> NULL values are <strong>kept</strong> as <code>null</code> in the array. No rows give <code>NULL</code>.</li><li><strong>Notes:</strong> the values come in the order of the rows (time order for a time-series table). Read the array with the <a href="functions-json.html">JSON functions</a>.</li></ul>
+<p><strong>Example: The live prices of each symbol as a JSON array, for a sparkline chart</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, array_agg(ltp) AS prices
+FROM live_data
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>prices (DOUBLE[])</th></tr></thead><tbody><tr><td>CITY</td><td>[513,515.6,527.1]</td></tr><tr><td>COAST</td><td>[390.6,391.4,401.9]</td></tr><tr><td>TELCO</td><td>[860.5,869,897.7]</td></tr><tr><td>VOLT</td><td>[184,185,184]</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: NULL values stay in the array</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT plan, json_agg(full_name) AS names, array_agg(id) AS ids
+FROM app_users
+GROUP BY plan
+ORDER BY plan;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th><th>names (JSON)</th><th>ids (INT[])</th></tr></thead><tbody><tr><td>admin</td><td>[&quot;Bikash Shrestha&quot;]</td><td>[5]</td></tr><tr><td>free</td><td>[&quot;Sita Karki&quot;,&quot;Hari Thapa&quot;,&quot;Anita Magar&quot;,null]</td><td>[2,3,6,8]</td></tr><tr><td>pro</td><td>[&quot;Ram Sharma&quot;,&quot;Gita Rai&quot;,&quot;Suman Gurung&quot;]</td><td>[1,4,7]</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="json_object_agg">json_object_agg, jsonb_object_agg</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json_object_agg(key, value)
+jsonb_object_agg(key, value)</code></pre>
+<p>Collects the rows into one <strong>JSON object</strong>: the key of each row, and its value. <code>{&quot;CITY&quot;:513,&quot;COAST&quot;:287.5}</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td>any type but JSON</td><td>the key; a number becomes text (<code>1</code> gives <code>&quot;1&quot;</code>)</td></tr><tr><td><code>value</code></td><td>any type</td><td>its value; <code>JSON</code> stays JSON</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>. <code>jsonb_object_agg</code> keeps each key once, with the <strong>last</strong> value given; <code>json_object_agg</code> keeps every pair. Postgres clients get <code>jsonb_object_agg</code> as <code>jsonb</code> (<code>{&quot;a&quot;: 1, &quot;b&quot;: 2}</code>, keys in <code>jsonb</code> order).</li><li><strong>NULL:</strong> a <code>NULL</code> value becomes JSON <code>null</code>. A <code>NULL</code> key is an error (SQLSTATE <code>22023</code>), as in PostgreSQL. No rows give <code>NULL</code>.</li><li><strong>Notes:</strong> <code>ORDER BY</code> inside the call sets the order of the keys: <code>jsonb_object_agg(k, v ORDER BY k)</code>. PostgreSQL writes <code>json_object_agg</code> as <code>{ &quot;a&quot; : 1 }</code>; KDB keeps JSON compact: <code>{&quot;a&quot;:1}</code>.</li></ul>
+<p><strong>Example: Prices by symbol in one object (a symbol seen twice keeps its last row)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT jsonb_object_agg(symbol, ltp ORDER BY symbol) AS prices
+FROM live_data;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>prices (JSON)</th></tr></thead><tbody><tr><td>{&quot;CITY&quot;:527.1,&quot;COAST&quot;:401.9,&quot;TELCO&quot;:897.7,&quot;VOLT&quot;:184}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-aggregate.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIVOT - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Turn the values of one column into columns, like a pivot table in Excel: turnover per symbol with one column per day.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/pivot.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/pivot.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="pivot">PIVOT</h1>
+<blockquote><p>Turn the values of one column into columns, like a pivot table in Excel: turnover per symbol with one column per day.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: PIVOT, pivot table, cross tab, crosstab, rows to columns, values as columns, spread out, columns per month, columns per day, Excel pivot, wide table, long to wide</li><li>See also: <a href="group-by.html">GROUP BY and HAVING</a>, <a href="functions-aggregate.html#sum_if">Aggregate functions (sum_if)</a>, <a href="functions-aggregate.html#count_if">Aggregate functions (count_if)</a>, <a href="functions-conditional.html#case">Conditional and NULL functions (case)</a>, <a href="union-subqueries.html">UNION and subqueries</a></li></ul>
+<p>A <strong>pivot table</strong> turns rows into columns. <code>GROUP BY symbol, date</code> gives one row for each symbol and day (&quot;long&quot; data). A pivot gives one row for each symbol and <strong>one column for each day</strong> (&quot;wide&quot; data), which is easier to read in a report:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol</th><th>sep_09</th><th>sep_10</th></tr></thead><tbody><tr><td>CITY</td><td>777400</td><td>469830</td></tr><tr><td>COAST</td><td>88170</td><td>1139340</td></tr></tbody></table></div>
+<p>There are two ways to get it in KDB:</p>
+<ol><li><strong>The manual way (works today):</strong> one aggregate per column, each with its own condition: <code>sum_if(amount, date = &#39;2026-09-09&#39;) AS sep_09</code> (<a href="functions-aggregate.html#sum_if">sum_if</a>, <a href="functions-aggregate.html#count_if">count_if</a>), or <code>sum(CASE WHEN date = &#39;2026-09-09&#39; THEN amount END)</code>.</li><li><strong>The PIVOT clause:</strong> write the aggregate once and list the values: <code>PIVOT (sum(amount) FOR date IN (&#39;2026-09-09&#39; AS sep_09, &#39;2026-09-10&#39; AS sep_10))</code>.</li></ol>
+<p><strong>Coming soon:</strong> the kdb program this page was built with reads the <code>PIVOT</code> clause and checks its spelling, but does not apply it yet: a query with <code>PIVOT</code> returns the rows <strong>as if PIVOT were not there</strong>. Until the next build, use the manual way. The PIVOT examples below show their results after that build.</p>
+<p><strong>Example: The manual way: turnover per symbol, one column per day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       sum_if(amount, date = &#39;2026-09-09&#39;) AS sep_09,
+       sum_if(amount, date = &#39;2026-09-10&#39;) AS sep_10,
+       sum(amount) AS total
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sep_09 (DOUBLE)</th><th>sep_10 (DOUBLE)</th><th>total (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>777400</td><td>469830</td><td>1247230</td></tr><tr><td>COAST</td><td>88170</td><td>1139340</td><td>1227510</td></tr><tr><td>TELCO</td><td>1760000</td><td>678260</td><td>2438260</td></tr><tr><td>VOLT</td><td>NULL</td><td>73950</td><td>73950</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The manual way: app users per city, one column per plan</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT coalesce(city, &#39;(none)&#39;) AS city,
+       count_if(plan = &#39;free&#39;) AS free,
+       count_if(plan = &#39;pro&#39;) AS pro,
+       count_if(plan = &#39;admin&#39;) AS admin
+FROM app_users
+GROUP BY coalesce(city, &#39;(none)&#39;)
+ORDER BY city;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>free (LONG)</th><th>pro (LONG)</th><th>admin (LONG)</th></tr></thead><tbody><tr><td>(none)</td><td>2</td><td>0</td><td>0</td></tr><tr><td>Dharan</td><td>0</td><td>1</td><td>0</td></tr><tr><td>Kathmandu</td><td>1</td><td>1</td><td>0</td></tr><tr><td>Lalitpur</td><td>0</td><td>0</td><td>1</td></tr><tr><td>Pokhara</td><td>1</td><td>1</td><td>0</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="pivot-clause">PIVOT (...)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM source PIVOT (aggregate(x) [AS name] [, ...]
+                              FOR column IN (value [AS name] [, ...])) [[AS] alias]
+SELECT ... FROM source [AS] alias PIVOT (...)</code></pre>
+<p><code>PIVOT</code> comes right after a source in <code>FROM</code>: a table, a view or a subquery. For every value in the <code>IN (...)</code> list it makes a new column. The column holds the aggregate of the rows where <code>column</code> has that value.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>aggregate(x) [AS name]</code></td><td>what goes into the new columns, like <code>sum(amount)</code> or <code>count(id)</code>. Any aggregate works; you can list more than one</td></tr><tr><td><code>FOR column</code></td><td>the column whose values become new columns (the day, the month, the plan)</td></tr><tr><td><code>IN (value [AS name], ...)</code></td><td>the values to spread out, as constants: <code>&#39;2026-09-09&#39;</code>, <code>1</code>, <code>&#39;pro&#39;</code>. <code>AS name</code> names the new column. With more than one aggregate there is a column for each value and aggregate, named value name, <code>_</code>, aggregate name: <code>week1_debit</code></td></tr></tbody></table></div>
+<ul><li><strong>The other columns</strong> of the source (not in the aggregate and not the <code>FOR</code> column) become the <strong>group keys</strong>: one result row for each of their value combinations. So pivot a subquery that has only the columns you need: <code>(SELECT symbol, date, amount FROM trade_log) f</code>.</li><li><strong>NULL:</strong> a value from the <code>IN</code> list that has no rows gives <code>NULL</code> in its column (like <code>sum</code> of no rows). Rows whose <code>FOR</code> column is not in the list are not used.</li><li><strong>Notes:</strong>
+<ul><li>A source can have only one <code>PIVOT</code>.</li><li>The values must be written out. A pivot over &quot;all days in the table&quot; needs to know the days first: find them with <code>SELECT DISTINCT date ...</code>, then write the query.</li><li>For a dynamic list of columns in an app, build the SQL text in the app, or use the manual way.</li></ul></li></ul>
+<p><strong>Example: Turnover per symbol, one column per day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sep_09, sep_10
+FROM (SELECT symbol, date, amount FROM trade_log) f
+PIVOT (sum(amount) FOR date IN (&#39;2026-09-09&#39; AS sep_09, &#39;2026-09-10&#39; AS sep_10))
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sep_09 (DOUBLE)</th><th>sep_10 (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>777400</td><td>469830</td></tr><tr><td>COAST</td><td>88170</td><td>1139340</td></tr><tr><td>TELCO</td><td>1760000</td><td>678260</td></tr><tr><td>VOLT</td><td>NULL</td><td>73950</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: App users per city, one column per plan</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT city, free, pro, admin
+FROM (SELECT city, plan, id FROM app_users) u
+PIVOT (count(id) FOR plan IN (&#39;free&#39; AS free, &#39;pro&#39; AS pro, &#39;admin&#39; AS admin))
+ORDER BY city;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>free (LONG)</th><th>pro (LONG)</th><th>admin (LONG)</th></tr></thead><tbody><tr><td>Dharan</td><td>0</td><td>1</td><td>0</td></tr><tr><td>Kathmandu</td><td>1</td><td>1</td><td>0</td></tr><tr><td>Lalitpur</td><td>0</td><td>0</td><td>1</td></tr><tr><td>Pokhara</td><td>1</td><td>1</td><td>0</td></tr><tr><td>NULL</td><td>2</td><td>0</td><td>0</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Two aggregates: debit and credit per account, before and after 6 September</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT account, name, week1_debit, week1_credit, week2_debit, week2_credit
+FROM (SELECT l.account, a.name,
+             CASE WHEN l.entry_date &lt; &#39;2026-09-06&#39; THEN 1 ELSE 2 END AS week,
+             l.debit, l.credit
+      FROM ledger l JOIN accounts a ON a.code = l.account) j
+PIVOT (sum(debit) AS debit, sum(credit) AS credit FOR week IN (1 AS week1, 2 AS week2))
+ORDER BY account;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>account (INT)</th><th>name (STRING)</th><th>week1_debit (DECIMAL(2))</th><th>week1_credit (DECIMAL(2))</th><th>week2_debit (DECIMAL(2))</th><th>week2_credit (DECIMAL(2))</th></tr></thead><tbody><tr><td>1000</td><td>Cash</td><td>30000.00</td><td>25000.00</td><td>NULL</td><td>NULL</td></tr><tr><td>1100</td><td>Bank - City</td><td>500000.00</td><td>288530.00</td><td>18850.00</td><td>NULL</td></tr><tr><td>1200</td><td>Shares at cost</td><td>257500.00</td><td>NULL</td><td>NULL</td><td>10300.00</td></tr><tr><td>2000</td><td>Broker payable</td><td>257500.00</td><td>257500.00</td><td>NULL</td><td>NULL</td></tr><tr><td>3000</td><td>Owner capital</td><td>NULL</td><td>500000.00</td><td>NULL</td><td>NULL</td></tr><tr><td>4000</td><td>Dividend income</td><td>NULL</td><td>NULL</td><td>NULL</td><td>6250.00</td></tr><tr><td>4100</td><td>Gain on sale</td><td>NULL</td><td>NULL</td><td>NULL</td><td>2300.00</td></tr><tr><td>5000</td><td>Broker commission</td><td>1030.00</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>5100</td><td>Office rent</td><td>25000.00</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: The same report the manual way (works today)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT a.name,
+       sum_if(l.debit, l.entry_date &lt; &#39;2026-09-06&#39;) AS debit_week1,
+       sum_if(l.debit, l.entry_date &gt;= &#39;2026-09-06&#39;) AS debit_week2,
+       sum_if(l.credit, l.entry_date &lt; &#39;2026-09-06&#39;) AS credit_week1,
+       sum_if(l.credit, l.entry_date &gt;= &#39;2026-09-06&#39;) AS credit_week2
+FROM ledger l JOIN accounts a ON a.code = l.account
+GROUP BY a.name
+ORDER BY a.name;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>debit_week1 (DECIMAL(2))</th><th>debit_week2 (DECIMAL(2))</th><th>credit_week1 (DECIMAL(2))</th><th>credit_week2 (DECIMAL(2))</th></tr></thead><tbody><tr><td>Bank - City</td><td>500000.00</td><td>18850.00</td><td>288530.00</td><td>NULL</td></tr><tr><td>Broker commission</td><td>1030.00</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>Broker payable</td><td>257500.00</td><td>NULL</td><td>257500.00</td><td>NULL</td></tr><tr><td>Cash</td><td>30000.00</td><td>NULL</td><td>25000.00</td><td>NULL</td></tr><tr><td>Dividend income</td><td>NULL</td><td>NULL</td><td>NULL</td><td>6250.00</td></tr><tr><td>Gain on sale</td><td>NULL</td><td>NULL</td><td>NULL</td><td>2300.00</td></tr><tr><td>Office rent</td><td>25000.00</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>Owner capital</td><td>NULL</td><td>NULL</td><td>500000.00</td><td>NULL</td></tr><tr><td>Shares at cost</td><td>257500.00</td><td>NULL</td><td>NULL</td><td>10300.00</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: FOR and the column are needed</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM trade_log PIVOT (sum(amount) IN (&#39;CITY&#39;));</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 55: expected FOR and the column to spread out, as in PIVOT (sum(turnover) FOR month IN (1, 2)), but found &#39;)&#39;</code></p>
+<p><strong>Example: A source can have only one PIVOT</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT *
+FROM trade_log PIVOT (sum(amount) FOR symbol IN (&#39;CITY&#39;)) f
+PIVOT (sum(amount) FOR symbol IN (&#39;COAST&#39;));</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 3, column 1: a source can have only one PIVOT</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/pivot.md">This page as markdown</a>.</footer>
+</body>
+</html>

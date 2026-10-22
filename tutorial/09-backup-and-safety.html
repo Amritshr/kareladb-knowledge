@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. Backup and safety - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/09-backup-and-safety.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/09-backup-and-safety.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="9-backup-and-safety">9. Backup and safety</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>What protects your data, in simple words.</li><li>How to check a database, make and test backups, and restore to an exact time.</li><li>What to do when a disk is damaged: a real example with real output.</li></ul>
+<p>The examples use the database <code>market</code> with the sample data. <strong>No server may be running</strong> on it (these commands need the database closed). Chapter 8 shows the server versions (<code>/api/check</code>, <code>/api/backup</code>).</p>
+<h2 id="what-protects-your-data">What protects your data</h2>
+<div class="table-wrap"><table><thead><tr><th>Danger</th><th>What KDB does</th></tr></thead><tbody><tr><td>Power cut or crash while writing</td><td>Every change goes into the <strong>log</strong> first, and the log is saved to disk before KDB says &quot;done&quot;. At the next start KDB plays the log again. Nothing that was confirmed is lost.</td></tr><tr><td>A file only half written</td><td>Data files are <strong>never changed</strong>. KDB writes a new version, checks it, and then switches to it. A crash leaves the old version complete.</td></tr><tr><td>A bit on the disk goes bad</td><td>Every block of every file has a <strong>checksum</strong>. KDB notices one wrong bit and knows which file and block is bad. It never returns wrong data without telling you.</td></tr><tr><td>A damaged file</td><td><strong>Repair ladder:</strong> KDB tries the previous version of the file (+ the log), then a copy from a backup (+ the log).</td></tr><tr><td>The list of files is damaged</td><td>The list (manifest) is saved <strong>twice</strong>. One good copy is always left.</td></tr><tr><td>A mistake (wrong UPDATE, bad import)</td><td><strong>Point-in-time restore:</strong> a backup + the log, up to the second before the mistake.</td></tr><tr><td>The whole disk dies</td><td>Only <strong>backups on another disk</strong> help. <code>kdb serve --backup-schedule &quot;daily 16:00&quot; --backup-copy &lt;other disk&gt;</code> makes them by itself (chapter 21).</td></tr><tr><td><code>DROP TABLE</code> by mistake</td><td>The table goes to the <strong>trash</strong> for 7 days: <code>UNDROP TABLE t</code> (chapter 21).</td></tr><tr><td>A slow query or a script in a loop</td><td>Statement timeout, memory limits and a limit per user in <code>kdb serve</code> (chapter 21).</td></tr></tbody></table></div>
+<p>The details are in docs/FORMAT.md (for developers).</p>
+<h2 id="the-commands">The commands</h2>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>What it does</th><th>Changes the database?</th></tr></thead><tbody><tr><td><code>kdb info &lt;db&gt;</code></td><td>Lists the files, versions and log position</td><td>no</td></tr><tr><td><code>kdb check &lt;db&gt;</code></td><td>Reads every block and every log record; reports damage</td><td>no</td></tr><tr><td><code>kdb backup &lt;db&gt; &lt;backups&gt;</code></td><td>Makes a backup and checks it</td><td>no (it adds a backup)</td></tr><tr><td><code>kdb backups &lt;backups&gt;</code></td><td>Lists backups, newest first</td><td>no</td></tr><tr><td><code>kdb verify-backup &lt;backup&gt;</code></td><td>Reads the whole backup again</td><td>no</td></tr><tr><td><code>kdb repair &lt;db&gt; [--backups &lt;folder&gt;] [--accept-log-loss]</code></td><td>Fixes damaged files</td><td>yes</td></tr><tr><td><code>kdb restore &lt;backup&gt; &lt;new-db&gt; [--logs-from &lt;old-db&gt;] [--until &quot;YYYY-MM-DD HH:MM[:SS]&quot;]</code></td><td>Makes a <strong>new</strong> database from a backup</td><td>no (makes a new folder)</td></tr><tr><td><code>kdb dump-file &lt;file.kdb&gt;</code></td><td>Header and block checksums of one file</td><td>no</td></tr></tbody></table></div>
+<p>Exit codes: <code>0</code> OK, <code>1</code> error (for example: the database is open in another program), <code>2</code> damage, <code>3</code> the database needs a newer KDB (chapter 24).</p>
+<h2 id="kdb-info">kdb info</h2>
+<pre><code class="language-powershell">kdb info market</code></pre>
+<pre><code class="language-text">database        market
+manifest        copy b, sequence 12
+last shutdown   clean
+log position    30 (saved in files up to 30)
+newest change   2026-09-23 17:57:58
+features        batched_log_sync, block_stats, partition_format_2
+manifest keys   23
+
+FILE                                      VERSION       SIZE          LSN  STATUS
+catalog                                         6     2.1 KB           30  ok
+t/1/all                                         7      777 B           30  ok
+t/2/all                                         8      556 B           30  ok
+t/3/2025                                        9     1.7 KB           30  ok
+t/3/2026                                       10     3.6 KB           30  ok
+t/4/2026-09                                    11    57.0 KB           30  ok
+t/5/2026-09-09                                 12     1.4 KB           30  ok
+t/5/2026-09-10                                 13     2.4 KB           30  ok
+t/6/2026-09-10                                 14     2.7 KB           30  ok
+
+9 files, 72.1 KB, 0 marked damaged
+(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Line</th><th>Meaning</th></tr></thead><tbody><tr><td><code>manifest copy b</code></td><td>Which of the two manifest copies is newest</td></tr><tr><td><code>last shutdown</code></td><td><code>clean</code>, or <code>not clean</code> after a crash or kill (then the log was replayed)</td></tr><tr><td><code>log position 30</code></td><td>Number (LSN) of the last change</td></tr><tr><td><code>newest change</code></td><td>Time of the last change, <strong>local time</strong> of this computer</td></tr><tr><td><code>features</code></td><td>The stored-format features this database uses. An older KDB that does not know one of them refuses to open it (chapter 24). <code>batched_log_sync</code> is in every database this KDB writes: commits that come at the same moment share one write to the disk (group commit), and that needs this log format.</td></tr><tr><td><code>manifest keys</code></td><td>How many extra entries the manifest keeps besides the files (counters, settings). When some belong to files that are gone, the line says so; KDB removes them the next time it opens the database for writing.</td></tr><tr><td><code>t/4/2026-09</code></td><td>Table number 4 (tables are numbered in the order they were made), partition <code>2026-09</code></td></tr><tr><td><code>catalog</code></td><td>The list of tables and columns</td></tr><tr><td><code>LSN</code></td><td>The file holds every change up to this log position. A checkpoint also raises it for files that had no changes, so an old table does not make KDB read old log.</td></tr><tr><td><code>STATUS</code></td><td><code>ok</code>, or <code>DAMAGED: ...</code> if KDB marked the file as damaged</td></tr></tbody></table></div>
+<p><code>kdb info</code> only reads the list of files. It does <strong>not</strong> read the files. To find damage, use <code>kdb check</code>.</p>
+<h2 id="kdb-check">kdb check</h2>
+<pre><code class="language-powershell">kdb check market
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">checked 11 files (74.7 KB) and 1 log segments
+OK: no damage found
+exit code: 0</code></pre>
+<p><code>kdb check</code> changes nothing. Run it every day (see the routine at the end). For a running server, use the console&#39;s <strong>Check now</strong> or <code>POST /api/check</code>.</p>
+<h2 id="kdb-backup">kdb backup</h2>
+<pre><code class="language-powershell">kdb backup market backups --keep-daily 7 --keep-weekly 4</code></pre>
+<pre><code class="language-text">backup created and verified: backups/20260923-121259-430
+  9 files, 190.0 KB, log up to 30</code></pre>
+<ul><li>A backup is a new folder inside <code>backups</code>. Its name is the <strong>UTC</strong> time: <code>20260923-121259-430</code> = 2026-09-23 12:12:59.430 UTC (17:57 Nepal time).</li><li>It holds a copy of the data files, the needed log files, and <code>backup.kdb</code> (the list, written last). A folder without <code>backup.kdb</code> is not finished and is never used.</li><li>After copying, KDB <strong>reads the whole backup again</strong>. Only then it prints &quot;verified&quot;.</li><li><code>--keep-daily 7 --keep-weekly 4</code> deletes old backups: it keeps the newest backup of each of the last 7 days and each of the last 4 weeks (weeks start on Sunday, UTC). Without these options, nothing is deleted.</li><li><code>kdb backup</code> needs the database closed. With a running server, use <code>BACKUP DATABASE</code>, <strong>Backup now</strong>, or <code>POST /api/backup</code>. They work while the server keeps running.</li></ul>
+<h3 id="hard-links">--hard-links</h3>
+<pre><code class="language-powershell">kdb backup market backups-fast --hard-links</code></pre>
+<pre><code class="language-text">backup created and verified: backups-fast/20260923-121309-580
+  9 files, 197.0 KB, log up to 38</code></pre>
+<p>Hard links are very fast and use no extra space. But the backup and the database then share the <strong>same disk sectors</strong>. If the disk goes bad, both are lost. Use hard links only as an extra &quot;undo point&quot; (for example before a big import), never as your only backup. The log files are always copied.</p>
+<h2 id="kdb-backups-and-verify-backup">kdb backups and verify-backup</h2>
+<pre><code class="language-powershell">kdb backups backups</code></pre>
+<pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
+20260923-121259-430    2026-09-23 17:57:59       9   190.0 KB           30
+1 backups</code></pre>
+<p><code>CREATED</code> is shown in <strong>local time</strong>. The folder name is UTC.</p>
+<pre><code class="language-powershell">$newest = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
+kdb verify-backup &quot;backups\$($newest.Name)&quot;
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">OK: backup is intact
+exit code: 0</code></pre>
+<p>A backup that you never tested is not a backup. Verify old backups from time to time, and do a test restore once a month (see below).</p>
+<h2 id="a-story-the-disk-is-damaged">A story: the disk is damaged</h2>
+<p>This is a real run. We made a <strong>copy</strong> of the database and wrote zeros into the middle of one data file, like a bad disk sector would.</p>
+<blockquote><p><strong>Never do this on real data.</strong> It is only for learning.</p></blockquote>
+<h3 id="before-a-backup-then-more-work">Before: a backup, then more work</h3>
+<p>The backup above was made at 17:57. After it, work went on:</p>
+<pre><code class="language-sql">-- Work goes on after the backup.
+INSERT INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 508.2, 91000);
+UPDATE ochl_day SET volume = 41500 WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<pre><code class="language-text">1 row(s) inserted
+
+1 row(s) updated</code></pre>
+<h3 id="the-damage">The damage</h3>
+<pre><code class="language-powershell"># FOR LEARNING ONLY. Never do this to a real database.
+# Make a copy, then write 64 zero bytes into the middle of one data file of the copy.
+Copy-Item market market-test -Recurse
+
+$file = Get-ChildItem market-test\files\t\4 -Filter *.kdb | Sort-Object Name | Select-Object -Last 1
+&quot;damaging files\t\4\$($file.Name) (table ochl_minutes)&quot;
+$fs = [System.IO.File]::OpenWrite($file.FullName)
+$null = $fs.Seek(20000, [System.IO.SeekOrigin]::Begin)
+$fs.Write((New-Object byte[] 64), 0, 64)
+$fs.Close()</code></pre>
+<pre><code class="language-text">damaging files\t\4\2026-09.v11.kdb (table ochl_minutes)</code></pre>
+<h3 id="step-1-notice-the-problem">Step 1: notice the problem</h3>
+<p>Queries on other tables still work. A query that needs the damaged rows refuses to answer. <strong>It never gives wrong numbers:</strong></p>
+<pre><code class="language-powershell">kdb sql market-test &quot;SELECT count(*) FROM ochl_day&quot;
+kdb sql market-test &quot;SELECT count(*) FROM ochl_minutes&quot;
+kdb sql market-test &quot;SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 1&quot;
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">count(*)
+--------
+      58
+(1 row, 0.3 ms)
+count(*)
+--------
+     956
+(1 row, 0.3 ms)
+error: table &#39;ochl_minutes&#39; partition 2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum. Run: kdb repair &lt;data-dir&gt; --backups &lt;dir&gt;
+exit code: 2</code></pre>
+<ul><li><code>count(*)</code> of <code>ochl_minutes</code> still answers, and the number is right. KDB saves the row count and the min, max and sum of each column with every file. <code>count</code>, <code>sum</code>, <code>min</code> and <code>max</code> of a whole partition come from these saved numbers, so the damaged block is not read.</li><li>The third query needs the rows themselves. They are in the damaged block, so KDB refuses, names the file and the block, and exits with code <code>2</code>.</li></ul>
+<h3 id="step-2-stop-everything-and-check">Step 2: stop everything and check</h3>
+<p>Stop the server and all programs that use the database. Then:</p>
+<pre><code class="language-powershell">kdb check market-test
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">checked 12 files (78.4 KB) and 1 log segments
+DAMAGED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum (no good previous version or backup copy)
+PROBLEM: t/4/2026-09: marked DAMAGED: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum
+PROBLEM: t/4/2026-09 v11 (current): 1 damaged block(s): 0
+
+Damage found. Fix it with: kdb repair market-test --backups &lt;backups-dir&gt;
+exit code: 2</code></pre>
+<p><strong>Before a repair, copy the whole damaged folder somewhere safe</strong> (for example <code>Copy-Item D:\kdb\market E:\damaged-copy -Recurse</code>). Then nothing you try can make things worse.</p>
+<h3 id="step-3-repair-without-a-backup">Step 3: repair without a backup</h3>
+<p>The minute table&#39;s file has no older version (it was written only once), so the first rung of the ladder does not help:</p>
+<pre><code class="language-powershell">kdb repair market-test
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">manifest copy: b, last shutdown: clean
+replayed 0 transactions after LSN 34, last LSN 34
+DAMAGED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum (no good previous version or backup copy)
+still damaged: t/4/2026-09: marked DAMAGED: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum
+still damaged: t/4/2026-09 v11 (current): 1 damaged block(s): 0
+
+Some damage could not be repaired. Restore a backup with: kdb restore
+exit code: 2</code></pre>
+<h3 id="step-4-repair-with-the-backups">Step 4: repair with the backups</h3>
+<pre><code class="language-powershell">kdb repair market-test --backups backups
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">manifest copy: b, last shutdown: clean
+replayed 2 transactions after LSN 30, last LSN 34
+REPAIRED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-58257) failed its checksum -&gt; restored from backup backups/20260923-121259-430 (v11) and replaying the log from LSN 30
+
+Repaired.
+exit code: 0</code></pre>
+<p>KDB took the file from the backup and then <strong>replayed the log</strong> from the backup&#39;s position (30) to the end. So also the changes made <strong>after</strong> the backup are back.</p>
+<h3 id="step-5-check-again">Step 5: check again</h3>
+<pre><code class="language-powershell">kdb check market-test
+&quot;exit code: $LASTEXITCODE&quot;
+kdb sql market-test &quot;SELECT count(*) AS minute_rows FROM ochl_minutes; SELECT time, symbol, close, volume FROM ochl_day WHERE time &gt;= &#39;2026-09-10&#39; ORDER BY symbol, time&quot;</code></pre>
+<pre><code class="language-text">checked 12 files (78.4 KB) and 1 log segments
+OK: no damage found
+exit code: 0
+minute_rows
+-----------
+        956
+(1 row, 0.7 ms)
+
+time                     | symbol | close | volume
+-------------------------+--------+-------+-------
+2026-09-10T00:00:00.000Z | CITY   | 504.9 | 183040
+2026-09-13T00:00:00.000Z | CITY   | 508.2 |  91000
+2026-09-10T00:00:00.000Z | COAST  | 376.1 | 186200
+2026-09-10T00:00:00.000Z | VOLT   | 191.2 |  41500
+(4 rows, 0.2 ms)</code></pre>
+<p>All 956 minute rows are back, and so are the two changes made after the backup (the 2026-09-13 row and the volume 41500).</p>
+<p>Also try: the damaged file was replaced from the <strong>previous version</strong> when one exists. Then <code>kdb repair</code> works even without <code>--backups</code>, and the message says <code>using previous version v10 and replaying the log</code>.</p>
+<h2 id="when-the-log-is-damaged">When the log is damaged</h2>
+<p>The log is only needed for changes that are <strong>not yet saved</strong> in the data files. <code>kdb sql</code>, <code>kdb shell</code> and a server stopped with Ctrl+C save everything when they close. So damage at the end of the log then costs nothing:</p>
+<pre><code class="language-powershell"># FOR LEARNING ONLY. Damage the end of the log in another copy.
+Copy-Item market market-log -Recurse
+
+$log = Get-ChildItem market-log\wal -Filter *.log | Sort-Object Name | Select-Object -Last 1
+$fs = [System.IO.File]::OpenWrite($log.FullName)
+$null = $fs.Seek(-40, [System.IO.SeekOrigin]::End)
+$fs.Write([byte[]](1..32), 0, 32)
+$fs.Close()
+
+kdb check market-log
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">checked 12 files (78.4 KB) and 1 log segments
+OK: no damage found
+exit code: 0</code></pre>
+<p><code>kdb repair</code> cuts the damaged end away and continues the log in a new file. Nothing is lost:</p>
+<pre><code class="language-powershell">kdb repair market-log --backups backups
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">manifest copy: a, last shutdown: clean
+replayed 0 transactions after LSN 34, last LSN 34
+dropped an unfinished write at the end of the log (185 bytes)
+
+Nothing to repair.
+exit code: 0</code></pre>
+<p><strong>After a crash</strong> (power cut, killed server) the newest changes may be only in the log. If exactly that end is damaged, KDB cannot tell it from a write the crash cut in half, so it drops those last changes, as if the power had gone a moment earlier. After a crash, check the newest data and load it again if needed.</p>
+<p>If log records that KDB still <strong>needs</strong> are damaged (not only the very end), KDB refuses to open the database and names the damaged log file. The choices, in this order:</p>
+<ol><li><code>kdb repair &lt;db&gt; --backups &lt;folder&gt;</code>: when a backup has those log records, KDB copies the good bytes from it.</li><li><code>kdb restore</code> from the newest backup with <code>--logs-from &lt;db&gt;</code>: keeps everything up to the damage.</li><li><code>kdb repair &lt;db&gt; --accept-log-loss</code>: opens the database and accepts that the changes in the damaged part are lost.</li></ol>
+<h2 id="a-story-an-update-without-where">A story: an UPDATE without WHERE</h2>
+<p>At about 14:05 someone runs an UPDATE and forgets the WHERE. Every close price becomes 0.</p>
+<p>(<code>kdb serve --safe-updates</code> refuses such an UPDATE, see chapter 21. <code>kdb sql</code>, used here, does not.)</p>
+<pre><code class="language-powershell">kdb sql market &quot;INSERT INTO ochl_day VALUES (&#39;2026-09-14&#39;, &#39;CITY&#39;, 508, 512, 507, 511, 64000)&quot;
+
+Start-Sleep -Seconds 2
+# Remember a time when the data was still good (local time of this computer).
+Get-Date -Format &quot;yyyy-MM-dd HH:mm:ss&quot; | Set-Content good-time.txt
+Start-Sleep -Seconds 2
+
+# The mistake: an UPDATE without WHERE.
+kdb sql market &quot;UPDATE ochl_day SET close = 0&quot;
+kdb sql market &quot;SELECT time, symbol, close FROM ochl_day WHERE time &gt;= &#39;2026-09-10&#39; ORDER BY symbol, time&quot;</code></pre>
+<pre><code class="language-text">1 row(s) inserted
+59 row(s) updated
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T00:00:00.000Z | CITY   |     0
+2026-09-13T00:00:00.000Z | CITY   |     0
+2026-09-14T00:00:00.000Z | CITY   |     0
+2026-09-10T00:00:00.000Z | COAST  |     0
+2026-09-10T00:00:00.000Z | VOLT   |     0
+(5 rows, 0.2 ms)</code></pre>
+<p>(In real life you do not have <code>good-time.txt</code>. You know roughly when the mistake happened, for example &quot;a few minutes after 14:05&quot;. Use a time <strong>before</strong> the mistake.)</p>
+<h3 id="restore-to-the-moment-before-the-mistake">Restore to the moment before the mistake</h3>
+<pre><code class="language-powershell">$goodTime = Get-Content good-time.txt
+$backup = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
+
+kdb restore &quot;backups\$($backup.Name)&quot; market-restored --logs-from market --until $goodTime
+&quot;exit code: $LASTEXITCODE&quot;
+kdb sql market-restored &quot;SELECT time, symbol, close FROM ochl_day WHERE time &gt;= &#39;2026-09-10&#39; ORDER BY symbol, time&quot;</code></pre>
+<pre><code class="language-text">stopped at the requested time: changes after LSN 36 are not restored
+restored 9 data files from backups\20260923-121259-430 plus 1 newer log segments; the log (up to LSN 36) is replayed on first open
+restored into market-restored
+exit code: 0
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T00:00:00.000Z | CITY   | 504.9
+2026-09-13T00:00:00.000Z | CITY   | 508.2
+2026-09-14T00:00:00.000Z | CITY   |   511
+2026-09-10T00:00:00.000Z | COAST  | 376.1
+2026-09-10T00:00:00.000Z | VOLT   | 191.2
+(5 rows, 0.3 ms)</code></pre>
+<ul><li>The prices are back. The row for 2026-09-14, made <strong>after</strong> the backup but <strong>before</strong> the mistake, is also there.</li><li><code>--logs-from market</code> takes the newer log from the old database. Without it, you get the backup as it was.</li><li><code>--until &quot;2026-09-11 14:05&quot;</code> or <code>&quot;2026-09-11 14:05:30&quot;</code> is <strong>local time</strong> of this computer. Changes in that second are included.</li><li>The target folder must be <strong>new or empty</strong>:</li></ul>
+<pre><code class="language-powershell">$backup = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
+kdb restore &quot;backups\$($backup.Name)&quot; market-restored
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">error: Already exists: restore target is not empty: market-restored
+exit code: 1</code></pre>
+<p>Then switch over:</p>
+<ol><li>Stop the server.</li><li>Rename the folders: <code>market</code> → <code>market-broken</code>, <code>market-restored</code> → <code>market</code>.</li><li>Start the server again. Keep <code>market-broken</code> until you are sure.</li></ol>
+<p>Check the restored database before you switch:</p>
+<pre><code class="language-powershell">kdb check market-restored
+&quot;exit code: $LASTEXITCODE&quot;</code></pre>
+<pre><code class="language-text">checked 10 files (75.9 KB) and 2 log segments
+OK: no damage found
+exit code: 0</code></pre>
+<p>A backup holds only the current version of each file, so a restored database has no older versions yet. They appear again as data changes.</p>
+<h2 id="daily-routine-for-a-trading-database">Daily routine for a trading database</h2>
+<p>The sample market closes at 15:00 Nepal time and trades Sunday to Thursday. Use your own market hours and days. Do this every trading day:</p>
+<div class="table-wrap"><table><thead><tr><th>When (NPT)</th><th>What</th><th>How</th></tr></thead><tbody><tr><td>after 15:00, when the day&#39;s imports are done</td><td>Backup to <strong>another disk</strong></td><td><code>kdb serve --backup-schedule &quot;daily 16:00&quot; --backup-copy &lt;other disk&gt;</code> does it by itself; or <code>kdb backup</code> (server stopped) or <code>POST /api/backup</code> (server running). Keep 7 daily + 4 weekly.</td></tr><tr><td>right after the backup</td><td>Check the database</td><td><code>kdb check</code> or <code>POST /api/check</code>. Exit code 2 or <code>&quot;ok&quot;:false</code> → act now.</td></tr><tr><td>every day</td><td>Look at the log of the backup script, or for <code>WARNING</code> and <code>FAILED</code> in the server&#39;s output</td><td>chapter 7, chapter 21</td></tr><tr><td>once a week</td><td>Copy the newest backup to a third place (another PC, NAS, cloud)</td><td><code>robocopy</code> or your normal backup tool</td></tr><tr><td>once a month</td><td><strong>Test restore</strong> into a test folder, run a few queries</td><td><code>kdb restore &lt;backup&gt; D:\restore-test</code>, then <code>kdb sql D:\restore-test &quot;SELECT count(*) FROM ochl_day&quot;</code></td></tr><tr><td>before a big import or a schema change</td><td>An extra backup</td><td><code>kdb backup ...</code> (hard links are OK here)</td></tr></tbody></table></div>
+<p>When a check finds damage:</p>
+<ol><li>Stop the server.</li><li>Copy the damaged database folder to a safe place.</li><li><code>kdb repair &lt;db&gt; --backups &lt;backups&gt;</code>.</li><li><code>kdb check &lt;db&gt;</code>. If it is OK, start the server again.</li><li>If repair fails: <code>kdb restore &lt;newest backup&gt; &lt;new folder&gt; --logs-from &lt;db&gt;</code>, check it, and switch folders.</li><li>Find out <strong>why</strong> (disk errors in Windows Event Viewer, a failing SSD). Replace bad hardware.</li></ol>
+<h2 id="other-safety-facts">Other safety facts</h2>
+<ul><li><strong>Backups while the server runs:</strong> <code>POST /api/backup</code> and scheduled backups do not stop the server. KDB waits for an open transaction (at most a few seconds), writes a checkpoint, and copies the files while reads and writes go on.</li><li><strong>Disk full:</strong> KDB stops accepting writes when less than 64 MB is free, so a full disk never leaves something half written. A program gets HTTP 507 (<code>disk full</code>). Writes work again when there is space, without a restart.</li><li><strong>Old versions:</strong> KDB keeps the 2 previous versions of each file (for the repair ladder) and moves older ones to <code>_trash</code>. Files older than 1 hour leave the trash while the server runs. <code>PURGE TRASH</code> frees that space at once.</li><li><strong>Log archive:</strong> old log files go to <code>wal_archive</code> (up to 1 GB by default; <code>ALTER DATABASE ... SET WAL_ARCHIVE</code> or the Settings page changes it), for backups and repairs. With it <code>OFF</code>, a damaged file can only be repaired from a backup.</li><li><strong>Killing the server</strong> (closing the window, <code>Stop-Process</code>) is safe: it is like a power cut. The next start shows <code>last shutdown: not clean</code> and replays the log. But <strong>Ctrl+C is better</strong>: it closes the database cleanly.</li></ul>
+<h2 id="dump-file-for-experts">dump-file (for experts)</h2>
+<p>Shows the header and checks the blocks of one file:</p>
+<pre><code class="language-powershell">kdb dump-file market-test\files\t\4\2026-09.v11.kdb</code></pre>
+<p>For a damaged file it ends with <code>DAMAGED block 0</code> and exit code 2. Example from a damaged test file:</p>
+<pre><code class="language-text">file         story/files/t/3/2026.v15.kdb
+type         data file
+version      1
+data         3.1 KB
+block size   65536
+LSN          34
+id           3
+created      2026-09-11 13:45:11
+blocks       1
+digest       bb8fefdd
+DAMAGED block 0</code></pre>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>Make a backup of <code>market</code>, then list the backups.</li><li>Delete all rows of <code>live_data</code> by mistake. Restore a new database from the backup with <code>--logs-from</code> and an <code>--until</code> time from before the delete.</li><li>What exit code does <code>kdb check</code> give on a healthy database, and what on a damaged one?</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><pre><code class="language-powershell">kdb backup market backups
+kdb backups backups</code></pre></li><li><pre><code class="language-powershell">Get-Date -Format &quot;yyyy-MM-dd HH:mm:ss&quot;      # note the time, e.g. 2026-09-11 15:40:10
+kdb sql market &quot;DELETE FROM live_data&quot;
+$b = Get-ChildItem backups -Directory | Sort-Object Name | Select-Object -Last 1
+kdb restore &quot;backups\$($b.Name)&quot; market-undo --logs-from market --until &quot;2026-09-11 15:40:10&quot;
+kdb sql market-undo &quot;SELECT count(*) FROM live_data&quot;</code></pre></li><li><code>0</code> when healthy, <code>2</code> when damage is found (<code>1</code> when it cannot run at all, for example the database is open in another program).</li></ol>
+</details>
+<hr>
+<p>Next: <a href="10-migrating-from-questdb.html">10. Moving from QuestDB</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/09-backup-and-safety.md">This page as markdown</a>.</footer>
+</body>
+</html>

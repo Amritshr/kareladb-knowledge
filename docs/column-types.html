@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Column types - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Every column type, its range, how NULL is kept, and which values it accepts.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/column-types.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/column-types.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="column-types">Column types</h1>
+<blockquote><p>Every column type, its range, how NULL is kept, and which values it accepts.</p></blockquote>
+<ul><li>Category: Tables</li><li>Keywords: data type, type, types, column type, conversion, convert value, range, overflow, out of range, NULL storage, money, exact, precision, BOOL, BOOLEAN, BYTE, SHORT, INT, INTEGER, LONG, BIGINT, FLOAT, DOUBLE, DECIMAL, NUMERIC, DATE, TIMESTAMP, SYMBOL, STRING, VARCHAR, TEXT, JSON, JSONB, BYTES, BYTEA, BLOB, UUID, gen_random_uuid, ENUM, CREATE TYPE, ALTER TYPE, DROP TYPE, pg_enum, label, hex, utf-8, time zone, +05:45, milliseconds</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="insert.html">INSERT</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="time-and-time-zones.html">Time and time zones</a>, <a href="sql-basics.html">SQL basics</a></li></ul>
+<p>Every column has a <strong>type</strong>. The type says what values the column holds, and how much space one value takes. When a row is written, KDB <strong>converts</strong> each value to the column type, or refuses the row with a clear message.</p>
+<div class="table-wrap"><table><thead><tr><th>Type</th><th>Also written</th><th>Size</th><th>Values</th><th>Use it for</th></tr></thead><tbody><tr><td><a href="#bool"><code>BOOL</code></a></td><td><code>BOOLEAN</code></td><td>1 byte</td><td><code>TRUE</code>, <code>FALSE</code></td><td>yes/no flags</td></tr><tr><td><a href="#byte"><code>BYTE</code></a></td><td></td><td>1 byte</td><td>-127 to 127</td><td>very small numbers</td></tr><tr><td><a href="#short"><code>SHORT</code></a></td><td></td><td>2 bytes</td><td>-32767 to 32767</td><td>small numbers</td></tr><tr><td><a href="#int"><code>INT</code></a></td><td><code>INTEGER</code></td><td>4 bytes</td><td>-2147483647 to 2147483647</td><td>broker ids, counts</td></tr><tr><td><a href="#long"><code>LONG</code></a></td><td><code>BIGINT</code></td><td>8 bytes</td><td>about ±9.2 × 10^18</td><td>ids, share quantities</td></tr><tr><td><a href="#float"><code>FLOAT</code></a></td><td></td><td>4 bytes</td><td>about 7 digits</td><td>rarely needed</td></tr><tr><td><a href="#double"><code>DOUBLE</code></a></td><td></td><td>8 bytes</td><td>about 15 digits</td><td>prices, volumes, indicators</td></tr><tr><td><a href="#decimal"><code>DECIMAL(s)</code></a></td><td></td><td>8 bytes</td><td>exact, up to 18 digits, <code>s</code> after the point</td><td><strong>money</strong></td></tr><tr><td><a href="#decimal"><code>NUMERIC(p, s)</code></a></td><td><code>DECIMAL(p, s)</code></td><td>8 or 16 bytes</td><td>exact, up to 38 digits</td><td>big money totals, TPoint</td></tr><tr><td><a href="#date"><code>DATE</code></a></td><td></td><td>4 bytes</td><td>a day</td><td>birthdays, report dates</td></tr><tr><td><a href="#timestamp"><code>TIMESTAMP</code></a></td><td></td><td>8 bytes</td><td>a moment in UTC, in milliseconds</td><td>candle and trade times</td></tr><tr><td><a href="#symbol"><code>SYMBOL</code></a></td><td></td><td>4 bytes</td><td>text that repeats a lot</td><td>stock symbols, sectors</td></tr><tr><td><a href="#string"><code>STRING</code></a></td><td><code>VARCHAR</code>, <code>TEXT</code></td><td>length + text</td><td>any text, up to 16 MB</td><td>names, posts, news</td></tr><tr><td><a href="#json"><code>JSON</code></a></td><td><code>JSONB</code></td><td>length + text</td><td>checked JSON, up to 16 MB</td><td>flexible extra data</td></tr><tr><td><a href="#bytes"><code>BYTES</code></a></td><td><code>BYTEA</code>, <code>BLOB</code></td><td>length + bytes</td><td>any bytes, up to 16 MB</td><td>hashes, keys, small files</td></tr><tr><td><a href="#uuid"><code>UUID</code></a></td><td></td><td>16 bytes</td><td>a UUID like <code>a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11</code></td><td>ids made by apps, <code>gen_random_uuid()</code></td></tr><tr><td><a href="#enum">an ENUM type</a></td><td>made by <code>CREATE TYPE ... AS ENUM</code></td><td>4 bytes</td><td>one label of a fixed list</td><td>order status, moods, levels</td></tr></tbody></table></div>
+<ul><li>Every type can hold <code>NULL</code>. For number types, the smallest value is used to keep <code>NULL</code>. That is why <code>BYTE</code> goes to -127, not -128.</li><li>Type names do not care about case. <code>VARCHAR(100)</code> with a length is <strong>not</strong> accepted: write <code>STRING</code>.</li><li>You cannot change the type of a column later (<a href="alter-table.html">ALTER TABLE</a>).</li><li>To convert in a query, use <code>CAST(x AS TYPE)</code> or <code>x::TYPE</code>; see <a href="functions-conversion.html">conversion functions</a>.</li></ul>
+<p><strong>Example: All basic types in one table</strong></p>
+<pre><code class="language-sql">CREATE TABLE type_demo (
+  b BOOL, i8 BYTE, i16 SHORT, i32 INT, i64 LONG, f FLOAT, d DOUBLE, m DECIMAL(2),
+  day DATE, ts TIMESTAMP, sym SYMBOL, txt STRING
+);
+INSERT INTO type_demo VALUES
+  (TRUE, 127, 32767, 2147483647, 270578640, 1.5, 512.45, 1500.25,
+   &#39;2026-09-10&#39;, &#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, &#39;City Bank Limited&#39;),
+  (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+SELECT * FROM type_demo;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE type_demo (</code></p>
+<pre><code class="language-text">table &#39;type_demo&#39; created</code></pre>
+<p><code>INSERT INTO type_demo VALUES (TRUE, 127, 32767, 2147483647, 270578640, 1.5, 512.45, 1500.25, &#39;2026-0</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT * FROM type_demo</code></p>
+<div class="table-wrap"><table><thead><tr><th>b (BOOL)</th><th>i8 (BYTE)</th><th>i16 (SHORT)</th><th>i32 (INT)</th><th>i64 (LONG)</th><th>f (FLOAT)</th><th>d (DOUBLE)</th><th>m (DECIMAL(2))</th><th>day (DATE)</th><th>ts (TIMESTAMP)</th><th>sym (SYMBOL)</th><th>txt (STRING)</th></tr></thead><tbody><tr><td>true</td><td>127</td><td>32767</td><td>2147483647</td><td>270578640</td><td>1.5</td><td>512.45</td><td>1500.25</td><td>2026-09-10</td><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>City Bank Limited</td></tr><tr><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="bool">BOOL, BOOLEAN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column BOOL
+column BOOLEAN</code></pre>
+<p><code>TRUE</code> or <code>FALSE</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Stored as</th></tr></thead><tbody><tr><td><code>TRUE</code>, <code>FALSE</code></td><td>itself</td></tr><tr><td><code>1</code>, <code>0</code></td><td><code>TRUE</code>, <code>FALSE</code></td></tr><tr><td><code>&#39;true&#39;</code>, <code>&#39;false&#39;</code>, <code>&#39;t&#39;</code>, <code>&#39;f&#39;</code>, <code>&#39;1&#39;</code>, <code>&#39;0&#39;</code> (any case)</td><td><code>TRUE</code>, <code>FALSE</code></td></tr><tr><td>anything else (<code>2</code>, <code>1.0</code>, <code>&#39;yes&#39;</code>)</td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> is allowed unless the column is <code>NOT NULL</code>; it is kept as a special third value.</li><li><strong>Notes:</strong> in a query, a <code>BOOL</code> is not a number: <code>TRUE = 1</code> is an error.</li></ul>
+<p><strong>Example: Verified users, written in different ways</strong></p>
+<pre><code class="language-sql">CREATE TABLE users (id INT PRIMARY KEY, verified BOOL, is_admin BOOLEAN NOT NULL DEFAULT FALSE);
+INSERT INTO users (id, verified) VALUES (1, TRUE), (2, 0), (3, &#39;true&#39;), (4, NULL);
+SELECT id, verified, is_admin FROM users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE users (</code></p>
+<pre><code class="language-text">table &#39;users&#39; created</code></pre>
+<p><code>INSERT INTO users (id, verified) VALUES (1, TRUE), (2, 0), (3, &#39;true&#39;), (4, NULL)</code></p>
+<pre><code class="language-text">4 row(s) inserted</code></pre>
+<p><code>SELECT id, verified, is_admin FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>verified (BOOL)</th><th>is_admin (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>true</td><td>false</td></tr><tr><td>2</td><td>false</td><td>false</td></tr><tr><td>3</td><td>true</td><td>false</td></tr><tr><td>4</td><td>NULL</td><td>false</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: &#39;yes&#39; is not a BOOL</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id INT PRIMARY KEY, verified BOOL);</code></pre>
+<pre><code class="language-sql">INSERT INTO users VALUES (1, &#39;yes&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;verified&#39; (BOOL): &#39;yes&#39; is not true or false</code></p>
+<h2 id="byte">BYTE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column BYTE</code></pre>
+<p>A whole number from -127 to 127, in 1 byte.</p>
+<ul><li><strong>NULL:</strong> kept as -128, so -128 itself cannot be stored.</li><li>Accepts the same values as <a href="#int">INT</a>.</li></ul>
+<p><strong>Example: Star rating of a forum post</strong></p>
+<pre><code class="language-sql">CREATE TABLE ratings (post_id LONG, stars BYTE NOT NULL);
+INSERT INTO ratings VALUES (1, 5), (2, 3);
+SELECT post_id, stars FROM ratings;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ratings (</code></p>
+<pre><code class="language-text">table &#39;ratings&#39; created</code></pre>
+<p><code>INSERT INTO ratings VALUES (1, 5), (2, 3)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT post_id, stars FROM ratings</code></p>
+<div class="table-wrap"><table><thead><tr><th>post_id (LONG)</th><th>stars (BYTE)</th></tr></thead><tbody><tr><td>1</td><td>5</td></tr><tr><td>2</td><td>3</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Too big for BYTE</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE t (v BYTE);</code></pre>
+<pre><code class="language-sql">INSERT INTO t VALUES (200);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;v&#39; (BYTE): 200 is out of range (-127 to 127)</code></p>
+<h2 id="short">SHORT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column SHORT</code></pre>
+<p>A whole number from -32767 to 32767, in 2 bytes.</p>
+<ul><li><strong>NULL:</strong> kept as -32768.</li><li>Accepts the same values as <a href="#int">INT</a>.</li></ul>
+<p><strong>Example: Fiscal quarter and year numbers</strong></p>
+<pre><code class="language-sql">CREATE TABLE results (symbol SYMBOL, fiscal_year SHORT, quarter SHORT);
+INSERT INTO results VALUES (&#39;CITY&#39;, 2082, 4);
+SELECT symbol, fiscal_year, quarter FROM results;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE results (</code></p>
+<pre><code class="language-text">table &#39;results&#39; created</code></pre>
+<p><code>INSERT INTO results VALUES (&#39;CITY&#39;, 2082, 4)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT symbol, fiscal_year, quarter FROM results</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>fiscal_year (SHORT)</th><th>quarter (SHORT)</th></tr></thead><tbody><tr><td>CITY</td><td>2082</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="int">INT, INTEGER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column INT
+column INTEGER</code></pre>
+<p>A whole number from -2147483647 to 2147483647, in 4 bytes.</p>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Stored as</th></tr></thead><tbody><tr><td>a whole number: <code>42</code>, <code>-7</code></td><td>itself</td></tr><tr><td>a <code>DOUBLE</code> with no fraction: <code>5.0</code>, <code>1e3</code></td><td><code>5</code>, <code>1000</code></td></tr><tr><td>a <code>DECIMAL</code> with no fraction: <code>12.00</code></td><td><code>12</code></td></tr><tr><td>text with a whole number: <code>&#39;42&#39;</code></td><td><code>42</code></td></tr><tr><td><code>TRUE</code>, <code>FALSE</code></td><td><code>1</code>, <code>0</code></td></tr><tr><td><code>5.5</code>, <code>&#39;5.0&#39;</code>, <code>&#39;abc&#39;</code></td><td>error: not a whole number</td></tr><tr><td>a number outside the range</td><td>error: out of range</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> kept as the smallest <code>INT</code> (-2147483648).</li><li><strong>Notes:</strong> use <code>LONG</code> when a number might grow past 2 billion (ids of a big table, share quantities, money in cents).</li></ul>
+<p><strong>Example: Broker ids written as numbers and as text</strong></p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING, branch_count INTEGER);
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;, 5), (&#39;45&#39;, &#39;Imperial Securities&#39;, 2.0);
+SELECT id, name, branch_count FROM brokers ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE brokers (</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; created</code></pre>
+<p><code>INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;, 5), (&#39;45&#39;, &#39;Imperial Securities&#39;, 2.0)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, name, branch_count FROM brokers ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th><th>branch_count (INT)</th></tr></thead><tbody><tr><td>45</td><td>Imperial Securities</td><td>2</td></tr><tr><td>58</td><td>Northgate Securities</td><td>5</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A number out of range</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING);</code></pre>
+<pre><code class="language-sql">INSERT INTO brokers VALUES (3000000000, &#39;Too Big&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;id&#39; (INT): 3000000000 is out of range (-2147483647 to 2147483647)</code></p>
+<p><strong>Example: A fraction for a whole-number column</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log_small (id INT, quantity INT);</code></pre>
+<pre><code class="language-sql">INSERT INTO trade_log_small VALUES (1, 10.5);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;quantity&#39; (INT): 10.5 is not a whole number</code></p>
+<h2 id="long">LONG, BIGINT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column LONG
+column BIGINT</code></pre>
+<p>A whole number from -9223372036854775807 to 9223372036854775807, in 8 bytes.</p>
+<ul><li>Accepts the same values as <a href="#int">INT</a>.</li><li><strong>NULL:</strong> kept as the smallest <code>LONG</code> (-9223372036854775808).</li><li><strong>Notes:</strong> a good type for <code>PRIMARY KEY AUTO</code> ids, transaction numbers and share quantities.</li></ul>
+<p><strong>Example: Transaction ids and quantities</strong></p>
+<pre><code class="language-sql">CREATE TABLE trades (transaction_id BIGINT PRIMARY KEY, quantity LONG);
+INSERT INTO trades VALUES (2026091000012345, 270578640);
+SELECT transaction_id, quantity FROM trades;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trades (</code></p>
+<pre><code class="language-text">table &#39;trades&#39; created</code></pre>
+<p><code>INSERT INTO trades VALUES (2026091000012345, 270578640)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT transaction_id, quantity FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>quantity (LONG)</th></tr></thead><tbody><tr><td>2026091000012345</td><td>270578640</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="float">FLOAT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column FLOAT</code></pre>
+<p>A number with a fraction, in 4 bytes. It keeps about <strong>7</strong> digits, so <code>512.45</code> comes back as <code>512.450012207031</code>.</p>
+<ul><li>Accepts numbers and text like <code>&#39;512.5&#39;</code>. Bigger than about 3.4e38 is an error.</li><li><strong>NULL:</strong> kept as NaN (not a number).</li><li><strong>Notes:</strong> use <code>DOUBLE</code> for prices. <code>FLOAT</code> only saves space when you have very many rows and need few digits. Indexes are not used on <code>FLOAT</code> columns.</li></ul>
+<p><strong>Example: FLOAT keeps fewer digits than DOUBLE</strong></p>
+<pre><code class="language-sql">CREATE TABLE t (f FLOAT, d DOUBLE);
+INSERT INTO t VALUES (512.45, 512.45);
+SELECT f, d FROM t;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE t (</code></p>
+<pre><code class="language-text">table &#39;t&#39; created</code></pre>
+<p><code>INSERT INTO t VALUES (512.45, 512.45)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT f, d FROM t</code></p>
+<div class="table-wrap"><table><thead><tr><th>f (FLOAT)</th><th>d (DOUBLE)</th></tr></thead><tbody><tr><td>512.450012207031</td><td>512.45</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="double">DOUBLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column DOUBLE</code></pre>
+<p>A number with a fraction, in 8 bytes, with about <strong>15</strong> digits. Fast, and good for prices, volumes, percentages and indicators.</p>
+<ul><li>Accepts numbers, <code>DECIMAL</code> values and text like <code>&#39;512.5&#39;</code> or <code>&#39;1.5e3&#39;</code>.</li><li><strong>NULL:</strong> kept as NaN.</li><li><strong>Notes:</strong> a <code>DOUBLE</code> is <strong>not exact</strong>: <code>0.1 + 0.2</code> is not exactly <code>0.3</code>. For money that must add up exactly, use <a href="#decimal">DECIMAL</a>. In a <strong>relational table</strong> a NaN is stored as NaN, as in PostgreSQL: the text <code>&#39;NaN&#39;</code>, a NaN an expression makes (<code>CAST(&#39;NaN&#39; AS DOUBLE)</code>, <code>x * &#39;NaN&#39;</code>) and a driver&#39;s NaN parameter. It is shown as <code>NaN</code> and is <strong>not</strong> <code>IS NULL</code>; write <code>NULL</code> for a missing value. (Before 2026-09-25 a NaN from an expression was stored as <code>NULL</code>.) The HTTP API writes NaN and infinities as JSON <code>null</code> unless you ask for <code>?nan=string</code> (<a href="http-exec.html">/exec</a>).</li><li><strong>NaN in a time-series table:</strong> stored as <code>NULL</code>, as QuestDB does (since 2026-10-02). So <code>open IS NULL OR open &lt;= 0</code>, the price guard written for QuestDB, also finds a bar whose price came in as NaN. A <a href="constraints.html#check">CHECK</a> still sees the NaN first and refuses it, and a <code>NOT NULL</code> column refuses it too. Rows written before 2026-10-02 keep their NaN.</li><li><strong>NaN in comparisons:</strong> as in PostgreSQL, a NaN equals only another NaN and is <strong>bigger than every number</strong>, <code>Infinity</code> too: <code>100 = &#39;NaN&#39;</code> is false, <code>&#39;NaN&#39; &gt; 0</code> is true, <code>ORDER BY</code> puts NaN after every number, and <code>max()</code> of a column with a NaN is NaN. In <code>GROUP BY</code>, <code>DISTINCT</code>, <code>count(DISTINCT x)</code>, <code>UNION</code> and <code>PARTITION BY</code> all NaNs make one group of their own, apart from the NULLs. A <a href="constraints.html#check">CHECK</a> is stricter: there every comparison with a NaN is false, so <code>CHECK (price &gt; 0)</code> keeps it out. Find NaN with <a href="functions-math.html#is_nan">is_nan(x)</a> or <code>x = &#39;NaN&#39;</code>.</li></ul>
+<p><strong>Example: Prices, and why DOUBLE is not for money</strong></p>
+<pre><code class="language-sql">CREATE TABLE prices (symbol SYMBOL, ltp DOUBLE, pct_change DOUBLE);
+INSERT INTO prices VALUES (&#39;CITY&#39;, 527.1, &#39;2.71&#39;), (&#39;COAST&#39;, 401.9, 0.7);
+SELECT symbol, ltp, pct_change FROM prices;
+SELECT 0.1 + 0.2 AS sum, 0.1 + 0.2 = 0.3 AS equal;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE prices (</code></p>
+<pre><code class="language-text">table &#39;prices&#39; created</code></pre>
+<p><code>INSERT INTO prices VALUES (&#39;CITY&#39;, 527.1, &#39;2.71&#39;), (&#39;COAST&#39;, 401.9, 0.7)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT symbol, ltp, pct_change FROM prices</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>2.71</td></tr><tr><td>COAST</td><td>401.9</td><td>0.7</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT 0.1 + 0.2 AS sum, 0.1 + 0.2 = 0.3 AS equal</code></p>
+<div class="table-wrap"><table><thead><tr><th>sum (DOUBLE)</th><th>equal (BOOL)</th></tr></thead><tbody><tr><td>0.3</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A NaN is stored as NaN, however it is written</strong></p>
+<pre><code class="language-sql">CREATE TABLE readings (id INT, v DOUBLE);
+INSERT INTO readings VALUES (1, &#39;NaN&#39;), (2, CAST(&#39;NaN&#39; AS DOUBLE)), (3, 12.5);
+SELECT id, v, v IS NULL AS is_null, is_nan(v) AS is_nan FROM readings ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE readings (</code></p>
+<pre><code class="language-text">table &#39;readings&#39; created</code></pre>
+<p><code>INSERT INTO readings VALUES (1, &#39;NaN&#39;), (2, CAST(&#39;NaN&#39; AS DOUBLE)), (3, 12.5)</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT id, v, v IS NULL AS is_null, is_nan(v) AS is_nan FROM readings ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>v (DOUBLE)</th><th>is_null (BOOL)</th><th>is_nan (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>NULL</td><td>false</td><td>true</td></tr><tr><td>2</td><td>NULL</td><td>false</td><td>true</td></tr><tr><td>3</td><td>12.5</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: In a time-series table a NaN is NULL, as in QuestDB</strong></p>
+<pre><code class="language-sql">CREATE TABLE bars (time TIMESTAMP, symbol SYMBOL, open DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO bars VALUES (&#39;2026-09-24T05:15:00Z&#39;, &#39;CITY&#39;, &#39;NaN&#39;), (&#39;2026-09-24T05:15:00Z&#39;, &#39;COAST&#39;, 0),
+  (&#39;2026-09-24T05:15:00Z&#39;, &#39;RIVER&#39;, 512.5);
+SELECT symbol, open IS NULL AS is_null FROM bars ORDER BY symbol;
+SELECT symbol FROM bars WHERE open IS NULL OR open &lt;= 0 ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE bars (</code></p>
+<pre><code class="language-text">table &#39;bars&#39; created</code></pre>
+<p><code>INSERT INTO bars VALUES (&#39;2026-09-24T05:15:00Z&#39;, &#39;CITY&#39;, &#39;NaN&#39;), (&#39;2026-09-24T05:15:00Z&#39;, &#39;COAST&#39;, 0</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT symbol, open IS NULL AS is_null FROM bars ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>is_null (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>true</td></tr><tr><td>COAST</td><td>false</td></tr><tr><td>RIVER</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT symbol FROM bars WHERE open IS NULL OR open &lt;= 0 ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th></tr></thead><tbody><tr><td>CITY</td></tr><tr><td>COAST</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A guard for bad prices: missing, zero or less, or NaN</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (id INT, open DOUBLE);
+INSERT INTO ticks VALUES (1, 100), (2, 0), (3, &#39;NaN&#39;), (4, NULL), (5, -1);</code></pre>
+<pre><code class="language-sql">SELECT id FROM ticks WHERE open IS NULL OR open &lt;= 0 OR open = &#39;NaN&#39; ORDER BY id;
+SELECT id, open FROM ticks ORDER BY open;</code></pre>
+<p>Result:</p>
+<p><code>SELECT id FROM ticks WHERE open IS NULL OR open &lt;= 0 OR open = &#39;NaN&#39; ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>2</td></tr><tr><td>3</td></tr><tr><td>4</td></tr><tr><td>5</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SELECT id, open FROM ticks ORDER BY open</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>open (DOUBLE)</th></tr></thead><tbody><tr><td>5</td><td>-1</td></tr><tr><td>2</td><td>0</td></tr><tr><td>1</td><td>100</td></tr><tr><td>3</td><td>NULL</td></tr><tr><td>4</td><td>NULL</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Text that is not a number</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (symbol SYMBOL, ltp DOUBLE);</code></pre>
+<pre><code class="language-sql">INSERT INTO prices VALUES (&#39;CITY&#39;, &#39;n/a&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;ltp&#39; (DOUBLE): &#39;n/a&#39; is not a number</code></p>
+<h2 id="decimal">DECIMAL(s)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column DECIMAL(scale)
+column NUMERIC(precision, scale)</code></pre>
+<p>An <strong>exact</strong> number with <code>scale</code> digits after the point. <code>DECIMAL(2)</code> is right for dollars and cents: <code>0.10 + 0.20</code> is exactly <code>0.30</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>scale</code></td><td>0 to 18 (<code>DECIMAL(s)</code>), 0 to 38 (<code>NUMERIC(p, s)</code>)</td><td>digits after the point</td></tr><tr><td><code>precision</code></td><td>1 to 38</td><td>all digits. Up to 18 the value takes 8 bytes; more takes 16</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Stored as (<code>DECIMAL(2)</code>)</th></tr></thead><tbody><tr><td><code>1500.25</code>, <code>12</code>, <code>&#39;99.5&#39;</code>, <code>&#39;1.500&#39;</code></td><td><code>1500.25</code>, <code>12.00</code>, <code>99.50</code>, <code>1.50</code></td></tr><tr><td>more digits after the point: <code>10.555</code></td><td><strong>error</strong>: KDB never rounds money by itself</td></tr><tr><td>more than 18 digits: <code>123456789012345678.12</code></td><td>error (<code>numeric value out of range</code>): use <code>NUMERIC(24,2)</code></td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> a <code>DECIMAL(s)</code> keeps it as the smallest <code>LONG</code>; a 16-byte <code>NUMERIC</code> keeps a flag.</li><li><strong>Math is exact</strong>, as in PostgreSQL. <code>DECIMAL</code> with <code>DECIMAL</code>, a whole number or a written decimal (<code>balance * 1.15</code>) gives a <code>DECIMAL</code>: <code>+</code> and <code>-</code> keep the larger scale, <code>*</code> adds the scales, <code>/</code> gives at least 16 significant digits (<code>10.00 / 3</code> is <code>3.3333333333333333</code>). A <code>DOUBLE</code> on either side gives a <code>DOUBLE</code>.</li><li><strong>Notes:</strong> <code>sum</code> is exact up to 38 digits, also past 64 bits. <code>avg</code> is exact too: <code>avg</code> of <code>1.50</code> and <code>2.50</code> is <code>2.0000000000000000</code>. <code>round(x, 2)</code> of a <code>DECIMAL</code> rounds half away from zero and stays <code>DECIMAL</code>.</li><li><strong>Notes:</strong> a result past 38 digits is an error (<code>numeric value out of range</code>, SQLSTATE <code>22003</code>), never a rounded number.</li><li><strong>Notes:</strong> a <code>NUMERIC(p, s)</code> column rounds extra places half away from zero (PostgreSQL does too), and refuses more than <code>p - s</code> digits before the point (<code>numeric field overflow</code>). <code>DECIMAL(s)</code> refuses extra places.</li><li><strong>Notes:</strong> a number written with more than 15 digits (<code>123456789012345678.12</code>) is read exactly, not as a <code>DOUBLE</code>.</li><li><strong>Notes:</strong> a table made from a query (<code>CREATE TABLE ... AS</code>, a materialized view) stores <code>avg</code> or a division of a <code>DECIMAL</code> as a <code>DOUBLE</code>: their places change with the values, so no one scale fits later rows. A <code>sum</code> is stored as <code>NUMERIC(38, s)</code>. Write <code>round(avg(x), 2)</code> or a cast to keep a <code>DECIMAL</code> of your own places.</li><li><strong>Notes:</strong> the line protocol writes a float field (<code>price=12.34</code>) exactly. A field with more places than the column (<code>1.2100000000000002</code>, as some clients print doubles) is rounded to the column&#39;s places when it is that close to them.</li><li><strong>Notes:</strong> a result written back to a <code>DECIMAL(2)</code> column (<code>UPDATE ... SET balance = balance * 1.015</code>) must fit its 2 places. Round it the way your rule says: <code>round(balance * 1.015, 2)</code>.</li></ul>
+<p><strong>Example: A wallet balance: exact money</strong></p>
+<pre><code class="language-sql">CREATE TABLE wallet (id INT PRIMARY KEY, balance DECIMAL(2) NOT NULL);
+INSERT INTO wallet VALUES (1, 1000.00), (2, &#39;0.10&#39;);
+UPDATE wallet SET balance = balance - 250.50 WHERE id = 1;
+UPDATE wallet SET balance = balance + 0.20 WHERE id = 2;
+SELECT id, balance FROM wallet ORDER BY id;
+SELECT sum(balance) AS total FROM wallet;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE wallet (</code></p>
+<pre><code class="language-text">table &#39;wallet&#39; created</code></pre>
+<p><code>INSERT INTO wallet VALUES (1, 1000.00), (2, &#39;0.10&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>UPDATE wallet SET balance = balance - 250.50 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>UPDATE wallet SET balance = balance + 0.20 WHERE id = 2</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT id, balance FROM wallet ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>749.50</td></tr><tr><td>2</td><td>0.30</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT sum(balance) AS total FROM wallet</code></p>
+<div class="table-wrap"><table><thead><tr><th>total (DECIMAL(2))</th></tr></thead><tbody><tr><td>749.80</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Interest with too many decimal places is refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE wallet (id INT PRIMARY KEY, balance DECIMAL(2) NOT NULL);
+INSERT INTO wallet VALUES (1, 100.50);</code></pre>
+<pre><code class="language-sql">UPDATE wallet SET balance = balance * 1.015 WHERE id = 1;</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;balance&#39; (DECIMAL(2)): 102.00750 has more than 2 decimal places</code></p>
+<p><strong>Example: Round it the way your business rule says</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE wallet (id INT PRIMARY KEY, balance DECIMAL(2) NOT NULL);
+INSERT INTO wallet VALUES (1, 100.50);</code></pre>
+<pre><code class="language-sql">UPDATE wallet SET balance = round(balance * 1.015, 2) WHERE id = 1;
+SELECT id, balance FROM wallet;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE wallet SET balance = round(balance * 1.015, 2) WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT id, balance FROM wallet</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>102.01</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Paid-up capital with many digits: exact as written</strong></p>
+<pre><code class="language-sql">CREATE TABLE companies (symbol STRING PRIMARY KEY, paid_up_capital DECIMAL(2));
+INSERT INTO companies VALUES (&#39;CITY&#39;, 27057864000123.45);
+SELECT symbol, paid_up_capital FROM companies;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE companies (</code></p>
+<pre><code class="language-text">table &#39;companies&#39; created</code></pre>
+<p><code>INSERT INTO companies VALUES (&#39;CITY&#39;, 27057864000123.45)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT symbol, paid_up_capital FROM companies</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>paid_up_capital (DECIMAL(2))</th></tr></thead><tbody><tr><td>CITY</td><td>27057864000123.45</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Exact math: DECIMAL results, as in PostgreSQL</strong></p>
+<pre><code class="language-sql">CREATE TABLE orders (id INT PRIMARY KEY, price DECIMAL(2), qty DECIMAL(4));
+INSERT INTO orders VALUES (1, 10.25, 3.5), (2, 0.10, 0.2);
+SELECT id, price * qty AS amount, price * 1.13 AS with_vat, price / 3 AS third FROM orders ORDER BY id;
+SELECT sum(price) AS total, avg(price) AS average FROM orders;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE orders (</code></p>
+<pre><code class="language-text">table &#39;orders&#39; created</code></pre>
+<p><code>INSERT INTO orders VALUES (1, 10.25, 3.5), (2, 0.10, 0.2)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, price * qty AS amount, price * 1.13 AS with_vat, price / 3 AS third FROM orders ORDER BY </code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>amount (DECIMAL(6))</th><th>with_vat (DECIMAL(4))</th><th>third (DECIMAL(16))</th></tr></thead><tbody><tr><td>1</td><td>35.875000</td><td>11.5825</td><td>3.4166666666666667</td></tr><tr><td>2</td><td>0.020000</td><td>0.1130</td><td>0.03333333333333333333</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT sum(price) AS total, avg(price) AS average FROM orders</code></p>
+<div class="table-wrap"><table><thead><tr><th>total (DECIMAL(2))</th><th>average (DECIMAL(16))</th></tr></thead><tbody><tr><td>10.35</td><td>5.1750000000000000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: NUMERIC(30,2): money past 18 digits</strong></p>
+<pre><code class="language-sql">CREATE TABLE ledger (id INT PRIMARY KEY, amount NUMERIC(30,2));
+INSERT INTO ledger VALUES (1, 1234567890123456789012.34), (2, 92233720368547758.07);
+SELECT sum(amount) AS total, max(amount) - min(amount) AS spread FROM ledger;
+SELECT id, amount * 1000 AS scaled FROM ledger ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ledger (</code></p>
+<pre><code class="language-text">table &#39;ledger&#39; created</code></pre>
+<p><code>INSERT INTO ledger VALUES (1, 1234567890123456789012.34), (2, 92233720368547758.07)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT sum(amount) AS total, max(amount) - min(amount) AS spread FROM ledger</code></p>
+<div class="table-wrap"><table><thead><tr><th>total (DECIMAL(38,2))</th><th>spread (DECIMAL(38,2))</th></tr></thead><tbody><tr><td>1234660123843825336770.41</td><td>1234475656403088241254.27</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT id, amount * 1000 AS scaled FROM ledger ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>scaled (DECIMAL(38,2))</th></tr></thead><tbody><tr><td>1</td><td>1234567890123456789012340.00</td></tr><tr><td>2</td><td>92233720368547758070.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Past 38 digits is an error, never a rounded number</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT 99999999999999999999999999999999999999 + 1;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 47: numeric value out of range: the result needs more than 38 digits (the most a DECIMAL / NUMERIC holds)</code></p>
+<h2 id="date">DATE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column DATE</code></pre>
+<p>A calendar day without a time, like <code>2026-09-10</code>, in 4 bytes (days since 1970-01-01).</p>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Stored as</th></tr></thead><tbody><tr><td><code>&#39;2026-09-10&#39;</code></td><td>that day</td></tr><tr><td>a time as text: <code>&#39;2026-09-10T20:00:00+05:45&#39;</code></td><td>the <strong>UTC</strong> date of that time (here 2026-09-10, because 20:00 Nepal time is 14:15 UTC)</td></tr><tr><td>a <code>TIMESTAMP</code></td><td>its UTC date</td></tr><tr><td>a number, <code>&#39;10/09/2026&#39;</code>, <code>&#39;2026-9-10&#39;</code></td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> kept as the smallest <code>INT</code>.</li><li><strong>Notes:</strong> <code>date + 1</code> is the next day. Shown as <code>2026-09-10</code>. A <code>DATE</code> can be the time column of a time-series table.</li></ul>
+<p><strong>Example: Company listing dates and report dates</strong></p>
+<pre><code class="language-sql">CREATE TABLE companies (symbol STRING PRIMARY KEY, listed_on DATE, last_report DATE);
+INSERT INTO companies VALUES (&#39;CITY&#39;, &#39;1985-07-12&#39;, &#39;2026-07-16&#39;), (&#39;VOLT&#39;, &#39;2019-01-21&#39;, NULL);
+SELECT symbol, listed_on, last_report, last_report + 90 AS next_report_due FROM companies;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE companies (</code></p>
+<pre><code class="language-text">table &#39;companies&#39; created</code></pre>
+<p><code>INSERT INTO companies VALUES (&#39;CITY&#39;, &#39;1985-07-12&#39;, &#39;2026-07-16&#39;), (&#39;VOLT&#39;, &#39;2019-01-21&#39;, NULL)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT symbol, listed_on, last_report, last_report + 90 AS next_report_due FROM companies</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>listed_on (DATE)</th><th>last_report (DATE)</th><th>next_report_due (DATE)</th></tr></thead><tbody><tr><td>CITY</td><td>1985-07-12</td><td>2026-07-16</td><td>2026-10-14</td></tr><tr><td>VOLT</td><td>2019-01-21</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A date in another format</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE companies (symbol STRING PRIMARY KEY, listed_on DATE);</code></pre>
+<pre><code class="language-sql">INSERT INTO companies VALUES (&#39;CITY&#39;, &#39;12/07/1985&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;listed_on&#39; (DATE): &#39;12/07/1985&#39; is not a date like &#39;2026-09-11&#39;</code></p>
+<h2 id="timestamp">TIMESTAMP</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TIMESTAMP [ROUND interval]</code></pre>
+<p>A moment in time, stored as milliseconds since 1970-01-01 <strong>UTC</strong>, in 8 bytes. KDB always shows it in UTC with a <code>Z</code>: <code>2026-09-10T05:15:00.000Z</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Read as</th></tr></thead><tbody><tr><td><code>&#39;2026-09-10T11:00:00+05:45&#39;</code> (or <code>+0545</code>)</td><td>11:00 Nepal time = 05:15 UTC</td></tr><tr><td><code>&#39;2026-09-10T07:00:00-04:00&#39;</code></td><td>07:00 New York summer time = 11:00 UTC</td></tr><tr><td><code>&#39;2026-09-10 11:00:00&#39;</code> (no zone)</td><td>11:00 <strong>UTC</strong> (not local time!)</td></tr><tr><td><code>&#39;2026-09-10T11:00:00Z&#39;</code></td><td>11:00 UTC</td></tr><tr><td><code>&#39;2026-09-10&#39;</code></td><td>00:00 UTC</td></tr><tr><td><code>&#39;2026-09-10T05:15:00.250Z&#39;</code></td><td>with milliseconds; more than 3 digits are cut</td></tr><tr><td><code>1789017300000</code></td><td>milliseconds since 1970-01-01 UTC</td></tr><tr><td>a <code>DATE</code></td><td>00:00 UTC of that day</td></tr><tr><td><code>&#39;10/09/2026&#39;</code>, <code>&#39;2026-9-10&#39;</code>, <code>&#39;2026-02-30&#39;</code>, <code>1.5</code>, <code>TRUE</code></td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> kept as the smallest <code>LONG</code>. A time-series table needs a value in its time column.</li><li><strong>Notes:</strong> <strong>always add the zone offset to a local time</strong>, for example <code>+05:45</code> for Nepal or <code>-04:00</code> for New York in summer. Without it, the time is read as UTC and is wrong by the offset. <code>ROUND</code> cuts times down when they are written; see <a href="create-table.html#round">ROUND</a>. More in <a href="time-and-time-zones.html">time and time zones</a>.</li></ul>
+<p><strong>Example: The same market open (11:00 in Nepal) written in different ways</strong></p>
+<pre><code class="language-sql">CREATE TABLE time_test (time TIMESTAMP, note STRING);
+INSERT INTO time_test VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;Nepal time with +05:45&#39;),
+  (&#39;2026-09-10T11:00:00+0545&#39;,  &#39;Nepal time without the colon&#39;),
+  (&#39;2026-09-10 05:15:00&#39;,       &#39;no zone = UTC&#39;),
+  (&#39;2026-09-10T05:15:00Z&#39;,      &#39;Z = UTC&#39;),
+  (1789017300000,               &#39;milliseconds since 1970&#39;),
+  (&#39;2026-09-10T11:00:00&#39;,       &#39;Nepal time WITHOUT +05:45: wrong&#39;);
+SELECT time, note FROM time_test;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE time_test (</code></p>
+<pre><code class="language-text">table &#39;time_test&#39; created</code></pre>
+<p><code>INSERT INTO time_test VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;Nepal time with +05:45&#39;), (&#39;2026-09-10T1</code></p>
+<pre><code class="language-text">6 row(s) inserted</code></pre>
+<p><code>SELECT time, note FROM time_test</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>note (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>Nepal time with +05:45</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>Nepal time without the colon</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>no zone = UTC</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>Z = UTC</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>milliseconds since 1970</td></tr><tr><td>2026-09-10T11:00:00.000Z</td><td>Nepal time WITHOUT +05:45: wrong</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: A time in a local format</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL);</code></pre>
+<pre><code class="language-sql">INSERT INTO trades VALUES (&#39;10/09/2026 11:00&#39;, &#39;CITY&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;time&#39; (TIMESTAMP): &#39;10/09/2026 11:00&#39; is not a time like &#39;2026-09-11 11:00:00&#39; (UTC) or &#39;2026-09-11T11:00:00+05:45&#39;</code></p>
+<h2 id="symbol">SYMBOL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column SYMBOL</code></pre>
+<p>Text that repeats a lot, like stock symbols, sectors or order types. Each different text is kept once in a list; every row keeps only a 4-byte number that points into the list. So a <code>SYMBOL</code> column of millions of rows is small and fast to compare.</p>
+<ul><li>Accepts anything; numbers, <code>BOOL</code> values and times are written as text.</li><li><strong>NULL:</strong> <code>NULL</code> is allowed; it is kept as a special number that is not in the list.</li><li><strong>Notes:</strong> in queries a <code>SYMBOL</code> works like text. A <code>REFERENCES</code> from a <code>SYMBOL</code> column may point to a <code>STRING</code> key. Use <code>STRING</code> for text that is different in almost every row (names, messages): the list would get as big as the table. The default <a href="create-table.html#sort-by">SORT BY</a> of a time-series table starts with its first <code>SYMBOL</code> column.</li></ul>
+<p><strong>Example: Symbols and sectors</strong></p>
+<pre><code class="language-sql">CREATE TABLE securities (symbol SYMBOL PRIMARY KEY, name STRING NOT NULL, sector SYMBOL);
+INSERT INTO securities VALUES (&#39;CITY&#39;, &#39;City Bank Limited&#39;, &#39;Banking&#39;), (&#39;COAST&#39;, &#39;Coastal Bank Limited&#39;, &#39;Banking&#39;);
+SELECT sector, count(*) AS companies FROM securities GROUP BY sector;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE securities (</code></p>
+<pre><code class="language-text">table &#39;securities&#39; created</code></pre>
+<p><code>INSERT INTO securities VALUES (&#39;CITY&#39;, &#39;City Bank Limited&#39;, &#39;Banking&#39;), (&#39;COAST&#39;, &#39;Coastal Bank Limi</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT sector, count(*) AS companies FROM securities GROUP BY sector</code></p>
+<div class="table-wrap"><table><thead><tr><th>sector (SYMBOL)</th><th>companies (LONG)</th></tr></thead><tbody><tr><td>Banking</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="enum">ENUM types (CREATE TYPE)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TYPE name AS ENUM (&#39;label&#39;, &#39;label&#39;, ...)
+ALTER TYPE name ADD VALUE [IF NOT EXISTS] &#39;label&#39; [BEFORE | AFTER &#39;label&#39;]
+DROP TYPE [IF EXISTS] name [, name ...]
+column name</code></pre>
+<p>A fixed list of labels, as in PostgreSQL. You make the type once, then use its name as a column type. A column of the type takes <strong>only</strong> its labels. It is kept like a <a href="#symbol"><code>SYMBOL</code></a>: 4 bytes a row.</p>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>What happens</th></tr></thead><tbody><tr><td>Value</td><td>must be one of the labels, exactly (case counts); anything else is refused with <code>invalid input value for enum ...</code> (Postgres code <code>22P02</code>)</td></tr><tr><td>Order</td><td><code>ORDER BY</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code> and <code>BETWEEN</code> follow the order the labels were listed in, not the alphabet. This works through a view, a subquery and a <code>WITH</code> query too. The other side is a label: <code>&#39;paid&#39;</code>, <code>&#39;paid&#39;::order_status</code> or <code>CAST(&#39;paid&#39; AS order_status)</code>. Against another column or an expression, the text is compared</td></tr><tr><td>Cast</td><td><code>&#39;happy&#39;::mood</code> and <code>CAST(&#39;happy&#39; AS mood)</code> check the label too</td></tr><tr><td>New label</td><td><code>ALTER TYPE ... ADD VALUE</code> puts it at the end, or <code>BEFORE</code> / <code>AFTER</code> a label</td></tr><tr><td>Change type</td><td><code>ALTER TABLE ... ALTER COLUMN c TYPE other_type</code> checks every row: it is refused if a row holds a value that is not a label of the new type</td></tr><tr><td>Drop</td><td><code>DROP TYPE</code> is refused while a column uses the type (code <code>2BP01</code>); drop or change the column first</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> is allowed unless the column is <code>NOT NULL</code>.</li><li><strong>Notes:</strong> a label is 1 to 63 bytes. Labels cannot be renamed or removed: rows already hold them. <code>min()</code> and <code>max()</code> still compare the text. Arrays of an ENUM type are not supported (use <code>TEXT[]</code>). <code>pg_type</code> lists the type (<code>typtype</code> <code>&#39;e&#39;</code>) and <code>pg_enum</code> its labels; the Postgres port sends a column of the type as text, under the type&#39;s own oid (<a href="postgres-protocol.html#types">types</a>).</li></ul>
+<p><strong>Example: Order status in the order the order moves</strong></p>
+<pre><code class="language-sql">CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;, &#39;shipped&#39;, &#39;delivered&#39;);
+CREATE TABLE orders (id INT PRIMARY KEY, status order_status NOT NULL DEFAULT &#39;new&#39;);
+INSERT INTO orders VALUES (1, &#39;shipped&#39;), (2, &#39;new&#39;), (3, &#39;delivered&#39;), (4, &#39;paid&#39;);
+SELECT id, status FROM orders ORDER BY status;
+SELECT id FROM orders WHERE status &gt;= &#39;shipped&#39; ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;, &#39;shipped&#39;, &#39;delivered&#39;)</code></p>
+<pre><code class="language-text">type &#39;order_status&#39; created</code></pre>
+<p><code>CREATE TABLE orders (</code></p>
+<pre><code class="language-text">table &#39;orders&#39; created</code></pre>
+<p><code>INSERT INTO orders VALUES (1, &#39;shipped&#39;), (2, &#39;new&#39;), (3, &#39;delivered&#39;), (4, &#39;paid&#39;)</code></p>
+<pre><code class="language-text">4 row(s) inserted</code></pre>
+<p><code>SELECT id, status FROM orders ORDER BY status</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>status (SYMBOL)</th></tr></thead><tbody><tr><td>2</td><td>new</td></tr><tr><td>4</td><td>paid</td></tr><tr><td>1</td><td>shipped</td></tr><tr><td>3</td><td>delivered</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SELECT id FROM orders WHERE status &gt;= &#39;shipped&#39; ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr><tr><td>3</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Label order through a view, with a cast</strong></p>
+<pre><code class="language-sql">CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;, &#39;shipped&#39;, &#39;delivered&#39;);
+CREATE TABLE orders (id INT PRIMARY KEY, status order_status);
+INSERT INTO orders VALUES (1, &#39;shipped&#39;), (2, &#39;new&#39;), (3, &#39;delivered&#39;), (4, &#39;paid&#39;);
+CREATE VIEW open_orders AS SELECT * FROM orders;
+SELECT id FROM open_orders WHERE status &lt; &#39;shipped&#39;::order_status ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;, &#39;shipped&#39;, &#39;delivered&#39;)</code></p>
+<pre><code class="language-text">type &#39;order_status&#39; created</code></pre>
+<p><code>CREATE TABLE orders (</code></p>
+<pre><code class="language-text">table &#39;orders&#39; created</code></pre>
+<p><code>INSERT INTO orders VALUES (1, &#39;shipped&#39;), (2, &#39;new&#39;), (3, &#39;delivered&#39;), (4, &#39;paid&#39;)</code></p>
+<pre><code class="language-text">4 row(s) inserted</code></pre>
+<p><code>CREATE VIEW open_orders AS SELECT * FROM orders</code></p>
+<pre><code class="language-text">view &#39;open_orders&#39; created</code></pre>
+<p><code>SELECT id FROM open_orders WHERE status &lt; CAST(&#39;shipped&#39; AS order_status) ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>2</td></tr><tr><td>4</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Only the labels are taken</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;, &#39;shipped&#39;, &#39;delivered&#39;);
+CREATE TABLE orders (id INT PRIMARY KEY, status order_status);</code></pre>
+<pre><code class="language-sql">INSERT INTO orders VALUES (1, &#39;lost&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>invalid input value for enum order_status: &quot;lost&quot;</code></p>
+<p><strong>Example: Add a label between two others</strong></p>
+<pre><code class="language-sql">CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;, &#39;shipped&#39;, &#39;delivered&#39;);
+ALTER TYPE order_status ADD VALUE &#39;packed&#39; AFTER &#39;paid&#39;;
+SELECT enumlabel FROM pg_enum ORDER BY enumsortorder;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;, &#39;shipped&#39;, &#39;delivered&#39;)</code></p>
+<pre><code class="language-text">type &#39;order_status&#39; created</code></pre>
+<p><code>ALTER TYPE order_status ADD VALUE &#39;packed&#39; AFTER &#39;paid&#39;</code></p>
+<pre><code class="language-text">type &#39;order_status&#39; altered: label &#39;packed&#39; added</code></pre>
+<p><code>SELECT enumlabel FROM pg_enum ORDER BY enumsortorder</code></p>
+<div class="table-wrap"><table><thead><tr><th>enumlabel (STRING)</th></tr></thead><tbody><tr><td>new</td></tr><tr><td>paid</td></tr><tr><td>packed</td></tr><tr><td>shipped</td></tr><tr><td>delivered</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A type in use cannot be dropped</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TYPE order_status AS ENUM (&#39;new&#39;, &#39;paid&#39;);
+CREATE TABLE orders (id INT PRIMARY KEY, status order_status);</code></pre>
+<pre><code class="language-sql">DROP TYPE order_status;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop type order_status because other objects depend on it: column &#39;status&#39; of table &#39;orders&#39; uses it; drop that column or change its type first</code></p>
+<h2 id="string">STRING, VARCHAR, TEXT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column STRING
+column VARCHAR
+column TEXT</code></pre>
+<p>Any text in UTF-8 (any language: English, Nepali, Chinese, emoji), up to 16 MB per value. <code>VARCHAR</code> and <code>TEXT</code> are the same type.</p>
+<ul><li>Accepts anything; a number, <code>BOOL</code> or time is written as its text (<code>12</code> becomes <code>&#39;12&#39;</code>, a time becomes <code>&#39;2026-09-10T00:00:00.000Z&#39;</code>).</li><li><strong>NULL:</strong> <code>NULL</code> is allowed; it is kept as a special length. The empty text <code>&#39;&#39;</code> is not <code>NULL</code>.</li><li><strong>Notes:</strong> KDB has no length limit on text. <code>VARCHAR(255)</code> is <strong>read and the number ignored</strong>, so a PostgreSQL script runs; nothing is cut at 255. Keep PDF files and images outside the database, and store their path or URL.</li></ul>
+<p><strong>Example: A news article in two languages</strong></p>
+<pre><code class="language-sql">CREATE TABLE news (id LONG PRIMARY KEY AUTO, lang STRING NOT NULL DEFAULT &#39;en&#39;, title VARCHAR NOT NULL, body TEXT NOT NULL);
+INSERT INTO news (lang, title, body) VALUES
+  (&#39;en&#39;, &#39;City Bank profit rises 18%&#39;, &#39;City Bank reported a net profit of $3.27 billion.&#39;),
+  (&#39;ne&#39;, &#39;सिटी बैंकको नाफा बढ्यो&#39;, &#39;सिटी बैंकले ३.२७ अर्ब नाफा कमायो।&#39;);
+SELECT id, lang, title FROM news ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE news (</code></p>
+<pre><code class="language-text">table &#39;news&#39; created</code></pre>
+<p><code>INSERT INTO news (lang, title, body) VALUES (&#39;en&#39;, &#39;City Bank profit rises 18%&#39;, &#39;City Bank reported</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, lang, title FROM news ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>lang (STRING)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>1</td><td>en</td><td>City Bank profit rises 18%</td></tr><tr><td>2</td><td>ne</td><td>सिटी बैंकको नाफा बढ्यो</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: VARCHAR(255): the number is read and ignored</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id INT PRIMARY KEY, email VARCHAR(255));</code></pre>
+<pre><code class="language-sql">SHOW COLUMNS FROM users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>id</td><td>INT</td><td>true</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>email</td><td>STRING</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="json">JSON, JSONB</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column JSON
+column JSONB</code></pre>
+<p>A JSON document (objects, arrays, text, numbers, <code>true</code>, <code>false</code>, <code>null</code>), up to 16 MB. <code>JSONB</code> is the same type. KDB checks that the text is valid JSON and removes the spaces between the parts.</p>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Stored as</th></tr></thead><tbody><tr><td>JSON text: <code>&#39;{ &quot;a&quot; : 1 }&#39;</code></td><td><code>{&quot;a&quot;:1}</code> (keys stay in their order; numbers keep their digits, <code>2.50</code> stays <code>2.50</code>)</td></tr><tr><td>a number or <code>TRUE</code>/<code>FALSE</code></td><td><code>5</code>, <code>true</code></td></tr><tr><td>bad JSON: <code>&#39;{&quot;a&quot;: 1,}&#39;</code>, <code>&#39;hello&#39;</code></td><td>error with the character position</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> SQL <code>NULL</code> is allowed (kept as a special length). The JSON text <code>&#39;null&#39;</code> is a JSON value, not SQL <code>NULL</code>: <code>IS NULL</code> is false for it.</li><li><strong>Notes:</strong> read parts with <code>-&gt;</code>, <code>-&gt;&gt;</code> and <code>json_value(...)</code>; change them with <code>json_set(...)</code>. See <a href="../tutorial/18-content-data.html">chapter 18</a>. Two JSON values are equal only when their text is equal, so <code>{&quot;a&quot;:1,&quot;b&quot;:2}</code> is not equal to <code>{&quot;b&quot;:2,&quot;a&quot;:1}</code>. The examples below show JSON with <code>CAST(... AS STRING)</code>, so you see the exact stored text.</li></ul>
+<p><strong>Example: Company profiles that differ per company</strong></p>
+<pre><code class="language-sql">CREATE TABLE companies (symbol STRING PRIMARY KEY, profile JSON DEFAULT &#39;{}&#39;);
+INSERT INTO companies VALUES
+  (&#39;CITY&#39;, &#39;{ &quot;head_office&quot;: &quot;Kathmandu&quot;, &quot;branches&quot;: 270 }&#39;),
+  (&#39;VOLT&#39;, &#39;{&quot;capacity_mw&quot;: 456, &quot;rivers&quot;: [&quot;Volt River&quot;]}&#39;);
+INSERT INTO companies (symbol) VALUES (&#39;COAST&#39;);
+SELECT symbol, CAST(profile AS STRING) AS profile, profile -&gt;&gt; &#39;head_office&#39; AS office FROM companies ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE companies (</code></p>
+<pre><code class="language-text">table &#39;companies&#39; created</code></pre>
+<p><code>INSERT INTO companies VALUES (&#39;CITY&#39;, &#39;{ &quot;head_office&quot;: &quot;Kathmandu&quot;, &quot;branches&quot;: 270 }&#39;), (&#39;VOLT&#39;, &#39;</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>INSERT INTO companies (symbol) VALUES (&#39;COAST&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT symbol, CAST(profile AS STRING) AS profile, profile -&gt;&gt; &#39;head_office&#39; AS office FROM companie</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>profile (STRING)</th><th>office (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>{&quot;head_office&quot;:&quot;Kathmandu&quot;,&quot;branches&quot;:270}</td><td>Kathmandu</td></tr><tr><td>COAST</td><td>{}</td><td>NULL</td></tr><tr><td>VOLT</td><td>{&quot;capacity_mw&quot;:456,&quot;rivers&quot;:[&quot;Volt River&quot;]}</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: JSON of different kinds, and JSON null</strong></p>
+<pre><code class="language-sql">CREATE TABLE settings (id INT PRIMARY KEY, value JSONB);
+INSERT INTO settings VALUES (1, &#39;[1, 2.50]&#39;), (2, 5), (3, TRUE), (4, &#39;null&#39;), (5, NULL);
+SELECT id, CAST(value AS STRING) AS stored_text, value IS NULL AS is_sql_null FROM settings ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE settings (</code></p>
+<pre><code class="language-text">table &#39;settings&#39; created</code></pre>
+<p><code>INSERT INTO settings VALUES (1, &#39;[1, 2.50]&#39;), (2, 5), (3, TRUE), (4, &#39;null&#39;), (5, NULL)</code></p>
+<pre><code class="language-text">5 row(s) inserted</code></pre>
+<p><code>SELECT id, CAST(value AS STRING) AS stored_text, value IS NULL AS is_sql_null FROM settings ORDER BY</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>stored_text (STRING)</th><th>is_sql_null (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>[1,2.50]</td><td>false</td></tr><tr><td>2</td><td>5</td><td>false</td></tr><tr><td>3</td><td>true</td><td>false</td></tr><tr><td>4</td><td>null</td><td>false</td></tr><tr><td>5</td><td>NULL</td><td>true</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Bad JSON is refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE fundamentals (id INT PRIMARY KEY, extra JSON);</code></pre>
+<pre><code class="language-sql">INSERT INTO fundamentals VALUES (1, &#39;{&quot;npl_pct&quot;: 4.3,}&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;extra&#39; (JSON): not valid JSON: a JSON object cannot end with &#39;,&#39; at character 17 (near &#39;}&#39;)</code></p>
+<h2 id="bytes">BYTES, BYTEA, BLOB</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column BYTES
+column BYTEA
+column BLOB
+X&#39;0A0B&#39;    &#39;\x0a0b&#39;</code></pre>
+<p>Any bytes, also zero bytes, up to 16 MB. <code>BYTEA</code> and <code>BLOB</code> are the same type. Good for password salts, SHA-256 hashes, keys, signatures and small images.</p>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Stored as</th></tr></thead><tbody><tr><td><code>X&#39;0A0B&#39;</code> (hex, right after the <code>X</code>)</td><td>the bytes 0A 0B</td></tr><tr><td><code>&#39;\x0a0b&#39;</code> (text that starts with <code>\x</code>)</td><td>the bytes 0A 0B</td></tr><tr><td>other text: <code>&#39;hi&#39;</code></td><td>its UTF-8 bytes (68 69)</td></tr><tr><td>a number</td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> is allowed (kept as a special length). <code>X&#39;&#39;</code> is zero bytes, not <code>NULL</code>.</li><li><strong>Notes:</strong> KDB <strong>shows</strong> bytes as <code>\x</code> and hex (<code>\x0a0b</code>), in the shell, in CSV and in the HTTP API, like PostgreSQL. On <code>BYTES</code>, <code>length()</code> counts bytes. Functions: <code>hex()</code>, <code>unhex()</code>, <code>to_base64()</code>, <code>from_base64()</code>.</li></ul>
+<p><strong>Example: The SHA-256 hash of a report PDF</strong></p>
+<pre><code class="language-sql">CREATE TABLE reports (id LONG PRIMARY KEY AUTO, pdf_url STRING, pdf_sha256 BYTES);
+INSERT INTO reports (pdf_url, pdf_sha256) VALUES
+  (&#39;https://files.example.com/city/2082-83-q4.pdf&#39;, X&#39;9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08&#39;),
+  (&#39;https://files.example.com/volt/2082-83-q4.pdf&#39;, NULL);
+SELECT id, pdf_sha256, length(pdf_sha256) AS bytes FROM reports ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE reports (</code></p>
+<pre><code class="language-text">table &#39;reports&#39; created</code></pre>
+<p><code>INSERT INTO reports (pdf_url, pdf_sha256) VALUES (&#39;https://files.example.com/city/2082-83-q4.pdf&#39;, u</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, pdf_sha256, length(pdf_sha256) AS bytes FROM reports ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>pdf_sha256 (BYTES)</th><th>bytes (LONG)</th></tr></thead><tbody><tr><td>1</td><td>\x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08</td><td>32</td></tr><tr><td>2</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Three ways to write bytes</strong></p>
+<pre><code class="language-sql">CREATE TABLE keys (id INT PRIMARY KEY, k BYTEA, b BLOB);
+INSERT INTO keys VALUES (1, X&#39;00FF10&#39;, &#39;\x00ff10&#39;), (2, &#39;hi&#39;, X&#39;&#39;);
+SELECT id, k, b FROM keys ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE keys (</code></p>
+<pre><code class="language-text">table &#39;keys&#39; created</code></pre>
+<p><code>INSERT INTO keys VALUES (1, unhex(&#39;00FF10&#39;), &#39;\x00ff10&#39;), (2, &#39;hi&#39;, unhex(&#39;&#39;))</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, k, b FROM keys ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>k (BYTES)</th><th>b (BYTES)</th></tr></thead><tbody><tr><td>1</td><td>\x00ff10</td><td>\x00ff10</td></tr><tr><td>2</td><td>\x6869</td><td>\x</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Hex with a bad digit</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE keys (id INT PRIMARY KEY, k BYTES);</code></pre>
+<pre><code class="language-sql">INSERT INTO keys VALUES (1, &#39;\xZZ&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;k&#39; (BYTES): &#39;\xZZ&#39; is not hex bytes; write them like &#39;\x0a0b&#39; or X&#39;0A0B&#39;</code></p>
+<h2 id="uuid">UUID</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column UUID
+&#39;a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11&#39;::uuid</code></pre>
+<p>A UUID, kept in <strong>16 bytes</strong> (as text it would take 36 characters and more). It reads back as text: 36 lower-case characters with dashes, as in PostgreSQL.</p>
+<div class="table-wrap"><table><thead><tr><th>Value written</th><th>Stored as</th></tr></thead><tbody><tr><td><code>&#39;a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11&#39;</code></td><td>itself</td></tr><tr><td>upper case, <code>{...}</code> braces, or the 32 digits without dashes</td><td>the same UUID: <code>a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11</code></td></tr><tr><td><code>gen_random_uuid()</code></td><td>a new random UUID (version 4)</td></tr><tr><td>text that is no UUID: <code>&#39;abc&#39;</code></td><td>error <code>invalid input syntax for type uuid</code> (SQLSTATE 22P02)</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> is allowed (kept in a flag, not in the 16 bytes).</li><li><strong>Compare and find:</strong> <code>id = &#39;A0EEBC99-...&#39;</code> finds the row in any spelling. <code>ORDER BY</code> sorts like the text. A <code>PRIMARY KEY</code>, <code>DEDUP KEY</code> or index on a UUID column works like on text.</li><li><strong>Convert:</strong> <code>CAST(id AS TEXT)</code> or <code>id::text</code> gives the text; <code>&#39;...&#39;::uuid</code> reads any spelling and gives the lower-case text.</li><li><strong>Older data:</strong> a <code>UUID</code> column made before 2026-10-02 stays a text column with the UUID rule; it reads and compares the same. <code>ALTER TABLE t ALTER COLUMN c TYPE UUID</code> moves it to 16 bytes. A KDB build before 2026-10-02 cannot open a table with a 16-byte <code>UUID</code> column (<a href="versions.html">versions</a>).</li><li><strong>From text:</strong> <code>ALTER TABLE t ALTER COLUMN c TYPE UUID</code> also turns a <code>TEXT</code> column of UUIDs into a <code>UUID</code> column. Every value is checked first: if one is no UUID, the error names it and the column stays as it was.</li><li><strong>Postgres port:</strong> a UUID column, <code>x::uuid</code> and an older UUID text column go out as type <code>uuid</code> (OID 2950), in text or binary (16 bytes). Drivers like pgx, JDBC and psycopg read them as their own UUID type and can send a <code>uuid</code> parameter or <code>COPY ... (FORMAT binary)</code> the same way.</li><li><strong>Loading:</strong> <code>/imp</code> (CSV) and <code>POST /write</code> (line protocol: a tag or a string field) read any spelling into a UUID column. A value that is no UUID counts as a bad value, like any other. A new table made by <code>/imp</code> or <code>/write</code> keeps such a column as <code>STRING</code>; make the table first to get <code>UUID</code>.</li></ul>
+<p><strong>Example: Turn a text column of UUIDs into a UUID column</strong></p>
+<pre><code class="language-sql">CREATE TABLE devices (id TEXT, name STRING);
+INSERT INTO devices VALUES (&#39;A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11&#39;, &#39;Gate&#39;), (&#39;{c0eebc999c0b4ef8bb6d6bb9bd380a13}&#39;, &#39;Pump&#39;);
+ALTER TABLE devices ALTER COLUMN id TYPE UUID;
+SELECT id, name FROM devices ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE devices (</code></p>
+<pre><code class="language-text">table &#39;devices&#39; created</code></pre>
+<p><code>INSERT INTO devices VALUES (&#39;A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11&#39;, &#39;Gate&#39;), (&#39;{c0eebc999c0b4ef8bb6d</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>ALTER TABLE devices ALTER COLUMN id TYPE UUID</code></p>
+<pre><code class="language-text">table &#39;devices&#39; altered (2 row change(s) written)</code></pre>
+<p><code>SELECT id, name FROM devices ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (UUID)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11</td><td>Gate</td></tr><tr><td>c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13</td><td>Pump</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A value that is no UUID stops the change</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE devices (id TEXT, name STRING);
+INSERT INTO devices VALUES (&#39;a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11&#39;, &#39;Gate&#39;), (&#39;pump-1&#39;, &#39;Pump&#39;);</code></pre>
+<pre><code class="language-sql">ALTER TABLE devices ALTER COLUMN id TYPE UUID;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot change column &#39;id&#39; of table &#39;devices&#39;: a row already there does not fit (column &#39;id&#39; (UUID): invalid input syntax for type uuid: &#39;pump-1&#39;)</code></p>
+<p><strong>Example: Users keyed by a UUID</strong></p>
+<pre><code class="language-sql">CREATE TABLE app_users (id UUID PRIMARY KEY, name STRING);
+INSERT INTO app_users VALUES
+  (&#39;A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11&#39;, &#39;Asha&#39;),
+  (&#39;{b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12}&#39;, &#39;Bikash&#39;);
+SELECT id, name FROM app_users ORDER BY id;
+SELECT name FROM app_users WHERE id = &#39;a0eebc999c0b4ef8bb6d6bb9bd380a11&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE app_users (</code></p>
+<pre><code class="language-text">table &#39;app_users&#39; created</code></pre>
+<p><code>INSERT INTO app_users VALUES (&#39;A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11&#39;, &#39;Asha&#39;), (&#39;{b0eebc99-9c0b-4ef8</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, name FROM app_users ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (UUID)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11</td><td>Asha</td></tr><tr><td>b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12</td><td>Bikash</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT name FROM app_users WHERE id = &#39;a0eebc999c0b4ef8bb6d6bb9bd380a11&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th></tr></thead><tbody><tr><td>Asha</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Text that is no UUID is refused</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id UUID PRIMARY KEY, name STRING);</code></pre>
+<pre><code class="language-sql">INSERT INTO app_users VALUES (&#39;not-a-uuid&#39;, &#39;Chandra&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;id&#39; (UUID): invalid input syntax for type uuid: &#39;not-a-uuid&#39;</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/column-types.md">This page as markdown</a>.</footer>
+</body>
+</html>

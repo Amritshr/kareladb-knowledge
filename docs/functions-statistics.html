@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistics functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Describe a set of numbers: spread (stddev, variance, mad, iqr, range), shape (skewness, kurtosis), other averages (geomean, harmonic_mean, mode) and exact percentiles.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-statistics.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-statistics.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="statistics-functions">Statistics functions</h1>
+<blockquote><p>Describe a set of numbers: spread (stddev, variance, mad, iqr, range), shape (skewness, kurtosis), other averages (geomean, harmonic_mean, mode) and exact percentiles.</p></blockquote>
+<ul><li>Category: Functions — statistics</li><li>Keywords: statistics, spread, dispersion, std, standard deviation, volatility, risk, variance, sample, population, stdev, std, var, stddev_population, variance_samp, variance_pop, shape, skew, asymmetry, kurt, fat tails, tail risk, crash risk, excess kurtosis, geometric mean, average growth, harmonic mean, average cost, most common value, most frequent, quantile, median_cont, percentile_continuous, percentile_discrete, WITHIN GROUP, ordered-set aggregate, MAD, robust spread, outlier, interquartile range, quartile, max minus min, high low range, sum of squares, realized volatility, Shannon entropy, diversity, approx_distinct, ndv</li><li>See also: <a href="functions-aggregate.html">Aggregate functions</a>, <a href="functions-correlation.html">Correlation and regression</a>, <a href="functions-returns-risk.html">Returns and risk</a>, <a href="functions-window.html#aggregates">Window and series functions (aggregates)</a>, <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-math.html#sqrt">Math functions (sqrt)</a></li></ul>
+<p>Statistics functions describe a set of numbers with one value. Most of them are <strong>aggregates</strong>: they read many rows and give one value per group, like <code>avg</code> (<a href="functions-aggregate.html">aggregate functions</a>). They follow the same rules:</p>
+<ul><li>They work with <code>GROUP BY</code>, <code>SAMPLE BY</code>, implicit GROUP BY and <code>HAVING</code>.</li><li>They <strong>skip NULL values</strong>. No values give <code>NULL</code>.</li><li>They take numbers (<code>LONG</code>, <code>DOUBLE</code>, <code>DECIMAL</code>, ...). Text gives an error. Only <code>mode</code>, <code>percentile_disc</code>, <code>entropy</code> and <code>approx_count_distinct</code> also take text and times, and <code>range</code> also takes times.</li><li>They give a <code>DOUBLE</code>. Use <code>round(x, 3)</code> for a report. The exceptions say so in their entry: <code>mode</code> and <code>percentile_disc</code> give one of the values themselves, <code>range</code> keeps the type (<code>LONG</code>, <code>DECIMAL</code>), <code>approx_count_distinct</code> gives a <code>LONG</code>.</li><li>With <code>OVER (...)</code> they give a moving value for every row, for example a 5-day volatility (<a href="functions-window.html#aggregates">window functions</a>).</li></ul>
+<p><strong>Spread</strong> means how far the values are from their average. Prices that jump up and down have a big spread; a steady price has a small one. Traders call the spread of price changes <strong>volatility</strong> (risk).</p>
+<ul><li>The <strong>variance</strong> is the average of the squared distances from the average.</li><li>The <strong>standard deviation</strong> is the square root of the variance. It has the same unit as the values (dollars for prices), so it is easier to read.</li></ul>
+<p><strong>Sample or population?</strong></p>
+<ul><li><strong>Population:</strong> your rows are <em>all</em> the values there are (all trades of one day). Divide by <code>n</code>, the number of values: <code>stddev_pop</code>, <code>var_pop</code>.</li><li><strong>Sample:</strong> your rows are only <em>a part</em> of a bigger story (the last 20 days of a share that trades for years). Divide by <code>n - 1</code>: <code>stddev</code>, <code>stddev_samp</code>, <code>variance</code>, <code>var_samp</code>. This is the usual choice for prices and returns, and what Excel&#39;s <code>STDEV</code> does.</li></ul>
+<p>With many rows the two are almost the same. With one row, the sample versions give <code>NULL</code> (you cannot guess a spread from one value) and the population versions give <code>0</code>.</p>
+<p><strong>More on this page:</strong> the <strong>shape</strong> of the values (<code>skewness</code>, <code>kurtosis</code>), other kinds of average (<code>geomean</code>, <code>harmonic_mean</code>, <code>mode</code>), exact percentiles (<code>percentile_cont</code>, <code>percentile_disc</code>, <code>WITHIN GROUP</code>), spread that big outliers do not move (<code>mad</code>, <code>iqr</code>), and <code>range</code>, <code>sum_of_squares</code>, <code>entropy</code>, <code>approx_count_distinct</code>. For two series together (correlation, beta) see <a href="functions-correlation.html">correlation and regression</a>; for returns, drawdown and the Sharpe ratio see <a href="functions-returns-risk.html">returns and risk</a>.</p>
+<p><strong>Example: Which share moved most? Volatility of the daily % change since 23 August</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       count(chg) AS days,
+       round(avg(chg), 3) AS avg_change_pct,
+       round(stddev(chg), 3) AS volatility_pct
+FROM (SELECT symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS chg
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY volatility_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>avg_change_pct (DOUBLE)</th><th>volatility_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>14</td><td>0.409</td><td>1.885</td></tr><tr><td>COAST</td><td>14</td><td>-0.271</td><td>1.145</td></tr><tr><td>CITY</td><td>14</td><td>-0.04</td><td>0.746</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="stddev">stddev, stddev_samp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">stddev(x)
+stddev_samp(x)</code></pre>
+<p>The <strong>sample</strong> standard deviation: the square root of <code>variance(x)</code>. It divides by <code>n - 1</code>. <code>stddev_samp</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. With fewer than 2 values the result is <code>NULL</code>.</li><li><strong>Notes:</strong> the same as PostgreSQL and QuestDB <code>stddev</code>. About two thirds of normal values lie within one standard deviation of the average.</li></ul>
+<p><strong>Example: Spread of the close price per symbol in September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS days, round(avg(close), 2) AS avg_close,
+       round(stddev(close), 3) AS stddev_close, round(stddev_samp(close), 3) AS same
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>avg_close (DOUBLE)</th><th>stddev_close (DOUBLE)</th><th>same (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>8</td><td>500.18</td><td>3.317</td><td>3.317</td></tr><tr><td>COAST</td><td>8</td><td>374.73</td><td>4.534</td><td>4.534</td></tr><tr><td>VOLT</td><td>8</td><td>179.3</td><td>7.554</td><td>7.554</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Moving 5-day spread of CITY (with OVER)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(stddev(close) OVER (ORDER BY time ROWS 4 PRECEDING), 3) AS stddev_5d
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>stddev_5d (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>NULL</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>4.243</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>3.122</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>2.55</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>2.211</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>1.032</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>2.892</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>3.525</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: One value is not enough for a sample: NULL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT buyer, count(*) AS trades, stddev(rate) AS sample, stddev_pop(rate) AS population
+FROM trade_log
+WHERE symbol = &#39;VOLT&#39;
+GROUP BY buyer
+ORDER BY buyer;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>trades (LONG)</th><th>sample (DOUBLE)</th><th>population (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>2.12132034355964</td><td>1.5</td></tr><tr><td>34</td><td>1</td><td>NULL</td><td>0</td></tr><tr><td>58</td><td>1</td><td>NULL</td><td>0</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="stddev_pop">stddev_pop</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">stddev_pop(x)</code></pre>
+<p>The <strong>population</strong> standard deviation: the square root of <code>var_pop(x)</code>. It divides by <code>n</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. One value gives <code>0</code>; no values give <code>NULL</code>.</li><li><strong>Notes:</strong> always a little smaller than <code>stddev</code> on the same values.</li></ul>
+<p><strong>Example: Sample and population on the same four numbers</strong></p>
+<pre><code class="language-sql">SELECT stddev(x) AS sample, stddev_pop(x) AS population, avg(x) AS average
+FROM (SELECT 2 AS x UNION ALL SELECT 4 UNION ALL SELECT 4 UNION ALL SELECT 6) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sample (DOUBLE)</th><th>population (DOUBLE)</th><th>average (DOUBLE)</th></tr></thead><tbody><tr><td>1.63299316185545</td><td>1.4142135623731</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Spread of the trade rate of all trades of one day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades, min(rate) AS low, max(rate) AS high,
+       round(stddev_pop(rate), 3) AS rate_spread
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>low (DOUBLE)</th><th>high (DOUBLE)</th><th>rate_spread (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>7</td><td>514.5</td><td>518</td><td>1.102</td></tr><tr><td>COAST</td><td>9</td><td>398</td><td>402</td><td>1.227</td></tr><tr><td>TELCO</td><td>4</td><td>878</td><td>883</td><td>1.785</td></tr><tr><td>VOLT</td><td>4</td><td>184</td><td>187</td><td>1.225</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="variance">variance, var_samp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">variance(x)
+var_samp(x)</code></pre>
+<p>The <strong>sample</strong> variance: the sum of the squared distances from the average, divided by <code>n - 1</code>. <code>var_samp</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. Its unit is the square of the values&#39; unit (dollars²), so <code>stddev</code> is easier to read.</li><li><strong>NULL:</strong> NULL values are skipped. With fewer than 2 values the result is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>sqrt(variance(x))</code> is <code>stddev(x)</code>.</li></ul>
+<p><strong>Example: Variance and its square root</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       round(variance(close), 3) AS variance,
+       round(var_samp(close), 3) AS same,
+       round(sqrt(variance(close)), 3) AS sqrt_variance,
+       round(stddev(close), 3) AS stddev
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>variance (DOUBLE)</th><th>same (DOUBLE)</th><th>sqrt_variance (DOUBLE)</th><th>stddev (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>10.999</td><td>10.999</td><td>3.317</td><td>3.317</td></tr><tr><td>COAST</td><td>20.556</td><td>20.556</td><td>4.534</td><td>4.534</td></tr><tr><td>VOLT</td><td>57.063</td><td>57.063</td><td>7.554</td><td>7.554</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Text is not a number</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT variance(symbol) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: variance needs numbers, got &#39;CITY&#39;</code></p>
+<h2 id="var_pop">var_pop</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">var_pop(x)</code></pre>
+<p>The <strong>population</strong> variance: the sum of the squared distances from the average, divided by <code>n</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. One value gives <code>0</code>; no values give <code>NULL</code>.</li></ul>
+<p><strong>Example: Population and sample variance of daily volume</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS days,
+       round(var_pop(volume)) AS var_pop,
+       round(variance(volume)) AS var_samp
+FROM ochl_day
+WHERE time IN &#39;2026-09&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>var_pop (DOUBLE)</th><th>var_samp (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>8</td><td>2308808698</td><td>2638638513</td></tr><tr><td>COAST</td><td>8</td><td>2403607398</td><td>2746979884</td></tr><tr><td>VOLT</td><td>8</td><td>1939635473</td><td>2216726255</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: One value: population variance 0, sample variance NULL</strong></p>
+<pre><code class="language-sql">SELECT var_pop(x) AS population, var_samp(x) AS sample
+FROM (SELECT 512.5 AS x) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>population (DOUBLE)</th><th>sample (STRING)</th></tr></thead><tbody><tr><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="skewness">skewness, skew</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">skewness(x)
+skew(x)</code></pre>
+<p>The <strong>skewness</strong> tells if the values lean to one side. A normal &quot;bell curve&quot; has skewness <code>0</code>: big values above and below the average are equally common.</p>
+<ul><li><strong>Negative skewness:</strong> the long tail is on the low side. For returns: most days are small gains, but now and then there is a <strong>big fall</strong>. This is crash risk.</li><li><strong>Positive skewness:</strong> the long tail is on the high side: now and then a big jump up (like a lottery).</li></ul>
+<p>It is the <strong>sample</strong> skewness, the same as Excel <code>SKEW</code>. <code>skew</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values, usually returns</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. About <code>-0.5</code> to <code>0.5</code> is nearly balanced.</li><li><strong>NULL:</strong> NULL values are skipped. <code>NULL</code> with fewer than 3 values, and when all values are the same.</li><li><strong>Notes:</strong> a few very big values change it a lot, so use many values (hundreds of returns). <code>skewness_pop</code> is the version without the small-sample correction.</li></ul>
+<p><strong>Example: Shape of the one-minute returns of CITY and COAST</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(r) AS returns,
+       round(skewness(r), 3) AS skewness, round(kurtosis(r), 3) AS kurtosis,
+       round(min(r), 4) AS worst_pct, round(max(r), 4) AS best_pct
+FROM (SELECT symbol, ln(close / lag(close) OVER (PARTITION BY symbol ORDER BY time)) * 100 AS r
+      FROM ochl_minutes) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>returns (LONG)</th><th>skewness (DOUBLE)</th><th>kurtosis (DOUBLE)</th><th>worst_pct (DOUBLE)</th><th>best_pct (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>479</td><td>-0.258</td><td>-0.905</td><td>-0.1197</td><td>0.0998</td></tr><tr><td>COAST</td><td>475</td><td>-0.195</td><td>-1.01</td><td>-0.1605</td><td>0.1336</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: One big value makes a long tail to the right: positive skewness</strong></p>
+<pre><code class="language-sql">SELECT round(skewness(x), 3) AS skewness, round(skew(x), 3) AS same, round(avg(x), 2) AS average, median(x) AS median
+FROM (SELECT 1 AS x UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 10) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>skewness (DOUBLE)</th><th>same (DOUBLE)</th><th>average (DOUBLE)</th><th>median (DOUBLE)</th></tr></thead><tbody><tr><td>2.197</td><td>2.197</td><td>3.17</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="skewness_pop">skewness_pop</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">skewness_pop(x)</code></pre>
+<p>The <strong>population</strong> skewness: the same idea as <code>skewness</code>, without the correction for a small number of values. It is always a little closer to 0 than <code>skewness</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. <code>NULL</code> with no values, and when all values are the same (also one value). Two different values give <code>0</code>.</li><li><strong>Notes:</strong> use it when your rows are all the values there are; for returns, <code>skewness</code> is the usual choice.</li></ul>
+<p><strong>Example: Daily returns since 23 August: sample and population versions</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(r) AS days,
+       round(skewness(r), 3) AS skewness, round(skewness_pop(r), 3) AS skewness_pop
+FROM (SELECT symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS r
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>skewness (DOUBLE)</th><th>skewness_pop (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>14</td><td>-0.17</td><td>-0.151</td></tr><tr><td>COAST</td><td>14</td><td>0.099</td><td>0.088</td></tr><tr><td>VOLT</td><td>14</td><td>0.178</td><td>0.158</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Two values: skewness needs 3, skewness_pop gives 0</strong></p>
+<pre><code class="language-sql">SELECT skewness(x) AS skewness, skewness_pop(x) AS skewness_pop
+FROM (SELECT 1 AS x UNION ALL SELECT 2) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>skewness (STRING)</th><th>skewness_pop (DOUBLE)</th></tr></thead><tbody><tr><td>NULL</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="kurtosis">kurtosis, kurt</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kurtosis(x)
+kurt(x)</code></pre>
+<p>The <strong>kurtosis</strong> tells how often <strong>very big values</strong> come, compared with a normal bell curve. KDB gives the <strong>excess</strong> kurtosis: a normal curve has <code>0</code>.</p>
+<ul><li><strong>Positive kurtosis (&quot;fat tails&quot;):</strong> very big moves, up or down, happen more often than a bell curve says. Most share returns are like this: a model that expects a normal curve under-guesses the risk of a crash day.</li><li><strong>Negative kurtosis:</strong> the values stay inside a band; very big moves are rare.</li></ul>
+<p>It is the <strong>sample</strong> excess kurtosis, the same as Excel <code>KURT</code>. <code>kurt</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values, usually returns</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. <code>NULL</code> with fewer than 4 values, and when all values are the same.</li><li><strong>Notes:</strong> like skewness, it needs many values to mean something. <code>kurtosis_pop</code> is the version without the small-sample correction.</li></ul>
+<p><strong>Example: Fat tails? Kurtosis of the daily returns of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(r) AS days, round(kurtosis(r), 3) AS kurtosis, round(kurt(r), 3) AS same
+FROM (SELECT symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS r
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>kurtosis (DOUBLE)</th><th>same (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>14</td><td>0.349</td><td>0.349</td></tr><tr><td>COAST</td><td>14</td><td>-1.705</td><td>-1.705</td></tr><tr><td>VOLT</td><td>14</td><td>-1.753</td><td>-1.753</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: One value far away from the others: big kurtosis</strong></p>
+<pre><code class="language-sql">SELECT round(kurtosis(x), 3) AS kurtosis, round(kurtosis_pop(x), 3) AS kurtosis_pop
+FROM (SELECT 1 AS x UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 10) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>kurtosis (DOUBLE)</th><th>kurtosis_pop (DOUBLE)</th></tr></thead><tbody><tr><td>5.015</td><td>0.862</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="kurtosis_pop">kurtosis_pop</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kurtosis_pop(x)</code></pre>
+<p>The <strong>population</strong> excess kurtosis: the same idea as <code>kurtosis</code>, without the correction for a small number of values.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. Never below <code>-2</code>.</li><li><strong>NULL:</strong> NULL values are skipped. <code>NULL</code> with no values, and when all values are the same.</li></ul>
+<p><strong>Example: Three values: kurtosis needs 4, kurtosis_pop works</strong></p>
+<pre><code class="language-sql">SELECT kurtosis(x) AS kurtosis, kurtosis_pop(x) AS kurtosis_pop
+FROM (SELECT 1 AS x UNION ALL SELECT 2 UNION ALL SELECT 3) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>kurtosis (STRING)</th><th>kurtosis_pop (DOUBLE)</th></tr></thead><tbody><tr><td>NULL</td><td>-1.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="geomean">geomean, geometric_mean</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">geomean(x)
+geometric_mean(x)</code></pre>
+<p>The <strong>geometric mean</strong>: multiply all <code>n</code> values, then take the n-th root. It is the right average for <strong>growth factors</strong> (1.10 for +10%). If a price goes +10% and then -10%, the plain average of the changes is 0%, but you lost money: the geometric mean of 1.10 and 0.90 is 0.995, a loss of 0.5% per period. <code>geometric_mean</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number, more than 0</td><td>the values, for example <code>nav / previous nav</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>. If <strong>any</strong> value is <code>0</code> or less, the result is <code>NULL</code>.</li><li><strong>Notes:</strong> for returns, use growth factors (<code>1 + return</code>), take the geometric mean, then subtract 1. It is always at or below <code>avg(x)</code>.</li></ul>
+<p><strong>Example: +10% then -10%: the average says 0, the geometric mean says a loss</strong></p>
+<pre><code class="language-sql">SELECT round(avg(g), 5) AS avg_factor, round(geomean(g), 5) AS geomean_factor
+FROM (SELECT 1.10 AS g UNION ALL SELECT 0.90) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>avg_factor (DOUBLE)</th><th>geomean_factor (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>0.99499</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: True average monthly growth of two funds</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund, count(g) AS months,
+       round(avg(g) - 1, 5) AS avg_growth,
+       round(geometric_mean(g) - 1, 5) AS true_avg_growth
+FROM (SELECT fund, nav / lag(nav) OVER (PARTITION BY fund ORDER BY time) AS g
+      FROM fund_nav) t
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>months (LONG)</th><th>avg_growth (DOUBLE)</th><th>true_avg_growth (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>23</td><td>0.00886</td><td>0.00861</td></tr><tr><td>INCOME</td><td>23</td><td>0.00328</td><td>0.00327</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A 0 or a negative value gives NULL</strong></p>
+<pre><code class="language-sql">SELECT geomean(x) AS geomean
+FROM (SELECT 2 AS x UNION ALL SELECT 0 UNION ALL SELECT 8) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>geomean (STRING)</th></tr></thead><tbody><tr><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="harmonic_mean">harmonic_mean</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">harmonic_mean(x)</code></pre>
+<p>The <strong>harmonic mean</strong>: <code>n / sum(1 / x)</code>. It is the right average for <strong>rates and prices when the money is fixed</strong>. If you invest the same amount every month (a SIP), you buy more units when the price is low, and your <strong>average cost per unit</strong> is the harmonic mean of the prices. It is also the usual average of P/E ratios.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number, more than 0</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>. If <strong>any</strong> value is <code>0</code> or less, the result is <code>NULL</code>.</li><li><strong>Notes:</strong> always at or below <code>geomean(x)</code>, which is at or below <code>avg(x)</code>.</li></ul>
+<p><strong>Example: Average cost per unit with the same money every month for a year</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund, count(*) AS months,
+       round(harmonic_mean(nav), 4) AS avg_cost_per_unit,
+       round(avg(nav), 4) AS avg_nav
+FROM fund_nav
+WHERE time &gt;= &#39;2025-09-01&#39;
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>months (LONG)</th><th>avg_cost_per_unit (DOUBLE)</th><th>avg_nav (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>12</td><td>11.4256</td><td>11.4375</td></tr><tr><td>INCOME</td><td>12</td><td>10.5647</td><td>10.5658</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Average P/E of three shares</strong></p>
+<pre><code class="language-sql">SELECT round(harmonic_mean(pe), 2) AS harmonic, round(geomean(pe), 2) AS geometric, round(avg(pe), 2) AS plain
+FROM (SELECT 10 AS pe UNION ALL SELECT 20 UNION ALL SELECT 40) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>harmonic (DOUBLE)</th><th>geometric (DOUBLE)</th><th>plain (DOUBLE)</th></tr></thead><tbody><tr><td>17.14</td><td>20</td><td>23.33</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="mode">mode</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">mode(x)
+mode() WITHIN GROUP (ORDER BY x)</code></pre>
+<p>The <strong>most common value</strong>: the value that comes in the most rows. It works for numbers, text and times.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the same type as <code>x</code>: one of the values.</li><li><strong>NULL:</strong> NULL values are skipped (they are never the answer). No values give <code>NULL</code>.</li><li><strong>Notes:</strong> when two values are equally common, the <strong>smallest</strong> one wins (for text: first in alphabet order). Equal numbers of different types count as one value (<code>1</code> and <code>1.0</code>). The <code>WITHIN GROUP</code> form is the PostgreSQL way to write the same thing (<a href="#within-group">WITHIN GROUP</a>).</li></ul>
+<p><strong>Example: Most common trade size of each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades, mode(quantity) AS most_common_quantity
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>most_common_quantity (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>500</td></tr><tr><td>COAST</td><td>11</td><td>20</td></tr><tr><td>TELCO</td><td>6</td><td>1000</td></tr><tr><td>VOLT</td><td>4</td><td>50</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: City with the most app users (Kathmandu and Pokhara tie: the smallest wins)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT mode(city) AS top_city, count(city) AS users_with_city
+FROM app_users;
+
+SELECT city, count(*) AS users FROM app_users WHERE city IS NOT NULL GROUP BY city ORDER BY users DESC, city;</code></pre>
+<p>Result:</p>
+<p><code>SELECT mode(city) AS top_city, count(city) AS users_with_city FROM app_users</code></p>
+<div class="table-wrap"><table><thead><tr><th>top_city (STRING)</th><th>users_with_city (LONG)</th></tr></thead><tbody><tr><td>Kathmandu</td><td>6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT city, count(*) AS users FROM app_users WHERE city IS NOT NULL GROUP BY city ORDER BY users DE</code></p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th><th>users (LONG)</th></tr></thead><tbody><tr><td>Kathmandu</td><td>2</td></tr><tr><td>Pokhara</td><td>2</td></tr><tr><td>Dharan</td><td>1</td></tr><tr><td>Lalitpur</td><td>1</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="percentile_cont">percentile_cont, quantile_cont</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">percentile_cont(x, fraction)
+percentile_cont(fraction) WITHIN GROUP (ORDER BY x)
+quantile_cont(x, fraction)</code></pre>
+<p>The <strong>continuous percentile</strong>: the value below which the part <code>fraction</code> of the values lie. <code>percentile_cont(x, 0.9)</code> is the value that 90% of the values are at or below. Between two values it goes the right part of the way from one to the other (linear interpolation), so the answer may be a value that is not in the data. <code>quantile_cont</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr><tr><td><code>fraction</code></td><td>number from <code>0</code> to <code>1</code></td><td>the part: <code>0.5</code> is the median, <code>0.9</code> the 90th percentile</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values of <code>x</code> are skipped. No values give <code>NULL</code>. A NULL <code>fraction</code> gives <code>NULL</code>.</li><li><strong>Notes:</strong> the same numbers as <a href="functions-aggregate.html#percentile">percentile</a> and PostgreSQL <code>percentile_cont</code>, but strict: <code>fraction</code> must be from 0 to 1 (<code>90</code> is an error, not 90%). <code>fraction</code> is read once, from the first row. A <code>DOUBLE</code> result can show a tiny rounding rest (<code>950.000000000001</code>): use <code>round</code>.</li></ul>
+<p><strong>Example: Big trades: 90th percentile of the quantity per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades,
+       round(percentile_cont(quantity, 0.5), 1) AS median_qty,
+       round(percentile_cont(quantity, 0.9), 1) AS p90_qty,
+       max(quantity) AS biggest
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>median_qty (DOUBLE)</th><th>p90_qty (DOUBLE)</th><th>biggest (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>100</td><td>500</td><td>500</td></tr><tr><td>COAST</td><td>11</td><td>50</td><td>1000</td><td>1000</td></tr><tr><td>TELCO</td><td>6</td><td>350</td><td>1000</td><td>1000</td></tr><tr><td>VOLT</td><td>4</td><td>75</td><td>170</td><td>200</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The same with the SQL standard spelling</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(percentile_cont(0.9) WITHIN GROUP (ORDER BY quantity), 1) AS p90,
+       round(quantile_cont(quantity, 0.9), 1) AS same
+FROM trade_log;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>p90 (DOUBLE)</th><th>same (DOUBLE)</th></tr></thead><tbody><tr><td>950</td><td>950</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The fraction must be from 0 to 1</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT percentile_cont(rate, 90) FROM trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: percentile_cont: the fraction must be between 0 and 1, like 0.9, got 90</code></p>
+<h2 id="percentile_disc">percentile_disc, quantile_disc</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">percentile_disc(x, fraction)
+percentile_disc(fraction) WITHIN GROUP (ORDER BY x)
+quantile_disc(x, fraction)</code></pre>
+<p>The <strong>discrete percentile</strong>: the first value, in sorted order, at or above which the part <code>fraction</code> of the values lie. Unlike <code>percentile_cont</code>, the answer is always <strong>one of the values</strong>, never a value in between. So it also works for text and times. <code>quantile_disc</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type that can be sorted</td><td>the values: numbers, text, times</td></tr><tr><td><code>fraction</code></td><td>number from <code>0</code> to <code>1</code></td><td>the part; <code>0</code> gives the smallest value, <code>1</code> the biggest</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the same type as <code>x</code>.</li><li><strong>NULL:</strong> NULL values of <code>x</code> are skipped. No values give <code>NULL</code>. A NULL <code>fraction</code> gives <code>NULL</code>.</li><li><strong>Notes:</strong> with <code>n</code> values it takes the value at place <code>ceil(fraction × n)</code> in sorted order. Values that cannot be compared with each other (a number and a text) give an error.</li></ul>
+<p><strong>Example: Discrete and continuous 25th percentile of the trade rate</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       percentile_disc(rate, 0.25) AS p25_disc,
+       percentile_cont(rate, 0.25) AS p25_cont
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>p25_disc (DOUBLE)</th><th>p25_cont (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>514.5</td><td>514.75</td></tr><tr><td>COAST</td><td>398</td><td>398.25</td></tr><tr><td>TELCO</td><td>879</td><td>879.5</td></tr><tr><td>VOLT</td><td>184</td><td>184</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: The middle sign-up time of the app users (a TIMESTAMP)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT percentile_disc(created_at, 0.5) AS middle_signup, quantile_disc(username, 0.5) AS middle_username
+FROM app_users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>middle_signup (TIMESTAMP)</th><th>middle_username (STRING)</th></tr></thead><tbody><tr><td>2026-03-20T13:00:00.000Z</td><td>hari_99</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="within-group">WITHIN GROUP (ORDER BY ...)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">percentile_cont(fraction) WITHIN GROUP (ORDER BY x)
+percentile_disc(fraction) WITHIN GROUP (ORDER BY x)
+mode() WITHIN GROUP (ORDER BY x)</code></pre>
+<p>The SQL standard (PostgreSQL) way to write <code>percentile_cont</code>, <code>percentile_disc</code> and <code>mode</code>. KDB reads <code>percentile_cont(0.9) WITHIN GROUP (ORDER BY x)</code> as <code>percentile_cont(x, 0.9)</code>, so both spellings give the same result. It helps when you copy SQL from PostgreSQL.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>fraction</code></td><td>the part from <code>0</code> to <code>1</code> (not for <code>mode</code>, which has empty <code>()</code>)</td></tr><tr><td><code>ORDER BY x</code></td><td>the values; exactly one, in ascending order</td></tr></tbody></table></div>
+<ul><li><strong>Works with:</strong> <code>percentile_cont</code>, <code>percentile_disc</code>, <code>quantile_cont</code>, <code>quantile_disc</code> and <code>mode</code>. Other functions give an error.</li><li><strong>Notes:</strong> <code>DESC</code> is not accepted: for the 90th percentile from the top, use <code>1 - 0.9 = 0.1</code>. Several values in <code>ORDER BY</code> are not accepted.</li></ul>
+<p><strong>Example: Volume of CITY&#39;s one-minute candles on 10 September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT percentile_cont(0.9) WITHIN GROUP (ORDER BY volume) AS p90,
+       percentile_disc(0.9) WITHIN GROUP (ORDER BY volume) AS p90_disc,
+       mode() WITHIN GROUP (ORDER BY volume) AS most_common
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>p90 (DOUBLE)</th><th>p90_disc (DOUBLE)</th><th>most_common (DOUBLE)</th></tr></thead><tbody><tr><td>1341</td><td>1340</td><td>880</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: DESC is not accepted: use 1 - fraction</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT percentile_cont(0.1) WITHIN GROUP (ORDER BY rate DESC) FROM trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 52: WITHIN GROUP needs exactly one ORDER BY value in ascending order (for DESC use 1 - fraction)</code></p>
+<p><strong>Example: Only percentiles and mode have WITHIN GROUP</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT avg(quantity) WITHIN GROUP (ORDER BY quantity) FROM trade_log;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 22: WITHIN GROUP works with percentile_cont(fraction), percentile_disc(fraction) and mode(); write percentile_cont(0.5) WITHIN GROUP (ORDER BY x)</code></p>
+<h2 id="median_abs_deviation">median_abs_deviation, mad</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">median_abs_deviation(x)
+mad(x)</code></pre>
+<p>The <strong>median absolute deviation (MAD)</strong>: first find the median, then the distance of every value from it, then the median of those distances. It is a measure of spread, like <code>stddev</code>, but <strong>robust</strong>: one huge trade or one wrong price hardly moves it. So it is good to find <strong>outliers</strong> (values far away from the rest). <code>mad</code> is the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> the raw MAD, without a scale factor. For values from a bell curve, <code>1.4826 × mad(x)</code> is about <code>stddev(x)</code>.</li></ul>
+<p><strong>Example: Spread of the trade size: stddev against the robust measures</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades, median(quantity) AS median_qty,
+       mad(quantity) AS mad_qty, iqr(quantity) AS iqr_qty, round(stddev(quantity), 1) AS stddev_qty
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>median_qty (DOUBLE)</th><th>mad_qty (DOUBLE)</th><th>iqr_qty (DOUBLE)</th><th>stddev_qty (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>100</td><td>90</td><td>480</td><td>228.3</td></tr><tr><td>COAST</td><td>11</td><td>50</td><td>40</td><td>330</td><td>384.6</td></tr><tr><td>TELCO</td><td>6</td><td>350</td><td>315</td><td>787.5</td><td>450.4</td></tr><tr><td>VOLT</td><td>4</td><td>75</td><td>25</td><td>75</td><td>70.7</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Unusual trades: more than 5 MADs above the median of their symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.transaction_id, f.symbol, f.quantity, s.median_qty, s.mad_qty
+FROM trade_log f
+JOIN (SELECT symbol, median(quantity) AS median_qty, median_abs_deviation(quantity) AS mad_qty
+      FROM trade_log
+      GROUP BY symbol) s ON f.symbol = s.symbol
+WHERE f.quantity &gt; s.median_qty + 5 * s.mad_qty
+ORDER BY f.transaction_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>median_qty (DOUBLE)</th><th>mad_qty (DOUBLE)</th></tr></thead><tbody><tr><td>100015</td><td>COAST</td><td>1000</td><td>50</td><td>40</td></tr><tr><td>100023</td><td>COAST</td><td>500</td><td>50</td><td>40</td></tr><tr><td>100031</td><td>COAST</td><td>1000</td><td>50</td><td>40</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="iqr">iqr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">iqr(x)</code></pre>
+<p>The <strong>interquartile range</strong>: the 75th percentile minus the 25th percentile. The middle half of all values lies in this band. Like <code>mad</code>, the biggest and smallest values do not change it.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>percentile_cont(x, 0.75) - percentile_cont(x, 0.25)</code>. A common outlier rule: below <code>Q1 - 1.5 × iqr</code> or above <code>Q3 + 1.5 × iqr</code> (this is the box plot rule).</li></ul>
+<p><strong>Example: Middle half of the one-minute volume on 10 September</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol,
+       percentile_cont(volume, 0.25) AS q1,
+       percentile_cont(volume, 0.75) AS q3,
+       iqr(volume) AS iqr
+FROM ochl_minutes
+WHERE time IN &#39;2026-09-10&#39;
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>q1 (DOUBLE)</th><th>q3 (DOUBLE)</th><th>iqr (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>390</td><td>1112.5</td><td>722.5</td></tr><tr><td>COAST</td><td>400</td><td>1192.5</td><td>792.5</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="range">range</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">range(x)
+range(x) OVER (...)</code></pre>
+<p>The biggest value minus the smallest: <code>max(x) - min(x)</code>. For prices it is the <strong>high-low range</strong>: how far the price travelled.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number, <code>TIMESTAMP</code> or <code>DATE</code></td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code> for whole numbers, <code>DECIMAL</code> for <code>DECIMAL</code>, <code>DOUBLE</code> for other numbers. For <code>TIMESTAMP</code> values: the milliseconds between the first and the last time (<code>LONG</code>); for <code>DATE</code> values: the number of days (<code>LONG</code>).</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> text gives the error <code>needs numbers or times</code>. The name is also a keyword of window frames (<code>RANGE BETWEEN</code>); as a function, <code>range(x)</code> works as usual.</li></ul>
+<p><strong>Example: Price range and time span of each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, range(close) AS close_range, range(time) / 86400000 AS days_between_first_and_last
+FROM ochl_day
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close_range (DOUBLE)</th><th>days_between_first_and_last (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>46</td><td>256</td></tr><tr><td>COAST</td><td>59.4</td><td>256</td></tr><tr><td>VOLT</td><td>27.4</td><td>256</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Moving 5-day range of the close (with OVER)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(range(close) OVER (ORDER BY time ROWS 4 PRECEDING), 2) AS range_5d
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>range_5d (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>0</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>6</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>6</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>6</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>6</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>2.6</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>7.1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>7.4</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: DATE values give days</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT min(listed_on) AS oldest, max(listed_on) AS newest, range(listed_on) AS days_between
+FROM listings;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>oldest (DATE)</th><th>newest (DATE)</th><th>days_between (LONG)</th></tr></thead><tbody><tr><td>1986-01-01</td><td>2019-08-28</td><td>12292</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="sum_of_squares">sum_of_squares</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sum_of_squares(x)</code></pre>
+<p>Adds up the square of every value: <code>x₁² + x₂² + ...</code>. On intraday log returns, the square root of this sum is the <strong>realized volatility</strong> of the day: how much the price really moved, minute by minute.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> it squares the values themselves, not their distance from the average (that is <code>regr_syy</code> or <code>var_pop(x) × count(x)</code>).</li></ul>
+<p><strong>Example: Realized volatility of each day from one-minute log returns (in %)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, count(r) AS returns, round(sqrt(sum_of_squares(r)), 4) AS realized_vol_pct
+FROM (SELECT time, symbol,
+             ln(close / lag(close) OVER (PARTITION BY symbol, date_trunc(&#39;day&#39;, time) ORDER BY time)) * 100 AS r
+      FROM ochl_minutes) t
+SAMPLE BY 1d
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>returns (LONG)</th><th>realized_vol_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>239</td><td>1.0082</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>239</td><td>1.022</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>239</td><td>1.4068</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>235</td><td>1.4162</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: NULL values are skipped</strong></p>
+<pre><code class="language-sql">SELECT sum_of_squares(x) AS sum_of_squares
+FROM (SELECT 1.5 AS x UNION ALL SELECT NULL UNION ALL SELECT -2) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sum_of_squares (DOUBLE)</th></tr></thead><tbody><tr><td>6.25</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="entropy">entropy</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">entropy(x)</code></pre>
+<p>The <strong>Shannon entropy</strong> of the values, in bits: how <strong>evenly</strong> the rows are spread over the different values. <code>0</code> means every row has the same value. The biggest entropy comes when every value is equally common: with <code>k</code> different values it is <code>log2(k)</code> (2 values: 1, 4 values: 2). Use it to see if the trades of a share come from many brokers or from a few.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the values: numbers, text, times</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, <code>0</code> or more.</li><li><strong>NULL:</strong> NULL values are skipped. No values give <code>NULL</code>.</li><li><strong>Notes:</strong> it is <code>-sum(p × log2(p))</code>, where <code>p</code> is the share of rows with each value.</li></ul>
+<p><strong>Example: Are the buyers of each share spread out or few?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades, approx_count_distinct(buyer) AS buyers,
+       round(entropy(buyer), 3) AS buyer_entropy, round(log2(approx_count_distinct(buyer)), 3) AS most_possible
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>buyers (LONG)</th><th>buyer_entropy (DOUBLE)</th><th>most_possible (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td><td>4</td><td>1.79</td><td>2</td></tr><tr><td>COAST</td><td>11</td><td>5</td><td>2.187</td><td>2.322</td></tr><tr><td>TELCO</td><td>6</td><td>5</td><td>2.252</td><td>2.322</td></tr><tr><td>VOLT</td><td>4</td><td>3</td><td>1.5</td><td>1.585</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: How evenly are the app users spread over the plans?</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT round(entropy(plan), 3) AS plan_entropy, approx_count_distinct(plan) AS plans, count(*) AS users
+FROM app_users;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan_entropy (DOUBLE)</th><th>plans (LONG)</th><th>users (LONG)</th></tr></thead><tbody><tr><td>1.406</td><td>3</td><td>8</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: All rows the same: entropy 0</strong></p>
+<pre><code class="language-sql">SELECT entropy(x) AS entropy
+FROM (SELECT &#39;CITY&#39; AS x UNION ALL SELECT &#39;CITY&#39;) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>entropy (DOUBLE)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="approx_count_distinct">approx_count_distinct</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">approx_count_distinct(x)</code></pre>
+<p>The number of <strong>different</strong> values of <code>x</code>. Other databases (DuckDB, ClickHouse, BigQuery) guess this number to save memory. In KDB today the count is <strong>exact</strong>: it gives the same result as <code>count(DISTINCT x)</code>. The name exists so SQL from those databases works.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any type</td><td>the values</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> NULL values are not counted. No values give <code>0</code>.</li><li><strong>Notes:</strong> equal numbers of different types count as one value (<code>1</code> and <code>1.0</code>). KDB keeps every different value in memory while it counts.</li></ul>
+<p><strong>Example: Different buyers and sellers of each share</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, approx_count_distinct(buyer) AS buyers, count(DISTINCT buyer) AS same,
+       approx_count_distinct(seller) AS sellers
+FROM trade_log
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>buyers (LONG)</th><th>same (LONG)</th><th>sellers (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>4</td><td>4</td><td>5</td></tr><tr><td>COAST</td><td>5</td><td>5</td><td>5</td></tr><tr><td>TELCO</td><td>5</td><td>5</td><td>3</td></tr><tr><td>VOLT</td><td>3</td><td>3</td><td>4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: No rows: 0 (entropy and mode give NULL)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT approx_count_distinct(buyer) AS buyers, entropy(buyer) AS entropy, mode(buyer) AS mode
+FROM trade_log
+WHERE symbol = &#39;NONE&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyers (LONG)</th><th>entropy (STRING)</th><th>mode (STRING)</th></tr></thead><tbody><tr><td>0</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-statistics.md">This page as markdown</a>.</footer>
+</body>
+</html>

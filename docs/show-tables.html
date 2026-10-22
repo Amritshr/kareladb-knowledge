@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHOW TABLES, COLUMNS, CREATE TABLE - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="List the tables of a database, the columns of a table, its partitions, and the full CREATE TABLE statement - also with QuestDB&#39;s tables() and table_columns().">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/show-tables.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/show-tables.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="show-tables-columns-create-table">SHOW TABLES, COLUMNS, CREATE TABLE</h1>
+<blockquote><p>List the tables of a database, the columns of a table, its partitions, and the full CREATE TABLE statement - also with QuestDB&#39;s tables() and table_columns().</p></blockquote>
+<ul><li>Category: Tables</li><li>Keywords: show tables, list tables, show columns, describe, describe table, table columns, schema, show create table, table definition, DDL, .tables, .schema, information_schema, show partitions, partitions, QuestDB, tables(), table_columns, table_partitions, wal_tables, upsertKey, designatedTimestamp</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="databases.html">Databases and the data folder</a>, <a href="views.html">Views</a>, <a href="indexes.html">Indexes</a>, <a href="saved-functions.html">Saved functions</a>, <a href="procedures.html">Stored procedures</a>, <a href="triggers.html">Triggers</a>, <a href="users-and-roles.html">Users and roles</a></li></ul>
+<p>These statements show what is <strong>in</strong> a database: which tables there are, which columns a table has, and how a table was made. They only read; they never change anything.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>Shows</th></tr></thead><tbody><tr><td><code>SHOW TABLES</code></td><td>every table, its kind, partitions, columns and rows</td></tr><tr><td><code>SHOW COLUMNS FROM t</code></td><td>the columns of one table</td></tr><tr><td><code>SHOW CREATE TABLE t</code></td><td>the <code>CREATE TABLE</code> statement of one table</td></tr><tr><td><code>SHOW PARTITIONS FROM t</code></td><td>the partitions of one table: rows, time range, size</td></tr><tr><td><code>tables()</code>, <code>table_columns(&#39;t&#39;)</code>, <code>wal_tables()</code></td><td>the same facts with QuestDB&#39;s column names (<a href="#questdb-meta">below</a>)</td></tr></tbody></table></div>
+<p>Other <code>SHOW</code> statements: <code>SHOW DATABASES</code> (<a href="databases.html#show-databases">databases</a>), <code>SHOW VIEWS</code> (<a href="views.html">views</a>), <code>SHOW INDEXES</code> (<a href="indexes.html">indexes</a>), <code>SHOW FUNCTIONS</code> (<a href="saved-functions.html">saved functions</a>), <code>SHOW PROCEDURES</code> (<a href="procedures.html">procedures</a>), <code>SHOW TRIGGERS</code> (<a href="triggers.html">triggers</a>), <code>SHOW USERS</code> (<a href="users-and-roles.html">users and roles</a>).</p>
+<ul><li><strong>Notes:</strong> KDB has no <code>DESCRIBE</code>. <code>information_schema</code> and <code>pg_catalog</code> can be read like tables, and psql&#39;s <code>\d</code> works on the <a href="postgres-protocol.html#catalog">PostgreSQL port</a>. In <code>kdb shell</code>, <code>.tables</code> is the same as <code>SHOW TABLES</code>, and <code>.schema t</code> shows <code>SHOW CREATE TABLE t</code>.</li></ul>
+<p><strong>Example: What is in the sample database</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SHOW TABLES;
+SHOW COLUMNS FROM trade_log;</code></pre>
+<p>Result:</p>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>brokers</td><td>relational</td><td>NONE</td><td>2</td><td>5</td></tr><tr><td>live_data</td><td>timeseries</td><td>DAY</td><td>12</td><td>12</td></tr><tr><td>ochl_day</td><td>timeseries</td><td>YEAR</td><td>7</td><td>57</td></tr><tr><td>ochl_minutes</td><td>timeseries</td><td>MONTH</td><td>7</td><td>956</td></tr><tr><td>securities</td><td>relational</td><td>NONE</td><td>3</td><td>5</td></tr><tr><td>trade_log</td><td>timeseries</td><td>DAY</td><td>8</td><td>32</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><code>SHOW COLUMNS FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>date</td><td>TIMESTAMP</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>transaction_id</td><td>LONG</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>symbol</td><td>SYMBOL</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>buyer</td><td>INT</td><td>false</td><td>false</td><td>false</td><td>brokers(id)</td></tr><tr><td>seller</td><td>INT</td><td>false</td><td>false</td><td>false</td><td>brokers(id)</td></tr><tr><td>quantity</td><td>LONG</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>rate</td><td>DOUBLE</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>amount</td><td>DOUBLE</td><td>false</td><td>false</td><td>true</td><td>NULL</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="show-tables">SHOW TABLES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW TABLES</code></pre>
+<p>Lists the tables of the current database, sorted by name. Views are not in this list (use <code>SHOW VIEWS</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td><code>STRING</code></td><td>table name, spelled as in <code>CREATE TABLE</code></td></tr><tr><td><code>kind</code></td><td><code>STRING</code></td><td><code>relational</code> or <code>timeseries</code></td></tr><tr><td><code>partition</code></td><td><code>STRING</code></td><td><code>DAY</code>, <code>MONTH</code>, <code>YEAR</code>, or <code>NONE</code> (always <code>NONE</code> for relational tables)</td></tr><tr><td><code>columns</code></td><td><code>LONG</code></td><td>number of columns, computed columns included</td></tr><tr><td><code>rows</code></td><td><code>LONG</code></td><td>number of rows now</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per table; <code>(0 rows)</code> for an empty database.</li><li><strong>Notes:</strong> the result can be used like any query result in scripts: <code>kdb sql market &quot;SHOW TABLES&quot; --format csv</code>.</li></ul>
+<p><strong>Example: An app database with users, accounts and a ledger</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE);
+CREATE TABLE accounts (id INT PRIMARY KEY AUTO, user_id LONG NOT NULL REFERENCES users(id), balance DECIMAL(2) NOT NULL DEFAULT 0);
+CREATE TABLE ledger (time TIMESTAMP, account INT, amount DECIMAL(2)) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;), (&#39;sita@example.com&#39;);
+INSERT INTO accounts (user_id, balance) VALUES (1, 1000.00);</code></pre>
+<pre><code class="language-sql">SHOW TABLES;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>accounts</td><td>relational</td><td>NONE</td><td>3</td><td>1</td></tr><tr><td>ledger</td><td>timeseries</td><td>MONTH</td><td>3</td><td>0</td></tr><tr><td>users</td><td>relational</td><td>NONE</td><td>2</td><td>2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Command line: The same list from the shell</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb shell market
+&gt; .tables</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; name         | kind       | partition | columns | rows
+-------------+------------+-----------+---------+-----
+brokers      | relational | NONE      |       2 |    5
+live_data    | timeseries | DAY       |      12 |   12
+ochl_day     | timeseries | YEAR      |       7 |   57
+ochl_minutes | timeseries | MONTH     |       7 |  956
+securities   | relational | NONE      |       3 |    5
+trade_log    | timeseries | DAY       |       8 |   32
+(6 rows, 0.0 ms)
+kdb&gt;</code></pre>
+<h2 id="show-columns">SHOW COLUMNS FROM</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW COLUMNS FROM table</code></pre>
+<p>Lists the columns of one table, in table order.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td><code>STRING</code></td><td>column name</td></tr><tr><td><code>type</code></td><td><code>STRING</code></td><td>column type, like <code>LONG</code>, <code>DECIMAL(2)</code>, <code>TIMESTAMP</code></td></tr><tr><td><code>primary_key</code></td><td><code>BOOL</code></td><td><code>true</code> for the <code>PRIMARY KEY</code> column</td></tr><tr><td><code>not_null</code></td><td><code>BOOL</code></td><td><code>true</code> when the column has <code>NOT NULL</code></td></tr><tr><td><code>computed</code></td><td><code>BOOL</code></td><td><code>true</code> for a computed column (<code>AS (...)</code>)</td></tr><tr><td><code>references</code></td><td><code>STRING</code></td><td><code>table(column)</code> when the column has <code>REFERENCES</code>, else <code>NULL</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>not_null</code> is <code>false</code> for a <code>PRIMARY KEY</code> column without the words <code>NOT NULL</code>, even though a key can never be <code>NULL</code>. <code>UNIQUE</code>, <code>DEFAULT</code>, <code>ROUND</code>, <code>CHECK</code>, <code>SORT BY</code> and <code>DEDUP KEY</code> are not shown here: use <code>SHOW CREATE TABLE</code>. Works for tables only, not for views.</li></ul>
+<p><strong>Example: The trade_log table: references and a computed column</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SHOW COLUMNS FROM trade_log;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>date</td><td>TIMESTAMP</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>transaction_id</td><td>LONG</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>symbol</td><td>SYMBOL</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>buyer</td><td>INT</td><td>false</td><td>false</td><td>false</td><td>brokers(id)</td></tr><tr><td>seller</td><td>INT</td><td>false</td><td>false</td><td>false</td><td>brokers(id)</td></tr><tr><td>quantity</td><td>LONG</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>rate</td><td>DOUBLE</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>amount</td><td>DOUBLE</td><td>false</td><td>false</td><td>true</td><td>NULL</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Forum posts that point to their parent post</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, parent_id LONG REFERENCES posts(id), author STRING NOT NULL, body STRING NOT NULL, words LONG AS (length(body)));</code></pre>
+<pre><code class="language-sql">SHOW COLUMNS FROM posts;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>id</td><td>LONG</td><td>true</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>parent_id</td><td>LONG</td><td>false</td><td>false</td><td>false</td><td>posts(id)</td></tr><tr><td>author</td><td>STRING</td><td>false</td><td>true</td><td>false</td><td>NULL</td></tr><tr><td>body</td><td>STRING</td><td>false</td><td>true</td><td>false</td><td>NULL</td></tr><tr><td>words</td><td>LONG</td><td>false</td><td>false</td><td>true</td><td>NULL</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A table that does not exist</strong> (shows an error)</p>
+<pre><code class="language-sql">SHOW COLUMNS FROM userz;</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;userz&#39; does not exist</code></p>
+<p><strong>Example: FROM is needed</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY);</code></pre>
+<pre><code class="language-sql">SHOW COLUMNS users;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 14: expected FROM after SHOW COLUMNS but found &#39;users&#39;</code></p>
+<h2 id="show-create-table">SHOW CREATE TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW CREATE TABLE table</code></pre>
+<p>Gives the full <code>CREATE TABLE</code> statement of a table, with every rule KDB keeps: types, keys, defaults, <code>ROUND</code>, computed columns, <code>REFERENCES</code>, <code>CHECK</code> rules with their names, and the table options with their <strong>default values filled in</strong> (like <code>PARTITION BY DAY</code> and <code>SORT BY (symbol, time)</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>create_sql</code></td><td><code>STRING</code></td><td>the statement; newer KDB versions add one more row for each index: <code>CREATE INDEX ...</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the text you can run in another database to make the same (empty) table.</li><li><strong>Notes:</strong> in <code>kdb sql</code> and <code>kdb shell</code> table format, long text is cut after 48 characters. Use <code>--format csv</code> (or <code>.format csv</code> in the shell) to see all of it.</li></ul>
+<p><strong>Example: The daily candles table of the sample data</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SHOW CREATE TABLE ochl_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE ochl_day (   time TIMESTAMP ROUND 1d,   symbol SYMBOL,   open DOUBLE,   high DOUBLE,   low DOUBLE,   close DOUBLE,   volume DOUBLE ) TIMESERIES(time) PARTITION BY YEAR SORT BY (symbol,...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Defaults filled in: PARTITION BY and SORT BY</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_data (timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(timestamp);</code></pre>
+<pre><code class="language-sql">SHOW CREATE TABLE live_data;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE live_data (   timestamp TIMESTAMP,   symbol SYMBOL,   ltp DOUBLE ) TIMESERIES(timestamp) PARTITION BY DAY SORT BY (symbol, timestamp)</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An accounts table with a CHECK rule and an index</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (
+  id INT PRIMARY KEY AUTO,
+  email STRING NOT NULL UNIQUE,
+  balance DECIMAL(2) NOT NULL DEFAULT 0 CHECK (balance &gt;= 0)
+);
+CREATE INDEX accounts_balance ON accounts (balance);</code></pre>
+<pre><code class="language-sql">SHOW CREATE TABLE accounts;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE accounts (   id INT PRIMARY KEY AUTO,   email STRING NOT NULL UNIQUE,   balance DECIMAL(2) NOT NULL DEFAULT 0,   CONSTRAINT accounts_balance_check CHECK (balance &gt;= 0) )</td></tr><tr><td>CREATE INDEX accounts_balance ON accounts (balance)</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Command line: See the whole text in CSV format</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb sql market &quot;SHOW CREATE TABLE trade_log&quot; --format csv</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">create_sql
+&quot;CREATE TABLE trade_log (
+  date TIMESTAMP ROUND 1d,
+  transaction_id LONG,
+  symbol SYMBOL,
+  buyer INT REFERENCES brokers(id),
+  seller INT REFERENCES brokers(id),
+  quantity LONG,
+  rate DOUBLE,
+  amount DOUBLE AS (quantity * rate)
+) TIMESERIES(date) PARTITION BY DAY SORT BY (symbol, date) DEDUP KEY (date, transaction_id)&quot;</code></pre>
+<h2 id="show-partitions">SHOW PARTITIONS FROM</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW PARTITIONS FROM table
+SELECT * FROM table_partitions(&#39;table&#39;)</code></pre>
+<p>Lists the partitions of one table, oldest first, with QuestDB&#39;s columns. Both forms give the same rows.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>index</code></td><td><code>INT</code></td><td>0 for the first partition, then 1, 2, ...</td></tr><tr><td><code>partitionBy</code></td><td><code>STRING</code></td><td><code>DAY</code>, <code>MONTH</code>, <code>YEAR</code> or <code>NONE</code></td></tr><tr><td><code>name</code></td><td><code>STRING</code></td><td><code>2026-09-24</code>, <code>2026-09</code>, <code>2026</code>; <code>default</code> for a table without time partitions</td></tr><tr><td><code>minTimestamp</code>, <code>maxTimestamp</code></td><td><code>TIMESTAMP</code></td><td>the first and last time in it; <code>NULL</code> for a table without a time column</td></tr><tr><td><code>numRows</code></td><td><code>LONG</code></td><td>rows now</td></tr><tr><td><code>diskSize</code></td><td><code>LONG</code></td><td>bytes: its file, plus its new rows still in the log</td></tr><tr><td><code>diskSizeHuman</code></td><td><code>STRING</code></td><td>the same, like <code>12.4 KiB</code></td></tr><tr><td><code>readOnly</code>, <code>active</code>, <code>attached</code>, <code>detached</code>, <code>attachable</code></td><td><code>BOOL</code></td><td><code>active</code> is <code>true</code> for the newest partition; KDB has no read-only or detached partitions</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> it needs the right to read the table (the row counts and times tell about the rows).</li></ul>
+<p><strong>Example: Trades split by day</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO trades VALUES (&#39;2026-09-24T05:00:00Z&#39;, &#39;CITY&#39;, 10), (&#39;2026-09-24T05:03:00Z&#39;, &#39;CITY&#39;, 11), (&#39;2026-09-25T05:00:00Z&#39;, &#39;VOLT&#39;, 50);</code></pre>
+<pre><code class="language-sql">SHOW PARTITIONS FROM trades;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>index (INT)</th><th>partitionBy (STRING)</th><th>name (STRING)</th><th>minTimestamp (TIMESTAMP)</th><th>maxTimestamp (TIMESTAMP)</th><th>numRows (LONG)</th><th>diskSize (LONG)</th><th>diskSizeHuman (STRING)</th><th>readOnly (BOOL)</th><th>active (BOOL)</th><th>attached (BOOL)</th><th>detached (BOOL)</th><th>attachable (BOOL)</th></tr></thead><tbody><tr><td>0</td><td>DAY</td><td>2026-09-24</td><td>2026-09-24T05:00:00.000Z</td><td>2026-09-24T05:03:00.000Z</td><td>2</td><td>548</td><td>548 B</td><td>false</td><td>false</td><td>true</td><td>false</td><td>false</td></tr><tr><td>1</td><td>DAY</td><td>2026-09-25</td><td>2026-09-25T05:00:00.000Z</td><td>2026-09-25T05:00:00.000Z</td><td>1</td><td>520</td><td>520 B</td><td>false</td><td>true</td><td>true</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="questdb-meta">QuestDB&#39;s meta functions</h2>
+<p>Apps written for QuestDB read the schema with functions in <code>FROM</code>. KDB has them with QuestDB 9.4.3&#39;s column names and types, so that code runs unchanged.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>One row per</th><th>Columns</th></tr></thead><tbody><tr><td><code>tables()</code></td><td>table</td><td><code>id</code>, <code>table_name</code>, <code>designatedTimestamp</code>, <code>partitionBy</code>, <code>maxUncommittedRows</code>, <code>o3MaxLag</code>, <code>walEnabled</code>, <code>directoryName</code>, <code>dedup</code>, <code>ttlValue</code>, <code>ttlUnit</code>, <code>matView</code></td></tr><tr><td><code>table_columns(&#39;t&#39;)</code></td><td>column of <code>t</code></td><td><code>column</code>, <code>type</code>, <code>indexed</code>, <code>indexBlockCapacity</code>, <code>symbolCached</code>, <code>symbolCapacity</code>, <code>designated</code>, <code>upsertKey</code></td></tr><tr><td><code>wal_tables()</code></td><td>table</td><td><code>name</code>, <code>suspended</code>, <code>writerTxn</code>, <code>bufferedTxnSize</code>, <code>sequencerTxn</code>, <code>errorTag</code>, <code>errorMessage</code>, <code>memoryPressure</code></td></tr><tr><td><code>table_partitions(&#39;t&#39;)</code></td><td>partition of <code>t</code></td><td>as <a href="#show-partitions">SHOW PARTITIONS</a></td></tr><tr><td><code>information_schema.tables()</code></td><td>table or view</td><td>the same as <code>information_schema.tables</code></td></tr></tbody></table></div>
+<ul><li><code>designatedTimestamp</code> is the time column of a <code>TIMESERIES</code> table, <code>NULL</code> for other tables. <code>dedup</code> is <code>true</code> when the table has a <code>DEDUP KEY</code>, and <code>upsertKey</code> marks its columns.</li><li><code>indexed</code> is <code>true</code> for a column with an index of its own (<code>ALTER TABLE t ALTER COLUMN c ADD INDEX</code>, or <code>CREATE INDEX</code> on that one column).</li><li><code>ttlValue</code>/<code>ttlUnit</code> show a TTL as QuestDB does: <code>SET TTL 14 DAYS</code> shows <code>2</code> <code>WEEK</code>; no TTL shows <code>0</code> <code>HOUR</code>.</li><li><code>maxUncommittedRows</code> (500000), <code>o3MaxLag</code> (600000000) and the symbol sizes (256) are QuestDB&#39;s defaults: KDB has no such setting per table.</li><li><code>wal_tables()</code>: a KDB commit is applied before it returns, so <code>writerTxn</code> always equals <code>sequencerTxn</code> and <code>suspended</code> is <code>false</code>. Code that waits for the two to match goes on at once.</li></ul>
+<p><strong>Example: What a rebuild reads first: time column, partitions, dedup keys</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY DEDUP KEY (symbol, time);</code></pre>
+<pre><code class="language-sql">SELECT table_name, designatedTimestamp, partitionBy, dedup FROM tables() WHERE table_name = &#39;ticks&#39;;
+SELECT &quot;column&quot;, type, indexed, designated, upsertKey FROM table_columns(&#39;ticks&#39;);
+SELECT name, suspended, writerTxn = sequencerTxn AS caught_up FROM wal_tables() WHERE name = &#39;ticks&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SELECT table_name, designatedTimestamp, partitionBy, dedup FROM tables() WHERE table_name = &#39;ticks&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>table_name (STRING)</th><th>designatedTimestamp (STRING)</th><th>partitionBy (STRING)</th><th>dedup (BOOL)</th></tr></thead><tbody><tr><td>ticks</td><td>time</td><td>DAY</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT column, type, indexed, designated, upsertKey FROM table_columns(&#39;ticks&#39;)</code></p>
+<div class="table-wrap"><table><thead><tr><th>column (STRING)</th><th>type (STRING)</th><th>indexed (BOOL)</th><th>designated (BOOL)</th><th>upsertKey (BOOL)</th></tr></thead><tbody><tr><td>time</td><td>TIMESTAMP</td><td>false</td><td>true</td><td>true</td></tr><tr><td>symbol</td><td>SYMBOL</td><td>false</td><td>false</td><td>true</td></tr><tr><td>price</td><td>DOUBLE</td><td>false</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT name, suspended, writerTxn = sequencerTxn AS caught_up FROM wal_tables() WHERE name = &#39;ticks&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>suspended (BOOL)</th><th>caught_up (BOOL)</th></tr></thead><tbody><tr><td>ticks</td><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A table that does not exist</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM table_columns(&#39;tickz&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;tickz&#39; does not exist</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/show-tables.md">This page as markdown</a>.</footer>
+</body>
+</html>

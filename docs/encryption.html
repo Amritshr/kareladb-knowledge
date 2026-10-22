@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encryption at rest - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="CREATE DATABASE x WITH (encryption = on) - every file, log record and backup of it is encrypted; without the master key a copied disk shows nothing.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/encryption.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/encryption.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="encryption-at-rest">Encryption at rest</h1>
+<blockquote><p>CREATE DATABASE x WITH (encryption = on) - every file, log record and backup of it is encrypted; without the master key a copied disk shows nothing.</p></blockquote>
+<ul><li>Category: Users &amp; security</li><li>Keywords: encryption, encrypted, encryption at rest, at rest, encrypt, AES, AES-256, AES-256-GCM, GCM, ChaCha20, ChaCha20-Poly1305, master key, data key, key file, KDB_MASTER_KEY, KDB_MASTER_KEY_FILE, KDB_MASTER_KEY_PREVIOUS, KDB_MASTER_KEY_PREVIOUS_FILE, _encryption.key, kdb key, key rotation, rotate key, WITH (encryption , TDE, stolen disk, snapshot</li><li>See also: <a href="databases.html">Databases and the data folder</a>, <a href="tls.html">TLS (https and sslmode=require)</a>, <a href="server-security.html">Keeping kdb serve safe</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-maintenance.html">kdb info, check, repair, dump-file</a></li></ul>
+<p>An <strong>encrypted database</strong> keeps every file on disk encrypted: the tables, the log, the manifests and its backups. Someone who copies the disk, a VPS snapshot or a backup sees only random bytes. Only a KDB server that has the <strong>master key</strong> can read it.</p>
+<p>It is <strong>off by default</strong>. You choose it for each database when you create it.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>Plain database</th><th>Encrypted database</th></tr></thead><tbody><tr><td>Files on disk</td><td>readable with a hex editor</td><td>random bytes</td></tr><tr><td>Backups</td><td>readable</td><td>encrypted too, and useless without the master key</td></tr><tr><td>Needs</td><td>nothing</td><td>the master key when the server starts</td></tr><tr><td>Queries</td><td>-</td><td>the same SQL, the same results</td></tr><tr><td>Speed</td><td>-</td><td>see <a href="#speed">speed</a></td></tr></tbody></table></div>
+<p>Not covered: someone logged in to the running server as the <code>kdb</code> system user or as root can read the key and the memory. <a href="users-and-roles.html">Users and roles</a> and <a href="tls.html">TLS</a> protect the running server; encryption at rest protects the disk.</p>
+<h2 id="turn-on">Turn it on</h2>
+<ol><li>Make a master key once, and keep it <strong>outside</strong> the data folder:</li></ol>
+<pre><code class="language-bash">kdb key new &gt; /etc/kdb/master.key        # 64 hex characters
+chmod 600 /etc/kdb/master.key</code></pre>
+<ol start="2"><li>Give it to the server, in one of these ways:</li></ol>
+<p>Syntax:</p>
+<pre><code class="language-sql">KDB_MASTER_KEY=&lt;64 hex characters, or base64 of 32 bytes&gt;
+KDB_MASTER_KEY_FILE=&lt;a file holding the key as text, or 32 raw bytes&gt;</code></pre>
+<ol start="3"><li>Create the database encrypted:</li></ol>
+<pre><code class="language-sql">CREATE DATABASE payroll WITH (encryption = on);
+USE payroll;
+CREATE TABLE salaries (name STRING, amount DECIMAL(2));</code></pre>
+<ul><li><strong>Returns:</strong> <code>database &#39;payroll&#39; created encrypted</code>.</li><li><code>WITH (encryption = on, pg_compat = on)</code> gives both options together (<a href="databases.html#create-database">CREATE DATABASE</a>).</li><li>Without a master key, <code>CREATE DATABASE ... WITH (encryption = on)</code> fails with <code>encryption = on needs a master key</code> and makes nothing.</li><li>A database is encrypted or plain for its whole life. <code>ALTER DATABASE</code> cannot switch it, and <code>CREATE DATABASE IF NOT EXISTS ... WITH (encryption = on)</code> leaves a plain database that exists plain. To encrypt data you have, create an encrypted database and copy the tables into it (<code>INSERT INTO new_db.t SELECT * FROM old_db.t</code>).</li><li><code>GET /api/databases</code> shows <code>&quot;encrypted&quot;: true</code> for each encrypted database.</li></ul>
+<p>In Docker, pass the key file as a secret and point <code>KDB_MASTER_KEY_FILE</code> at it, for example <code>-v /etc/kdb/master.key:/run/secrets/kdb_master_key:ro -e KDB_MASTER_KEY_FILE=/run/secrets/kdb_master_key</code>. Never put it in the data volume.</p>
+<h2 id="keys">Keys</h2>
+<p>There are two keys, so that changing the master key never rewrites your data:</p>
+<div class="table-wrap"><table><thead><tr><th>Key</th><th>What it is</th><th>Where it is</th></tr></thead><tbody><tr><td>master key</td><td>256 bits you give the server</td><td><code>KDB_MASTER_KEY</code> or <code>KDB_MASTER_KEY_FILE</code>, never in the data folder</td></tr><tr><td>data key</td><td>256 random bits, one per database</td><td><code>&lt;database&gt;/_encryption.key</code>, <strong>wrapped</strong> (encrypted) by the master key</td></tr></tbody></table></div>
+<ul><li>The server refuses to start when <code>KDB_MASTER_KEY_FILE</code> is inside the data folder: a copy of the folder would hold the key too.</li><li>An encrypted database opened without the master key, or with another one, is refused with a clear message (<code>... is encrypted: give the server its master key ...</code>). It is never reported as damage, and nothing is changed.</li><li><strong>Keep the master key safe and keep a copy.</strong> Without it the data cannot be read by anyone, KDB included.</li></ul>
+<h2 id="rotate">Change the master key</h2>
+<p>Do this when a key may have leaked, or someone who knew it left:</p>
+<ol><li><code>kdb key new</code> for the new key.</li><li>Start the server with the <strong>new</strong> key in <code>KDB_MASTER_KEY</code> and the <strong>old</strong> one in <code>KDB_MASTER_KEY_PREVIOUS</code> (or the <code>..._FILE</code> forms).</li><li>Each encrypted database re-wraps its data key with the new master key when it opens. It takes milliseconds, and no data file is rewritten. The server log says <code>the data key is now wrapped by the new master key</code>.</li><li>Re-wrap the backups too: <code>kdb key rotate &lt;backups folder&gt;</code> (same variables).</li><li>Remove <code>KDB_MASTER_KEY_PREVIOUS</code>.</li></ol>
+<pre><code class="language-bash">KDB_MASTER_KEY_FILE=/etc/kdb/new.key KDB_MASTER_KEY_PREVIOUS_FILE=/etc/kdb/old.key \
+  kdb key rotate /data/_backups/payroll</code></pre>
+<p>Backups you do not re-wrap still need the old key. Keep old keys as long as backups that need them exist.</p>
+<h2 id="backups">Backups and restore</h2>
+<ul><li>A backup of an encrypted database is encrypted too. Its files are copied as the encrypted bytes they are, and it takes the wrapped data key along (<code>_encryption.key</code>).</li><li><code>kdb verify-backup</code>, <code>kdb restore</code> and <code>POST /api/restore</code> need the master key. The restored database is encrypted with the same data key.</li><li>A copy made off the machine (<code>--backup-copy</code>) is encrypted too.</li></ul>
+<h2 id="what">What is encrypted</h2>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>How</th></tr></thead><tbody><tr><td>table files, catalog, manifests, backup manifests, temporary GROUP BY files</td><td>the whole file, in 64 KB pieces, each with AES-256-GCM and its own check</td></tr><tr><td>the log (<code>wal/</code>, <code>wal_archive/</code>)</td><td>every record body on its own. Record headers (length, number, checksum) and commit times stay plain, so recovery after a crash works exactly as before</td></tr><tr><td><code>kdb.lock</code>, <code>_encryption.key</code></td><td>not encrypted (the key file holds only the wrapped key)</td></tr><tr><td>memory</td><td>not encrypted (see above)</td></tr></tbody></table></div>
+<ul><li>Every file gets a key of its own, made from the data key and a random value in the file&#39;s header. Every piece has a fresh random nonce.</li><li>Any changed byte, a piece moved inside a file, or a piece taken from another file fails its check and is reported as damage. A plain file put into an encrypted database is refused, never read as data.</li><li>The cipher is <strong>AES-256-GCM</strong> where the CPU has AES instructions (every x86-64 CPU since about 2010). Without them, new files use <strong>ChaCha20-Poly1305</strong>, which is fast in plain code. Each file says which one it uses, so a database moved between computers still opens.</li></ul>
+<h2 id="speed">Speed</h2>
+<p>Measured on the development PC (Windows, x86-64 with AES instructions), a table of 1 million rows in 12 day partitions, a GROUP BY over all of it:</p>
+<div class="table-wrap"><table><thead><tr><th>Work</th><th>Plain</th><th>Encrypted</th></tr></thead><tbody><tr><td>AES-256-GCM on one core</td><td>-</td><td>about 3-3.9 GB/s</td></tr><tr><td>scan of loaded data (in memory)</td><td>292 ms</td><td>302 ms (about +3%, within noise)</td></tr><tr><td>first scan after opening (reads and decrypts the files)</td><td>749 ms</td><td>883 ms (about +18%)</td></tr><tr><td>size of the data files</td><td>60.2 MB</td><td>61.6 MB (+2.3%)</td></tr></tbody></table></div>
+<ul><li><strong>The first read after opening misses the goal.</strong> The goal was at most 10% slower than a plain database; the first scan after opening was about 18% slower in this measurement. Work to close that gap is still open.</li><li>Queries on data already in memory do not decrypt anything: they cost the same.</li><li>Reading files, writing files (checkpoints, loads) and the log cost a little more CPU. A disk is slower than the cipher.</li><li>Without AES instructions (old or small CPUs) ChaCha20-Poly1305 runs at about 550 MB/s on one core.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/encryption.md">This page as markdown</a>.</footer>
+</body>
+</html>

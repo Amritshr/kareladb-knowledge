@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operators - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Every operator of KDB SQL, which one is done first, and what NULL does to each of them.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/operators.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/operators.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="operators">Operators</h1>
+<blockquote><p>Every operator of KDB SQL, which one is done first, and what NULL does to each of them.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: operator, precedence, order of operations, parentheses, +, -, *, /, %, ||, concat, join text, -&gt;, -&gt;&gt;, ::, cast, , !, &lt;&gt;, NULL rules, three-valued logic, unary minus, precedence, ||, ::, -&gt;, -&gt;&gt;, int_division, integer division, integer division, int_division, 7 / 2</li><li>See also: <a href="where.html">WHERE</a>, <a href="functions-math.html#operators">Math functions (operators)</a>, <a href="functions-conversion.html">Conversion functions</a>, <a href="functions-json.html">JSON functions</a>, <a href="functions-conditional.html">Conditional and NULL functions</a>, <a href="functions-text.html">Text functions</a></li></ul>
+<p>An <strong>operator</strong> is a sign or a word between values, like <code>+</code>, <code>=</code>, <code>AND</code> or <code>||</code>.
+When an expression has many operators, KDB does the tight ones first: <code>2 + 3 * 4</code> is <code>14</code>, because <code>*</code> binds tighter than <code>+</code>.
+Use <code>( )</code> to choose the order yourself, and to make long conditions easy to read.</p>
+<p><strong>Example: A trade log report line: value, commission and a flag</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol,
+       quantity * rate AS value,
+       round(quantity * rate * 0.4 / 100, 2) AS commission,
+       quantity &gt;= 500 AND rate &gt; 500 AS big_bank_trade
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39; AND symbol IN (&#39;CITY&#39;, &#39;COAST&#39;)
+ORDER BY value DESC
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>value (DOUBLE)</th><th>commission (DOUBLE)</th><th>big_bank_trade (BOOL)</th></tr></thead><tbody><tr><td>100031</td><td>COAST</td><td>402000</td><td>1608</td><td>false</td></tr><tr><td>100015</td><td>COAST</td><td>398000</td><td>1592</td><td>false</td></tr><tr><td>100018</td><td>CITY</td><td>258000</td><td>1032</td><td>true</td></tr><tr><td>100023</td><td>COAST</td><td>199500</td><td>798</td><td>false</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="precedence">Operator precedence</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">OR
+AND
+NOT
+=  ==  !=  &lt;&gt;  &lt;  &lt;=  &gt;  &gt;=   IS [NOT] NULL   [NOT] IN   [NOT] BETWEEN   [NOT] LIKE   [NOT] ILIKE
++  -  ||
+*  /  %
+-value
+::  -&gt;  -&gt;&gt;</code></pre>
+<p>From loose (done <strong>last</strong>) to tight (done <strong>first</strong>):</p>
+<div class="table-wrap"><table><thead><tr><th>Level</th><th>Operators</th><th>Example</th><th>Means</th></tr></thead><tbody><tr><td>1</td><td><code>OR</code></td><td><code>a OR b AND c</code></td><td><code>a OR (b AND c)</code></td></tr><tr><td>2</td><td><code>AND</code></td><td><code>a AND b OR c</code></td><td><code>(a AND b) OR c</code></td></tr><tr><td>3</td><td><code>NOT</code></td><td><code>NOT a = b</code></td><td><code>NOT (a = b)</code></td></tr><tr><td>4</td><td><code>=</code> <code>==</code> <code>!=</code> <code>&lt;&gt;</code> <code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code>, <code>IS [NOT] NULL</code>, <code>[NOT] IN</code>, <code>[NOT] BETWEEN</code>, <code>[NOT] LIKE</code>, <code>[NOT] ILIKE</code></td><td><code>a + 1 = b * 2</code></td><td><code>(a + 1) = (b * 2)</code></td></tr><tr><td>5</td><td><code>+</code> <code>-</code> <code>||</code></td><td><code>&#39;x&#39; || 1 + 2</code></td><td><code>(&#39;x&#39; || 1) + 2</code> (an error: write <code>&#39;x&#39; || (1 + 2)</code>)</td></tr><tr><td>6</td><td><code>*</code> <code>/</code> <code>%</code></td><td><code>2 + 3 * 4</code></td><td><code>2 + (3 * 4)</code></td></tr><tr><td>7</td><td><code>-</code> before a value</td><td><code>-2 * 3</code></td><td><code>(-2) * 3</code></td></tr><tr><td>8</td><td><code>::</code> <code>-&gt;</code> <code>-&gt;&gt;</code>, then values, columns, function calls, <code>CASE</code>, <code>CAST</code>, <code>( )</code></td><td><code>&#39;5&#39;::INT * 2</code></td><td><code>(&#39;5&#39;::INT) * 2</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> operators of the same level are done from left to right: <code>10 - 4 - 3</code> is <code>3</code>, and <code>a = b IS NULL</code> means <code>(a = b) IS NULL</code>.</li><li><code>a = b = c</code> is an error when <code>c</code> is not true or false: the first <code>=</code> gives <code>true</code> or <code>false</code>, which is then compared with <code>c</code>.</li><li><code>AND</code> and <code>OR</code> stop early: <code>false AND ...</code> and <code>true OR ...</code> do not compute the right side.</li><li>Nesting is limited to 100 levels of <code>( )</code> and operators.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT 2 + 3 * 4 AS a, (2 + 3) * 4 AS b, 10 - 4 - 3 AS c, -2 * 3 AS d,
+       1 = 1 OR 1 = 2 AND 1 = 3 AS e, NOT 1 = 2 AND 2 = 2 AS f, 2 + 3 BETWEEN 4 AND 6 AS g;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (LONG)</th><th>d (LONG)</th><th>e (BOOL)</th><th>f (BOOL)</th><th>g (BOOL)</th></tr></thead><tbody><tr><td>14</td><td>20</td><td>3</td><td>-6</td><td>true</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Mixing AND and OR: ( ) change the answer</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS without_parens FROM trade_log WHERE symbol = &#39;TELCO&#39; OR symbol = &#39;COAST&#39; AND quantity &gt;= 1000;
+SELECT count(*) AS with_parens FROM trade_log WHERE (symbol = &#39;TELCO&#39; OR symbol = &#39;COAST&#39;) AND quantity &gt;= 1000;</code></pre>
+<p>Result:</p>
+<p><code>SELECT count(*) AS without_parens FROM trade_log WHERE symbol = &#39;TELCO&#39; OR symbol = &#39;COAST&#39; AND quan</code></p>
+<div class="table-wrap"><table><thead><tr><th>without_parens (LONG)</th></tr></thead><tbody><tr><td>8</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS with_parens FROM trade_log WHERE (symbol = &#39;TELCO&#39; OR symbol = &#39;COAST&#39;) AND quant</code></p>
+<div class="table-wrap"><table><thead><tr><th>with_parens (LONG)</th></tr></thead><tbody><tr><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: || and + are on the same level</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT &#39;Total: &#39; || 2 + 3 AS label;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 23: &#39;Total: 2&#39; and &#39;3&#39; are not both numbers</code></p>
+<p><strong>Example: The fix: ( ) around the sum</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;Total: &#39; || (2 + 3) AS label;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>label (STRING)</th></tr></thead><tbody><tr><td>Total: 5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="arithmetic">Arithmetic: + - * / %</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">a + b    a - b    a * b    a / b    a % b    -a</code></pre>
+<p>Add, subtract, multiply, divide and remainder. The full rules are in <a href="functions-math.html#operators">arithmetic operators</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Operator</th><th>Result</th></tr></thead><tbody><tr><td><code>+</code> <code>-</code> <code>*</code></td><td><code>LONG</code> for whole numbers (an <code>INT</code> result past <code>INT</code> becomes a <code>LONG</code>), else <code>DOUBLE</code>. A result too big for <code>LONG</code> is an error: &quot;bigint out of range&quot; (SQLSTATE <code>22003</code>)</td></tr><tr><td><code>/</code></td><td><code>DOUBLE</code>: <code>7 / 2</code> is <code>3.5</code>. After <code>SET int_division = integer</code>, whole number / whole number is a whole number, as in PostgreSQL: <code>7 / 2</code> is <code>3</code> (<a href="operators.html#integer-division">integer division</a>)</td></tr><tr><td><code>%</code></td><td>the remainder: <code>7 % 2</code> is <code>1</code></td></tr><tr><td><code>TIMESTAMP + number</code></td><td>the time plus that many <strong>milliseconds</strong></td></tr><tr><td><code>TIMESTAMP - TIMESTAMP</code></td><td>the milliseconds between the two times</td></tr><tr><td><code>DATE + number</code></td><td>the date plus that many days</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>.</li><li><strong>Notes:</strong> dividing by zero (<code>5 / 0</code>, <code>5.0 / 0</code>, <code>5 % 0</code>) stops the query with &quot;division by zero&quot; (SQLSTATE <code>22012</code>), as in PostgreSQL. Write <code>x / NULLIF(y, 0)</code> to get <code>NULL</code> instead.</li><li>Text is not a number: <code>&#39;abc&#39; + 1</code> is an error. <code>+</code> does <strong>not</strong> join text; use <code>||</code>.</li><li><code>TRUE + 1</code> is an error: <code>BOOL</code> is not a number.</li></ul>
+<p><strong>Example: Daily range and change in percent</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(high - low, 2) AS day_range, round((close - open) / open * 100, 2) AS change_pct
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>day_range (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>6.3</td><td>0.06</td></tr><tr><td>COAST</td><td>8.8</td><td>-1.05</td></tr><tr><td>VOLT</td><td>7.9</td><td>3.02</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Nepal clock hour: add 5 h 45 min in milliseconds</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT hour(time + 20700000) AS npt_hour, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+GROUP BY hour(time + 20700000)
+ORDER BY npt_hour;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>npt_hour (LONG)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>11</td><td>47020</td></tr><tr><td>12</td><td>41230</td></tr><tr><td>13</td><td>46180</td></tr><tr><td>14</td><td>48610</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT 7 / 2 AS a, 7 % 2 AS b, 5 / NULLIF(0, 0) AS c, 9223372036854775807 * 2.0 AS big_as_double, CAST(&#39;2026-09-10&#39; AS DATE) + 1 AS next_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (LONG)</th><th>c (STRING)</th><th>big_as_double (DOUBLE)</th><th>next_day (DATE)</th></tr></thead><tbody><tr><td>3.5</td><td>1</td><td>NULL</td><td>1.84467440737096e+19</td><td>2026-09-11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Dividing by zero is an error</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT 5 / 0;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 10: division by zero</code></p>
+<p><strong>Example: + does not join text</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT &#39;CITY&#39; + 1;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 15: &#39;CITY&#39; and &#39;1&#39; are not both numbers</code></p>
+<h2 id="integer-division">Integer division: SET int_division</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SET int_division = integer | float | default</code></pre>
+<p>In KDB, <code>/</code> gives a <code>DOUBLE</code>: <code>7 / 2</code> is <code>3.5</code>. PostgreSQL gives <code>3</code>: a whole number divided by a whole number stays a whole number there. An app written for PostgreSQL may count on that, for example to read <code>sum(ms) / 1000</code> into an integer.</p>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th><code>7 / 2</code></th><th><code>-7 / 2</code></th><th><code>7 / 2.0</code></th></tr></thead><tbody><tr><td><code>float</code> (the default)</td><td><code>3.5</code></td><td><code>-3.5</code></td><td><code>3.5</code></td></tr><tr><td><code>integer</code></td><td><code>3</code></td><td><code>-3</code></td><td><code>3.5</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> with <code>integer</code>, <code>LONG</code> / <code>LONG</code> is a <code>LONG</code>, cut toward zero. When either side is a <code>DOUBLE</code>, the result is still a <code>DOUBLE</code>; a <code>DECIMAL</code> divided by a <code>DECIMAL</code> or a whole number is an exact <code>DECIMAL</code> in both settings (<a href="column-types.html#decimal">DECIMAL</a>).</li><li><strong>Scope:</strong> the setting is for the <strong>session</strong>: the rest of one <code>/exec</code> request, a shell, or one Postgres connection. Triggers and procedures that its statements run use it too. <code>default</code> goes back to what the session started with.</li><li><strong>Postgres port:</strong> <code>kdb serve --pg-int-division on</code> (or <code>KDB_PG_INT_DIVISION=on</code>) makes <code>integer</code> the start value of every Postgres connection. A connection can also ask for it in its connection string (the startup parameter <code>int_division=integer</code>), or send <code>SET int_division = integer</code>. <code>SHOW int_division</code> gives the value.</li><li><strong>Table expressions:</strong> a table&#39;s own <code>CHECK</code>, <code>DEFAULT</code>, computed columns, index expressions and materialized view queries always use the default <code>DOUBLE</code> division, whatever the session that writes or reads. They are shared by every session, so the answer must not depend on who asked. A query in <code>integer</code> mode does not use an index on an expression with <code>/</code>; it reads the table instead.</li><li><strong>Notes:</strong> division by zero is an error in both modes. To get a <code>DOUBLE</code> in <code>integer</code> mode, cast one side: <code>CAST(x AS DOUBLE) / y</code>. To get a whole number in <code>float</code> mode, use <code>trunc(x / y)</code>.</li></ul>
+<p><strong>Example: The same division in both modes</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT 7 / 2 AS a, -7 / 2 AS b, 7 / 2.0 AS c;
+SET int_division = integer;
+SELECT 7 / 2 AS a, -7 / 2 AS b, 7 / 2.0 AS c, 7 / NULLIF(0, 0) AS d;</code></pre>
+<p>Result:</p>
+<p><code>SELECT 7 / 2 AS a, -7 / 2 AS b, 7 / 2.0 AS c</code></p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th></tr></thead><tbody><tr><td>3.5</td><td>-3.5</td><td>3.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SET int_division = &#39;integer&#39;</code></p>
+<pre><code class="language-text">whole number / whole number gives a whole number for this session (7 / 2 = 3)</code></pre>
+<p><code>SELECT 7 / 2 AS a, -7 / 2 AS b, 7 / 2.0 AS c, 7 / nullif(0, 0) AS d</code></p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (DOUBLE)</th><th>d (STRING)</th></tr></thead><tbody><tr><td>3</td><td>-3</td><td>3.5</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An average in whole shares, as a PostgreSQL app expects</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SET int_division = integer;
+SELECT symbol, sum(quantity) / count(*) AS avg_whole_shares FROM trade_log WHERE date IN &#39;2026-09-10&#39; GROUP BY symbol ORDER BY symbol LIMIT 3;</code></pre>
+<p>Result:</p>
+<p><code>SET int_division = &#39;integer&#39;</code></p>
+<pre><code class="language-text">whole number / whole number gives a whole number for this session (7 / 2 = 3)</code></pre>
+<p><code>SELECT symbol, sum(quantity) / count(*) AS avg_whole_shares FROM trade_log WHERE date IN &#39;2026-09-10</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>avg_whole_shares (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>130</td></tr><tr><td>COAST</td><td>316</td></tr><tr><td>TELCO</td><td>192</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Only integer and float</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SET int_division = half;</code></pre>
+<p>Result:</p>
+<p>Error: <code>int_division must be integer or float, not &#39;half&#39;</code></p>
+<h2 id="comparison">Comparison operators</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">a = b    a == b    a != b    a &lt;&gt; b    a &lt; b    a &lt;= b    a &gt; b    a &gt;= b</code></pre>
+<p>Compare two values and give <code>true</code> or <code>false</code>. They are mostly used in <a href="where.html#comparison">WHERE</a>, but a comparison is a normal value: you can put it in the select list.</p>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>.</li><li><strong>Notes:</strong> a text compared with a <code>TIMESTAMP</code> or <code>DATE</code> is read as a time. A number compared with a text that holds a number is compared as numbers. Other mixes (text with a number, a BOOL with a number) are an error.</li><li><code>IS NULL</code>, <code>IN</code>, <code>BETWEEN</code>, <code>LIKE</code> and <code>ILIKE</code> are on the same level; see <a href="where.html">WHERE</a>.</li></ul>
+<p><strong>Example: Up day or down day, as a true/false column</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, close &gt; open AS up_day, close = high AS closed_at_high
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-09-06&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>up_day (BOOL)</th><th>closed_at_high (BOOL)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>true</td><td>false</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>false</td><td>false</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>true</td><td>false</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>true</td><td>false</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>true</td><td>false</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: A BOOL cannot be compared with a number</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT 1 = 1 = 1;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 14: cannot compare BOOL &#39;true&#39; with LONG &#39;1&#39;</code></p>
+<h2 id="concat">|| : join text</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value || value</code></pre>
+<p>Joins two values into one text. Numbers, times and <code>TRUE</code>/<code>FALSE</code> are turned into text first.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. Two <code>BYTES</code> values give <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> on either side gives <code>NULL</code>. To skip NULL values, use <code>concat(...)</code> or <code>coalesce(x, &#39;&#39;)</code> (see <a href="functions-text.html">text functions</a>).</li><li><strong>Notes:</strong> <code>||</code> is on the same level as <code>+</code> and <code>-</code>. Put <code>( )</code> around calculations: <code>&#39;Total: &#39; || (a + b)</code>.</li></ul>
+<p><strong>Example: A label for a chart legend</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol || &#39; - &#39; || name AS label FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>label (STRING)</th></tr></thead><tbody><tr><td>CITY - City Bank Limited</td></tr><tr><td>COAST - Coastal Bank Limited</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Full name with city; NULL makes the whole text NULL</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, full_name || &#39; (&#39; || city || &#39;)&#39; AS shown,
+       full_name || &#39; (&#39; || coalesce(city, &#39;no city&#39;) || &#39;)&#39; AS shown_safe
+FROM app_users
+WHERE id IN (1, 6, 8);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>shown (STRING)</th><th>shown_safe (STRING)</th></tr></thead><tbody><tr><td>ram</td><td>Ram Sharma (Kathmandu)</td><td>Ram Sharma (Kathmandu)</td></tr><tr><td>anita</td><td>NULL</td><td>Anita Magar (no city)</td></tr><tr><td>test_user</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;CITY&#39; || &#39;-&#39; || 1 AS a, 5.5 || &#39;%&#39; AS b, &#39;x&#39; || NULL AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>CITY-1</td><td>5.5%</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="json">-&gt; and -&gt;&gt; : parts of JSON</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">json -&gt; &#39;key&#39;      json -&gt; index
+json -&gt;&gt; &#39;key&#39;     json -&gt;&gt; index</code></pre>
+<p><code>-&gt;</code> takes a part of a JSON value and gives it as JSON. <code>-&gt;&gt;</code> gives the part as text. An index counts from 0; <code>-1</code> is the last element. The JSON functions are explained in <a href="functions-json.html">JSON functions</a>.</p>
+<ul><li><strong>Returns:</strong> <code>-&gt;</code> gives <code>JSON</code>, <code>-&gt;&gt;</code> gives <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when the key or index is not there, or when the value is <code>NULL</code>.</li><li><strong>Notes:</strong> you can chain them: <code>doc -&gt; &#39;a&#39; -&gt; &#39;b&#39; -&gt;&gt; 0</code>. They bind as tight as <code>::</code>, from left to right, so <code>doc -&gt;&gt; &#39;n&#39;::INT</code> means <code>(doc -&gt;&gt; &#39;n&#39;)::INT</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;{&quot;symbol&quot;: &quot;CITY&quot;, &quot;prices&quot;: [512, 515.5, 509]}&#39; -&gt;&gt; &#39;symbol&#39; AS symbol,
+       &#39;{&quot;symbol&quot;: &quot;CITY&quot;, &quot;prices&quot;: [512, 515.5, 509]}&#39; -&gt; &#39;prices&#39; AS prices,
+       &#39;{&quot;symbol&quot;: &quot;CITY&quot;, &quot;prices&quot;: [512, 515.5, 509]}&#39; -&gt; &#39;prices&#39; -&gt;&gt; -1 AS last_price;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>prices (JSON)</th><th>last_price (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>[512,515.5,509]</td><td>509</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="cast">:: : change the type</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value::TYPE
+value::DECIMAL(scale)</code></pre>
+<p><code>x::TYPE</code> is the short form of <code>CAST(x AS TYPE)</code>. See <a href="functions-conversion.html">conversion functions</a> for every type and rule.</p>
+<ul><li><strong>Returns:</strong> the value in the new type.</li><li><strong>NULL:</strong> <code>NULL</code> stays <code>NULL</code>.</li><li><strong>Notes:</strong> <code>::</code> binds tighter than every other operator: <code>&#39;5&#39;::INT * 2</code> is <code>10</code>, and <code>-5::STRING</code> is the text <code>-5</code>.</li><li>A value that cannot be changed is an error, for example <code>&#39;abc&#39;::INT</code>, or <code>512.456::DECIMAL(2)</code> (too many decimal places: use <code>round(x, 2)</code> first).</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT &#39;42&#39;::INT + 1 AS a, 512.45::DECIMAL(2) AS b, &#39;2026-09-10T11:00:00+05:45&#39;::TIMESTAMP AS c, 7::DOUBLE / 2 AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (DECIMAL(2))</th><th>c (TIMESTAMP)</th><th>d (DOUBLE)</th></tr></thead><tbody><tr><td>43</td><td>512.45</td><td>2026-09-10T05:15:00.000Z</td><td>3.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Volume as a whole number</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, volume::LONG AS volume FROM ochl_day WHERE time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>183040</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>186200</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>41470</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Not a number</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT &#39;abc&#39;::INT;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 13: cannot convert &#39;abc&#39; to INT</code></p>
+<h2 id="null">NULL rules</h2>
+<p><code>NULL</code> means &quot;no value&quot; or &quot;unknown&quot;. Most operators give <code>NULL</code> when a value is <code>NULL</code>, because the answer is unknown too.</p>
+<div class="table-wrap"><table><thead><tr><th>Operator</th><th>With NULL</th><th>Example</th><th>Result</th></tr></thead><tbody><tr><td><code>+</code> <code>-</code> <code>*</code> <code>/</code> <code>%</code></td><td><code>NULL</code></td><td><code>NULL + 1</code></td><td><code>NULL</code></td></tr><tr><td><code>||</code></td><td><code>NULL</code></td><td><code>&#39;a&#39; || NULL</code></td><td><code>NULL</code></td></tr><tr><td><code>=</code> <code>!=</code> <code>&lt;</code> ...</td><td><code>NULL</code></td><td><code>NULL = NULL</code></td><td><code>NULL</code></td></tr><tr><td><code>AND</code></td><td><code>false</code> wins, else <code>NULL</code></td><td><code>FALSE AND NULL</code></td><td><code>false</code></td></tr><tr><td><code>OR</code></td><td><code>true</code> wins, else <code>NULL</code></td><td><code>TRUE OR NULL</code></td><td><code>true</code></td></tr><tr><td><code>NOT</code></td><td><code>NULL</code></td><td><code>NOT NULL</code></td><td><code>NULL</code></td></tr><tr><td><code>IN (list)</code></td><td><code>NULL</code> when the value is <code>NULL</code>, or when it is not found and the list has a <code>NULL</code></td><td><code>2 IN (1, NULL)</code></td><td><code>NULL</code></td></tr><tr><td><code>BETWEEN</code>, <code>LIKE</code>, <code>ILIKE</code></td><td><code>NULL</code></td><td><code>NULL LIKE &#39;%&#39;</code></td><td><code>NULL</code></td></tr><tr><td><code>IS NULL</code>, <code>IS NOT NULL</code></td><td>never <code>NULL</code></td><td><code>NULL IS NULL</code></td><td><code>true</code></td></tr><tr><td><code>::</code>, <code>CAST</code></td><td><code>NULL</code></td><td><code>NULL::INT</code></td><td><code>NULL</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>WHERE</code>, <code>HAVING</code> and join <code>ON</code> keep a row only when the condition is <code>true</code>; <code>NULL</code> counts as false (see <a href="where.html#null-in-where">NULL in WHERE</a>).</li><li>Aggregates like <code>sum</code>, <code>avg</code>, <code>min</code> and <code>count(x)</code> skip <code>NULL</code> values. <code>count(*)</code> counts every row.</li><li>Use <code>coalesce(x, 0)</code> to use a default instead of <code>NULL</code> (see <a href="functions-conditional.html">conditional functions</a>).</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT NULL + 1 AS plus, NULL = NULL AS equals, FALSE AND NULL AS and_false, TRUE OR NULL AS or_true,
+       NOT NULL AS not_null, NULL IS NULL AS is_null, coalesce(NULL, 0) + 1 AS with_default;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plus (STRING)</th><th>equals (STRING)</th><th>and_false (BOOL)</th><th>or_true (BOOL)</th><th>not_null (STRING)</th><th>is_null (BOOL)</th><th>with_default (LONG)</th></tr></thead><tbody><tr><td>NULL</td><td>NULL</td><td>false</td><td>true</td><td>NULL</td><td>true</td><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Balance of each account: NULL debits and credits need coalesce</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT account,
+       sum(debit) - sum(credit) AS wrong_when_one_side_is_empty,
+       coalesce(sum(debit), 0) - coalesce(sum(credit), 0) AS balance
+FROM ledger
+GROUP BY account
+ORDER BY account;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>account (INT)</th><th>wrong_when_one_side_is_empty (DECIMAL(2))</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1000</td><td>5000.00</td><td>5000.00</td></tr><tr><td>1100</td><td>230320.00</td><td>230320.00</td></tr><tr><td>1200</td><td>247200.00</td><td>247200.00</td></tr><tr><td>2000</td><td>0.00</td><td>0.00</td></tr><tr><td>3000</td><td>NULL</td><td>-500000.00</td></tr><tr><td>4000</td><td>NULL</td><td>-6250.00</td></tr><tr><td>4100</td><td>NULL</td><td>-2300.00</td></tr><tr><td>5000</td><td>NULL</td><td>1030.00</td></tr><tr><td>5100</td><td>NULL</td><td>25000.00</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/operators.md">This page as markdown</a>.</footer>
+</body>
+</html>

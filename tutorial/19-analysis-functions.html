@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>19. Analysis functions - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/19-analysis-functions.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/19-analysis-functions.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="19-analysis-functions">19. Analysis functions</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h3 id="what-you-will-learn">What you will learn</h3>
+<ul><li>Statistics over many rows: correlation, regression, skewness, percentiles, mode and more.</li><li>Window functions: ranks, <code>first_value</code>, <code>lag</code> with a default, and frames with <code>FOLLOWING</code> and <code>RANGE &#39;5 days&#39;</code>.</li><li>Returns and risk: returns, drawdown, volatility, Sharpe, Sortino, Calmar, beta, alpha, value at risk.</li><li>Technical indicators: WMA, DEMA, TEMA, KAMA, HMA, MACD, stochastic, Bollinger bands, ADX, Aroon, Parabolic SAR, Ichimoku, OBV, MFI, SuperTrend, Heikin-Ashi, linear regression and more.</li><li>Math, finance and date functions: <code>log</code>, <code>gcd</code>, <code>width_bucket</code>, <code>round_tick</code>, <code>pmt</code>, <code>irr</code>, <code>xirr</code>, <code>extract</code>, <code>age</code>, fiscal years.</li><li>Table functions and pivots: <code>generate_series</code>, <code>long_sequence</code>, <code>PIVOT</code>.</li><li>A cookbook: top gainers per day, 20-day volatility, drawdown, MACD crossovers, a Bollinger squeeze, a correlation matrix and turnover by sector and month.</li></ul>
+<p>All examples are in examples/19-analysis-functions/. The output under the cookbook examples is real. The prices are made up.</p>
+<p>Chapter 5 explains <code>SAMPLE BY</code>, <code>GROUP BY</code> and the first window functions (<code>sma</code>, <code>ema</code>, <code>rsi</code>, <code>atr</code>, <code>lag</code>). Read it first.</p>
+<h3 id="how-to-read-this-chapter">How to read this chapter</h3>
+<p>Every function has a short section:</p>
+<ul><li><strong>Syntax</strong>: how to write it. <code>[x]</code> means x is optional.</li><li><strong>Returns</strong>: the type of the result.</li><li><strong>NULLs</strong>: what happens with NULL values and with too few rows.</li></ul>
+<p>Three kinds of functions are in this chapter:</p>
+<div class="table-wrap"><table><thead><tr><th>Kind</th><th>Used where</th><th>Example</th></tr></thead><tbody><tr><td><strong>Scalar</strong></td><td>anywhere: <code>SELECT</code>, <code>WHERE</code>, <code>ORDER BY</code></td><td><code>round_tick(close)</code></td></tr><tr><td><strong>Aggregate</strong></td><td>with <code>GROUP BY</code> or <code>SAMPLE BY</code>, alone, or with <code>OVER (...)</code></td><td><code>corr(a, b)</code></td></tr><tr><td><strong>Window / series</strong></td><td>in the <code>SELECT</code> list; without <code>OVER</code> they run in time order</td><td><code>macd(close) OVER (PARTITION BY symbol ORDER BY time)</code></td></tr></tbody></table></div>
+<p>Rules for window and series functions (the same as in chapter 5):</p>
+<ul><li>Without <code>OVER</code>, all result rows are <strong>one series</strong> in time order. With many symbols, always write <code>OVER (PARTITION BY symbol ORDER BY time)</code>.</li><li><code>WHERE</code> runs first. An indicator only sees the rows that <code>WHERE</code> keeps. Compute on more history in a subquery, filter outside.</li><li>With <code>GROUP BY</code> or <code>SAMPLE BY</code>, a window function works on the <strong>groups</strong>: its arguments must be aggregates or group keys, for example <code>sma(last(close), 2)</code> or <code>rank() OVER (ORDER BY sum(volume) DESC)</code>. A plain column that is not a group key (<code>sma(close, 2)</code>) gives <code>column &#39;close&#39; is used by a window function in a query with aggregates, so it must be a key of the groups</code>.</li><li>One window function cannot be inside another (<code>macd(sma(close, 3))</code>). Use one subquery per step.</li><li>The new aggregates work only in the row engine. Queries that use them do not use the fast column engine, so they are slower on very big tables (see <a href="#speed">Speed</a>).</li></ul>
+<h3 id="the-sample-candles">The sample candles</h3>
+<p>The cookbook uses daily candles for the five symbols of the sample data (chapter 1). The sample table <code>ochl_day</code> is short, so this chapter makes a longer, made-up price history with a view. The view itself uses <code>generate_series</code> from this chapter:</p>
+<p>01-candles.sql:</p>
+<pre><code class="language-sql">CREATE VIEW candles AS
+SELECT time, symbol, sector,
+       round(close * (1 + 0.006 * sin(n * 1.3 + k)), 1) AS open,
+       round(greatest(close, close * (1 + 0.006 * sin(n * 1.3 + k))) * (1.004 + 0.003 * abs(sin(n * 0.7 + k))), 1) AS high,
+       round(least(close, close * (1 + 0.006 * sin(n * 1.3 + k))) * (0.996 - 0.003 * abs(cos(n * 0.9 + k))), 1) AS low,
+       close, volume
+FROM (
+  SELECT time, symbol, sector, n, k,
+         round(base * (1 + 0.08 * sin(n / 11.0 + k) + 0.04 * sin(n / 3.0 + 2 * k) + 0.0004 * n * (k - 2)), 1) AS close,
+         round(50000 + 30000 * abs(sin(n * 0.37 + k))) AS volume
+  FROM (
+    SELECT d AS time, s.symbol AS symbol, s.sector AS sector, datediff(&#39;d&#39;, &#39;2026-01-01&#39;, d) AS n,
+           CASE s.symbol WHEN &#39;CITY&#39; THEN 0 WHEN &#39;COAST&#39; THEN 1 WHEN &#39;VOLT&#39; THEN 2 WHEN &#39;TELCO&#39; THEN 3 ELSE 4 END AS k,
+           CASE s.symbol WHEN &#39;CITY&#39; THEN 500 WHEN &#39;COAST&#39; THEN 380 WHEN &#39;VOLT&#39; THEN 180 WHEN &#39;TELCO&#39; THEN 900 ELSE 250 END AS base
+    FROM generate_series(&#39;2026-01-01&#39;::TIMESTAMP, &#39;2026-09-10&#39;::TIMESTAMP, &#39;1 day&#39;) AS g(d)
+    CROSS JOIN securities s
+    WHERE is_trading_day(d)
+  ) a
+) b;</code></pre>
+<p>Each symbol has 181 trading days:</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS days, min(time) AS first_day, max(time) AS last_day, min(close) AS low, max(close) AS high
+FROM candles GROUP BY symbol ORDER BY symbol;</code></pre>
+<pre><code class="language-text">view &#39;candles&#39; created
+
+symbol | days | first_day                | last_day                 | low   | high  
+-------+------+--------------------------+--------------------------+-------+-------
+ACME   |  181 | 2026-01-01T00:00:00.000Z | 2026-09-10T00:00:00.000Z |   223 |  327.1
+CITY   |  181 | 2026-01-01T00:00:00.000Z | 2026-09-10T00:00:00.000Z | 371.8 |  542.9
+COAST  |  181 | 2026-01-01T00:00:00.000Z | 2026-09-10T00:00:00.000Z | 299.1 |  419.4
+TELCO  |  181 | 2026-01-01T00:00:00.000Z | 2026-09-10T00:00:00.000Z | 805.8 | 1076.2
+VOLT   |  181 | 2026-01-01T00:00:00.000Z | 2026-09-10T00:00:00.000Z | 158.8 |  201.2
+(5 rows, 5.3 ms)</code></pre>
+<hr>
+<h2 id="part-1-aggregates">Part 1: Aggregates</h2>
+<p>Aggregates look at many rows and give one value. Use them alone, with <code>GROUP BY</code>, with <code>SAMPLE BY</code>, or with <code>OVER (...)</code> for a moving window (for example <code>corr(a, b) OVER (ORDER BY time ROWS 19 PRECEDING)</code>).</p>
+<p>The general NULL rule: <strong>rows with NULL in a used argument are skipped</strong>. For two-value aggregates (like <code>corr(y, x)</code>) the whole pair is skipped. With no rows left, the result is NULL (<code>regr_count</code>, <code>count_if</code> and <code>approx_count_distinct</code> give 0).</p>
+<h3 id="correlation-and-regression">Correlation and regression</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs / too few rows</th></tr></thead><tbody><tr><td><code>corr</code></td><td><code>corr(y, x)</code></td><td>Pearson correlation, -1 to 1</td><td>NULL when y or x does not change</td></tr><tr><td><code>covar_pop</code></td><td><code>covar_pop(y, x)</code></td><td>population covariance (divide by n)</td><td>NULL with no pairs</td></tr><tr><td><code>covar_samp</code></td><td><code>covar_samp(y, x)</code></td><td>sample covariance (divide by n - 1)</td><td>NULL with fewer than 2 pairs</td></tr><tr><td><code>regr_slope</code></td><td><code>regr_slope(y, x)</code></td><td>slope of the best straight line y = a + b·x</td><td>NULL when x does not change</td></tr><tr><td><code>regr_intercept</code></td><td><code>regr_intercept(y, x)</code></td><td>a of that line</td><td>NULL when x does not change</td></tr><tr><td><code>regr_r2</code></td><td><code>regr_r2(y, x)</code></td><td>how well the line fits, 0 to 1</td><td>NULL when x does not change; 1 when only y does not change</td></tr><tr><td><code>regr_count</code></td><td><code>regr_count(y, x)</code></td><td>number of pairs without NULL</td><td>0 with no pairs</td></tr><tr><td><code>regr_avgx</code>, <code>regr_avgy</code></td><td><code>regr_avgx(y, x)</code></td><td>average of x (of y) over the pairs</td><td>NULL with no pairs</td></tr><tr><td><code>regr_sxx</code>, <code>regr_syy</code>, <code>regr_sxy</code></td><td><code>regr_sxx(y, x)</code></td><td>sum of squared differences from the average</td><td>NULL with no pairs</td></tr><tr><td><code>beta</code></td><td><code>beta(asset_returns, market_returns)</code></td><td>how much the asset moves with the market</td><td>NULL with fewer than 2 pairs</td></tr><tr><td><code>alpha</code></td><td><code>alpha(asset_returns, market_returns [, risk_free])</code></td><td>return not explained by beta, per period</td><td>NULL with fewer than 2 pairs</td></tr></tbody></table></div>
+<p>The argument order is <strong>y first, then x</strong>, as in PostgreSQL.</p>
+<h4 id="corr">corr</h4>
+<ul><li><strong>Syntax:</strong> <code>corr(y, x)</code></li><li><strong>Description:</strong> the Pearson correlation of two columns. 1 means they move together, -1 means they move opposite, 0 means no straight-line relation.</li><li><strong>Arguments:</strong> y, x: numbers.</li><li><strong>Returns:</strong> DOUBLE between -1 and 1.</li><li><strong>NULLs:</strong> pairs with a NULL are skipped. NULL when fewer than 2 pairs, or when one column never changes.</li><li><strong>Example:</strong> <code>SELECT corr(n.close, u.close) FROM candles n JOIN candles u ON n.time = u.time WHERE n.symbol = &#39;CITY&#39; AND u.symbol = &#39;VOLT&#39;</code></li></ul>
+<h4 id="covar-pop">covar_pop</h4>
+<ul><li><strong>Syntax:</strong> <code>covar_pop(y, x)</code></li><li><strong>Description:</strong> population covariance: the average of (y - average y) × (x - average x).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> pairs with a NULL are skipped; NULL with no pairs.</li><li><strong>Example:</strong> <code>SELECT covar_pop(volume, close) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="covar-samp">covar_samp</h4>
+<ul><li><strong>Syntax:</strong> <code>covar_samp(y, x)</code></li><li><strong>Description:</strong> sample covariance: like <code>covar_pop</code>, but divided by n - 1.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> pairs with a NULL are skipped; NULL with fewer than 2 pairs.</li><li><strong>Example:</strong> <code>SELECT covar_samp(volume, close) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="regr-slope">regr_slope</h4>
+<ul><li><strong>Syntax:</strong> <code>regr_slope(y, x)</code></li><li><strong>Description:</strong> the slope b of the least-squares line y = a + b·x.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> pairs with a NULL are skipped; NULL when x never changes.</li><li><strong>Example:</strong> trend of the close per day: <code>SELECT symbol, regr_slope(close, datediff(&#39;d&#39;, &#39;2026-01-01&#39;, time)) FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="regr-intercept">regr_intercept</h4>
+<ul><li><strong>Syntax:</strong> <code>regr_intercept(y, x)</code></li><li><strong>Description:</strong> the a of the least-squares line y = a + b·x (the value of y where x = 0).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> as <code>regr_slope</code>.</li><li><strong>Example:</strong> <code>SELECT regr_intercept(close, volume) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="regr-r2">regr_r2</h4>
+<ul><li><strong>Syntax:</strong> <code>regr_r2(y, x)</code></li><li><strong>Description:</strong> R², how much of the change in y the line explains (0 = nothing, 1 = everything).</li><li><strong>Returns:</strong> DOUBLE from 0 to 1. <strong>NULLs:</strong> NULL when x never changes; 1 when y never changes but x does.</li><li><strong>Example:</strong> <code>SELECT regr_r2(close, volume) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="regr-count">regr_count</h4>
+<ul><li><strong>Syntax:</strong> <code>regr_count(y, x)</code></li><li><strong>Description:</strong> the number of rows where both y and x are not NULL.</li><li><strong>Returns:</strong> LONG. <strong>NULLs:</strong> 0 when there are no such rows.</li><li><strong>Example:</strong> <code>SELECT regr_count(close, volume) FROM candles</code></li></ul>
+<h4 id="regr-avgx">regr_avgx</h4>
+<ul><li><strong>Syntax:</strong> <code>regr_avgx(y, x)</code>, <code>regr_avgy(y, x)</code></li><li><strong>Description:</strong> the average of x (or y), using only rows where both are not NULL.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL with no pairs.</li><li><strong>Example:</strong> <code>SELECT regr_avgx(close, volume), regr_avgy(close, volume) FROM candles</code></li></ul>
+<h4 id="regr-sxx">regr_sxx</h4>
+<ul><li><strong>Syntax:</strong> <code>regr_sxx(y, x)</code>, <code>regr_syy(y, x)</code>, <code>regr_sxy(y, x)</code></li><li><strong>Description:</strong> Σ(x - avg x)², Σ(y - avg y)² and Σ(x - avg x)(y - avg y) over the pairs.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL with no pairs.</li><li><strong>Example:</strong> <code>SELECT regr_sxy(close, volume) / regr_sxx(close, volume) FROM candles</code> (the same as <code>regr_slope</code>)</li></ul>
+<h4 id="beta">beta</h4>
+<ul><li><strong>Syntax:</strong> <code>beta(asset_returns, market_returns)</code></li><li><strong>Description:</strong> beta of an asset against a benchmark: covariance / variance of the benchmark. Beta 1.2 means the asset moved 1.2 % when the market moved 1 %.</li><li><strong>Arguments:</strong> two columns of returns (for example from <code>pct_return</code>, see Part 3). Returns, not prices.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> pairs with a NULL are skipped; NULL with fewer than 2 pairs or when the benchmark never changes.</li><li><strong>Example:</strong> see <a href="#beta-against-a-benchmark">Beta against a benchmark</a>.</li></ul>
+<h4 id="alpha">alpha</h4>
+<ul><li><strong>Syntax:</strong> <code>alpha(asset_returns, market_returns [, risk_free])</code></li><li><strong>Description:</strong> Jensen&#39;s alpha per period: (average asset return - risk_free) - beta × (average market return - risk_free). risk_free is a return per period (default 0). Multiply by the periods in a year (for example 240 or 252 trading days) for a simple yearly number.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> as <code>beta</code>.</li><li><strong>Example:</strong> see <a href="#beta-against-a-benchmark">Beta against a benchmark</a>.</li></ul>
+<h3 id="shape-of-the-data">Shape of the data</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs / too few rows</th></tr></thead><tbody><tr><td><code>skewness</code> (<code>skew</code>)</td><td><code>skewness(x)</code></td><td>sample skewness (like Excel <code>SKEW</code>, pandas <code>skew</code>)</td><td>NULL with fewer than 3 values or no change</td></tr><tr><td><code>skewness_pop</code></td><td><code>skewness_pop(x)</code></td><td>population skewness</td><td>NULL with no change</td></tr><tr><td><code>kurtosis</code> (<code>kurt</code>)</td><td><code>kurtosis(x)</code></td><td>sample excess kurtosis (like Excel <code>KURT</code>, pandas <code>kurt</code>)</td><td>NULL with fewer than 4 values or no change</td></tr><tr><td><code>kurtosis_pop</code></td><td><code>kurtosis_pop(x)</code></td><td>population excess kurtosis</td><td>NULL with no change</td></tr><tr><td><code>geomean</code> (<code>geometric_mean</code>)</td><td><code>geomean(x)</code></td><td>geometric mean</td><td>NULL if a value is 0 or less</td></tr><tr><td><code>harmonic_mean</code></td><td><code>harmonic_mean(x)</code></td><td>harmonic mean</td><td>NULL if a value is 0 or less</td></tr><tr><td><code>mode</code></td><td><code>mode(x)</code> or <code>mode() WITHIN GROUP (ORDER BY x)</code></td><td>most frequent value</td><td>a tie gives the smallest value</td></tr><tr><td><code>percentile_cont</code> (<code>quantile_cont</code>)</td><td><code>percentile_cont(x, p)</code> or <code>percentile_cont(p) WITHIN GROUP (ORDER BY x)</code></td><td>value at fraction p, between values</td><td>p must be 0 to 1</td></tr><tr><td><code>percentile_disc</code> (<code>quantile_disc</code>)</td><td><code>percentile_disc(x, p)</code> or <code>... WITHIN GROUP (ORDER BY x)</code></td><td>first real value at or above fraction p</td><td>any type that can be sorted</td></tr><tr><td><code>median_abs_deviation</code> (<code>mad</code>)</td><td><code>mad(x)</code></td><td>median of |x - median|</td><td>NULL with no values</td></tr><tr><td><code>iqr</code></td><td><code>iqr(x)</code></td><td>75th minus 25th percentile</td><td>NULL with no values</td></tr><tr><td><code>range</code></td><td><code>range(x)</code></td><td>max - min (for times: milliseconds, for DATE: days)</td><td>NULL with no values</td></tr><tr><td><code>entropy</code></td><td><code>entropy(x)</code></td><td>Shannon entropy of the values, in bits</td><td>NULL with no values</td></tr></tbody></table></div>
+<h4 id="skewness">skewness</h4>
+<ul><li><strong>Syntax:</strong> <code>skewness(x)</code> (also <code>skew(x)</code>)</li><li><strong>Description:</strong> sample skewness, adjusted for the number of values (Fisher-Pearson G1, the same as Excel <code>SKEW</code> and pandas <code>skew()</code>). Positive: a long tail of big values. Negative: a long tail of small values.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped. NULL with fewer than 3 values or when all values are equal.</li><li><strong>Example:</strong> <code>SELECT symbol, round(skewness(r), 3) FROM (SELECT symbol, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) x GROUP BY symbol</code></li></ul>
+<h4 id="skewness-pop">skewness_pop</h4>
+<ul><li><strong>Syntax:</strong> <code>skewness_pop(x)</code></li><li><strong>Description:</strong> population skewness g1 = m3 / m2^1.5, without the adjustment.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when all values are equal.</li><li><strong>Example:</strong> <code>SELECT skewness_pop(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="kurtosis">kurtosis</h4>
+<ul><li><strong>Syntax:</strong> <code>kurtosis(x)</code> (also <code>kurt(x)</code>)</li><li><strong>Description:</strong> sample excess kurtosis (G2, the same as Excel <code>KURT</code> and pandas <code>kurt()</code>). 0 is like a normal distribution; bigger means more extreme values (&quot;fat tails&quot;).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL with fewer than 4 values or when all values are equal.</li><li><strong>Example:</strong> <code>SELECT kurtosis(r) FROM (SELECT pct_return(close) AS r FROM candles WHERE symbol = &#39;TELCO&#39;) x</code></li></ul>
+<h4 id="kurtosis-pop">kurtosis_pop</h4>
+<ul><li><strong>Syntax:</strong> <code>kurtosis_pop(x)</code></li><li><strong>Description:</strong> population excess kurtosis g2 = m4 / m2² - 3.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when all values are equal.</li><li><strong>Example:</strong> <code>SELECT kurtosis_pop(close) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="geomean">geomean</h4>
+<ul><li><strong>Syntax:</strong> <code>geomean(x)</code> (also <code>geometric_mean(x)</code>)</li><li><strong>Description:</strong> the n-th root of the product of n values. For growth rates use <code>geomean(1 + r) - 1</code>.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped. NULL when any value is 0 or less.</li><li><strong>Example:</strong> <code>SELECT geomean(1 + r) - 1 AS avg_daily_growth FROM (SELECT pct_return(close) AS r FROM candles WHERE symbol = &#39;VOLT&#39;) x</code></li></ul>
+<h4 id="harmonic-mean">harmonic_mean</h4>
+<ul><li><strong>Syntax:</strong> <code>harmonic_mean(x)</code></li><li><strong>Description:</strong> n / Σ(1/x). The right average for ratios like P/E.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped. NULL when any value is 0 or less.</li><li><strong>Example:</strong> <code>SELECT harmonic_mean(close) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="mode">mode</h4>
+<ul><li><strong>Syntax:</strong> <code>mode(x)</code> or <code>mode() WITHIN GROUP (ORDER BY x)</code></li><li><strong>Description:</strong> the value that appears most often. Works for any type (numbers, text, times).</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> NULL values are skipped. A tie gives the smallest value.</li><li><strong>Example:</strong> <code>SELECT mode(round(close, 0)) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="percentile-cont">percentile_cont</h4>
+<ul><li><strong>Syntax:</strong> <code>percentile_cont(x, p)</code> or <code>percentile_cont(p) WITHIN GROUP (ORDER BY x)</code>; also <code>quantile_cont</code></li><li><strong>Description:</strong> the value at fraction p of the sorted values, with linear interpolation between two values (the same rule as <code>median</code> and <code>percentile</code>). <code>p = 0.5</code> is the median.</li><li><strong>Arguments:</strong> x: numbers. p: a constant from 0 to 1 (the older <code>percentile(x, p)</code> also accepts 90 for 0.9; this one does not).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped. A NULL p gives NULL. <code>WITHIN GROUP (ORDER BY x DESC)</code> is not supported: use 1 - p.</li><li><strong>Example:</strong> <code>SELECT percentile_cont(0.9) WITHIN GROUP (ORDER BY volume) FROM candles</code></li></ul>
+<h4 id="percentile-disc">percentile_disc</h4>
+<ul><li><strong>Syntax:</strong> <code>percentile_disc(x, p)</code> or <code>percentile_disc(p) WITHIN GROUP (ORDER BY x)</code>; also <code>quantile_disc</code></li><li><strong>Description:</strong> the first sorted value whose position is at or above fraction p. It is always one of the real values, so it also works for text and times.</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> NULL values are skipped.</li><li><strong>Example:</strong> <code>SELECT percentile_disc(0.5) WITHIN GROUP (ORDER BY time) FROM candles</code></li></ul>
+<h4 id="median-abs-deviation">median_abs_deviation</h4>
+<ul><li><strong>Syntax:</strong> <code>median_abs_deviation(x)</code> (also <code>mad(x)</code>)</li><li><strong>Description:</strong> the median of the distances from the median. A robust measure of spread (not changed much by one extreme value). Multiply by 1.4826 to compare with a standard deviation.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped.</li><li><strong>Example:</strong> <code>SELECT symbol, mad(close) FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="iqr">iqr</h4>
+<ul><li><strong>Syntax:</strong> <code>iqr(x)</code></li><li><strong>Description:</strong> interquartile range: <code>percentile_cont(x, 0.75) - percentile_cont(x, 0.25)</code>.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped.</li><li><strong>Example:</strong> <code>SELECT iqr(volume) FROM candles</code></li></ul>
+<h4 id="range">range</h4>
+<ul><li><strong>Syntax:</strong> <code>range(x)</code></li><li><strong>Description:</strong> <code>max(x) - min(x)</code>. Whole numbers stay whole numbers. For TIMESTAMP values it gives milliseconds, for DATE values days.</li><li><strong>Returns:</strong> LONG, DECIMAL or DOUBLE. <strong>NULLs:</strong> NULL values are skipped.</li><li><strong>Example:</strong> daily price range: <code>SELECT time, symbol, range(close) FROM ochl_minutes SAMPLE BY 1d</code></li></ul>
+<h4 id="entropy">entropy</h4>
+<ul><li><strong>Syntax:</strong> <code>entropy(x)</code></li><li><strong>Description:</strong> Shannon entropy of the distribution of values, in bits: -Σ p·log2(p). 0 means every value is the same.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped.</li><li><strong>Example:</strong> <code>SELECT entropy(buyer) FROM trade_log WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h3 id="counting-conditions-and-picking-rows">Counting, conditions and picking rows</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs</th></tr></thead><tbody><tr><td><code>count_if</code></td><td><code>count_if(condition)</code></td><td>rows where the condition is true</td><td>0 with no rows</td></tr><tr><td><code>sum_if</code></td><td><code>sum_if(x, condition)</code></td><td>sum of x where the condition is true</td><td>NULL when no row matches</td></tr><tr><td><code>avg_if</code></td><td><code>avg_if(x, condition)</code></td><td>average of x where the condition is true</td><td>NULL when no row matches</td></tr><tr><td><code>bool_and</code> (<code>every</code>)</td><td><code>bool_and(b)</code></td><td>true if every value is true</td><td>NULL values skipped</td></tr><tr><td><code>bool_or</code></td><td><code>bool_or(b)</code></td><td>true if any value is true</td><td>NULL values skipped</td></tr><tr><td><code>arg_min</code> (<code>argmin</code>, <code>min_by</code>)</td><td><code>arg_min(x, y)</code></td><td>x of the row with the smallest y</td><td>rows with NULL y skipped</td></tr><tr><td><code>arg_max</code> (<code>argmax</code>, <code>max_by</code>)</td><td><code>arg_max(x, y)</code></td><td>x of the row with the biggest y</td><td>rows with NULL y skipped</td></tr><tr><td><code>approx_count_distinct</code></td><td><code>approx_count_distinct(x)</code></td><td>number of different values (exact in KDB)</td><td>0 with no rows</td></tr><tr><td><code>sum_of_squares</code></td><td><code>sum_of_squares(x)</code></td><td>Σx²</td><td>NULL with no values</td></tr><tr><td><code>product</code></td><td><code>product(x)</code></td><td>x1 × x2 × ...</td><td>NULL with no values, or when too big</td></tr><tr><td><code>weighted_avg</code> (<code>wavg</code>)</td><td><code>weighted_avg(x, weight)</code></td><td>Σ(x·weight) / Σweight</td><td>NULL when the weights add up to 0</td></tr><tr><td><code>twap</code></td><td><code>twap(price, time)</code></td><td>time-weighted average price</td><td>NULL with no rows</td></tr></tbody></table></div>
+<h4 id="count-if">count_if</h4>
+<ul><li><strong>Syntax:</strong> <code>count_if(condition)</code></li><li><strong>Description:</strong> counts the rows where the condition is true. The same as <code>count(CASE WHEN condition THEN 1 END)</code>.</li><li><strong>Returns:</strong> LONG. <strong>NULLs:</strong> a NULL condition is not counted. 0 with no rows.</li><li><strong>Example:</strong> up days per symbol: <code>SELECT symbol, count_if(close &gt; open) AS up_days, count(*) AS days FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="sum-if">sum_if</h4>
+<ul><li><strong>Syntax:</strong> <code>sum_if(x, condition)</code></li><li><strong>Description:</strong> the sum of x over the rows where the condition is true. Whole numbers stay whole numbers.</li><li><strong>Returns:</strong> like <code>sum</code>. <strong>NULLs:</strong> NULL x values and rows where the condition is false or NULL are skipped. NULL when nothing is added.</li><li><strong>Example:</strong> <code>SELECT symbol, sum_if(volume, close &gt; open) AS up_volume FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="avg-if">avg_if</h4>
+<ul><li><strong>Syntax:</strong> <code>avg_if(x, condition)</code></li><li><strong>Description:</strong> the average of x over the rows where the condition is true.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> as <code>sum_if</code>.</li><li><strong>Example:</strong> <code>SELECT avg_if(close - open, close &gt; open) FROM candles</code></li></ul>
+<h4 id="bool-and">bool_and</h4>
+<ul><li><strong>Syntax:</strong> <code>bool_and(b)</code> (also <code>every(b)</code>)</li><li><strong>Description:</strong> true when every value is true.</li><li><strong>Returns:</strong> BOOL. <strong>NULLs:</strong> NULL values are skipped; NULL with no values.</li><li><strong>Example:</strong> did the price go up every day this week? <code>SELECT symbol, bool_and(close &gt; open) FROM candles WHERE time &gt;= &#39;2026-09-06&#39; GROUP BY symbol</code></li></ul>
+<h4 id="bool-or">bool_or</h4>
+<ul><li><strong>Syntax:</strong> <code>bool_or(b)</code></li><li><strong>Description:</strong> true when at least one value is true.</li><li><strong>Returns:</strong> BOOL. <strong>NULLs:</strong> as <code>bool_and</code>.</li><li><strong>Example:</strong> <code>SELECT symbol, bool_or(high &gt; 1000) FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="arg-min">arg_min</h4>
+<ul><li><strong>Syntax:</strong> <code>arg_min(x, y)</code> (also <code>argmin</code>, <code>min_by</code>)</li><li><strong>Description:</strong> the value of x in the row where y is smallest. On a tie, the earliest row (by time) wins.</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> rows where y is NULL are skipped; x may be NULL.</li><li><strong>Example:</strong> the day of the lowest close: <code>SELECT symbol, arg_min(time, close) FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="arg-max">arg_max</h4>
+<ul><li><strong>Syntax:</strong> <code>arg_max(x, y)</code> (also <code>argmax</code>, <code>max_by</code>)</li><li><strong>Description:</strong> the value of x in the row where y is biggest. On a tie, the earliest row wins.</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> as <code>arg_min</code>.</li><li><strong>Example:</strong> <code>SELECT symbol, arg_max(time, volume) AS busiest_day FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="approx-count-distinct">approx_count_distinct</h4>
+<ul><li><strong>Syntax:</strong> <code>approx_count_distinct(x)</code></li><li><strong>Description:</strong> the number of different values. KDB counts exactly; the name is for programs written for other databases.</li><li><strong>Returns:</strong> LONG. <strong>NULLs:</strong> NULL values are not counted; 0 with no rows.</li><li><strong>Example:</strong> <code>SELECT approx_count_distinct(buyer) FROM trade_log</code></li></ul>
+<h4 id="sum-of-squares">sum_of_squares</h4>
+<ul><li><strong>Syntax:</strong> <code>sum_of_squares(x)</code></li><li><strong>Description:</strong> Σx² (not the differences from the average: for those use <code>regr_sxx(x, x)</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped.</li><li><strong>Example:</strong> <code>SELECT sqrt(sum_of_squares(r) / count(r)) FROM (SELECT pct_return(close) AS r FROM candles WHERE symbol = &#39;CITY&#39;) x</code></li></ul>
+<h4 id="product">product</h4>
+<ul><li><strong>Syntax:</strong> <code>product(x)</code></li><li><strong>Description:</strong> all values multiplied. For a total return: <code>product(1 + r) - 1</code>.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped. NULL when the result is too big for a DOUBLE.</li><li><strong>Example:</strong> <code>SELECT product(1 + r) - 1 AS total_return FROM (SELECT pct_return(close) AS r FROM candles WHERE symbol = &#39;COAST&#39;) x</code></li></ul>
+<h4 id="weighted-avg">weighted_avg</h4>
+<ul><li><strong>Syntax:</strong> <code>weighted_avg(x, weight)</code> (also <code>wavg</code>)</li><li><strong>Description:</strong> Σ(x × weight) / Σweight. <code>vwap(price, volume)</code> is the same with the volume as weight.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> rows where x or weight is NULL are skipped. NULL when the weights add up to 0.</li><li><strong>Example:</strong> <code>SELECT weighted_avg(rate, quantity) FROM trade_log WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="twap">twap</h4>
+<ul><li><strong>Syntax:</strong> <code>twap(price, time)</code></li><li><strong>Description:</strong> time-weighted average price. Each price counts for the time until the next price. The last price has no time after it, so it does not count (unless it is the only price). When every price has the same time, the plain average.</li><li><strong>Arguments:</strong> price: numbers. time: TIMESTAMP, DATE or milliseconds.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> rows where price or time is NULL are skipped.</li><li><strong>Example:</strong> <code>SELECT symbol, twap(ltp, timestamp) FROM live_data GROUP BY symbol</code></li></ul>
+<h3 id="text-and-json-lists">Text and JSON lists</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs</th></tr></thead><tbody><tr><td><code>string_agg</code></td><td><code>string_agg(x, separator)</code></td><td>values joined as text, in time order</td><td>NULL values skipped</td></tr><tr><td><code>listagg</code></td><td><code>listagg(x [, separator])</code></td><td>the same; separator default <code>,</code></td><td>NULL values skipped</td></tr><tr><td><code>array_agg</code> (<code>json_agg</code>)</td><td><code>array_agg(x)</code></td><td>a JSON array of the values, in time order</td><td>NULL values become <code>null</code></td></tr></tbody></table></div>
+<h4 id="string-agg">string_agg</h4>
+<ul><li><strong>Syntax:</strong> <code>string_agg(x, separator)</code>; <code>string_agg(DISTINCT x, separator)</code> for different values only</li><li><strong>Description:</strong> joins the values as text. The rows are joined in time order (the table&#39;s time column), or in the order they were read for tables without one.</li><li><strong>Returns:</strong> STRING. <strong>NULLs:</strong> NULL values are skipped. NULL when there is nothing to join.</li><li><strong>Example:</strong> <code>SELECT sector, string_agg(symbol, &#39;, &#39;) FROM securities GROUP BY sector</code></li></ul>
+<h4 id="listagg">listagg</h4>
+<ul><li><strong>Syntax:</strong> <code>listagg(x [, separator])</code></li><li><strong>Description:</strong> the same as <code>string_agg</code>; the separator is <code>,</code> when not given (Oracle&#39;s name).</li><li><strong>Returns:</strong> STRING. <strong>NULLs:</strong> as <code>string_agg</code>.</li><li><strong>Example:</strong> <code>SELECT listagg(symbol) FROM securities</code></li></ul>
+<h4 id="array-agg">array_agg</h4>
+<ul><li><strong>Syntax:</strong> <code>array_agg(x)</code> (also <code>json_agg(x)</code>)</li><li><strong>Description:</strong> a JSON array of all values, in time order. Use the JSON functions of chapter 18 to read it.</li><li><strong>Returns:</strong> JSON. <strong>NULLs:</strong> NULL values become <code>null</code> in the array. NULL with no rows.</li><li><strong>Example:</strong> <code>SELECT symbol, array_agg(close) FROM candles WHERE time &gt;= &#39;2026-09-06&#39; GROUP BY symbol</code></li></ul>
+<h3 id="risk-aggregates">Risk aggregates</h3>
+<p>These work on a column of <strong>returns</strong> (for example <code>pct_return(close)</code>, Part 3), in time order. Use a subquery to make the returns first. <code>periods</code> is the number of periods in one year: about 240 or 252 trading days (it depends on the exchange), 52 for weeks, 12 for months.</p>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs / too few rows</th></tr></thead><tbody><tr><td><code>sharpe_ratio</code></td><td><code>sharpe_ratio(r [, risk_free [, periods]])</code></td><td>(average r - risk_free) / standard deviation × √periods</td><td>NULL with fewer than 2 returns or no change</td></tr><tr><td><code>sortino_ratio</code></td><td><code>sortino_ratio(r [, target [, periods]])</code></td><td>like Sharpe, but only falls below target count as risk</td><td>NULL when no return is below target</td></tr><tr><td><code>calmar_ratio</code></td><td><code>calmar_ratio(r, periods)</code></td><td>yearly growth / largest drawdown</td><td>NULL when there is no drawdown</td></tr><tr><td><code>information_ratio</code></td><td><code>information_ratio(r, benchmark_r [, periods])</code></td><td>average extra return / its standard deviation × √periods</td><td>NULL with fewer than 2 pairs</td></tr><tr><td><code>max_drawdown</code></td><td><code>max_drawdown(price)</code></td><td>largest fall from a peak, as a negative fraction</td><td>NULL if a price is 0 or less</td></tr><tr><td><code>value_at_risk</code></td><td><code>value_at_risk(r, confidence)</code></td><td>loss that is not passed with this confidence (historical)</td><td>NULL with no returns</td></tr><tr><td><code>expected_shortfall</code></td><td><code>expected_shortfall(r, confidence)</code></td><td>average loss in the worst cases beyond value at risk</td><td>NULL with no returns</td></tr></tbody></table></div>
+<h4 id="sharpe-ratio">sharpe_ratio</h4>
+<ul><li><strong>Syntax:</strong> <code>sharpe_ratio(r [, risk_free [, periods]])</code></li><li><strong>Description:</strong> (average of r - risk_free) / sample standard deviation of r × √periods. risk_free is a return per period (default 0). periods default 1 (no yearly scaling). The same definition as the Python package empyrical.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL returns are skipped. NULL with fewer than 2 returns or when every return is the same.</li><li><strong>Example:</strong> <code>SELECT symbol, round(sharpe_ratio(r, 0, 240), 2) FROM (SELECT symbol, time, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) x GROUP BY symbol</code></li></ul>
+<h4 id="sortino-ratio">sortino_ratio</h4>
+<ul><li><strong>Syntax:</strong> <code>sortino_ratio(r [, target [, periods]])</code></li><li><strong>Description:</strong> (average of r - target) / downside deviation × √periods. The downside deviation is √(average of min(0, r - target)²) over all returns (as empyrical). target default 0, periods default 1.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL returns are skipped. NULL when no return is below the target.</li><li><strong>Example:</strong> <code>SELECT sortino_ratio(r, 0, 240) FROM (SELECT time, pct_return(close) AS r FROM candles WHERE symbol = &#39;CITY&#39;) x</code></li></ul>
+<h4 id="calmar-ratio">calmar_ratio</h4>
+<ul><li><strong>Syntax:</strong> <code>calmar_ratio(r, periods)</code></li><li><strong>Description:</strong> yearly growth rate / |max drawdown|. Wealth starts at 1 and is multiplied by (1 + r) for each return in time order. Yearly growth = wealth^(periods / number of returns) - 1. The drawdown is measured on that wealth, from the start value 1.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL returns are skipped. NULL when the wealth never falls, or falls to 0 or less.</li><li><strong>Example:</strong> <code>SELECT calmar_ratio(r, 240) FROM (SELECT time, pct_return(close) AS r FROM candles WHERE symbol = &#39;VOLT&#39;) x</code></li></ul>
+<h4 id="information-ratio">information_ratio</h4>
+<ul><li><strong>Syntax:</strong> <code>information_ratio(r, benchmark_r [, periods])</code></li><li><strong>Description:</strong> average of (r - benchmark_r) / sample standard deviation of (r - benchmark_r) × √periods.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> pairs with a NULL are skipped; NULL with fewer than 2 pairs.</li><li><strong>Example:</strong> see <a href="#beta-against-a-benchmark">Beta against a benchmark</a>.</li></ul>
+<h4 id="max-drawdown">max_drawdown</h4>
+<ul><li><strong>Syntax:</strong> <code>max_drawdown(price)</code></li><li><strong>Description:</strong> the largest fall from a previous peak, in time order, as a fraction: -0.25 means the price fell 25 % below its highest point. 0 when the price never fell. Works on <strong>prices</strong> (for returns use <code>calmar_ratio</code>, or <code>product</code> in a subquery).</li><li><strong>Returns:</strong> DOUBLE, 0 or less. <strong>NULLs:</strong> NULL prices are skipped. NULL when a price is 0 or less.</li><li><strong>Example:</strong> <code>SELECT symbol, round(max_drawdown(close) * 100, 1) AS max_dd_pct FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="value-at-risk">value_at_risk</h4>
+<ul><li><strong>Syntax:</strong> <code>value_at_risk(r, confidence)</code></li><li><strong>Description:</strong> historical value at risk: the loss (as a positive number) that the returns did not pass in <code>confidence</code> of the cases. It is <code>-percentile_cont(r, 1 - confidence)</code>. 0.03 with confidence 0.95 means: on 95 % of days the loss was 3 % or less.</li><li><strong>Arguments:</strong> confidence: more than 0 and less than 1, like 0.95 or 0.99.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL returns are skipped.</li><li><strong>Example:</strong> <code>SELECT symbol, value_at_risk(r, 0.95) FROM (SELECT symbol, time, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) x GROUP BY symbol</code></li></ul>
+<h4 id="expected-shortfall">expected_shortfall</h4>
+<ul><li><strong>Syntax:</strong> <code>expected_shortfall(r, confidence)</code></li><li><strong>Description:</strong> conditional value at risk: the average of the returns at or below the value-at-risk level, as a positive loss.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL returns are skipped.</li><li><strong>Example:</strong> <code>SELECT expected_shortfall(r, 0.95) FROM (SELECT time, pct_return(close) AS r FROM candles WHERE symbol = &#39;TELCO&#39;) x</code></li></ul>
+<h3 id="money-over-time">Money over time</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs</th></tr></thead><tbody><tr><td><code>xnpv</code></td><td><code>xnpv(rate, amount, date)</code></td><td>net present value of cash flows on dates (Excel <code>XNPV</code>)</td><td>rows with NULL skipped</td></tr><tr><td><code>xirr</code></td><td><code>xirr(amount, date [, guess])</code></td><td>yearly rate that makes XNPV 0 (Excel <code>XIRR</code>)</td><td>NULL without both signs</td></tr></tbody></table></div>
+<h4 id="xnpv">xnpv</h4>
+<ul><li><strong>Syntax:</strong> <code>xnpv(rate, amount, date)</code></li><li><strong>Description:</strong> Σ amount / (1 + rate)^(days since the first date / 365), like Excel <code>XNPV</code>. The first date is the earliest date.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> rows with a NULL amount or date are skipped. NULL when rate is -1 or less.</li><li><strong>Example:</strong> <code>SELECT xnpv(0.09, amount, d) FROM cash_flows</code> (a table with an <code>amount</code> DOUBLE and a <code>d</code> DATE column)</li></ul>
+<h4 id="xirr">xirr</h4>
+<ul><li><strong>Syntax:</strong> <code>xirr(amount, date [, guess])</code></li><li><strong>Description:</strong> the yearly rate r where <code>xnpv(r, amount, date)</code> is 0, like Excel <code>XIRR</code>. Money you pay is negative, money you get is positive. Useful for the real return of a stock portfolio with buys, dividends and sells on different dates.</li><li><strong>Returns:</strong> DOUBLE (0.12 = 12 % per year). <strong>NULLs:</strong> rows with a NULL are skipped. NULL when all amounts have the same sign or no rate is found.</li><li><strong>Example:</strong> <code>SELECT xirr(amount, d) FROM cash_flows</code> (for Excel&#39;s example -10000, 2750, 4250, 3250, 2750 the result is 0.3733625...)</li></ul>
+<hr>
+<h2 id="part-2-window-functions">Part 2: Window functions</h2>
+<h3 id="over-and-frames">OVER and frames</h3>
+<p>A window function gets <code>OVER (...)</code>:</p>
+<pre><code class="language-sql">fn(...) OVER ([PARTITION BY expr, ...] [ORDER BY expr [ASC|DESC], ...] [frame])</code></pre>
+<p>The <strong>frame</strong> says which rows of the partition each row looks at. Aggregates (<code>sum</code>, <code>avg</code>, <code>corr</code>, ...), <code>first_value</code>, <code>last_value</code>, <code>nth_value</code>, <code>zscore</code> and <code>minmax_scale</code> use the frame. Ranks, <code>lag</code>, <code>lead</code> and the indicators ignore it.</p>
+<div class="table-wrap"><table><thead><tr><th>Frame</th><th>Rows for each row</th></tr></thead><tbody><tr><td>no frame, no <code>ORDER BY</code></td><td>the whole partition</td></tr><tr><td>no frame, with <code>ORDER BY</code></td><td>from the first row of the partition to this row (running)</td></tr><tr><td><code>ROWS n PRECEDING</code></td><td>this row and n rows before it</td></tr><tr><td><code>ROWS BETWEEN n PRECEDING AND m FOLLOWING</code></td><td>n rows before to m rows after</td></tr><tr><td><code>ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING</code></td><td>this row to the last row</td></tr><tr><td><code>ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING</code></td><td>the 5 rows before, without this row</td></tr><tr><td><code>RANGE BETWEEN &#39;5 days&#39; PRECEDING AND CURRENT ROW</code></td><td>rows whose time is at most 5 days before this row&#39;s time</td></tr><tr><td><code>RANGE BETWEEN 10 PRECEDING AND 10 FOLLOWING</code></td><td>rows whose ORDER BY value is within 10 of this row&#39;s value</td></tr><tr><td><code>RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING</code></td><td>this row, rows with the same ORDER BY value, and all after</td></tr></tbody></table></div>
+<p>Rules:</p>
+<ul><li>Bounds: <code>UNBOUNDED PRECEDING</code>, <code>n PRECEDING</code>, <code>CURRENT ROW</code>, <code>n FOLLOWING</code>, <code>UNBOUNDED FOLLOWING</code>. The end must not be before the start.</li><li><code>ROWS n PRECEDING</code> without <code>BETWEEN</code> means <code>ROWS BETWEEN n PRECEDING AND CURRENT ROW</code>. <code>RANGE ... PRECEDING</code> alone is the same for RANGE.</li><li><code>RANGE</code> with a distance needs exactly one <code>ORDER BY</code> value, a number or a time. For TIMESTAMP write text like <code>&#39;5 days&#39;</code>, <code>&#39;2 hours&#39;</code>, <code>&#39;30 minutes&#39;</code>, <code>&#39;1 week&#39;</code> (or <code>INTERVAL &#39;5 days&#39;</code>), or a number of milliseconds. For DATE a number is days. Months and years are not supported (they have no fixed length).</li><li>With <code>RANGE</code>, <code>CURRENT ROW</code> includes the rows with the <strong>same</strong> ORDER BY value (peers). A row with a NULL ORDER BY value has the other NULL rows as its peers.</li><li>A frame with no rows gives NULL (<code>count</code> gives 0).</li><li>Frames that start at the first row, or end at the last row, are computed in one pass. Other <code>BETWEEN</code> frames add up every frame again: <code>ROWS BETWEEN 200 PRECEDING AND 200 FOLLOWING</code> on a million rows is slow.</li></ul>
+<p>Example: the average close of the week around each day, and the volume of the last 7 calendar days (there are no candles on Fridays and Saturdays, so 7 days are 5 rows):</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(avg(close) OVER (ORDER BY time ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING), 2) AS centered_avg,
+       sum(volume) OVER (ORDER BY time RANGE BETWEEN &#39;6 days&#39; PRECEDING AND CURRENT ROW) AS volume_7d
+FROM candles WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-25&#39;;</code></pre>
+<p>02-frames.sql:</p>
+<pre><code class="language-text">time                     | close | centered_avg | volume_7d
+-------------------------+-------+--------------+----------
+2026-08-25T00:00:00.000Z | 423.5 |       413.83 |     68026
+2026-08-26T00:00:00.000Z | 413.6 |       407.23 |    126161
+2026-08-27T00:00:00.000Z | 404.4 |       402.96 |    179019
+2026-08-30T00:00:00.000Z | 387.4 |        395.5 |    257039
+2026-08-31T00:00:00.000Z | 385.9 |       390.38 |    337039
+2026-09-01T00:00:00.000Z | 386.2 |       387.62 |    346933
+2026-09-02T00:00:00.000Z |   388 |       389.42 |    360859
+2026-09-03T00:00:00.000Z | 390.6 |       391.38 |    371217
+2026-09-06T00:00:00.000Z | 396.4 |       392.76 |    361444
+2026-09-07T00:00:00.000Z | 395.7 |       392.86 |    357067
+2026-09-08T00:00:00.000Z | 393.1 |       391.16 |    358678
+2026-09-09T00:00:00.000Z | 388.5 |       389.85 |    366060
+2026-09-10T00:00:00.000Z | 382.1 |        387.9 |    378213
+(13 rows, 4.9 ms)</code></pre>
+<h3 id="ranking-and-position">Ranking and position</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs</th></tr></thead><tbody><tr><td><code>row_number</code>, <code>rank</code>, <code>dense_rank</code></td><td><code>rank() OVER (...)</code></td><td>see chapter 5</td><td>NULL ORDER BY values sort last</td></tr><tr><td><code>percent_rank</code></td><td><code>percent_rank() OVER (...)</code></td><td>(rank - 1) / (rows - 1), 0 to 1</td><td>one row gives 0</td></tr><tr><td><code>cume_dist</code></td><td><code>cume_dist() OVER (...)</code></td><td>share of rows at or before this row&#39;s value, 0 to 1</td><td></td></tr><tr><td><code>ntile</code></td><td><code>ntile(n) OVER (...)</code></td><td>bucket number 1..n of about equal size</td><td></td></tr><tr><td><code>first_value</code></td><td><code>first_value(x) OVER (...)</code></td><td>x of the first row of the frame</td><td>may be NULL</td></tr><tr><td><code>last_value</code></td><td><code>last_value(x) OVER (...)</code></td><td>x of the last row of the frame</td><td>may be NULL</td></tr><tr><td><code>nth_value</code></td><td><code>nth_value(x, n) OVER (...)</code></td><td>x of the n-th row of the frame</td><td>NULL when the frame is shorter</td></tr><tr><td><code>lag</code>, <code>lead</code></td><td><code>lag(x [, k [, default]])</code></td><td>x of k rows before (after)</td><td>default when there is no such row</td></tr></tbody></table></div>
+<h4 id="percent-rank">percent_rank</h4>
+<ul><li><strong>Syntax:</strong> <code>percent_rank() OVER ([PARTITION BY ...] ORDER BY ...)</code></li><li><strong>Description:</strong> relative rank: (rank - 1) / (rows in the partition - 1). The first row is 0, the last 1. Equal values get the same number.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL ORDER BY values sort last. A partition of one row gives 0.</li><li><strong>Example:</strong> <code>SELECT symbol, time, percent_rank() OVER (PARTITION BY time ORDER BY volume) FROM candles WHERE time = &#39;2026-09-10&#39;</code></li></ul>
+<h4 id="cume-dist">cume_dist</h4>
+<ul><li><strong>Syntax:</strong> <code>cume_dist() OVER ([PARTITION BY ...] ORDER BY ...)</code></li><li><strong>Description:</strong> cumulative distribution: (rows with a value before or equal to this row&#39;s value) / rows in the partition.</li><li><strong>Returns:</strong> DOUBLE, more than 0 up to 1. <strong>NULLs:</strong> NULL ORDER BY values sort last.</li><li><strong>Example:</strong> <code>SELECT time, close, cume_dist() OVER (ORDER BY close) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="ntile">ntile</h4>
+<ul><li><strong>Syntax:</strong> <code>ntile(n) OVER ([PARTITION BY ...] ORDER BY ...)</code></li><li><strong>Description:</strong> splits the rows into n buckets numbered 1 to n. When the rows do not divide evenly, the first buckets get one row more (as PostgreSQL).</li><li><strong>Arguments:</strong> n: a whole number, 1 or more.</li><li><strong>Returns:</strong> LONG.</li><li><strong>Example:</strong> quartile of today&#39;s volume: <code>SELECT symbol, ntile(4) OVER (ORDER BY volume DESC) FROM candles WHERE time = &#39;2026-09-10&#39;</code></li></ul>
+<h4 id="first-value">first_value</h4>
+<ul><li><strong>Syntax:</strong> <code>first_value(x) OVER (...)</code></li><li><strong>Description:</strong> the value of x in the first row of the frame. Unlike <code>first(x)</code>, NULL is not skipped.</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> NULL when that row&#39;s x is NULL, or the frame is empty.</li><li><strong>Example:</strong> <code>SELECT time, close, close / first_value(close) OVER (PARTITION BY symbol ORDER BY time) - 1 AS since_start FROM candles</code></li></ul>
+<h4 id="last-value">last_value</h4>
+<ul><li><strong>Syntax:</strong> <code>last_value(x) OVER (...)</code></li><li><strong>Description:</strong> the value of x in the last row of the frame. With the default running frame that is the current row; use <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> for the last row of the partition.</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> NULL when that row&#39;s x is NULL, or the frame is empty.</li><li><strong>Example:</strong> <code>SELECT time, last_value(close) OVER (PARTITION BY symbol ORDER BY time ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM candles</code></li></ul>
+<h4 id="nth-value">nth_value</h4>
+<ul><li><strong>Syntax:</strong> <code>nth_value(x, n) OVER (...)</code></li><li><strong>Description:</strong> the value of x in the n-th row of the frame (1 = first).</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> NULL when the frame has fewer than n rows.</li><li><strong>Example:</strong> <code>SELECT time, nth_value(close, 2) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<h4 id="lag">lag</h4>
+<ul><li><strong>Syntax:</strong> <code>lag(x [, k [, default]])</code>, <code>lead(x [, k [, default]])</code></li><li><strong>Description:</strong> the value of x k rows before (lag) or after (lead) this row; k default 1. The third argument is new: the value to use when there is no such row (instead of NULL). It is evaluated for the current row.</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> NULL (or the default) at the start (lag) or end (lead) of the partition.</li><li><strong>Example:</strong> <code>SELECT time, close - lag(close, 1, open) OVER (PARTITION BY symbol ORDER BY time) AS change FROM candles</code></li></ul>
+<h3 id="cumulative-values">Cumulative values</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>NULLs</th></tr></thead><tbody><tr><td><code>cumsum</code></td><td><code>cumsum(x)</code></td><td>running total (chapter 5)</td><td>NULL values skipped</td></tr><tr><td><code>cumprod</code></td><td><code>cumprod(x)</code></td><td>running product</td><td>NULL values skipped; NULL before the first value</td></tr><tr><td><code>cummax</code></td><td><code>cummax(x)</code></td><td>highest value so far</td><td>NULL values skipped</td></tr><tr><td><code>cummin</code></td><td><code>cummin(x)</code></td><td>lowest value so far</td><td>NULL values skipped</td></tr></tbody></table></div>
+<h4 id="cumprod">cumprod</h4>
+<ul><li><strong>Syntax:</strong> <code>cumprod(x)</code> or <code>cumprod(x) OVER (PARTITION BY ... ORDER BY ...)</code></li><li><strong>Description:</strong> the product of all values from the first row to this row (pandas <code>cumprod</code>). For growth of 1 dollar: <code>cumprod(1 + r)</code>.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL values are skipped (the product stays). NULL before the first value.</li><li><strong>Example:</strong> <code>SELECT time, cumprod(1 + r) FROM (SELECT time, pct_return(close) AS r FROM candles WHERE symbol = &#39;CITY&#39;) x</code></li></ul>
+<h4 id="cummax">cummax</h4>
+<ul><li><strong>Syntax:</strong> <code>cummax(x)</code> or <code>cummax(x) OVER (...)</code></li><li><strong>Description:</strong> the highest value from the first row to this row (any type that can be compared).</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> NULL values are skipped. NULL before the first value.</li><li><strong>Example:</strong> <code>SELECT time, close, cummax(high) OVER (PARTITION BY symbol ORDER BY time) AS highest_so_far FROM candles</code></li></ul>
+<h4 id="cummin">cummin</h4>
+<ul><li><strong>Syntax:</strong> <code>cummin(x)</code> or <code>cummin(x) OVER (...)</code></li><li><strong>Description:</strong> the lowest value from the first row to this row.</li><li><strong>Returns:</strong> the type of x. <strong>NULLs:</strong> as <code>cummax</code>.</li><li><strong>Example:</strong> <code>SELECT time, cummin(low) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<hr>
+<h2 id="part-3-returns-and-risk-series">Part 3: Returns and risk (series)</h2>
+<p>These run over the rows in time order, like <code>sma</code>. Use <code>OVER (PARTITION BY symbol ORDER BY time)</code> for many symbols.</p>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>First value / NULLs</th></tr></thead><tbody><tr><td><code>pct_return</code> (<code>returns</code>, <code>percent_return</code>)</td><td><code>pct_return(price [, k])</code></td><td>price / price k rows before - 1</td><td>row k+1; NULL when a price is NULL or the old one is 0</td></tr><tr><td><code>log_return</code></td><td><code>log_return(price [, k])</code></td><td>ln(price / price k rows before)</td><td>row k+1; NULL when the ratio is 0 or less</td></tr><tr><td><code>pct_change</code></td><td><code>pct_change(price)</code></td><td>the same as <code>pct_return × 100</code> (chapter 5)</td><td>row 2</td></tr><tr><td><code>cum_return</code></td><td><code>cum_return(price)</code></td><td>price / first price - 1</td><td>row 1</td></tr><tr><td><code>drawdown</code></td><td><code>drawdown(price)</code></td><td>price / highest price so far - 1</td><td>row 1</td></tr><tr><td><code>volatility</code></td><td><code>volatility(price, n [, periods])</code></td><td>standard deviation of the last n log returns × √periods</td><td>row n+1</td></tr><tr><td><code>zscore</code></td><td><code>zscore(x [, n])</code></td><td>(x - average) / standard deviation</td><td>with n: row n</td></tr><tr><td><code>minmax_scale</code></td><td><code>minmax_scale(x [, n])</code></td><td>(x - min) / (max - min), 0 to 1</td><td>with n: row n</td></tr><tr><td><code>max_drawdown</code></td><td><code>max_drawdown(price) OVER (...)</code></td><td>the aggregate of Part 1 as a running value</td><td>row 1</td></tr></tbody></table></div>
+<h4 id="pct-return">pct_return</h4>
+<ul><li><strong>Syntax:</strong> <code>pct_return(price [, k])</code>; also <code>returns(price [, k])</code> and <code>percent_return(price [, k])</code></li><li><strong>Description:</strong> simple return over k rows (default 1): price / price k rows before - 1. 0.02 means +2 %. <code>pct_change</code> gives the same in percent.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL for the first k rows, when either price is NULL, or when the old price is 0.</li><li><strong>Example:</strong> <code>SELECT time, symbol, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<h4 id="log-return">log_return</h4>
+<ul><li><strong>Syntax:</strong> <code>log_return(price [, k])</code></li><li><strong>Description:</strong> ln(price / price k rows before). Log returns add up over time: the sum of daily log returns is the log return of the whole period.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL for the first k rows, when a price is NULL, or when the ratio is 0 or less.</li><li><strong>Example:</strong> <code>SELECT time, log_return(close, 5) OVER (PARTITION BY symbol ORDER BY time) AS week_log_return FROM candles</code></li></ul>
+<h4 id="cum-return">cum_return</h4>
+<ul><li><strong>Syntax:</strong> <code>cum_return(price)</code></li><li><strong>Description:</strong> return since the first row of the partition: price / first price - 1.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL for a NULL price; NULL values before the first price are skipped. NULL when the first price is 0.</li><li><strong>Example:</strong> <code>SELECT time, symbol, round(cum_return(close) OVER (PARTITION BY symbol ORDER BY time) * 100, 1) AS pct_since_start FROM candles</code></li></ul>
+<h4 id="drawdown">drawdown</h4>
+<ul><li><strong>Syntax:</strong> <code>drawdown(price)</code></li><li><strong>Description:</strong> how far the price is below its highest price so far: price / running max - 1. 0 at a new high, -0.1 when 10 % below the high.</li><li><strong>Returns:</strong> DOUBLE, 0 or less. <strong>NULLs:</strong> NULL for a NULL price; NULL while the highest price is 0 or less.</li><li><strong>Example:</strong> see <a href="#drawdown">Drawdown</a> in the cookbook.</li></ul>
+<h4 id="volatility">volatility</h4>
+<ul><li><strong>Syntax:</strong> <code>volatility(price, n [, periods])</code></li><li><strong>Description:</strong> rolling volatility: the sample standard deviation of the last n log returns, times √periods. periods default 1 (daily volatility); use 240 or 252 (trading days) for yearly volatility.</li><li><strong>Arguments:</strong> n: whole number, 2 or more. periods: a number more than 0.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL for the first n rows and while one of the last n+1 prices is NULL or 0 or less.</li><li><strong>Example:</strong> see <a href="#20-day-volatility">20-day volatility</a>.</li></ul>
+<h4 id="zscore">zscore</h4>
+<ul><li><strong>Syntax:</strong> <code>zscore(x [, n])</code></li><li><strong>Description:</strong> how many standard deviations x is away from the average. With n: the average and the sample standard deviation of the last n rows. Without n: of the frame (the whole partition without ORDER BY, or with a <code>ROWS</code>/<code>RANGE</code> frame).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL for a NULL x. With n: NULL for the first n - 1 rows and while a NULL is in the last n rows. Without n: NULL values in the frame are skipped. NULL when the standard deviation is 0.</li><li><strong>Example:</strong> unusual volume: <code>SELECT time, symbol, zscore(volume, 20) OVER (PARTITION BY symbol ORDER BY time) AS vol_z FROM candles</code></li></ul>
+<h4 id="minmax-scale">minmax_scale</h4>
+<ul><li><strong>Syntax:</strong> <code>minmax_scale(x [, n])</code></li><li><strong>Description:</strong> (x - min) / (max - min) of the last n rows (or of the frame without n). 0 = at the low, 1 = at the high.</li><li><strong>Returns:</strong> DOUBLE from 0 to 1. <strong>NULLs:</strong> as <code>zscore</code>; NULL when max = min.</li><li><strong>Example:</strong> where is the close in its 52-week range? <code>SELECT time, minmax_scale(close, 240) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<hr>
+<h2 id="part-4-technical-indicators">Part 4: Technical indicators</h2>
+<p>All indicators are series functions over candles in time order. Most follow <strong>TA-Lib</strong>: the same formulas, and the first value on the same row as TA-Lib (the &quot;warm-up&quot; rows before it are NULL). Where TA-Lib versions differ for flat prices (a window where high = low, or no price change), KDB follows TA-Lib 0.6. The table says whose definition each one uses.</p>
+<p>NULL rules for indicators:</p>
+<ul><li><strong>Window indicators</strong> (a fixed number of rows: WMA, Bollinger, Donchian, stochastic %K, CCI, Williams %R, Aroon, linear regression, ...): the result is NULL while a NULL input is inside the window, and comes back after it.</li><li><strong>Running indicators</strong> (they carry a value from row to row: EMA-based ones, MACD, KAMA, ADX, Parabolic SAR, OBV, A/D, MFI, SuperTrend, Heikin-Ashi): a NULL input makes the result NULL <strong>from that row to the end</strong> of the partition. Remove bad rows with <code>WHERE close IS NOT NULL</code> first.</li><li>A period must be a whole number constant. <code>wma(close, volume)</code> is an error.</li></ul>
+<p>Defaults: arguments in <code>[ ]</code> can be left out; the default is shown after <code>=</code>.</p>
+<h3 id="moving-averages">Moving averages</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Definition</th><th>First value (row)</th></tr></thead><tbody><tr><td><code>sma</code></td><td><code>sma(x, n)</code></td><td>chapter 5</td><td>n</td></tr><tr><td><code>ema</code></td><td><code>ema(x, n)</code></td><td>chapter 5 (TA-Lib)</td><td>n</td></tr><tr><td><code>wma</code></td><td><code>wma(x, n)</code></td><td>TA-Lib WMA: weights 1..n, newest heaviest</td><td>n</td></tr><tr><td><code>dema</code></td><td><code>dema(x, n)</code></td><td>TA-Lib DEMA: 2·EMA - EMA(EMA)</td><td>2n - 1</td></tr><tr><td><code>tema</code></td><td><code>tema(x, n)</code></td><td>TA-Lib TEMA: 3·EMA - 3·EMA(EMA) + EMA(EMA(EMA))</td><td>3n - 2</td></tr><tr><td><code>trima</code></td><td><code>trima(x, n)</code></td><td>TA-Lib TRIMA: triangular weights</td><td>n</td></tr><tr><td><code>kama</code></td><td><code>kama(x, n)</code></td><td>TA-Lib KAMA (fast 2, slow 30)</td><td>n + 1</td></tr><tr><td><code>hma</code></td><td><code>hma(x, n)</code></td><td>Hull: WMA(2·WMA(x, n/2) - WMA(x, n), √n)</td><td>n + ⌊√n⌋ - 1</td></tr><tr><td><code>vwma</code></td><td><code>vwma(price, volume, n)</code></td><td>Σ(price·volume) / Σvolume of n rows</td><td>n</td></tr></tbody></table></div>
+<h4 id="wma">wma</h4>
+<ul><li><strong>Syntax:</strong> <code>wma(x, n)</code></li><li><strong>Description:</strong> weighted moving average of the last n rows. The newest row has weight n, the oldest weight 1 (TA-Lib <code>WMA</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, round(wma(close, 10) OVER (PARTITION BY symbol ORDER BY time), 2) FROM candles</code></li></ul>
+<h4 id="dema">dema</h4>
+<ul><li><strong>Syntax:</strong> <code>dema(x, n)</code></li><li><strong>Description:</strong> double exponential moving average: 2·EMA(x) - EMA(EMA(x)), both EMAs as TA-Lib (started with an SMA). Reacts faster than EMA.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row 2n - 1.</li><li><strong>Example:</strong> <code>SELECT time, dema(close, 10) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="tema">tema</h4>
+<ul><li><strong>Syntax:</strong> <code>tema(x, n)</code></li><li><strong>Description:</strong> triple exponential moving average: 3·EMA1 - 3·EMA2 + EMA3, where EMA2 is the EMA of EMA1 and EMA3 the EMA of EMA2 (TA-Lib <code>TEMA</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row 3n - 2.</li><li><strong>Example:</strong> <code>SELECT time, tema(close, 10) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="trima">trima</h4>
+<ul><li><strong>Syntax:</strong> <code>trima(x, n)</code></li><li><strong>Description:</strong> triangular moving average: the middle rows get the most weight (weights 1, 2, ..., 2, 1). The same as TA-Lib <code>TRIMA</code> (an SMA of an SMA).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, trima(close, 10) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="kama">kama</h4>
+<ul><li><strong>Syntax:</strong> <code>kama(x, n)</code></li><li><strong>Description:</strong> Kaufman adaptive moving average (TA-Lib <code>KAMA</code>). The efficiency ratio over n rows (net change / sum of all changes) picks a speed between a 2-row and a 30-row EMA. It follows trends and stays flat in noise.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row n + 1.</li><li><strong>Example:</strong> <code>SELECT time, kama(close, 10) FROM candles WHERE symbol = &#39;VOLT&#39;</code></li></ul>
+<h4 id="hma">hma</h4>
+<ul><li><strong>Syntax:</strong> <code>hma(x, n)</code></li><li><strong>Description:</strong> Hull moving average (Alan Hull; not in TA-Lib): WMA(2·WMA(x, n/2) - WMA(x, n), ⌊√n⌋), with n/2 rounded down. Smooth and fast.</li><li><strong>Arguments:</strong> n: 2 or more.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; first value on row n + ⌊√n⌋ - 1.</li><li><strong>Example:</strong> <code>SELECT time, hma(close, 16) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="vwma">vwma</h4>
+<ul><li><strong>Syntax:</strong> <code>vwma(price, volume, n)</code></li><li><strong>Description:</strong> volume-weighted moving average of the last n rows: Σ(price × volume) / Σvolume (TradingView <code>ta.vwma</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; NULL when the volumes add up to 0.</li><li><strong>Example:</strong> <code>SELECT time, vwma(close, volume, 20) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<p>VWAP for a trading session or a rolling window needs no new function: <code>vwap(close, volume) OVER (PARTITION BY symbol, date_trunc(&#39;day&#39;, time) ORDER BY time)</code> (session, on minute candles) and <code>vwap(close, volume) OVER (PARTITION BY symbol ORDER BY time ROWS 19 PRECEDING)</code> (rolling).</p>
+<h3 id="macd">MACD</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Definition</th><th>First value (row)</th></tr></thead><tbody><tr><td><code>macd</code></td><td><code>macd(x [, fast = 12, slow = 26, signal = 9])</code></td><td>TA-Lib MACD line</td><td>slow + signal - 1 (34)</td></tr><tr><td><code>macd_signal</code></td><td><code>macd_signal(x [, 12, 26, 9])</code></td><td>EMA of the MACD line</td><td>slow + signal - 1</td></tr><tr><td><code>macd_hist</code></td><td><code>macd_hist(x [, 12, 26, 9])</code></td><td>line - signal</td><td>slow + signal - 1</td></tr></tbody></table></div>
+<h4 id="macd-2">macd</h4>
+<ul><li><strong>Syntax:</strong> <code>macd(x [, fast [, slow [, signal]]])</code>, defaults 12, 26, 9</li><li><strong>Description:</strong> the MACD line: EMA(x, fast) - EMA(x, slow), exactly as TA-Lib <code>MACD</code>: both EMAs start on row <code>slow</code> (the fast EMA starts with the SMA of the <code>fast</code> rows ending there), and all three outputs start on row slow + signal - 1, where the signal line has its first value. (TradingView shows the line 8 rows earlier; the values after row 34 agree once the EMAs have settled.) If slow is smaller than fast they are swapped, as in TA-Lib.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> see <a href="#macd-crossover-signals">MACD crossover signals</a>.</li></ul>
+<h4 id="macd-signal">macd_signal</h4>
+<ul><li><strong>Syntax:</strong> <code>macd_signal(x [, fast [, slow [, signal]]])</code></li><li><strong>Description:</strong> the signal line: an EMA (TA-Lib style) of the MACD line over <code>signal</code> rows.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> <code>SELECT time, macd(close), macd_signal(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="macd-hist">macd_hist</h4>
+<ul><li><strong>Syntax:</strong> <code>macd_hist(x [, fast [, slow [, signal]]])</code></li><li><strong>Description:</strong> the histogram: MACD line - signal line. It changes sign when the lines cross.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> <code>SELECT time, macd_hist(close, 12, 26, 9) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h3 id="oscillators">Oscillators</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Definition</th><th>First value (row)</th></tr></thead><tbody><tr><td><code>rsi</code></td><td><code>rsi(x, n)</code></td><td>chapter 5 (Wilder, TA-Lib start)</td><td>n + 1</td></tr><tr><td><code>stoch_k</code></td><td><code>stoch_k(high, low, close [, k = 14, k_smooth = 3, d = 3])</code></td><td>TA-Lib STOCH slow %K</td><td>k + k_smooth + d - 2</td></tr><tr><td><code>stoch_d</code></td><td><code>stoch_d(high, low, close [, 14, 3, 3])</code></td><td>TA-Lib STOCH slow %D</td><td>k + k_smooth + d - 2</td></tr><tr><td><code>stochf_k</code></td><td><code>stochf_k(high, low, close [, n = 14])</code></td><td>raw (fast) %K</td><td>n</td></tr><tr><td><code>stochrsi_k</code></td><td><code>stochrsi_k(x [, n = 14, k = 5, d = 3])</code></td><td>TA-Lib STOCHRSI fast %K</td><td>n + k + d - 1</td></tr><tr><td><code>stochrsi_d</code></td><td><code>stochrsi_d(x [, 14, 5, 3])</code></td><td>TA-Lib STOCHRSI fast %D</td><td>n + k + d - 1</td></tr><tr><td><code>willr</code> (<code>williams_r</code>)</td><td><code>willr(high, low, close [, n = 14])</code></td><td>TA-Lib WILLR, -100 to 0</td><td>n</td></tr><tr><td><code>cci</code></td><td><code>cci(high, low, close [, n = 20])</code></td><td>TA-Lib CCI</td><td>n</td></tr><tr><td><code>roc</code></td><td><code>roc(x [, n = 10])</code></td><td>TA-Lib ROC: (x / x n rows before - 1) × 100</td><td>n + 1</td></tr><tr><td><code>rocp</code></td><td><code>rocp(x [, n = 10])</code></td><td>(x - old) / old</td><td>n + 1</td></tr><tr><td><code>rocr</code></td><td><code>rocr(x [, n = 10])</code></td><td>x / old</td><td>n + 1</td></tr><tr><td><code>mom</code> (<code>momentum</code>)</td><td><code>mom(x [, n = 10])</code></td><td>x - x n rows before</td><td>n + 1</td></tr><tr><td><code>trix</code></td><td><code>trix(x [, n = 30])</code></td><td>TA-Lib TRIX: 1-row ROC of a triple EMA</td><td>3n - 1</td></tr></tbody></table></div>
+<h4 id="stoch-k">stoch_k</h4>
+<ul><li><strong>Syntax:</strong> <code>stoch_k(high, low, close [, k [, k_smooth [, d]]])</code>, defaults 14, 3, 3</li><li><strong>Description:</strong> slow stochastic %K (TA-Lib <code>STOCH</code> with SMA smoothing): raw %K = 100 × (close - lowest low of k rows) / (highest high - lowest low), 0 when the high equals the low; slow %K = SMA of raw %K over k_smooth rows. As in TA-Lib, %K and %D both start on row k + k_smooth + d - 2. TA-Lib&#39;s own default k is 5; KDB uses the common 14.</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT time, stoch_k(high, low, close), stoch_d(high, low, close) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="stoch-d">stoch_d</h4>
+<ul><li><strong>Syntax:</strong> <code>stoch_d(high, low, close [, k [, k_smooth [, d]]])</code></li><li><strong>Description:</strong> slow %D: SMA of slow %K over d rows.</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT time FROM (SELECT time, stoch_k(high, low, close) AS k, stoch_d(high, low, close) AS d FROM candles WHERE symbol = &#39;COAST&#39;) s WHERE k &gt; 80 AND d &gt; 80</code></li></ul>
+<h4 id="stochf-k">stochf_k</h4>
+<ul><li><strong>Syntax:</strong> <code>stochf_k(high, low, close [, n])</code></li><li><strong>Description:</strong> the raw (fast) stochastic %K of the last n rows, without smoothing.</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, stochf_k(high, low, close, 5) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="stochrsi-k">stochrsi_k</h4>
+<ul><li><strong>Syntax:</strong> <code>stochrsi_k(x [, n [, k [, d]]])</code>, defaults 14, 5, 3 (TA-Lib&#39;s defaults)</li><li><strong>Description:</strong> stochastic RSI %K (TA-Lib <code>STOCHRSI</code>): the fast stochastic of RSI(n) over k rows. The RSI is TA-Lib&#39;s (a flat start gives 0).</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> running rule (the RSI); first value on row n + k + d - 1.</li><li><strong>Example:</strong> <code>SELECT time, stochrsi_k(close), stochrsi_d(close) FROM candles WHERE symbol = &#39;VOLT&#39;</code></li></ul>
+<h4 id="stochrsi-d">stochrsi_d</h4>
+<ul><li><strong>Syntax:</strong> <code>stochrsi_d(x [, n [, k [, d]]])</code></li><li><strong>Description:</strong> SMA of stochastic RSI %K over d rows.</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> as <code>stochrsi_k</code>.</li><li><strong>Example:</strong> <code>SELECT time, stochrsi_d(close, 14, 14, 3) FROM candles WHERE symbol = &#39;VOLT&#39;</code></li></ul>
+<h4 id="willr">willr</h4>
+<ul><li><strong>Syntax:</strong> <code>willr(high, low, close [, n])</code> (also <code>williams_r</code>), default 14</li><li><strong>Description:</strong> Williams %R (TA-Lib <code>WILLR</code>): -100 × (highest high - close) / (highest high - lowest low) over n rows. 0 = at the high, -100 = at the low; 0 when the high equals the low.</li><li><strong>Returns:</strong> DOUBLE, -100 to 0. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, willr(high, low, close) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="cci">cci</h4>
+<ul><li><strong>Syntax:</strong> <code>cci(high, low, close [, n])</code>, default 20</li><li><strong>Description:</strong> commodity channel index (TA-Lib <code>CCI</code>): (typical price - its n-row average) / (0.015 × mean absolute deviation). Typical price = (high + low + close) / 3. 0 when the deviation is 0.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, cci(high, low, close) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="roc">roc</h4>
+<ul><li><strong>Syntax:</strong> <code>roc(x [, n])</code>, default 10</li><li><strong>Description:</strong> rate of change in percent (TA-Lib <code>ROC</code>): (x / x n rows before - 1) × 100.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when a value is NULL or the old value is 0 (TA-Lib gives 0 there).</li><li><strong>Example:</strong> <code>SELECT time, roc(close, 10) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="rocp">rocp</h4>
+<ul><li><strong>Syntax:</strong> <code>rocp(x [, n])</code></li><li><strong>Description:</strong> rate of change as a fraction (TA-Lib <code>ROCP</code>): (x - old) / old.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> as <code>roc</code>.</li><li><strong>Example:</strong> <code>SELECT time, rocp(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="rocr">rocr</h4>
+<ul><li><strong>Syntax:</strong> <code>rocr(x [, n])</code></li><li><strong>Description:</strong> rate of change ratio (TA-Lib <code>ROCR</code>): x / old.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> as <code>roc</code>.</li><li><strong>Example:</strong> <code>SELECT time, rocr(close, 3) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="mom">mom</h4>
+<ul><li><strong>Syntax:</strong> <code>mom(x [, n])</code> (also <code>momentum</code>), default 10</li><li><strong>Description:</strong> momentum (TA-Lib <code>MOM</code>): x - x n rows before.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when a value is NULL.</li><li><strong>Example:</strong> <code>SELECT time, momentum(close, 5) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="trix">trix</h4>
+<ul><li><strong>Syntax:</strong> <code>trix(x [, n])</code>, default 30</li><li><strong>Description:</strong> TRIX (TA-Lib): the 1-row rate of change in percent of EMA(EMA(EMA(x, n))).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row 3n - 1.</li><li><strong>Example:</strong> <code>SELECT time, trix(close, 10) FROM candles WHERE symbol = &#39;VOLT&#39;</code></li></ul>
+<h3 id="volatility-and-bands">Volatility and bands</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Definition</th><th>First value (row)</th></tr></thead><tbody><tr><td><code>atr</code></td><td><code>atr(high, low, close, n)</code></td><td>chapter 5 (TA-Lib)</td><td>n + 1</td></tr><tr><td><code>natr</code></td><td><code>natr(high, low, close [, n = 14])</code></td><td>TA-Lib NATR: ATR / close × 100</td><td>n + 1</td></tr><tr><td><code>trange</code> (<code>true_range</code>)</td><td><code>trange(high, low, close)</code></td><td>TA-Lib TRANGE</td><td>2</td></tr><tr><td><code>bb_upper</code>, <code>bb_middle</code>, <code>bb_lower</code></td><td><code>bb_upper(x [, n = 20, k = 2])</code></td><td>Bollinger: SMA ± k × population std. dev.</td><td>n</td></tr><tr><td><code>bb_percent_b</code></td><td><code>bb_percent_b(x [, 20, 2])</code></td><td>(x - lower) / (upper - lower)</td><td>n</td></tr><tr><td><code>bb_width</code></td><td><code>bb_width(x [, 20, 2])</code></td><td>(upper - lower) / middle</td><td>n</td></tr><tr><td><code>kc_upper</code>, <code>kc_middle</code>, <code>kc_lower</code></td><td><code>kc_upper(high, low, close [, n = 20, mult = 2, atr_n = 10])</code></td><td>Keltner: EMA(close, n) ± mult × ATR(atr_n)</td><td>max(n, atr_n + 1)</td></tr><tr><td><code>dc_upper</code>, <code>dc_middle</code>, <code>dc_lower</code></td><td><code>dc_upper(high, low [, n = 20])</code></td><td>Donchian: highest high / middle / lowest low</td><td>n</td></tr></tbody></table></div>
+<h4 id="natr">natr</h4>
+<ul><li><strong>Syntax:</strong> <code>natr(high, low, close [, n])</code>, default 14</li><li><strong>Description:</strong> normalized ATR (TA-Lib <code>NATR</code>): ATR(n) / close × 100, so symbols with different prices can be compared.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; NULL when close is 0.</li><li><strong>Example:</strong> <code>SELECT symbol, natr(high, low, close) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<h4 id="trange">trange</h4>
+<ul><li><strong>Syntax:</strong> <code>trange(high, low, close)</code> (also <code>true_range</code>)</li><li><strong>Description:</strong> true range (TA-Lib <code>TRANGE</code>): the biggest of high - low, |high - previous close|, |low - previous close|. The first row is NULL (no previous close), as in TA-Lib.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when a value of this row or the previous close is NULL.</li><li><strong>Example:</strong> <code>SELECT time, trange(high, low, close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="bb-upper">bb_upper</h4>
+<ul><li><strong>Syntax:</strong> <code>bb_upper(x [, n [, k]])</code>, <code>bb_middle(x [, n [, k]])</code>, <code>bb_lower(x [, n [, k]])</code>; defaults 20, 2</li><li><strong>Description:</strong> Bollinger bands: middle = SMA(x, n); upper and lower = middle ± k × the <strong>population</strong> standard deviation of the last n values (as John Bollinger and TA-Lib <code>BBANDS</code> with SMA). TA-Lib&#39;s own default n is 5; KDB uses the common 20.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, close, bb_lower(close), bb_middle(close), bb_upper(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="bb-percent-b">bb_percent_b</h4>
+<ul><li><strong>Syntax:</strong> <code>bb_percent_b(x [, n [, k]])</code></li><li><strong>Description:</strong> %b: where x is inside the bands: 0 = at the lower band, 1 = at the upper band (it can be below 0 or above 1).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; NULL when the bands are equal (no change).</li><li><strong>Example:</strong> <code>SELECT time, bb_percent_b(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="bb-width">bb_width</h4>
+<ul><li><strong>Syntax:</strong> <code>bb_width(x [, n [, k]])</code></li><li><strong>Description:</strong> band width: (upper - lower) / middle, a fraction (multiply by 100 for percent). Small values mean a &quot;squeeze&quot; (quiet prices).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; NULL when the middle is 0.</li><li><strong>Example:</strong> see <a href="#bollinger-squeeze-filter">Bollinger squeeze filter</a>.</li></ul>
+<h4 id="kc-upper">kc_upper</h4>
+<ul><li><strong>Syntax:</strong> <code>kc_upper(high, low, close [, n [, mult [, atr_n]]])</code>, <code>kc_lower(...)</code>, <code>kc_middle(high, low, close [, n])</code>; defaults 20, 2, 10</li><li><strong>Description:</strong> Keltner channels (the Linda Raschke version): middle = EMA(close, n) as TA-Lib; upper and lower = middle ± mult × ATR(atr_n) (TA-Lib ATR).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value when both the EMA and the ATR have values.</li><li><strong>Example:</strong> <code>SELECT time, kc_lower(high, low, close), kc_upper(high, low, close) FROM candles WHERE symbol = &#39;VOLT&#39;</code></li></ul>
+<h4 id="dc-upper">dc_upper</h4>
+<ul><li><strong>Syntax:</strong> <code>dc_upper(high, low [, n])</code>, <code>dc_lower(high, low [, n])</code>, <code>dc_middle(high, low [, n])</code>; default 20</li><li><strong>Description:</strong> Donchian channels: the highest high, the lowest low, and their middle, over the last n rows (this row included, as TradingView).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> new 20-day highs: <code>SELECT time, symbol FROM (SELECT time, symbol, high, dc_upper(high, low, 20) OVER (PARTITION BY symbol ORDER BY time) AS top FROM candles) x WHERE high = top</code></li></ul>
+<h3 id="trend-strength-and-direction">Trend strength and direction</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Definition</th><th>First value (row)</th></tr></thead><tbody><tr><td><code>plus_di</code>, <code>minus_di</code></td><td><code>plus_di(high, low, close [, n = 14])</code></td><td>TA-Lib PLUS_DI / MINUS_DI</td><td>n + 1</td></tr><tr><td><code>dx</code></td><td><code>dx(high, low, close [, n = 14])</code></td><td>TA-Lib DX</td><td>n + 1</td></tr><tr><td><code>adx</code></td><td><code>adx(high, low, close [, n = 14])</code></td><td>TA-Lib ADX</td><td>2n</td></tr><tr><td><code>adxr</code></td><td><code>adxr(high, low, close [, n = 14])</code></td><td>TA-Lib ADXR</td><td>3n - 1</td></tr><tr><td><code>aroon_up</code></td><td><code>aroon_up(high [, n = 14])</code></td><td>TA-Lib AROON up</td><td>n + 1</td></tr><tr><td><code>aroon_down</code></td><td><code>aroon_down(low [, n = 14])</code></td><td>TA-Lib AROON down</td><td>n + 1</td></tr><tr><td><code>aroon_osc</code></td><td><code>aroon_osc(high, low [, n = 14])</code></td><td>TA-Lib AROONOSC</td><td>n + 1</td></tr><tr><td><code>sar</code> (<code>parabolic_sar</code>)</td><td><code>sar(high, low [, acceleration = 0.02, maximum = 0.2])</code></td><td>TA-Lib SAR</td><td>2</td></tr><tr><td><code>supertrend</code></td><td><code>supertrend(high, low, close [, n = 10, multiplier = 3])</code></td><td>TradingView <code>ta.supertrend</code></td><td>n</td></tr><tr><td><code>supertrend_direction</code></td><td><code>supertrend_direction(high, low, close [, 10, 3])</code></td><td>1 up, -1 down</td><td>n</td></tr><tr><td><code>linearreg</code> (<code>linreg</code>)</td><td><code>linearreg(x [, n = 14])</code></td><td>TA-Lib LINEARREG</td><td>n</td></tr><tr><td><code>linearreg_slope</code></td><td><code>linearreg_slope(x [, 14])</code></td><td>TA-Lib LINEARREG_SLOPE</td><td>n</td></tr><tr><td><code>linearreg_intercept</code></td><td><code>linearreg_intercept(x [, 14])</code></td><td>TA-Lib LINEARREG_INTERCEPT</td><td>n</td></tr><tr><td><code>linearreg_angle</code></td><td><code>linearreg_angle(x [, 14])</code></td><td>TA-Lib LINEARREG_ANGLE (degrees)</td><td>n</td></tr><tr><td><code>tsf</code></td><td><code>tsf(x [, 14])</code></td><td>TA-Lib TSF: the line&#39;s value one row ahead</td><td>n</td></tr></tbody></table></div>
+<h4 id="plus-di">plus_di</h4>
+<ul><li><strong>Syntax:</strong> <code>plus_di(high, low, close [, n])</code>, <code>minus_di(high, low, close [, n])</code>; default 14</li><li><strong>Description:</strong> directional indicators (TA-Lib <code>PLUS_DI</code>, <code>MINUS_DI</code>): Wilder-smoothed +DM (or -DM) divided by the smoothed true range, × 100. As TA-Lib, the first n - 1 moves are added up and the n-th is the first smoothing step.</li><li><strong>Arguments:</strong> n: 2 or more.</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> running rule; 0 when the true range is 0.</li><li><strong>Example:</strong> <code>SELECT time, plus_di(high, low, close), minus_di(high, low, close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="dx">dx</h4>
+<ul><li><strong>Syntax:</strong> <code>dx(high, low, close [, n])</code></li><li><strong>Description:</strong> directional movement index (TA-Lib <code>DX</code>): 100 × |+DI - -DI| / (+DI + -DI).</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> running rule. When it cannot be computed (no movement) the value before it is kept (0 on the first row).</li><li><strong>Example:</strong> <code>SELECT time, dx(high, low, close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="adx">adx</h4>
+<ul><li><strong>Syntax:</strong> <code>adx(high, low, close [, n])</code>, default 14</li><li><strong>Description:</strong> average directional index (TA-Lib <code>ADX</code>): the average of the first n DX values, then Wilder smoothing. Above 25 is often read as a strong trend.</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> running rule; first value on row 2n.</li><li><strong>Example:</strong> <code>SELECT time, symbol, adx(high, low, close) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<h4 id="adxr">adxr</h4>
+<ul><li><strong>Syntax:</strong> <code>adxr(high, low, close [, n])</code></li><li><strong>Description:</strong> ADX rating (TA-Lib <code>ADXR</code>): (ADX + ADX n - 1 rows before) / 2.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row 3n - 1.</li><li><strong>Example:</strong> <code>SELECT time, adxr(high, low, close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="aroon-up">aroon_up</h4>
+<ul><li><strong>Syntax:</strong> <code>aroon_up(high [, n])</code>, <code>aroon_down(low [, n])</code>; default 14</li><li><strong>Description:</strong> Aroon (TA-Lib <code>AROON</code>): 100 × (n - rows since the highest high) / n, over the last n + 1 rows. When the extreme appears twice, the newest one counts (as TA-Lib). <code>aroon_down</code> uses the lowest low.</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> window rule; first value on row n + 1.</li><li><strong>Example:</strong> <code>SELECT time, aroon_up(high), aroon_down(low) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="aroon-osc">aroon_osc</h4>
+<ul><li><strong>Syntax:</strong> <code>aroon_osc(high, low [, n])</code></li><li><strong>Description:</strong> Aroon oscillator (TA-Lib <code>AROONOSC</code>): aroon up - aroon down.</li><li><strong>Returns:</strong> DOUBLE, -100 to 100. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT time, aroon_osc(high, low, 25) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="sar">sar</h4>
+<ul><li><strong>Syntax:</strong> <code>sar(high, low [, acceleration [, maximum]])</code> (also <code>parabolic_sar</code>), defaults 0.02 and 0.2</li><li><strong>Description:</strong> Parabolic SAR (TA-Lib <code>SAR</code>). The first direction comes from the first two candles (down when the low fell more than the high rose). The value is a stop level below the price in an up trend and above it in a down trend; it flips when the price crosses it.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row 2.</li><li><strong>Example:</strong> <code>SELECT time, close, sar(high, low) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="supertrend">supertrend</h4>
+<ul><li><strong>Syntax:</strong> <code>supertrend(high, low, close [, n [, multiplier]])</code>, defaults 10 and 3</li><li><strong>Description:</strong> SuperTrend exactly as TradingView&#39;s <code>ta.supertrend(multiplier, n)</code>: bands (high + low) / 2 ± multiplier × ATR, where the ATR is TradingView&#39;s (<code>ta.rma</code> of the true range, the first true range = high - low). The line is the lower band in an up trend and the upper band in a down trend.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, close, supertrend(high, low, close) FROM candles WHERE symbol = &#39;VOLT&#39;</code></li></ul>
+<h4 id="supertrend-direction">supertrend_direction</h4>
+<ul><li><strong>Syntax:</strong> <code>supertrend_direction(high, low, close [, n [, multiplier]])</code></li><li><strong>Description:</strong> the trend of <code>supertrend</code>: <strong>1 = up, -1 = down</strong>. (TradingView&#39;s <code>direction</code> uses the opposite signs: -1 for up.)</li><li><strong>Returns:</strong> LONG. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> the days the trend changed (<code>lag</code> needs its own level, and the filter one more): <code>SELECT time, d FROM (SELECT time, d, lag(d) AS prev FROM (SELECT time, supertrend_direction(high, low, close) AS d FROM candles WHERE symbol = &#39;VOLT&#39;) s) x WHERE d != prev</code></li></ul>
+<h4 id="linearreg">linearreg</h4>
+<ul><li><strong>Syntax:</strong> <code>linearreg(x [, n])</code> (also <code>linreg</code>), default 14</li><li><strong>Description:</strong> linear regression (TA-Lib <code>LINEARREG</code>): the least-squares line through the last n values, and its value on the current row.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; first value on row n.</li><li><strong>Example:</strong> <code>SELECT time, close, linearreg(close, 20) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="linearreg-slope">linearreg_slope</h4>
+<ul><li><strong>Syntax:</strong> <code>linearreg_slope(x [, n])</code> (also <code>linreg_slope</code>)</li><li><strong>Description:</strong> the slope of that line: change per row (TA-Lib <code>LINEARREG_SLOPE</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT symbol, linearreg_slope(close, 20) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<h4 id="linearreg-intercept">linearreg_intercept</h4>
+<ul><li><strong>Syntax:</strong> <code>linearreg_intercept(x [, n])</code> (also <code>linreg_intercept</code>)</li><li><strong>Description:</strong> the line&#39;s value on the oldest row of the window (TA-Lib <code>LINEARREG_INTERCEPT</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT time, linearreg_intercept(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="linearreg-angle">linearreg_angle</h4>
+<ul><li><strong>Syntax:</strong> <code>linearreg_angle(x [, n])</code> (also <code>linreg_angle</code>)</li><li><strong>Description:</strong> atan(slope) in degrees (TA-Lib <code>LINEARREG_ANGLE</code>). It depends on the price scale, so compare it only within one symbol.</li><li><strong>Returns:</strong> DOUBLE, -90 to 90. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT time, linearreg_angle(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="tsf">tsf</h4>
+<ul><li><strong>Syntax:</strong> <code>tsf(x [, n])</code></li><li><strong>Description:</strong> time series forecast (TA-Lib <code>TSF</code>): the regression line&#39;s value one row after the current row.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT time, close, tsf(close, 14) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h3 id="ichimoku">Ichimoku</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>First value (row)</th></tr></thead><tbody><tr><td><code>ichimoku_tenkan</code></td><td><code>ichimoku_tenkan(high, low [, n = 9])</code></td><td>(highest high + lowest low) / 2 of n rows</td><td>n</td></tr><tr><td><code>ichimoku_kijun</code></td><td><code>ichimoku_kijun(high, low [, n = 26])</code></td><td>the same over 26 rows</td><td>n</td></tr><tr><td><code>ichimoku_senkou_a</code></td><td><code>ichimoku_senkou_a(high, low [, tenkan = 9, kijun = 26, shift = 26])</code></td><td>(tenkan + kijun) / 2 from <code>shift</code> rows before</td><td>kijun + shift</td></tr><tr><td><code>ichimoku_senkou_b</code></td><td><code>ichimoku_senkou_b(high, low [, n = 52, shift = 26])</code></td><td>52-row middle from <code>shift</code> rows before</td><td>n + shift</td></tr><tr><td><code>ichimoku_chikou</code></td><td><code>ichimoku_chikou(close [, shift = 26])</code></td><td>the close <code>shift</code> rows <strong>after</strong> this row</td><td>NULL on the last <code>shift</code> rows</td></tr></tbody></table></div>
+<h4 id="ichimoku-tenkan">ichimoku_tenkan</h4>
+<ul><li><strong>Syntax:</strong> <code>ichimoku_tenkan(high, low [, n])</code></li><li><strong>Description:</strong> conversion line: (highest high + lowest low) / 2 over the last n rows.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> <code>SELECT time, ichimoku_tenkan(high, low), ichimoku_kijun(high, low) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="ichimoku-kijun">ichimoku_kijun</h4>
+<ul><li><strong>Syntax:</strong> <code>ichimoku_kijun(high, low [, n])</code></li><li><strong>Description:</strong> base line: the same as tenkan over 26 rows.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> as <code>ichimoku_tenkan</code>.</li></ul>
+<h4 id="ichimoku-senkou-a">ichimoku_senkou_a</h4>
+<ul><li><strong>Syntax:</strong> <code>ichimoku_senkou_a(high, low [, tenkan [, kijun [, shift]]])</code></li><li><strong>Description:</strong> leading span A. A chart draws it <code>shift</code> rows <strong>ahead</strong>; a table has no future rows, so KDB puts on each row the value that was computed <code>shift</code> rows before (the cloud as drawn over that row). Pass shift 25 to match TradingView, which draws it 25 bars ahead.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> price above the cloud: <code>SELECT time FROM (SELECT time, close, ichimoku_senkou_a(high, low) AS a, ichimoku_senkou_b(high, low) AS b FROM candles WHERE symbol = &#39;CITY&#39;) x WHERE close &gt; greatest(a, b)</code></li></ul>
+<h4 id="ichimoku-senkou-b">ichimoku_senkou_b</h4>
+<ul><li><strong>Syntax:</strong> <code>ichimoku_senkou_b(high, low [, n [, shift]])</code></li><li><strong>Description:</strong> leading span B: the n-row middle price (default 52) from <code>shift</code> rows before.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule.</li><li><strong>Example:</strong> as <code>ichimoku_senkou_a</code>.</li></ul>
+<h4 id="ichimoku-chikou">ichimoku_chikou</h4>
+<ul><li><strong>Syntax:</strong> <code>ichimoku_chikou(close [, shift])</code></li><li><strong>Description:</strong> lagging span: a chart draws today&#39;s close <code>shift</code> rows back. On a table row it is the close <code>shift</code> rows <strong>later</strong> (like <code>lead(close, 26)</code>). The last <code>shift</code> rows are NULL. It looks into the future: never use it for a trading signal on the newest day.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL on the last <code>shift</code> rows.</li><li><strong>Example:</strong> <code>SELECT time, ichimoku_chikou(close) FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h3 id="volume">Volume</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Definition</th><th>First value (row)</th></tr></thead><tbody><tr><td><code>obv</code></td><td><code>obv(close, volume)</code></td><td>TA-Lib OBV (starts with the first volume)</td><td>1</td></tr><tr><td><code>ad</code> (<code>ad_line</code>)</td><td><code>ad(high, low, close, volume)</code></td><td>TA-Lib AD (accumulation/distribution)</td><td>1</td></tr><tr><td><code>cmf</code></td><td><code>cmf(high, low, close, volume [, n = 20])</code></td><td>Chaikin money flow</td><td>n</td></tr><tr><td><code>adosc</code> (<code>chaikin_osc</code>)</td><td><code>adosc(high, low, close, volume [, fast = 3, slow = 10])</code></td><td>TA-Lib ADOSC</td><td>slow</td></tr><tr><td><code>mfi</code></td><td><code>mfi(high, low, close, volume [, n = 14])</code></td><td>TA-Lib MFI</td><td>n + 1</td></tr><tr><td><code>efi</code> (<code>force_index</code>)</td><td><code>efi(close, volume [, n = 13])</code></td><td>Elder&#39;s force index, EMA of (change × volume)</td><td>n + 1</td></tr><tr><td><code>eom</code> (<code>ease_of_movement</code>)</td><td><code>eom(high, low, volume [, n = 14, divisor = 100000000])</code></td><td>ease of movement (pandas-ta)</td><td>n + 1</td></tr></tbody></table></div>
+<h4 id="obv">obv</h4>
+<ul><li><strong>Syntax:</strong> <code>obv(close, volume)</code></li><li><strong>Description:</strong> on-balance volume (TA-Lib <code>OBV</code>): starts with the first row&#39;s volume, then adds the volume on up closes and subtracts it on down closes.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> <code>SELECT time, obv(close, volume) OVER (PARTITION BY symbol ORDER BY time) FROM candles</code></li></ul>
+<h4 id="ad">ad</h4>
+<ul><li><strong>Syntax:</strong> <code>ad(high, low, close, volume)</code> (also <code>ad_line</code>)</li><li><strong>Description:</strong> accumulation/distribution line (TA-Lib <code>AD</code>): running sum of ((close - low) - (high - close)) / (high - low) × volume. Rows with high = low add nothing.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> <code>SELECT time, ad(high, low, close, volume) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="cmf">cmf</h4>
+<ul><li><strong>Syntax:</strong> <code>cmf(high, low, close, volume [, n])</code>, default 20</li><li><strong>Description:</strong> Chaikin money flow: Σ(money flow multiplier × volume) / Σvolume over n rows; the multiplier is ((close - low) - (high - close)) / (high - low), 0 when high = low.</li><li><strong>Returns:</strong> DOUBLE, -1 to 1. <strong>NULLs:</strong> window rule; NULL when the volumes add up to 0.</li><li><strong>Example:</strong> <code>SELECT time, cmf(high, low, close, volume) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="adosc">adosc</h4>
+<ul><li><strong>Syntax:</strong> <code>adosc(high, low, close, volume [, fast [, slow]])</code> (also <code>chaikin_osc</code>), defaults 3 and 10</li><li><strong>Description:</strong> Chaikin oscillator (TA-Lib <code>ADOSC</code>): EMA(A/D, fast) - EMA(A/D, slow). As in TA-Lib, both EMAs start from the first A/D value (not an SMA).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row max(fast, slow).</li><li><strong>Example:</strong> <code>SELECT time, adosc(high, low, close, volume) FROM candles WHERE symbol = &#39;COAST&#39;</code></li></ul>
+<h4 id="mfi">mfi</h4>
+<ul><li><strong>Syntax:</strong> <code>mfi(high, low, close, volume [, n])</code>, default 14</li><li><strong>Description:</strong> money flow index (TA-Lib <code>MFI</code>): a volume-weighted RSI of the typical price. 100 × positive flow / (positive + negative flow) over n rows. A row whose typical price did not change adds no flow; 0 when there is no flow at all (as TA-Lib 0.6).</li><li><strong>Returns:</strong> DOUBLE, 0 to 100. <strong>NULLs:</strong> running rule; first value on row n + 1.</li><li><strong>Example:</strong> <code>SELECT time, mfi(high, low, close, volume) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="efi">efi</h4>
+<ul><li><strong>Syntax:</strong> <code>efi(close, volume [, n])</code> (also <code>force_index</code>), default 13</li><li><strong>Description:</strong> Elder&#39;s force index: (close - previous close) × volume, smoothed with an EMA of n rows that starts with an SMA (TA-Lib style EMA).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule; first value on row n + 1.</li><li><strong>Example:</strong> <code>SELECT time, efi(close, volume) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h4 id="eom">eom</h4>
+<ul><li><strong>Syntax:</strong> <code>eom(high, low, volume [, n [, divisor]])</code> (also <code>ease_of_movement</code>), defaults 14 and 100000000</li><li><strong>Description:</strong> ease of movement (as pandas-ta <code>eom</code>): distance = middle price - previous middle price; box ratio = (volume / divisor) / (high - low); EOM = SMA(distance / box ratio, n).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> window rule; a row with high = low or volume 0 is NULL and makes its windows NULL.</li><li><strong>Example:</strong> <code>SELECT time, eom(high, low, volume) FROM candles WHERE symbol = &#39;TELCO&#39;</code></li></ul>
+<h3 id="heikin-ashi">Heikin-Ashi</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th></tr></thead><tbody><tr><td><code>ha_open</code></td><td><code>ha_open(open, high, low, close)</code></td><td>first row (open + close) / 2, then (previous ha_open + previous ha_close) / 2</td></tr><tr><td><code>ha_close</code></td><td><code>ha_close(open, high, low, close)</code></td><td>(open + high + low + close) / 4</td></tr><tr><td><code>ha_high</code></td><td><code>ha_high(open, high, low, close)</code></td><td>biggest of high, ha_open, ha_close</td></tr><tr><td><code>ha_low</code></td><td><code>ha_low(open, high, low, close)</code></td><td>smallest of low, ha_open, ha_close</td></tr></tbody></table></div>
+<h4 id="ha-open">ha_open</h4>
+<ul><li><strong>Syntax:</strong> <code>ha_open(open, high, low, close)</code></li><li><strong>Description:</strong> Heikin-Ashi open. All four <code>ha_</code> functions take the same four arguments, so a chart can ask for the whole candle at once.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> <code>SELECT time, ha_open(open, high, low, close) AS o, ha_high(open, high, low, close) AS h, ha_low(open, high, low, close) AS l, ha_close(open, high, low, close) AS c FROM candles WHERE symbol = &#39;CITY&#39;</code></li></ul>
+<h4 id="ha-close">ha_close</h4>
+<ul><li><strong>Syntax:</strong> <code>ha_close(open, high, low, close)</code></li><li><strong>Description:</strong> Heikin-Ashi close: the average of the four prices of the row.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> as <code>ha_open</code>.</li></ul>
+<h4 id="ha-high">ha_high</h4>
+<ul><li><strong>Syntax:</strong> <code>ha_high(open, high, low, close)</code></li><li><strong>Description:</strong> Heikin-Ashi high: max(high, ha_open, ha_close).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> as <code>ha_open</code>.</li></ul>
+<h4 id="ha-low">ha_low</h4>
+<ul><li><strong>Syntax:</strong> <code>ha_low(open, high, low, close)</code></li><li><strong>Description:</strong> Heikin-Ashi low: min(low, ha_open, ha_close).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> running rule.</li><li><strong>Example:</strong> as <code>ha_open</code>.</li></ul>
+<hr>
+<h2 id="part-5-scalar-functions">Part 5: Scalar functions</h2>
+<p>A NULL argument gives NULL for every function in this part (except <code>random()</code> and <code>setseed()</code>, which take none or one).</p>
+<h3 id="math">Math</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>Example</th><th>Result</th></tr></thead><tbody><tr><td><code>trunc</code> (<code>truncate</code>)</td><td><code>trunc(x [, d])</code></td><td>cut toward zero to d decimals</td><td><code>trunc(-2.7)</code></td><td><code>-2</code></td></tr><tr><td><code>cbrt</code></td><td><code>cbrt(x)</code></td><td>cube root</td><td><code>cbrt(27)</code></td><td><code>3</code></td></tr><tr><td><code>log</code></td><td><code>log(x)</code>, <code>log(base, x)</code></td><td>natural log; log with a base</td><td><code>log(2, 8)</code></td><td><code>3</code></td></tr><tr><td><code>log2</code></td><td><code>log2(x)</code></td><td>log base 2</td><td><code>log2(8)</code></td><td><code>3</code></td></tr><tr><td><code>gcd</code>, <code>lcm</code></td><td><code>gcd(a, b)</code></td><td>greatest common divisor, least common multiple</td><td><code>lcm(4, 6)</code></td><td><code>12</code></td></tr><tr><td><code>factorial</code></td><td><code>factorial(n)</code></td><td>n! (LONG up to 20, DOUBLE above)</td><td><code>factorial(5)</code></td><td><code>120</code></td></tr><tr><td><code>pi</code></td><td><code>pi()</code></td><td>3.14159...</td><td></td><td></td></tr><tr><td><code>degrees</code>, <code>radians</code></td><td><code>degrees(x)</code></td><td>radians to degrees and back</td><td><code>degrees(pi())</code></td><td><code>180</code></td></tr><tr><td><code>sin</code> <code>cos</code> <code>tan</code> <code>cot</code></td><td><code>sin(x)</code></td><td>trigonometry (radians)</td><td><code>cos(0)</code></td><td><code>1</code></td></tr><tr><td><code>asin</code> <code>acos</code> <code>atan</code> <code>atan2</code></td><td><code>atan2(y, x)</code></td><td>inverse trigonometry</td><td><code>atan2(1, 1)</code></td><td><code>0.785...</code></td></tr><tr><td><code>sinh</code> <code>cosh</code> <code>tanh</code> <code>asinh</code> <code>acosh</code> <code>atanh</code></td><td><code>tanh(x)</code></td><td>hyperbolic functions</td><td><code>tanh(0)</code></td><td><code>0</code></td></tr><tr><td><code>width_bucket</code></td><td><code>width_bucket(x, low, high, count)</code></td><td>bucket number for a histogram</td><td><code>width_bucket(5.35, 0.024, 10.06, 5)</code></td><td><code>3</code></td></tr><tr><td><code>clamp</code></td><td><code>clamp(x, low, high)</code></td><td>x kept between low and high</td><td><code>clamp(15, 0, 10)</code></td><td><code>10</code></td></tr><tr><td><code>safe_divide</code></td><td><code>safe_divide(a, b)</code></td><td>a / b, NULL when b is 0</td><td><code>safe_divide(1, 0)</code></td><td>NULL</td></tr><tr><td><code>div0</code></td><td><code>div0(a, b)</code></td><td>a / b, 0 when b is 0</td><td><code>div0(1, 0)</code></td><td><code>0</code></td></tr><tr><td><code>percent</code></td><td><code>percent(a, b)</code></td><td>a / b × 100, NULL when b is 0</td><td><code>percent(1, 4)</code></td><td><code>25</code></td></tr><tr><td><code>is_nan</code>, <code>is_inf</code>, <code>is_finite</code></td><td><code>is_finite(x)</code></td><td>tests for special DOUBLE values</td><td><code>is_finite(2)</code></td><td><code>true</code></td></tr><tr><td><code>random</code> (<code>rand</code>)</td><td><code>random()</code></td><td>random DOUBLE, 0 or more and less than 1</td><td></td><td></td></tr><tr><td><code>setseed</code></td><td><code>setseed(s)</code></td><td>fixes the random numbers, s from -1 to 1</td><td></td><td>NULL</td></tr><tr><td><code>normal_cdf</code></td><td><code>normal_cdf(x [, mean, sd])</code></td><td>normal distribution: P(X ≤ x)</td><td><code>normal_cdf(1.96)</code></td><td><code>0.975...</code></td></tr><tr><td><code>normal_pdf</code></td><td><code>normal_pdf(x [, mean, sd])</code></td><td>normal density</td><td></td><td></td></tr><tr><td><code>normal_inv</code></td><td><code>normal_inv(p [, mean, sd])</code></td><td>x where P(X ≤ x) = p</td><td><code>normal_inv(0.975)</code></td><td><code>1.9599...</code></td></tr></tbody></table></div>
+<h4 id="trunc">trunc</h4>
+<ul><li><strong>Syntax:</strong> <code>trunc(x [, decimals])</code> (also <code>truncate</code>)</li><li><strong>Description:</strong> removes digits toward zero: <code>trunc(2.79, 1)</code> is 2.7, <code>trunc(-2.7)</code> is -2. Whole numbers stay whole numbers.</li><li><strong>Returns:</strong> LONG for a whole number with decimals ≥ 0, else DOUBLE. <strong>NULLs:</strong> NULL argument gives NULL.</li><li><strong>Example:</strong> <code>SELECT trunc(close, 0) FROM candles</code></li></ul>
+<h4 id="cbrt">cbrt</h4>
+<ul><li><strong>Syntax:</strong> <code>cbrt(x)</code></li><li><strong>Description:</strong> cube root; also works for negative numbers.</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT cbrt(-8)</code> gives -2.</li></ul>
+<h4 id="log">log</h4>
+<ul><li><strong>Syntax:</strong> <code>log(x)</code> or <code>log(base, x)</code></li><li><strong>Description:</strong> with one argument the natural log (the same as <code>ln</code>, as in QuestDB; PostgreSQL&#39;s <code>log(x)</code> is base 10, use <code>log10</code>). With two arguments the log of x in the given base.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL for x ≤ 0, or a base ≤ 0 or equal to 1.</li><li><strong>Example:</strong> <code>SELECT log(2, 1024)</code> gives 10.</li></ul>
+<h4 id="log2">log2</h4>
+<ul><li><strong>Syntax:</strong> <code>log2(x)</code></li><li><strong>Description:</strong> log base 2.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL for x ≤ 0.</li><li><strong>Example:</strong> <code>SELECT log2(8)</code> gives 3.</li></ul>
+<h4 id="gcd">gcd</h4>
+<ul><li><strong>Syntax:</strong> <code>gcd(a, b)</code>, <code>lcm(a, b)</code></li><li><strong>Description:</strong> greatest common divisor and least common multiple of two whole numbers. <code>gcd(0, 5)</code> is 5; <code>lcm</code> with a 0 is 0.</li><li><strong>Returns:</strong> LONG. <strong>NULLs:</strong> NULL argument gives NULL. Error for a number that is not whole, or when the result does not fit in a LONG.</li><li><strong>Example:</strong> lot sizes: <code>SELECT lcm(10, 25)</code> gives 50.</li></ul>
+<h4 id="factorial">factorial</h4>
+<ul><li><strong>Syntax:</strong> <code>factorial(n)</code></li><li><strong>Description:</strong> 1 × 2 × ... × n. <code>factorial(0)</code> is 1.</li><li><strong>Returns:</strong> LONG for n up to 20, DOUBLE above (NULL above 170). Error for a negative n.</li><li><strong>Example:</strong> <code>SELECT factorial(10)</code> gives 3628800.</li></ul>
+<h4 id="pi">pi</h4>
+<ul><li><strong>Syntax:</strong> <code>pi()</code></li><li><strong>Returns:</strong> DOUBLE 3.141592653589793.</li><li><strong>Example:</strong> <code>SELECT degrees(pi() / 2)</code> gives 90.</li></ul>
+<h4 id="degrees">degrees</h4>
+<ul><li><strong>Syntax:</strong> <code>degrees(radians)</code>, <code>radians(degrees)</code></li><li><strong>Description:</strong> converts between radians and degrees.</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT radians(180)</code> gives 3.14159....</li></ul>
+<h4 id="sin">sin</h4>
+<ul><li><strong>Syntax:</strong> <code>sin(x)</code>, <code>cos(x)</code>, <code>tan(x)</code>, <code>cot(x)</code>, <code>asin(x)</code>, <code>acos(x)</code>, <code>atan(x)</code>, <code>atan2(y, x)</code>, <code>sinh(x)</code>, <code>cosh(x)</code>, <code>tanh(x)</code>, <code>asinh(x)</code>, <code>acosh(x)</code>, <code>atanh(x)</code></li><li><strong>Description:</strong> trigonometric and hyperbolic functions; angles in radians. <code>atan2(y, x)</code> is the angle of the point (x, y).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL outside the domain (<code>asin(2)</code>, <code>acosh(0.5)</code>, <code>atanh(1)</code>).</li><li><strong>Example:</strong> the sample candles view uses <code>sin</code> to make prices.</li></ul>
+<h4 id="width-bucket">width_bucket</h4>
+<ul><li><strong>Syntax:</strong> <code>width_bucket(x, low, high, count)</code></li><li><strong>Description:</strong> splits [low, high) into <code>count</code> equal buckets and gives the bucket of x, 1 to count. Below low gives 0, at or above high gives count + 1 (as PostgreSQL). low may be bigger than high (buckets then go down).</li><li><strong>Returns:</strong> LONG. <strong>NULLs:</strong> NULL argument gives NULL. Error when low = high or count &lt; 1.</li><li><strong>Example:</strong> see <a href="#histograms">Histograms</a>.</li></ul>
+<h4 id="clamp">clamp</h4>
+<ul><li><strong>Syntax:</strong> <code>clamp(x, low, high)</code></li><li><strong>Description:</strong> low when x &lt; low, high when x &gt; high, else x. Works for numbers, text and times.</li><li><strong>Returns:</strong> the type of the chosen value. <strong>NULLs:</strong> NULL argument gives NULL. Error when low &gt; high.</li><li><strong>Example:</strong> <code>SELECT clamp(pct_change, -10, 10) FROM live_data</code> (for a market with a daily limit of ±10 %)</li></ul>
+<h4 id="safe-divide">safe_divide</h4>
+<ul><li><strong>Syntax:</strong> <code>safe_divide(a, b)</code></li><li><strong>Description:</strong> a / b, but NULL when b is 0. (KDB&#39;s <code>/</code> already gives NULL for a division by zero; this name is for programs written for BigQuery.)</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT safe_divide(sum_if(volume, close &gt; open), sum(volume)) FROM candles</code></li></ul>
+<h4 id="div0">div0</h4>
+<ul><li><strong>Syntax:</strong> <code>div0(a, b)</code></li><li><strong>Description:</strong> a / b, but 0 when b is 0 (Snowflake&#39;s <code>DIV0</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT div0(1, 0)</code> gives 0.</li></ul>
+<h4 id="percent">percent</h4>
+<ul><li><strong>Syntax:</strong> <code>percent(a, b)</code></li><li><strong>Description:</strong> a / b × 100.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when b is 0.</li><li><strong>Example:</strong> <code>SELECT symbol, percent(sum(volume), (SELECT sum(volume) FROM candles)) FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="is-nan">is_nan</h4>
+<ul><li><strong>Syntax:</strong> <code>is_nan(x)</code>, <code>is_inf(x)</code>, <code>is_finite(x)</code></li><li><strong>Description:</strong> tests for &quot;not a number&quot;, infinity, and a normal finite number. KDB stores a NaN in a DOUBLE column as NULL, so these are mostly for values made in a query.</li><li><strong>Returns:</strong> BOOL. <strong>NULLs:</strong> NULL argument gives NULL.</li><li><strong>Example:</strong> <code>SELECT is_finite(1.5)</code></li></ul>
+<h4 id="random">random</h4>
+<ul><li><strong>Syntax:</strong> <code>random()</code> (also <code>rand()</code>)</li><li><strong>Description:</strong> a random DOUBLE, 0 or more and less than 1. A new value for every call and every row. A query that uses it is never taken from the query result cache.</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> a random sample of rows: <code>SELECT * FROM candles WHERE random() &lt; 0.01</code></li></ul>
+<h4 id="setseed">setseed</h4>
+<ul><li><strong>Syntax:</strong> <code>setseed(s)</code></li><li><strong>Description:</strong> sets the start of <code>random()</code> so the numbers repeat, s from -1 to 1. It changes the random numbers for the whole server. With several query threads the order of rows can still change the numbers.</li><li><strong>Returns:</strong> NULL. <strong>Example:</strong> <code>SELECT setseed(0.42)</code></li></ul>
+<h4 id="normal-cdf">normal_cdf</h4>
+<ul><li><strong>Syntax:</strong> <code>normal_cdf(x [, mean [, sd]])</code>, <code>normal_pdf(x [, mean [, sd]])</code>; defaults 0 and 1</li><li><strong>Description:</strong> the normal distribution: the probability of a value ≤ x, and the density at x.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> error when sd ≤ 0.</li><li><strong>Example:</strong> <code>SELECT normal_cdf(-1.645)</code> gives about 0.05.</li></ul>
+<h4 id="normal-inv">normal_inv</h4>
+<ul><li><strong>Syntax:</strong> <code>normal_inv(p [, mean [, sd]])</code></li><li><strong>Description:</strong> the inverse: x where the probability of a value ≤ x is p. Useful for a normal (parametric) value at risk: <code>-(avg(r) + normal_inv(0.05) * stddev(r))</code>.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> error when p is not between 0 and 1.</li><li><strong>Example:</strong> <code>SELECT normal_inv(0.975)</code> gives 1.959963984540054.</li></ul>
+<h3 id="prices">Prices</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>Example</th><th>Result</th></tr></thead><tbody><tr><td><code>round_tick</code></td><td><code>round_tick(price [, tick = 0.1])</code></td><td>nearest price on the tick grid</td><td><code>round_tick(512.35)</code></td><td><code>512.4</code></td></tr><tr><td><code>floor_tick</code></td><td><code>floor_tick(price [, tick = 0.1])</code></td><td>tick price at or below</td><td><code>floor_tick(512.37)</code></td><td><code>512.3</code></td></tr><tr><td><code>ceil_tick</code></td><td><code>ceil_tick(price [, tick = 0.1])</code></td><td>tick price at or above</td><td><code>ceil_tick(512.31)</code></td><td><code>512.4</code></td></tr><tr><td><code>pivot_point</code></td><td><code>pivot_point(high, low, close [, method])</code></td><td>pivot point P</td><td><code>pivot_point(110, 90, 100)</code></td><td><code>100</code></td></tr><tr><td><code>pivot_level</code></td><td><code>pivot_level(high, low, close, level [, method])</code></td><td>support and resistance levels</td><td><code>pivot_level(110, 90, 100, &#39;r1&#39;)</code></td><td><code>110</code></td></tr></tbody></table></div>
+<h4 id="round-tick">round_tick</h4>
+<ul><li><strong>Syntax:</strong> <code>round_tick(price [, tick])</code>, <code>floor_tick(price [, tick])</code>, <code>ceil_tick(price [, tick])</code>; tick default 0.1</li><li><strong>Description:</strong> puts a price on the tick grid (for example, prices that move in steps of 0.1, that is 10 cents). The result is rounded to the tick&#39;s decimals, so <code>round_tick(512.35)</code> is 512.4, not 512.4000000001. Half a tick goes up (away from zero).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL argument gives NULL. Error when tick ≤ 0.</li><li><strong>Example:</strong> a 2 % target price on the grid: <code>SELECT symbol, ceil_tick(close * 1.02) FROM candles WHERE time = &#39;2026-09-10&#39;</code></li></ul>
+<h4 id="pivot-point">pivot_point</h4>
+<ul><li><strong>Syntax:</strong> <code>pivot_point(high, low, close [, method])</code></li><li><strong>Description:</strong> the pivot point P of a period. <code>&#39;classic&#39;</code> (default), <code>&#39;fibonacci&#39;</code> and <code>&#39;camarilla&#39;</code>: P = (H + L + C) / 3. <code>&#39;woodie&#39;</code>: P = (H + L + 2C) / 4. Use the <strong>previous</strong> period&#39;s high, low and close for today&#39;s levels (see the example of <code>pivot_level</code>).</li><li><strong>Returns:</strong> DOUBLE.</li><li><strong>Example:</strong> <code>SELECT pivot_point(high, low, close) FROM candles</code></li></ul>
+<h4 id="pivot-level">pivot_level</h4>
+<ul><li><strong>Syntax:</strong> <code>pivot_level(high, low, close, level [, method])</code></li><li><strong>Description:</strong> one pivot level. <code>level</code> is <code>&#39;p&#39;</code>, <code>&#39;r1&#39;</code>, <code>&#39;r2&#39;</code>, <code>&#39;r3&#39;</code>, <code>&#39;s1&#39;</code>, <code>&#39;s2&#39;</code>, <code>&#39;s3&#39;</code> (and <code>&#39;r4&#39;</code>, <code>&#39;s4&#39;</code> for Camarilla). With R = high - low:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>R1 / S1</th><th>R2 / S2</th><th>R3 / S3</th><th>R4 / S4</th></tr></thead><tbody><tr><td>classic (also <code>&#39;standard&#39;</code>)</td><td>2P - L / 2P - H</td><td>P ± R</td><td>H + 2(P - L) / L - 2(H - P)</td><td>-</td></tr><tr><td>woodie</td><td>as classic, with Woodie&#39;s P</td><td>P ± R</td><td>as classic</td><td>-</td></tr><tr><td>fibonacci</td><td>P ± 0.382·R</td><td>P ± 0.618·R</td><td>P ± R</td><td>-</td></tr><tr><td>camarilla</td><td>C ± R·1.1/12</td><td>C ± R·1.1/6</td><td>C ± R·1.1/4</td><td>C ± R·1.1/2</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL argument gives NULL. Error for an unknown level or method.</li><li><strong>Example:</strong> today&#39;s levels from yesterday&#39;s candle:</li></ul>
+<pre><code class="language-sql">SELECT time, symbol, pivot_level(ph, pl, pc, &#39;s1&#39;) AS s1, pivot_point(ph, pl, pc) AS p, pivot_level(ph, pl, pc, &#39;r1&#39;) AS r1
+FROM (SELECT time, symbol,
+             lag(high) OVER (PARTITION BY symbol ORDER BY time) AS ph,
+             lag(low) OVER (PARTITION BY symbol ORDER BY time) AS pl,
+             lag(close) OVER (PARTITION BY symbol ORDER BY time) AS pc
+      FROM candles) x
+WHERE time = &#39;2026-09-10&#39;;</code></pre>
+<h3 id="finance">Finance</h3>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning (Excel&#39;s function of the same name)</th></tr></thead><tbody><tr><td><code>cagr</code></td><td><code>cagr(start_value, end_value, years)</code></td><td>compound yearly growth rate</td></tr><tr><td><code>compound_interest</code></td><td><code>compound_interest(principal, rate, years [, times_per_year = 1])</code></td><td>interest earned</td></tr><tr><td><code>fv</code></td><td><code>fv(rate, nper, pmt [, pv = 0, type = 0])</code></td><td>future value</td></tr><tr><td><code>pv</code></td><td><code>pv(rate, nper, pmt [, fv = 0, type = 0])</code></td><td>present value</td></tr><tr><td><code>pmt</code></td><td><code>pmt(rate, nper, pv [, fv = 0, type = 0])</code></td><td>payment per period</td></tr><tr><td><code>nper</code></td><td><code>nper(rate, pmt, pv [, fv = 0, type = 0])</code></td><td>number of periods</td></tr><tr><td><code>npv</code></td><td><code>npv(rate, value1, value2, ...)</code></td><td>net present value, first value one period away</td></tr><tr><td><code>irr</code></td><td><code>irr(value0, value1, ...)</code></td><td>internal rate of return per period</td></tr></tbody></table></div>
+<p>Excel&#39;s sign rule: money you pay is negative, money you get is positive. <code>type</code> 0 = payments at the end of each period, 1 = at the start. <code>rate</code> is per period (<code>0.12 / 12</code> for 12 % a year paid monthly).</p>
+<h4 id="cagr">cagr</h4>
+<ul><li><strong>Syntax:</strong> <code>cagr(start_value, end_value, years)</code></li><li><strong>Description:</strong> (end / start)^(1 / years) - 1.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when start ≤ 0, end &lt; 0 or years ≤ 0.</li><li><strong>Example:</strong> <code>SELECT cagr(100, 200, 5)</code> gives 0.1487 (14.87 % a year).</li></ul>
+<h4 id="compound-interest">compound_interest</h4>
+<ul><li><strong>Syntax:</strong> <code>compound_interest(principal, rate, years [, times_per_year])</code></li><li><strong>Description:</strong> the interest earned: principal × ((1 + rate / times)^(times × years) - 1). Add the principal for the final amount.</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT compound_interest(100000, 0.08, 3, 4)</code> (8 % a year, paid quarterly, 3 years).</li></ul>
+<h4 id="fv">fv</h4>
+<ul><li><strong>Syntax:</strong> <code>fv(rate, nper, pmt [, pv [, type]])</code></li><li><strong>Description:</strong> future value of a series of equal payments (Excel <code>FV</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT fv(0.06 / 12, 10, -200, -500, 1)</code> gives 2581.40 (Excel&#39;s example).</li></ul>
+<h4 id="pv">pv</h4>
+<ul><li><strong>Syntax:</strong> <code>pv(rate, nper, pmt [, fv [, type]])</code></li><li><strong>Description:</strong> present value (Excel <code>PV</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT pv(0.08 / 12, 240, 500)</code> gives -59777.15.</li></ul>
+<h4 id="pmt">pmt</h4>
+<ul><li><strong>Syntax:</strong> <code>pmt(rate, nper, pv [, fv [, type]])</code></li><li><strong>Description:</strong> payment per period of a loan (Excel <code>PMT</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>Example:</strong> <code>SELECT pmt(0.08 / 12, 10, 10000)</code> gives -1037.03 (Excel&#39;s example).</li></ul>
+<h4 id="nper">nper</h4>
+<ul><li><strong>Syntax:</strong> <code>nper(rate, pmt, pv [, fv [, type]])</code></li><li><strong>Description:</strong> number of periods (Excel <code>NPER</code>).</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when there is no answer.</li><li><strong>Example:</strong> <code>SELECT nper(0.12 / 12, -100, -1000, 10000, 1)</code> gives 59.67.</li></ul>
+<h4 id="npv">npv</h4>
+<ul><li><strong>Syntax:</strong> <code>npv(rate, value1, value2, ...)</code></li><li><strong>Description:</strong> Σ value_i / (1 + rate)^i, i from 1 (Excel <code>NPV</code>: the first value is one period away). Up to 63 values. For values in rows with dates, use the aggregate <code>xnpv</code>.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> a NULL value gives NULL.</li><li><strong>Example:</strong> <code>SELECT npv(0.1, -10000, 3000, 4200, 6800)</code> gives 1188.44.</li></ul>
+<h4 id="irr">irr</h4>
+<ul><li><strong>Syntax:</strong> <code>irr(value0, value1, ...)</code></li><li><strong>Description:</strong> the rate per period where the net present value (value0 at time 0) is 0 (Excel <code>IRR</code>). Newton&#39;s method, then bisection.</li><li><strong>Returns:</strong> DOUBLE. <strong>NULLs:</strong> NULL when all values have the same sign or no rate is found.</li><li><strong>Example:</strong> <code>SELECT irr(-70000, 12000, 15000, 18000, 21000, 26000)</code> gives 0.0866.</li></ul>
+<h3 id="dates-for-reports">Dates for reports</h3>
+<p>All in <strong>UTC</strong> (for a local clock add its offset, for example <code>20700000</code> ms for Nepal, +05:45; chapter 4).</p>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Syntax</th><th>Meaning</th><th>Example</th><th>Result</th></tr></thead><tbody><tr><td><code>extract</code>, <code>date_part</code></td><td><code>extract(field FROM t)</code>, <code>date_part(&#39;field&#39;, t)</code></td><td>a part of a time</td><td><code>extract(dow FROM &#39;2026-09-11&#39;)</code></td><td><code>5</code></td></tr><tr><td><code>date_trunc</code></td><td><code>date_trunc(&#39;quarter&#39;, t)</code></td><td>new unit <code>quarter</code> (chapter 11 has the others)</td><td><code>date_trunc(&#39;quarter&#39;, &#39;2026-08-15&#39;)</code></td><td><code>2026-07-01T00:00:00.000Z</code></td></tr><tr><td><code>datediff</code></td><td><code>datediff(&#39;month&#39;, a, b)</code></td><td>new units <code>month</code> and <code>year</code> (whole calendar months)</td><td><code>datediff(&#39;month&#39;, &#39;2026-01-31&#39;, &#39;2026-02-28&#39;)</code></td><td><code>1</code></td></tr><tr><td><code>age</code></td><td><code>age(a [, b])</code></td><td>the time from b to a as text</td><td><code>age(&#39;2026-09-11&#39;, &#39;2020-01-05&#39;)</code></td><td><code>6 years 8 mons 6 days</code></td></tr><tr><td><code>quarter</code></td><td><code>quarter(t)</code></td><td>1 to 4</td><td><code>quarter(&#39;2026-09-11&#39;)</code></td><td><code>3</code></td></tr><tr><td><code>day_of_year</code></td><td><code>day_of_year(t)</code></td><td>1 to 366</td><td><code>day_of_year(&#39;2026-02-01&#39;)</code></td><td><code>32</code></td></tr><tr><td><code>week_of_year</code></td><td><code>week_of_year(t)</code></td><td>ISO week, 1 to 53</td><td><code>week_of_year(&#39;2027-01-01&#39;)</code></td><td><code>53</code></td></tr><tr><td><code>last_day</code></td><td><code>last_day(t)</code></td><td>last day of the month (DATE)</td><td><code>last_day(&#39;2024-02-10&#39;)</code></td><td><code>2024-02-29</code></td></tr><tr><td><code>make_date</code></td><td><code>make_date(year, month, day)</code></td><td>a DATE</td><td><code>make_date(2026, 9, 11)</code></td><td><code>2026-09-11</code></td></tr><tr><td><code>make_timestamp</code></td><td><code>make_timestamp(y, m, d, h, mi, s)</code></td><td>a TIMESTAMP (s may have decimals)</td><td></td><td></td></tr><tr><td><code>fiscal_year</code></td><td><code>fiscal_year(t [, start_month = 7, start_day = 17])</code></td><td>the year the fiscal year starts in</td><td><code>fiscal_year(&#39;2026-07-16&#39;)</code></td><td><code>2025</code></td></tr><tr><td><code>fiscal_quarter</code></td><td><code>fiscal_quarter(t [, 7, 17])</code></td><td>quarter of the fiscal year</td><td><code>fiscal_quarter(&#39;2026-10-17&#39;)</code></td><td><code>2</code></td></tr><tr><td><code>nepal_fiscal_year</code></td><td><code>nepal_fiscal_year(t)</code></td><td>Nepal&#39;s fiscal year in Bikram Sambat years</td><td><code>nepal_fiscal_year(&#39;2026-09-11&#39;)</code></td><td><code>2083/84</code></td></tr></tbody></table></div>
+<h4 id="extract">extract</h4>
+<ul><li><strong>Syntax:</strong> <code>extract(field FROM t)</code> or <code>date_part(&#39;field&#39;, t)</code></li><li><strong>Description:</strong> fields: <code>year</code>, <code>quarter</code>, <code>month</code>, <code>week</code> (ISO), <code>isoyear</code>, <code>day</code>, <code>dow</code> (0 = Sunday ... 6 = Saturday), <code>isodow</code> (1 = Monday ... 7 = Sunday), <code>doy</code> (day of the year), <code>hour</code>, <code>minute</code>, <code>second</code> (with the milliseconds as decimals), <code>millisecond</code> (seconds × 1000 + ms, as PostgreSQL), <code>epoch</code> (seconds since 1970), <code>decade</code>, <code>century</code>.</li><li><strong>Returns:</strong> LONG; DOUBLE for <code>second</code> and <code>epoch</code>. <strong>NULLs:</strong> NULL argument gives NULL. Error for an unknown field.</li><li><strong>Example:</strong> <code>SELECT extract(month FROM time) AS m, sum(volume) FROM candles ORDER BY m</code></li></ul>
+<h4 id="age">age</h4>
+<ul><li><strong>Syntax:</strong> <code>age(a, b)</code> or <code>age(b)</code></li><li><strong>Description:</strong> the time from b to a in years, months, days and clock time, as text in PostgreSQL&#39;s style: <code>6 years 8 mons 6 days</code>, <code>1 mon 1 day</code>, <code>06:30:00</code>. With one argument, from b to today (midnight UTC). When b is after a, every part is negative.</li><li><strong>Returns:</strong> STRING. <strong>NULLs:</strong> NULL argument gives NULL.</li><li><strong>Example:</strong> <code>SELECT symbol, age(max(time), min(time)) FROM candles GROUP BY symbol</code></li></ul>
+<h4 id="quarter">quarter</h4>
+<ul><li><strong>Syntax:</strong> <code>quarter(t)</code></li><li><strong>Description:</strong> the calendar quarter, 1 (January to March) to 4.</li><li><strong>Returns:</strong> LONG. <strong>Example:</strong> <code>SELECT quarter(time) AS q, sum(volume) FROM candles</code></li></ul>
+<h4 id="day-of-year">day_of_year</h4>
+<ul><li><strong>Syntax:</strong> <code>day_of_year(t)</code></li><li><strong>Description:</strong> 1 for January 1, up to 366.</li><li><strong>Returns:</strong> LONG. <strong>Example:</strong> <code>SELECT day_of_year(&#39;2026-12-31&#39;)</code> gives 365.</li></ul>
+<h4 id="week-of-year">week_of_year</h4>
+<ul><li><strong>Syntax:</strong> <code>week_of_year(t)</code></li><li><strong>Description:</strong> the ISO week number (weeks start on Monday; week 1 has the year&#39;s first Thursday). Early January days can be in week 52 or 53 of the year before.</li><li><strong>Returns:</strong> LONG. <strong>Example:</strong> <code>SELECT week_of_year(&#39;2027-01-01&#39;)</code> gives 53.</li></ul>
+<h4 id="last-day">last_day</h4>
+<ul><li><strong>Syntax:</strong> <code>last_day(t)</code></li><li><strong>Description:</strong> the last day of t&#39;s month.</li><li><strong>Returns:</strong> DATE. <strong>Example:</strong> month-end rows: <code>SELECT * FROM candles WHERE to_date(time) = last_day(time)</code></li></ul>
+<h4 id="make-date">make_date</h4>
+<ul><li><strong>Syntax:</strong> <code>make_date(year, month, day)</code></li><li><strong>Description:</strong> a DATE from its parts.</li><li><strong>Returns:</strong> DATE. <strong>NULLs:</strong> error when the day does not exist (<code>make_date(2026, 2, 29)</code>).</li><li><strong>Example:</strong> <code>SELECT make_date(2026, 7, 17)</code></li></ul>
+<h4 id="make-timestamp">make_timestamp</h4>
+<ul><li><strong>Syntax:</strong> <code>make_timestamp(year, month, day, hour, minute, second)</code></li><li><strong>Description:</strong> a TIMESTAMP (UTC) from its parts; second may have decimals.</li><li><strong>Returns:</strong> TIMESTAMP. <strong>NULLs:</strong> error for a day or time that does not exist.</li><li><strong>Example:</strong> <code>SELECT make_timestamp(2026, 9, 11, 5, 15, 0)</code> is 11:00 in Nepal time (+05:45).</li></ul>
+<h4 id="fiscal-year">fiscal_year</h4>
+<ul><li><strong>Syntax:</strong> <code>fiscal_year(t [, start_month [, start_day]])</code></li><li><strong>Description:</strong> the (Gregorian) year in which t&#39;s fiscal year starts. Nepal&#39;s fiscal year starts on Shrawan 1 of the Bikram Sambat calendar, which is July 16 or 17. KDB does not know the BS calendar: it uses a fixed start day, July 17 by default. In a year where Shrawan 1 is July 16, that one day is counted in the old year; pass <code>7, 16</code> for such a year. For a calendar year use <code>fiscal_year(t, 1, 1)</code>.</li><li><strong>Returns:</strong> LONG. <strong>NULLs:</strong> error when the start day is not 1 to 28.</li><li><strong>Example:</strong> <code>SELECT fiscal_year(time) AS fy, symbol, sum(volume) FROM candles</code></li></ul>
+<h4 id="fiscal-quarter">fiscal_quarter</h4>
+<ul><li><strong>Syntax:</strong> <code>fiscal_quarter(t [, start_month [, start_day]])</code></li><li><strong>Description:</strong> 1 to 4: the quarter of the fiscal year. Quarters are 3 months from the start day (with the default: July 17 to October 16 is quarter 1).</li><li><strong>Returns:</strong> LONG. <strong>Example:</strong> <code>SELECT fiscal_quarter(&#39;2026-10-17&#39;)</code> gives 2.</li></ul>
+<h4 id="nepal-fiscal-year">nepal_fiscal_year</h4>
+<ul><li><strong>Syntax:</strong> <code>nepal_fiscal_year(t)</code></li><li><strong>Description:</strong> the fiscal year as company reports in Nepal write it, in Bikram Sambat years: <code>2083/84</code> for July 17, 2026 to July 16, 2027. It is <code>fiscal_year(t) + 57</code> and the next year, with the same start-day rule.</li><li><strong>Returns:</strong> STRING. <strong>Example:</strong> <code>SELECT nepal_fiscal_year(time) AS fy, sum(volume) FROM candles</code></li></ul>
+<hr>
+<h2 id="part-6-tables-of-numbers-and-pivots">Part 6: Tables of numbers and pivots</h2>
+<h3 id="generate-series-and-long-sequence">generate_series and long_sequence</h3>
+<p><code>generate_series</code> is a <strong>table function</strong>: write it in <code>FROM</code> like a table.</p>
+<pre><code class="language-sql">SELECT ... FROM generate_series(start, stop [, step]) [[AS] alias [(column)]]
+SELECT ... FROM long_sequence(count)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>Rows</th><th>Column type</th></tr></thead><tbody><tr><td><code>generate_series(1, 10)</code></td><td>1, 2, ..., 10</td><td>LONG</td></tr><tr><td><code>generate_series(10, 1, -3)</code></td><td>10, 7, 4, 1</td><td>LONG</td></tr><tr><td><code>generate_series(0, 1, 0.25)</code></td><td>0, 0.25, 0.5, 0.75, 1</td><td>DOUBLE</td></tr><tr><td><code>generate_series(&#39;2026-01-01&#39;::TIMESTAMP, &#39;2026-01-31&#39;::TIMESTAMP, &#39;1 day&#39;)</code></td><td>every day</td><td>TIMESTAMP</td></tr><tr><td><code>generate_series(&#39;2026-01-31&#39;::TIMESTAMP, &#39;2026-12-31&#39;::TIMESTAMP, &#39;1 month&#39;)</code></td><td>month ends (Jan 31, Feb 28, ...)</td><td>TIMESTAMP</td></tr><tr><td><code>long_sequence(5)</code></td><td>x = 1, ..., 5 (QuestDB)</td><td>LONG</td></tr></tbody></table></div>
+<p>Rules:</p>
+<ul><li>The arguments must be constants (or <code>now()</code>, <code>dateadd(...)</code>, ...). They cannot use columns of other tables.</li><li>Steps for times: <code>&#39;1 day&#39;</code>, <code>&#39;6 hours&#39;</code>, <code>&#39;15 minutes&#39;</code>, <code>&#39;1 week&#39;</code>, <code>&#39;1 month&#39;</code>, <code>&#39;3 months&#39;</code>, <code>&#39;1 year&#39;</code>, or a number of milliseconds. Month steps keep the day where they can (day clamped at month end). Without a step: 1 day. Two DATE values with a whole-day step give DATE rows.</li><li>The column name: the name in <code>AS alias(column)</code>, else the alias, else <code>generate_series</code> (<code>x</code> for <code>long_sequence</code>).</li><li>The last value is included when the steps reach it exactly. A step of 0 is an error. At most 10 million rows. A NULL argument gives no rows.</li><li>A result is a normal source: join it, filter it, group it, use indicators on it.</li></ul>
+<h4 id="generate-series">generate_series</h4>
+<ul><li><strong>Syntax:</strong> <code>generate_series(start, stop [, step])</code></li><li><strong>Description:</strong> rows from start to stop, step by step. See the table above.</li><li><strong>Returns:</strong> a table with one column (LONG, DOUBLE, TIMESTAMP or DATE).</li><li><strong>NULLs:</strong> a NULL argument gives no rows.</li><li><strong>Example:</strong> every trading day of September 2026 and whether CITY has a candle on it:</li></ul>
+<pre><code class="language-sql">SELECT d, count(c.close) AS candles
+FROM generate_series(&#39;2026-09-01&#39;::TIMESTAMP, &#39;2026-09-10&#39;::TIMESTAMP, &#39;1 day&#39;) AS g(d)
+LEFT JOIN candles c ON c.time = g.d AND c.symbol = &#39;CITY&#39;
+WHERE is_trading_day(d)
+GROUP BY d ORDER BY d;</code></pre>
+<h4 id="long-sequence">long_sequence</h4>
+<ul><li><strong>Syntax:</strong> <code>long_sequence(count)</code></li><li><strong>Description:</strong> rows x = 1 to count (the QuestDB function).</li><li><strong>Returns:</strong> a table with one LONG column <code>x</code>.</li><li><strong>Example:</strong> <code>SELECT x, x * x FROM long_sequence(5)</code></li></ul>
+<h3 id="pivot">PIVOT</h3>
+<pre><code class="language-sql">SELECT ... FROM source PIVOT (aggregate(x) [AS name], ... FOR column IN (value [AS name], ...)) [[AS] alias]</code></pre>
+<p>PIVOT turns values of one column into columns. Every column of the source that PIVOT does not use (not in the aggregates, not the FOR column) becomes a group key: one row per key. <code>source</code> is a table, a view, a subquery or a table function.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Rule</th></tr></thead><tbody><tr><td>aggregates</td><td>any aggregate: <code>sum</code>, <code>count(*)</code>, <code>avg</code>, <code>max</code>, <code>last</code>, <code>corr</code>, ...</td></tr><tr><td>FOR column</td><td>a column or expression of the source</td></tr><tr><td>IN values</td><td>constants. A value without <code>AS</code> gives a column named after the value</td></tr><tr><td>column names</td><td>one aggregate: the value&#39;s name; several: <code>value_name</code>, like <code>jan_total</code></td></tr><tr><td>missing combinations</td><td>NULL (<code>count</code> gives 0)</td></tr></tbody></table></div>
+<p>It is the same as a GROUP BY with <code>CASE</code>: <code>sum(CASE WHEN month = 1 THEN turnover END) AS jan, ...</code>. PIVOT writes that for you. Put the columns you do not need out of the source with a subquery, or they become group keys.</p>
+<h4 id="pivot-2">PIVOT</h4>
+<ul><li><strong>Syntax:</strong> see above.</li><li><strong>Description:</strong> one row per combination of the other columns, one column per value (and aggregate).</li><li><strong>NULLs:</strong> a combination with no rows gives NULL (0 for <code>count</code>). Rows where the FOR column is NULL match no value.</li><li><strong>Example:</strong> see <a href="#monthly-turnover-by-sector">Monthly turnover by sector</a>.</li></ul>
+<hr>
+<h2 id="part-7-cookbook">Part 7: Cookbook</h2>
+<p>All recipes use the <code>candles</code> view from the start of this chapter.</p>
+<h3 id="top-gainers-per-day">Top gainers per day</h3>
+<p>The change from the day before is a window over each symbol. The rank inside each day is a second window over the result, so it needs one more subquery level (<code>PARTITION BY time</code>).</p>
+<p>03-cook-top-gainers.sql:</p>
+<pre><code class="language-sql">-- The two best symbols of each day, by the change from the day before.
+SELECT time, symbol, chg_pct, place
+FROM (
+  SELECT time, symbol, chg_pct, rank() OVER (PARTITION BY time ORDER BY chg_pct DESC) AS place
+  FROM (
+    SELECT time, symbol, round(pct_return(close) OVER (PARTITION BY symbol ORDER BY time) * 100, 2) AS chg_pct
+    FROM candles
+  ) d
+  WHERE chg_pct IS NOT NULL
+) r
+WHERE place &lt;= 2 AND time &gt;= &#39;2026-09-06&#39;
+ORDER BY time, place;</code></pre>
+<pre><code class="language-text">time                     | symbol | chg_pct | place
+-------------------------+--------+---------+------
+2026-09-06T00:00:00.000Z | TELCO  |    5.44 |     1
+2026-09-06T00:00:00.000Z | CITY   |    1.48 |     2
+2026-09-07T00:00:00.000Z | TELCO  |    1.33 |     1
+2026-09-07T00:00:00.000Z | VOLT   |    1.27 |     2
+2026-09-08T00:00:00.000Z | VOLT   |    1.73 |     1
+2026-09-08T00:00:00.000Z | TELCO  |    0.98 |     2
+2026-09-09T00:00:00.000Z | VOLT   |    1.94 |     1
+2026-09-09T00:00:00.000Z | TELCO  |    0.56 |     2
+2026-09-10T00:00:00.000Z | VOLT   |    2.13 |     1
+2026-09-10T00:00:00.000Z | TELCO  |    0.17 |     2
+(10 rows, 5.8 ms)</code></pre>
+<h3 id="20-day-volatility">20-day volatility</h3>
+<p><code>volatility(close, 20, 240)</code> is the standard deviation of the last 20 daily log returns, scaled to a year of 240 trading days. The inner query computes it for every day; the outer one keeps the last day.</p>
+<p>04-cook-volatility.sql:</p>
+<pre><code class="language-sql">-- Yearly volatility from the last 20 daily log returns (240 trading days a year).
+SELECT symbol, round(close, 1) AS close, round(vol_20d * 100, 1) AS vol_pct
+FROM (
+  SELECT time, symbol, close, volatility(close, 20, 240) OVER (PARTITION BY symbol ORDER BY time) AS vol_20d
+  FROM candles
+) v
+WHERE time = &#39;2026-09-10&#39;
+ORDER BY vol_pct DESC;</code></pre>
+<pre><code class="language-text">symbol | close  | vol_pct
+-------+--------+--------
+CITY   |  382.1 |    29.6
+VOLT   |  177.1 |    27.9
+COAST  |  299.1 |    26.8
+TELCO  | 1073.4 |    21.8
+ACME   |  312.2 |    21.2
+(5 rows, 5.1 ms)</code></pre>
+<h3 id="drawdown-2">Drawdown</h3>
+<p><code>drawdown(close)</code> is the fall from the highest close so far. <code>max_drawdown</code> is the worst of it, and <code>arg_min(time, dd)</code> finds the day of the lowest point. Compute the drawdown on all days first, then filter the days to show.</p>
+<p>05-cook-drawdown.sql:</p>
+<pre><code class="language-sql">-- The largest fall from a peak for every symbol, and the day of the lowest point.
+SELECT symbol, round(max_drawdown(close) * 100, 1) AS max_dd_pct, arg_min(time, dd) AS worst_day
+FROM (SELECT time, symbol, close, drawdown(close) OVER (PARTITION BY symbol ORDER BY time) AS dd FROM candles) x
+GROUP BY symbol
+ORDER BY max_dd_pct;
+
+-- The drawdown of COAST on the last days.
+SELECT time, close, round(drawdown(close) * 100, 2) AS dd_pct
+FROM (SELECT time, close FROM candles WHERE symbol = &#39;COAST&#39;) n
+WHERE time &gt;= &#39;2026-09-01&#39;;</code></pre>
+<pre><code class="language-text">symbol | max_dd_pct | worst_day               
+-------+------------+-------------------------
+CITY   |      -31.5 | 2026-07-05T00:00:00.000Z
+COAST  |      -28.7 | 2026-09-10T00:00:00.000Z
+VOLT   |      -20.9 | 2026-04-08T00:00:00.000Z
+TELCO  |      -18.6 | 2026-08-12T00:00:00.000Z
+ACME   |      -16.8 | 2026-05-21T00:00:00.000Z
+(5 rows, 5.2 ms)
+
+time                     | close | dd_pct
+-------------------------+-------+-------
+2026-09-01T00:00:00.000Z | 330.7 |      0
+2026-09-02T00:00:00.000Z | 329.8 |  -0.27
+2026-09-03T00:00:00.000Z | 327.5 |  -0.97
+2026-09-06T00:00:00.000Z | 314.3 |  -4.96
+2026-09-07T00:00:00.000Z | 309.2 |   -6.5
+2026-09-08T00:00:00.000Z | 304.6 |  -7.89
+2026-09-09T00:00:00.000Z | 301.1 |  -8.95
+2026-09-10T00:00:00.000Z | 299.1 |  -9.56
+(8 rows, 4.4 ms)</code></pre>
+<h3 id="macd-crossover-signals">MACD crossover signals</h3>
+<p>The MACD histogram (line - signal) changes sign when the lines cross. <code>lag(hist)</code> in one more level gives yesterday&#39;s histogram. A cross from below is a buy signal, a cross from above a sell signal.</p>
+<p>06-cook-macd-crossover.sql:</p>
+<pre><code class="language-sql">-- Days when the MACD line crosses its signal line.
+SELECT time, symbol, round(line, 3) AS macd, round(sig, 3) AS signal,
+       CASE WHEN hist &gt; 0 THEN &#39;BUY&#39; ELSE &#39;SELL&#39; END AS action
+FROM (
+  SELECT time, symbol, line, sig, hist, lag(hist) OVER (PARTITION BY symbol ORDER BY time) AS prev_hist
+  FROM (
+    SELECT time, symbol,
+           macd(close) OVER (PARTITION BY symbol ORDER BY time) AS line,
+           macd_signal(close) OVER (PARTITION BY symbol ORDER BY time) AS sig,
+           macd_hist(close) OVER (PARTITION BY symbol ORDER BY time) AS hist
+    FROM candles
+  ) m
+) x
+WHERE (hist &gt; 0 AND prev_hist &lt;= 0) OR (hist &lt; 0 AND prev_hist &gt;= 0)
+ORDER BY time DESC, symbol
+LIMIT 8;</code></pre>
+<pre><code class="language-text">time                     | symbol | macd    | signal  | action
+-------------------------+--------+---------+---------+-------
+2026-09-07T00:00:00.000Z | VOLT   |  -3.953 |  -4.085 | BUY   
+2026-09-02T00:00:00.000Z | VOLT   |  -4.098 |  -4.059 | SELL  
+2026-08-27T00:00:00.000Z | VOLT   |  -4.054 |  -4.171 | BUY   
+2026-08-24T00:00:00.000Z | CITY   |   8.463 |   9.102 | SELL  
+2026-08-19T00:00:00.000Z | TELCO  | -19.481 | -20.742 | BUY   
+2026-08-11T00:00:00.000Z | ACME   |  -4.911 |  -5.082 | BUY   
+2026-08-05T00:00:00.000Z | COAST  |    6.99 |   7.709 | SELL  
+2026-07-28T00:00:00.000Z | VOLT   |   4.393 |   4.919 | SELL  
+(8 rows, 5.9 ms)</code></pre>
+<h3 id="bollinger-squeeze-filter">Bollinger squeeze filter</h3>
+<p>A squeeze is a quiet market: the Bollinger band width is close to its lowest value of the last 120 days. Often a big move follows. <code>min(width) OVER (... ROWS 119 PRECEDING)</code> is the lowest width of 120 rows.</p>
+<p>07-cook-bollinger-squeeze.sql:</p>
+<pre><code class="language-sql">-- A squeeze: the Bollinger band width is near its lowest of the last 120 days.
+SELECT time, symbol, round(width * 100, 2) AS width_pct, round(lowest * 100, 2) AS lowest_120d_pct
+FROM (
+  SELECT time, symbol, width, min(width) OVER (PARTITION BY symbol ORDER BY time ROWS 119 PRECEDING) AS lowest
+  FROM (SELECT time, symbol, bb_width(close, 20, 2) OVER (PARTITION BY symbol ORDER BY time) AS width FROM candles) b
+) s
+WHERE width &lt;= lowest * 1.05 AND time &gt;= &#39;2026-08-20&#39;
+ORDER BY time, symbol;</code></pre>
+<pre><code class="language-text">time                     | symbol | width_pct | lowest_120d_pct
+-------------------------+--------+-----------+----------------
+2026-08-24T00:00:00.000Z | CITY   |     10.77 |           10.77
+2026-08-25T00:00:00.000Z | CITY   |     10.77 |           10.77
+(2 rows, 5.6 ms)</code></pre>
+<h3 id="correlation-matrix-of-sectors">Correlation matrix of sectors</h3>
+<p>First the daily return of every sector (the average return of its symbols), then <code>corr</code> for every pair of sectors with a self-join, then <code>PIVOT</code> to turn the pairs into a matrix. 1 on the diagonal; values near 0 mean the sectors move independently.</p>
+<p>08-cook-correlation-matrix.sql:</p>
+<pre><code class="language-sql">-- Daily return of each sector (the average of its symbols), then the correlation of every pair of sectors.
+SELECT *
+FROM (
+  SELECT a.sector AS sector, b.sector AS other, round(corr(a.r, b.r), 2) AS c
+  FROM (SELECT time, sector, avg(r) AS r
+        FROM (SELECT time, sector, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) x
+        GROUP BY time, sector) a
+  JOIN (SELECT time, sector, avg(r) AS r
+        FROM (SELECT time, sector, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) x
+        GROUP BY time, sector) b ON a.time = b.time
+  GROUP BY a.sector, b.sector
+) pairs
+PIVOT (max(c) FOR other IN (&#39;Banking&#39; AS banking, &#39;Energy&#39; AS energy, &#39;Investment&#39; AS investment, &#39;Telecom&#39; AS telecom))
+ORDER BY sector;</code></pre>
+<pre><code class="language-text">sector     | banking | energy | investment | telecom
+-----------+---------+--------+------------+--------
+Banking    |       1 |  -0.63 |       0.15 |   -0.06
+Energy     |   -0.63 |      1 |      -0.59 |   -0.18
+Investment |    0.15 |  -0.59 |          1 |   -0.19
+Telecom    |   -0.06 |  -0.18 |      -0.19 |       1
+(4 rows, 12.4 ms)</code></pre>
+<h3 id="monthly-turnover-by-sector">Monthly turnover by sector</h3>
+<p>Sectors as rows, months as columns. The subquery keeps only the three columns PIVOT needs; every other column would become a group key. The outer query rounds to millions.</p>
+<p>09-cook-pivot-turnover.sql:</p>
+<pre><code class="language-sql">-- Turnover (close x volume) in millions: sectors as rows, months as columns.
+SELECT sector, round(jun / 1000000, 1) AS jun, round(jul / 1000000, 1) AS jul, round(aug / 1000000, 1) AS aug, round(sep / 1000000, 1) AS sep
+FROM (SELECT sector, month(time) AS m, close * volume AS turnover FROM candles WHERE time &gt;= &#39;2026-06-01&#39;) t
+PIVOT (sum(turnover) FOR m IN (6 AS jun, 7 AS jul, 8 AS aug, 9 AS sep))
+ORDER BY sector;</code></pre>
+<pre><code class="language-text">sector     | jun    | jul    | aug    | sep  
+-----------+--------+--------+--------+------
+Banking    | 1213.6 | 1131.2 | 1198.2 | 392.5
+Energy     |  260.5 |  288.6 |  264.9 |  92.1
+Investment |  431.3 |  434.7 |    445 |   168
+Telecom    | 1412.1 | 1563.6 | 1382.9 | 611.1
+(4 rows, 5.3 ms)</code></pre>
+<h3 id="histograms">Histograms</h3>
+<p><code>width_bucket(x, -4, 4, 8)</code> puts each daily return into a 1 % bucket from -4 % to +4 %. Bucket 0 means below -4 %, bucket 9 means +4 % or more. Items that are not aggregates are the group keys.</p>
+<p>10-cook-histogram.sql:</p>
+<pre><code class="language-sql">-- How often did CITY move by how much? Buckets of 1 % from -4 % to +4 %.
+SELECT bucket, -5 + bucket AS from_pct, count(*) AS days
+FROM (SELECT width_bucket(pct_return(close) * 100, -4, 4, 8) AS bucket FROM candles WHERE symbol = &#39;CITY&#39;) h
+WHERE bucket IS NOT NULL
+ORDER BY bucket;</code></pre>
+<pre><code class="language-text">bucket | from_pct | days
+-------+----------+-----
+     0 |       -5 |    5
+     1 |       -4 |    5
+     2 |       -3 |   16
+     3 |       -2 |   24
+     4 |       -1 |   46
+     5 |        0 |   42
+     6 |        1 |   25
+     7 |        2 |    8
+     8 |        3 |    4
+     9 |        4 |    5
+(10 rows, 5.1 ms)</code></pre>
+<h3 id="beta-against-a-benchmark">Beta against a benchmark</h3>
+<p>The sample data has no market index, so the &quot;market&quot; here is the average daily return of the five symbols. Join each symbol&#39;s returns to the market returns by day, then use <code>beta</code>, <code>alpha</code>, <code>information_ratio</code> and <code>corr</code> with <code>GROUP BY</code>. With a real index table, join to its returns instead.</p>
+<p>11-cook-beta.sql:</p>
+<pre><code class="language-sql">-- Beta, alpha and information ratio of each symbol against a &quot;market&quot; made of all five symbols.
+SELECT s.symbol, round(beta(s.r, m.r), 2) AS beta, round(alpha(s.r, m.r) * 240 * 100, 2) AS alpha_pct_year,
+       round(information_ratio(s.r, m.r, 240), 2) AS info_ratio, round(corr(s.r, m.r), 2) AS corr
+FROM (SELECT time, symbol, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) s
+JOIN (SELECT time, avg(r) AS r
+      FROM (SELECT time, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) x
+      GROUP BY time) m ON s.time = m.time
+GROUP BY s.symbol
+ORDER BY beta DESC;</code></pre>
+<pre><code class="language-text">symbol | beta  | alpha_pct_year | info_ratio | corr 
+-------+-------+----------------+------------+------
+CITY   |  2.12 |         -25.23 |      -1.06 |  0.45
+COAST  |   1.9 |         -35.58 |      -1.51 |  0.43
+TELCO  |  1.87 |          32.33 |       1.27 |  0.45
+ACME   |   1.2 |          39.01 |       1.65 |  0.31
+VOLT   | -2.08 |         -10.52 |      -0.04 | -0.49
+(5 rows, 12.0 ms)</code></pre>
+<h3 id="risk-report">Risk report</h3>
+<p>All risk aggregates work on daily returns: make them in a subquery, then group by symbol.</p>
+<p>12-cook-risk.sql:</p>
+<pre><code class="language-sql">-- Risk report per symbol, from daily returns.
+SELECT symbol, count(r) AS days,
+       round(sharpe_ratio(r, 0, 240), 2) AS sharpe,
+       round(sortino_ratio(r, 0, 240), 2) AS sortino,
+       round(calmar_ratio(r, 240), 2) AS calmar,
+       round(value_at_risk(r, 0.95) * 100, 2) AS var95_pct,
+       round(expected_shortfall(r, 0.95) * 100, 2) AS es95_pct,
+       round(skewness(r), 2) AS skew
+FROM (SELECT time, symbol, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r FROM candles) x
+GROUP BY symbol
+ORDER BY sharpe DESC;</code></pre>
+<pre><code class="language-text">symbol | days | sharpe | sortino | calmar | var95_pct | es95_pct | skew 
+-------+------+--------+---------+--------+-----------+----------+------
+ACME   |  180 |   1.45 |    2.31 |   2.28 |      1.91 |     3.34 |  0.31
+TELCO  |  180 |   1.05 |    1.59 |   1.42 |      1.88 |      3.7 |  0.16
+VOLT   |  180 |  -0.16 |   -0.23 |  -0.35 |      1.98 |      4.1 | -0.01
+CITY   |  180 |  -1.08 |   -1.46 |  -0.96 |      3.25 |     4.44 |  0.05
+COAST  |  180 |   -1.5 |   -1.98 |  -1.26 |      2.67 |     4.43 |  0.01
+(5 rows, 6.3 ms)</code></pre>
+<h3 id="many-indicators-at-once">Many indicators at once</h3>
+<p>Indicators need the history before the days you show: compute them on all rows inside, filter the days outside (<code>trend</code> is <code>supertrend_direction</code>: 1 up, -1 down).</p>
+<p>13-cook-indicators.sql:</p>
+<pre><code class="language-sql">-- Many indicators on the last days of one symbol.
+SELECT time, close, rsi, round(stoch_k, 1) AS stoch_k, round(adx, 1) AS adx, round(sar, 1) AS sar, trend, round(bb_pb, 2) AS bb_pb
+FROM (
+  SELECT time, close,
+         round(rsi(close, 14), 1) AS rsi,
+         stoch_k(high, low, close) AS stoch_k,
+         adx(high, low, close, 14) AS adx,
+         sar(high, low) AS sar,
+         supertrend_direction(high, low, close, 10, 3) AS trend,
+         bb_percent_b(close, 20, 2) AS bb_pb
+  FROM candles WHERE symbol = &#39;VOLT&#39;
+) i
+WHERE time &gt;= &#39;2026-09-01&#39;;</code></pre>
+<pre><code class="language-text">time                     | close | rsi  | stoch_k | adx  | sar   | trend | bb_pb
+-------------------------+-------+------+---------+------+-------+-------+------
+2026-09-01T00:00:00.000Z | 166.3 | 35.3 |    40.9 | 25.2 | 174.6 |    -1 |  0.31
+2026-09-02T00:00:00.000Z | 164.8 | 33.5 |    37.3 | 25.7 | 174.4 |    -1 |  0.29
+2026-09-03T00:00:00.000Z | 163.7 | 32.2 |    31.1 | 26.2 |   174 |    -1 |  0.26
+2026-09-06T00:00:00.000Z | 165.1 | 35.7 |    28.6 | 26.4 | 173.3 |    -1 |  0.33
+2026-09-07T00:00:00.000Z | 167.2 | 40.6 |    33.4 | 25.8 | 172.6 |    -1 |  0.44
+2026-09-08T00:00:00.000Z | 170.1 | 46.6 |      47 | 24.2 |   172 |    -1 |  0.63
+2026-09-09T00:00:00.000Z | 173.4 | 52.5 |    63.6 | 23.2 | 162.6 |    -1 |  0.87
+2026-09-10T00:00:00.000Z | 177.1 | 58.1 |    79.3 | 22.7 | 162.9 |     1 |  1.06
+(8 rows, 5.0 ms)</code></pre>
+<h3 id="pivot-levels-on-the-tick-grid">Pivot levels on the tick grid</h3>
+<p>Today&#39;s pivot levels come from yesterday&#39;s high, low and close (<code>lag</code>). <code>round_tick</code> puts them on a 0.1 price grid (10 cents).</p>
+<p>14-cook-pivots-ticks.sql:</p>
+<pre><code class="language-sql">-- Today&#39;s pivot levels from yesterday&#39;s candle, on the price tick grid.
+SELECT symbol,
+       round_tick(pivot_level(ph, pl, pc, &#39;s1&#39;)) AS s1,
+       round_tick(pivot_point(ph, pl, pc)) AS p,
+       round_tick(pivot_level(ph, pl, pc, &#39;r1&#39;)) AS r1,
+       round_tick(pivot_level(ph, pl, pc, &#39;r1&#39;, &#39;camarilla&#39;)) AS cam_r1
+FROM (SELECT time, symbol,
+             lag(high) OVER (PARTITION BY symbol ORDER BY time) AS ph,
+             lag(low) OVER (PARTITION BY symbol ORDER BY time) AS pl,
+             lag(close) OVER (PARTITION BY symbol ORDER BY time) AS pc
+      FROM candles) x
+WHERE time = &#39;2026-09-10&#39;
+ORDER BY symbol;</code></pre>
+<pre><code class="language-text">symbol | s1     | p      | r1     | cam_r1
+-------+--------+--------+--------+-------
+ACME   |  312.3 |  314.5 |  316.9 |  315.2
+CITY   |  385.5 |  387.9 |  390.9 |    389
+COAST  |  298.9 |  301.4 |  303.6 |  301.5
+TELCO  | 1063.8 | 1072.2 | 1079.9 | 1073.1
+VOLT   |  172.1 |  173.9 |  175.2 |  173.7
+(5 rows, 5.4 ms)</code></pre>
+<h3 id="nepal-fiscal-year-2">Nepal fiscal year</h3>
+<p><code>nepal_fiscal_year</code> and <code>fiscal_quarter</code> group rows by a fiscal year that starts in mid-July, as in Nepal (see the note in <a href="#fiscal-year">fiscal_year</a>).</p>
+<p>15-cook-fiscal-year.sql:</p>
+<pre><code class="language-sql">-- Volume per Nepal fiscal year and fiscal quarter.
+SELECT nepal_fiscal_year(time) AS fy, fiscal_quarter(time) AS q, count(*) AS rows_, sum(volume) AS volume
+FROM candles
+ORDER BY fy, q;
+
+SELECT extract(year FROM &#39;2026-09-11&#39;) AS y, extract(quarter FROM &#39;2026-09-11&#39;) AS q, week_of_year(&#39;2026-09-11&#39;) AS week,
+       age(&#39;2026-09-11&#39;, &#39;2020-01-05&#39;) AS age, datediff(&#39;month&#39;, &#39;2026-01-31&#39;, &#39;2026-02-28&#39;) AS months;</code></pre>
+<pre><code class="language-text">fy      | q | rows_ | volume  
+--------+---+-------+---------
+2082/83 | 2 |    55 |  3827816
+2082/83 | 3 |   325 | 22483660
+2082/83 | 4 |   325 | 22400713
+2083/84 | 1 |   200 | 13842460
+(4 rows, 8.3 ms)
+
+y    | q | week | age                   | months
+-----+---+------+-----------------------+-------
+2026 | 3 |   37 | 6 years 8 mons 6 days |      1
+(1 row, 0.1 ms)</code></pre>
+<h3 id="calendars-with-generate-series">Calendars with generate_series</h3>
+<p><code>generate_series</code> makes rows of numbers or days. A LEFT JOIN to it shows the days without data.</p>
+<p>16-cook-generate-series.sql:</p>
+<pre><code class="language-sql">SELECT count(*) AS n, sum(generate_series) AS total FROM generate_series(1, 100);
+
+SELECT m, day(m) AS day FROM generate_series(&#39;2026-01-31&#39;::TIMESTAMP, &#39;2026-05-31&#39;::TIMESTAMP, &#39;1 month&#39;) AS s(m);
+
+-- Days without a candle (Fridays and Saturdays) in the first week of September.
+SELECT d, day_of_week(d) AS dow, count(c.close) AS candles
+FROM generate_series(&#39;2026-09-01&#39;::TIMESTAMP, &#39;2026-09-07&#39;::TIMESTAMP, &#39;1 day&#39;) AS g(d)
+LEFT JOIN candles c ON c.time = g.d AND c.symbol = &#39;CITY&#39;
+GROUP BY d
+ORDER BY d;</code></pre>
+<pre><code class="language-text">n   | total
+----+------
+100 |  5050
+(1 row, 0.2 ms)
+
+m                        | day
+-------------------------+----
+2026-01-31T00:00:00.000Z |  31
+2026-02-28T00:00:00.000Z |  28
+2026-03-31T00:00:00.000Z |  31
+2026-04-30T00:00:00.000Z |  30
+2026-05-31T00:00:00.000Z |  31
+(5 rows, 0.1 ms)
+
+d                        | dow | candles
+-------------------------+-----+--------
+2026-09-01T00:00:00.000Z |   2 |       1
+2026-09-02T00:00:00.000Z |   3 |       1
+2026-09-03T00:00:00.000Z |   4 |       1
+2026-09-04T00:00:00.000Z |   5 |       0
+2026-09-05T00:00:00.000Z |   6 |       0
+2026-09-06T00:00:00.000Z |   0 |       1
+2026-09-07T00:00:00.000Z |   1 |       1
+(7 rows, 4.9 ms)</code></pre>
+<h3 id="loans-and-savings">Loans and savings</h3>
+<p>A 5-year loan of $500,000 at 10 % a year paid monthly (EMI), a monthly saving of $5000 for 10 years at 8 %, the yearly growth of a share from $400 to $510 in 3 years, and the IRR of a bond-like investment.</p>
+<p>17-cook-finance.sql:</p>
+<pre><code class="language-sql">SELECT round(pmt(0.10 / 12, 60, 500000), 2) AS emi_5y_loan,
+       round(fv(0.08 / 12, 120, -5000), 2) AS sip_10y,
+       round(cagr(400, 510, 3) * 100, 2) AS cagr_pct,
+       round(irr(-100000, 8000, 8000, 8000, 120000) * 100, 2) AS irr_pct;</code></pre>
+<pre><code class="language-text">emi_5y_loan | sip_10y   | cagr_pct | irr_pct
+------------+-----------+----------+--------
+  -10623.52 | 914730.18 |     8.44 |   10.56
+(1 row, 0.3 ms)</code></pre>
+<hr>
+<h3 id="speed">Speed</h3>
+<ul><li>The new aggregates, window frames with <code>BETWEEN</code>, and all functions of this chapter run in the <strong>row engine</strong>. A <code>GROUP BY</code> query with only <code>count</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>first</code> and <code>last</code> on plain columns uses the faster column engine; add <code>corr(...)</code> and the whole query uses the row engine. On the sample data this does not matter; on tens of millions of rows it can be several times slower.</li><li>Indicators over windows (WMA, Bollinger, Donchian, CCI, linear regression, <code>zscore(x, n)</code>, ...) do about n steps per row: <code>bb_upper(close, 200)</code> over a million rows is about 200 million steps.</li><li>Aggregates that keep all values (<code>percentile_cont</code>, <code>percentile_disc</code>, <code>mode</code>, <code>mad</code>, <code>iqr</code>, <code>value_at_risk</code>, <code>expected_shortfall</code>, <code>string_agg</code>, <code>array_agg</code>) sort the values again for every row when used with a running <code>OVER (... ORDER BY ...)</code> frame. Use <code>ROWS n PRECEDING</code> for moving versions over long partitions.</li></ul>
+<h3 id="try-it-yourself">Try it yourself</h3>
+<ol><li>Which symbol had the biggest drawdown in the sample candles? Use <code>max_drawdown</code>.</li><li>Write the 10-day correlation between CITY&#39;s and COAST&#39;s daily returns for every day.</li><li>How many trading days does each month of 2026 have? Use <code>generate_series</code> and <code>is_trading_day</code>.</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><code>SELECT symbol, max_drawdown(close) AS dd FROM candles GROUP BY symbol ORDER BY dd LIMIT 1</code></li><li><code>SELECT time, corr(a, b) OVER (ORDER BY time ROWS 9 PRECEDING) FROM (SELECT n.time AS time, n.r AS a, i.r AS b FROM (SELECT time, pct_return(close) AS r FROM candles WHERE symbol = &#39;CITY&#39;) n JOIN (SELECT time, pct_return(close) AS r FROM candles WHERE symbol = &#39;COAST&#39;) i ON n.time = i.time) x</code></li><li><code>SELECT month(d) AS m, count_if(is_trading_day(d)) AS days FROM generate_series(&#39;2026-01-01&#39;::TIMESTAMP, &#39;2026-12-31&#39;::TIMESTAMP, &#39;1 day&#39;) AS g(d) ORDER BY m</code></li></ol>
+</details>
+<hr>
+<p>Next: <a href="20-charts-and-dashboards.html">20. Charts and dashboards</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/19-analysis-functions.md">This page as markdown</a>.</footer>
+</body>
+</html>

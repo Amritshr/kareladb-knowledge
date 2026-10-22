@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timers - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Let the server run a procedure, a function or any SQL by itself at set times, so a table stays up to date.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/timers.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/timers.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="timers">Timers</h1>
+<blockquote><p>Let the server run a procedure, a function or any SQL by itself at set times, so a table stays up to date.</p></blockquote>
+<ul><li>Category: Stored procedures</li><li>Keywords: timer, timers, schedule, scheduled job, job, cron, every, hourly, daily, weekdays, sun-thu, mon-fri, trading week, trading days, holidays, trading nepse 15:05, catch up, skipped, monthly, retention, keep data for, run on time, back to back, timer_workers, --timer-workers, KDB_TIMER_WORKERS, GET /api/timers, POST /api/timers, POST /api/timers/&lt;name&gt;/run, _timers</li><li>See also: <a href="procedures.html">Stored procedures</a>, <a href="saved-functions.html">Saved functions</a>, <a href="triggers.html">Triggers</a>, <a href="calendars.html">Trading calendars</a>, <a href="backup-schedule.html">Backups on a schedule</a>, <a href="http-overview.html">HTTP API overview</a></li></ul>
+<p>A <strong>timer</strong> is saved SQL that the server runs by itself at set times, inside one database. Most timers call a <a href="procedures.html">procedure</a>, so a table of totals, candles or reports is kept up to date without a cron job outside KDB.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Example</th><th>Rule</th></tr></thead><tbody><tr><td>name</td><td><code>daily_totals</code></td><td>1 to 64 letters, digits, <code>_</code> and <code>-</code>; unique in its database (case does not matter)</td></tr><tr><td>schedule</td><td><code>every 5m</code></td><td>see <a href="#schedules">Schedules</a></td></tr><tr><td>SQL</td><td><code>CALL refresh_daily_totals()</code></td><td>any SQL of that database, up to 64 KB; it must parse when the timer is saved</td></tr><tr><td>enabled</td><td><code>true</code></td><td>a timer that is off does not run on its schedule, but <strong>Run now</strong> still works</td></tr></tbody></table></div>
+<ul><li>Timers run while <code>kdb serve</code> runs. They are saved in the table <code>_timers</code> of the hidden <code>_system</code> database, or of the served database when <code>kdb serve</code> runs on one folder, so they survive restarts and are part of every backup.</li><li>A timer runs with the rights of the user who saved it last. Saved with the token, it may do everything.</li><li><strong>Who may do what.</strong> Reading the list needs <code>read</code> on the database. Saving, running, turning off and deleting a timer need <code>admin</code> on that database, as <code>CREATE TRIGGER</code> and <code>CREATE PROCEDURE</code> do, because a timer is saved code that runs later by itself.</li><li><strong>Audited.</strong> Every save, <strong>Run now</strong>, turn on or off and delete is one row in the <a href="audit-log.html">audit log</a> with the event <code>timer</code>, the user, the database and the timer&#39;s name.</li><li>A timer works inside its own database: <code>USE</code>, <code>CREATE DATABASE</code>, <code>DROP DATABASE</code>, <code>SET</code> and user statements are refused.</li></ul>
+<h2 id="schedules">Schedules</h2>
+<p>Times are the local time of the computer the server runs on, or the zone of <code>kdb serve --timezone Asia/Kathmandu</code> when it is set (a container runs on UTC, so set it there: <code>daily 15:10</code> then runs at 15:10 Nepal time).</p>
+<div class="table-wrap"><table><thead><tr><th>Schedule</th><th>Runs</th></tr></thead><tbody><tr><td><code>every 10s</code></td><td>every 10 seconds (1 second to 24 hours: <code>s</code>, <code>m</code> or <code>h</code>)</td></tr><tr><td><code>every 5m</code></td><td>every 5 minutes, counted from midnight: 00:00, 00:05, 00:10 ...</td></tr><tr><td><code>every 2h</code></td><td>every 2 hours from midnight</td></tr><tr><td><code>hourly</code></td><td>at minute 0 of every hour</td></tr><tr><td><code>hourly :15</code></td><td>at minute 15 of every hour</td></tr><tr><td><code>daily 16:00</code></td><td>every day at 16:00</td></tr><tr><td><code>daily 02:00,13:30</code></td><td>several times a day</td></tr><tr><td><code>weekdays 11:00</code></td><td>Monday to Friday at 11:00</td></tr><tr><td><code>sun-thu 11:00</code></td><td>Sunday to Thursday at 11:00. Name the days for a week that is not Monday to Friday, like a Nepal market week</td></tr><tr><td><code>mon,wed,fri 09:30</code></td><td>on the days named, at 09:30 (<code>weekly mon,wed,fri 09:30</code> is the same). Days: <code>sun mon tue wed thu fri sat</code>; a range may go past Saturday (<code>fri-sun</code>)</td></tr><tr><td><code>monthly 1 02:00</code></td><td>on the 1st of every month at 02:00 (a day from 1 to 28, so no month is skipped)</td></tr><tr><td><code>trading nepse 15:05</code></td><td>at 15:05 on the trading days of the <a href="calendars.html">trading calendar</a> <code>nepse</code> of the timer&#39;s database: its weekdays era by era, without its holidays, with its extra trading days. Several times: <code>trading nepse 11:00,15:05</code></td></tr></tbody></table></div>
+<ul><li><code>mon-fri 11:00</code> is the same as <code>weekdays 11:00</code>.</li><li>A <code>trading</code> timer needs its calendar when it is saved (<code>there is no calendar &#39;nepse&#39; in database ...</code> otherwise). It follows the calendar as it changes: a holiday added in the morning is skipped that afternoon. The day is the date of the run on the timer clock above.</li><li>When the calendar is dropped, the timer is due every day and each run fails with <code>calendar &#39;nepse&#39; does not exist</code>, so it never stops quietly. Make the calendar again, or give the timer another schedule.</li></ul>
+<h2 id="runs">How a run works</h2>
+<ul><li><strong>One at a time.</strong> A timer never runs twice at once. When it is still running at its next due time, that due time runs as soon as the run ends: a <strong>catch-up</strong> run (<code>caught_up</code>). More due times during the same run get no run of their own.</li><li><strong>No back-to-back runs.</strong> A catch-up runs only when the run before it took less than one interval and ended before the next regular time - for example a run that started late because no worker was free. A timer that takes longer than its interval (an <code>every 10s</code> that takes 11 s) keeps its regular times (0 s, 20 s, 40 s ...) instead of running all the time, and each due time in between is skipped with the reason.</li><li><strong>Nothing is dropped quietly.</strong> A due time that gets no run is counted in <code>skipped</code>, with the time (<code>last_skip_ms</code>) and the reason (<code>last_skip_reason</code>), and written to the server log and the activity log. This covers a run that is still going, a computer that was busy or asleep, a clock set forward, and a server that was stopped: after a start, the due times missed while it was down are counted, not run.</li><li><strong>One slow timer does not make others late.</strong> Two workers are always there; when both are busy and another timer is due, a worker is added (up to three), so the other timer starts on time. Each running timer is one more writer at the database, so the limit is small. Change it with <code>timer_workers</code> in <code>kdb.conf</code>, <code>kdb serve --timer-workers N</code> or <code>KDB_TIMER_WORKERS</code> (1 to 64; the flag wins, then <code>kdb.conf</code>, then the environment). <code>1</code> runs one timer at a time.</li><li><strong>Clock changes.</strong> The server sleeps on a clock that nobody sets, and looks at least once a second. When the computer&#39;s clock is set back, every next run is planned again; set forward, the due times jumped over are counted as skipped.</li><li><strong>Each statement commits by itself.</strong> To make all of it one step, put the SQL in a procedure: <code>CALL</code> runs a procedure as one transaction.</li><li><strong>A transaction left open is rolled back</strong> at the end of the run (for example <code>BEGIN; INSERT ...</code> without <code>COMMIT</code>).</li><li><strong>Time limit:</strong> a run is stopped after 10 minutes.</li><li><strong>On time on a busy database.</strong> A run&#39;s writes go into the database ahead of the requests that wait there (a checkpoint waiting for a bulk load, readers that keep coming). A run still waits for what is running right then: a long read, a schema change, or a checkpoint that is writing files. <code>last_late_ms</code> and <code>max_late_ms</code> show how late runs were.</li><li><strong>Errors</strong> are kept: the last error, how many runs failed, and the server log gets one line per failed run.</li></ul>
+<h2 id="console">In the console</h2>
+<p>Open <strong>Timers</strong> in the web console. The list shows each timer&#39;s schedule, the next and last run, the result and the last error. <strong>New timer</strong> saves one, <strong>Run now</strong> runs one straight away, and the switch turns one off or on.</p>
+<p>The <strong>Monitor</strong> (the flyout on the right) has a <strong>Timers</strong> block with the timers of every database you may read, trouble first: when each last ran and whether it failed, how many seconds late it started, how many runs failed in the last 24 hours, and the last error. It comes from <code>timers</code> in <code>GET /api/stats</code>, which holds the same fields as below.</p>
+<p><strong>Keep data for...</strong> is for old data: pick the tables and how long to keep (6 months, 1 year, ...). It either sets a <a href="alter-table.html#set-ttl">TTL</a> on each table, so KDB drops the old partitions by itself, or saves one monthly timer that runs <code>ALTER TABLE ... DROP PARTITION OLDER THAN ...</code> for every table on the day and time you choose. Both drop whole partitions and never single rows.</p>
+<h2 id="get-api-timers">GET /api/timers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /api/timers[?db=&lt;name&gt;]</code></pre>
+<p>The timers of one database (the default database without <code>db=</code>), and how their runs went. Needs read rights on the database.</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code>, <code>database</code>, <code>schedule</code>, <code>sql</code>, <code>enabled</code></td><td>the timer as saved</td></tr><tr><td><code>created_by</code></td><td>whose rights the runs use; empty = the token</td></tr><tr><td><code>next_run_ms</code></td><td>when it runs next (Unix milliseconds); 0 when it is off</td></tr><tr><td><code>last_run_ms</code>, <code>last_ok</code>, <code>last_error</code></td><td>the last run; <code>last_ok</code> is <code>null</code> before the first run. Kept across restarts</td></tr><tr><td><code>last_took_ms</code>, <code>last_rows</code></td><td>how long the last run took, and the rows it changed (or returned)</td></tr><tr><td><code>last_due_ms</code></td><td>when the last run was due by its schedule (Unix milliseconds)</td></tr><tr><td><code>last_late_ms</code>, <code>max_late_ms</code></td><td>how long after its due time the last run got its first write into the database (or started, if it only reads), and the worst of that since the server started</td></tr><tr><td><code>runs</code>, <code>failures</code></td><td>counts since the server started</td></tr><tr><td><code>skipped</code>, <code>last_skip_ms</code>, <code>last_skip_reason</code></td><td>due times that got no run of their own since the server started (with the ones missed while it was stopped), the last of them, and why</td></tr><tr><td><code>caught_up</code></td><td>runs that started right after the previous run ended, because their due time came while it ran</td></tr><tr><td><code>failures_24h</code></td><td>failed runs in about the last 24 hours (counted per clock hour); 0 after a restart</td></tr><tr><td><code>running</code></td><td>it is running now</td></tr></tbody></table></div>
+<p><code>now_ms</code> at the top is the server&#39;s clock, to show &quot;in 3 minutes&quot; correctly.</p>
+<h2 id="post-api-timers">POST /api/timers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /api/timers[?db=&lt;name&gt;]
+Content-Type: application/json
+
+{&quot;name&quot;: &quot;...&quot;, &quot;schedule&quot;: &quot;...&quot;, &quot;sql&quot;: &quot;...&quot;, &quot;enabled&quot;: true}</code></pre>
+<p>Creates a timer, or replaces the one with that name. Needs admin rights (a timer is saved code that later runs with the rights of whoever saved it, like a trigger), and is written to the audit log. Returns the timer. A bad name, schedule or SQL is a 400 that says what is wrong.</p>
+<p><strong>HTTP: A timer that keeps the shop totals up to date every 5 minutes</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE sales (time TIMESTAMP, shop STRING, amount DOUBLE) TIMESTAMP(time);
+CREATE TABLE shop_totals (shop STRING PRIMARY KEY, amount DOUBLE, updated TIMESTAMP);
+INSERT INTO sales VALUES (now(), &#39;north&#39;, 120.5), (now(), &#39;south&#39;, 80), (now(), &#39;north&#39;, 42);
+CREATE PROCEDURE refresh_shop_totals() AS BEGIN
+  FOR s IN (SELECT shop, sum(amount) AS amount FROM sales GROUP BY shop) DO
+    INSERT OR REPLACE INTO shop_totals VALUES (s.shop, s.amount, now());
+  END FOR;
+END;</code></pre>
+<pre><code class="language-http">POST /api/timers
+Content-Type: application/json
+
+{&quot;name&quot;: &quot;shop_totals&quot;, &quot;schedule&quot;: &quot;every 5m&quot;, &quot;sql&quot;: &quot;CALL refresh_shop_totals()&quot;}
+###
+POST /api/timers/shop_totals/run
+###
+POST /exec?compat=0
+
+SELECT shop, amount FROM shop_totals ORDER BY shop</code></pre>
+<p>Response:</p>
+<p><code>POST /api/timers</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;name&quot;: &quot;shop_totals&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;schedule&quot;: &quot;every 5m&quot;,
+  &quot;sql&quot;: &quot;CALL refresh_shop_totals()&quot;,
+  &quot;enabled&quot;: true,
+  &quot;created_ms&quot;: 1792647871200,
+  &quot;updated_ms&quot;: 1792647871200,
+  &quot;created_by&quot;: &quot;&quot;,
+  &quot;next_run_ms&quot;: 1792647900000,
+  &quot;last_run_ms&quot;: 0,
+  &quot;last_due_ms&quot;: 0,
+  &quot;last_late_ms&quot;: 0,
+  &quot;max_late_ms&quot;: 0,
+  &quot;last_ok&quot;: null,
+  &quot;last_error&quot;: &quot;&quot;,
+  &quot;last_took_ms&quot;: 0,
+  &quot;last_rows&quot;: 0,
+  &quot;runs&quot;: 0,
+  &quot;failures&quot;: 0,
+  &quot;failures_24h&quot;: 0,
+  &quot;skipped&quot;: 0,
+  &quot;last_skip_ms&quot;: 0,
+  &quot;last_skip_reason&quot;: &quot;&quot;,
+  &quot;caught_up&quot;: 0,
+  &quot;running&quot;: false
+}</code></pre>
+<p><code>POST /api/timers/shop_totals/run</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;name&quot;: &quot;shop_totals&quot;, &quot;finished&quot;: true, &quot;ok&quot;: true, &quot;error&quot;: &quot;&quot;, &quot;took_ms&quot;: 2, &quot;rows&quot;: 2}</code></pre>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT shop, amount FROM shop_totals ORDER BY shop&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT shop, amount FROM shop_totals ORDER BY shop&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;shop&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;amount&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;north&quot;, 162.5],
+        [&quot;south&quot;, 80]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 76}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 76}
+}</code></pre>
+<p><strong>HTTP: A schedule that is not valid</strong></p>
+<pre><code class="language-http">POST /api/timers
+Content-Type: application/json
+
+{&quot;name&quot;: &quot;bad_one&quot;, &quot;schedule&quot;: &quot;every day&quot;, &quot;sql&quot;: &quot;SELECT 1&quot;}</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;error&quot;: &quot;bad \&quot;every\&quot; schedule &#39;every day&#39;; use a schedule like \&quot;every 10s\&quot;, \&quot;every 5m\&quot;, \&quot;every 2h\&quot;, \&quot;hourly\&quot;, \&quot;hourly :15\&quot;, \&quot;daily 16:00\&quot;, \&quot;daily 02:00,13:30\&quot;, \&quot;weekdays 11:00\&quot;, \&quot;sun-thu 11:00\&quot;, \&quot;mon,wed,fri 09:30\&quot;, \&quot;monthly 1 02:00\&quot; or \&quot;trading nepse 15:05\&quot; (the trading days of CREATE CALENDAR nepse)&quot;
+}</code></pre>
+<h2 id="run">Run, turn off, delete</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /api/timers/&lt;name&gt;/run[?db=&lt;name&gt;]
+POST /api/timers/&lt;name&gt;/enable[?db=&lt;name&gt;]     {&quot;enabled&quot;: false}
+POST /api/timers/&lt;name&gt;/delete[?db=&lt;name&gt;]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Route</th><th>Returns</th></tr></thead><tbody><tr><td><code>run</code></td><td><code>{&quot;name&quot;, &quot;finished&quot;, &quot;ok&quot;, &quot;error&quot;, &quot;took_ms&quot;, &quot;rows&quot;}</code>. Waits up to one minute; after that <code>finished</code> is <code>false</code> and the run goes on (the result then shows in <code>GET /api/timers</code>). 409 when the timer is running already</td></tr><tr><td><code>enable</code></td><td>the timer. <code>{&quot;enabled&quot;: true}</code> turns it on again</td></tr><tr><td><code>delete</code></td><td><code>{&quot;deleted&quot;: true}</code></td></tr></tbody></table></div>
+<p>An unknown timer is a 404. All three need admin rights and <code>POST</code>, and each is written to the audit log.</p>
+<p><strong>HTTP: Turn a timer off, then delete it</strong></p>
+<pre><code class="language-http">POST /api/timers
+Content-Type: application/json
+
+{&quot;name&quot;: &quot;nightly&quot;, &quot;schedule&quot;: &quot;daily 02:00&quot;, &quot;sql&quot;: &quot;SELECT 1&quot;}
+###
+POST /api/timers/nightly/enable
+Content-Type: application/json
+
+{&quot;enabled&quot;: false}
+###
+POST /api/timers/nightly/delete
+###
+GET /api/timers</code></pre>
+<p>Response:</p>
+<p><code>POST /api/timers</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;name&quot;: &quot;nightly&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;schedule&quot;: &quot;daily 02:00&quot;,
+  &quot;sql&quot;: &quot;SELECT 1&quot;,
+  &quot;enabled&quot;: true,
+  &quot;created_ms&quot;: 1792647871158,
+  &quot;updated_ms&quot;: 1792647871158,
+  &quot;created_by&quot;: &quot;&quot;,
+  &quot;next_run_ms&quot;: 1792700100000,
+  &quot;last_run_ms&quot;: 0,
+  &quot;last_due_ms&quot;: 0,
+  &quot;last_late_ms&quot;: 0,
+  &quot;max_late_ms&quot;: 0,
+  &quot;last_ok&quot;: null,
+  &quot;last_error&quot;: &quot;&quot;,
+  &quot;last_took_ms&quot;: 0,
+  &quot;last_rows&quot;: 0,
+  &quot;runs&quot;: 0,
+  &quot;failures&quot;: 0,
+  &quot;failures_24h&quot;: 0,
+  &quot;skipped&quot;: 0,
+  &quot;last_skip_ms&quot;: 0,
+  &quot;last_skip_reason&quot;: &quot;&quot;,
+  &quot;caught_up&quot;: 0,
+  &quot;running&quot;: false
+}</code></pre>
+<p><code>POST /api/timers/nightly/enable</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;name&quot;: &quot;nightly&quot;,
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;schedule&quot;: &quot;daily 02:00&quot;,
+  &quot;sql&quot;: &quot;SELECT 1&quot;,
+  &quot;enabled&quot;: false,
+  &quot;created_ms&quot;: 1792647871158,
+  &quot;updated_ms&quot;: 1792647871196,
+  &quot;created_by&quot;: &quot;&quot;,
+  &quot;next_run_ms&quot;: 0,
+  &quot;last_run_ms&quot;: 0,
+  &quot;last_due_ms&quot;: 0,
+  &quot;last_late_ms&quot;: 0,
+  &quot;max_late_ms&quot;: 0,
+  &quot;last_ok&quot;: null,
+  &quot;last_error&quot;: &quot;&quot;,
+  &quot;last_took_ms&quot;: 0,
+  &quot;last_rows&quot;: 0,
+  &quot;runs&quot;: 0,
+  &quot;failures&quot;: 0,
+  &quot;failures_24h&quot;: 0,
+  &quot;skipped&quot;: 0,
+  &quot;last_skip_ms&quot;: 0,
+  &quot;last_skip_reason&quot;: &quot;&quot;,
+  &quot;caught_up&quot;: 0,
+  &quot;running&quot;: false
+}</code></pre>
+<p><code>POST /api/timers/nightly/delete</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;deleted&quot;: true}</code></pre>
+<p><code>GET /api/timers</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;now_ms&quot;: 1792647871223,
+  &quot;timers&quot;: []
+}</code></pre>
+<h2 id="notes">Good to know</h2>
+<ul><li><code>DROP DATABASE</code> deletes the database&#39;s timers too, so a new database with the same name starts with none. A timer left over from an older KDB (or a database folder removed by hand) can still be deleted: <code>POST /api/timers/&lt;name&gt;/delete?db=&lt;name&gt;</code> works while the database is gone, for a server admin.</li><li>A timer that runs often writes its last result back to <code>_timers</code> only when the result changes, or once a minute.</li><li>For alerts, <code>/metrics</code> has <code>kdb_timer_failures_total</code> and <code>kdb_timer_late_seconds_max</code> for all timers, and per timer <code>kdb_timer_failures_24h{database,timer}</code> and <code>kdb_timer_last_late_seconds{database,timer}</code>.</li><li>For backups at set times use the <a href="backup-schedule.html">backup schedule</a>, not a timer.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/timers.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>23. PostgreSQL queries and data changes - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/23-postgresql-queries.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/23-postgresql-queries.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="23-postgresql-queries-and-data-changes">23. PostgreSQL queries and data changes</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<p>Chapter 22 is about the app&#39;s tables. This chapter is about the app&#39;s <strong>queries and data changes</strong>: the SQL a PostgreSQL app sends every day.</p>
+<ul><li><strong>Part A.</strong> Upserts: <code>INSERT ... ON CONFLICT</code>, <code>RETURNING</code>, <code>xmax</code>.</li><li><strong>Part B.</strong> <code>INSERT ... SELECT</code>, <code>UPDATE ... FROM</code>, <code>DELETE ... USING</code>, subqueries in data changes.</li><li><strong>Part C.</strong> <code>WITH</code> queries: plain, <code>RECURSIVE</code>, and <code>WITH x AS (UPDATE ...)</code>.</li><li><strong>Part D.</strong> Correlated subqueries, <code>EXISTS</code>, <code>LATERAL</code>, and why they stay fast.</li><li><strong>Part E.</strong> More query forms: <code>FILTER</code>, <code>DISTINCT ON</code>, <code>UNION</code> / <code>INTERSECT</code> / <code>EXCEPT</code>, <code>GROUP BY 1</code>.</li><li><strong>Part F.</strong> Casts, times and intervals.</li><li><strong>Part G.</strong> Arrays and JSON.</li><li><strong>Part H.</strong> Advisory locks.</li><li><strong>Part I.</strong> QuestDB apps: <code>ALTER DATABASE ... SET dialect</code>, <code>/imp</code>, <code>to_str</code>.</li><li>What is <strong>different</strong> from PostgreSQL, and <strong>speed</strong>.</li></ul>
+<p>The output under each example is real (<code>kdb sql</code>). Times print in KDB&#39;s style (<code>2026-09-10T05:20:00.000Z</code>); over the PostgreSQL protocol they have PostgreSQL&#39;s style.</p>
+<h2 id="the-short-version">The short version</h2>
+<div class="table-wrap"><table><thead><tr><th>PostgreSQL</th><th>KDB</th></tr></thead><tbody><tr><td><code>INSERT ... ON CONFLICT (key) DO NOTHING / DO UPDATE SET c = EXCLUDED.c</code></td><td>Works, with <code>WHERE</code>, <code>ON CONSTRAINT</code> and <code>RETURNING (xmax = 0)</code>.</td></tr><tr><td><code>INSERT ... SELECT</code>, <code>DEFAULT VALUES</code></td><td>Works.</td></tr><tr><td><code>UPDATE t SET ... FROM s WHERE ...</code>, <code>DELETE FROM t USING s WHERE ...</code></td><td>Works.</td></tr><tr><td>Subqueries in <code>SET</code>, <code>WHERE</code> and <code>VALUES</code></td><td>Works, correlated ones too.</td></tr><tr><td><code>WITH</code>, <code>WITH RECURSIVE</code>, <code>WITH x AS (UPDATE ... RETURNING ...)</code></td><td>Works. A statement with data-changing <code>WITH</code> queries is one transaction.</td></tr><tr><td>Correlated subqueries, <code>EXISTS</code>, <code>IN (SELECT ...)</code>, <code>LATERAL</code></td><td>Works. The usual shapes become hash lookups.</td></tr><tr><td><code>FILTER (WHERE ...)</code>, <code>agg(x ORDER BY y)</code>, <code>DISTINCT ON</code>, <code>GROUP BY 1</code>, <code>NULLS FIRST</code></td><td>Works.</td></tr><tr><td><code>UNION</code>, <code>INTERSECT</code>, <code>EXCEPT</code> (with or without <code>ALL</code>), <code>(VALUES ...) AS v(a, b)</code></td><td>Works.</td></tr><tr><td><code>x::type</code>, <code>CAST</code>, <code>DATE &#39;...&#39;</code>, <code>INTERVAL &#39;...&#39;</code>, <code>E&#39;...&#39;</code>, <code>CURRENT_TIMESTAMP</code></td><td>Works. Casts round numbers as PostgreSQL does.</td></tr><tr><td><code>INTERVAL</code> arithmetic, <code>AT TIME ZONE</code>, <code>EXTRACT(EPOCH FROM interval)</code>, <code>make_interval</code></td><td>Works (time zones: fixed offsets and zones without daylight saving, such as <code>Asia/Kathmandu</code>; see Part F).</td></tr><tr><td><code>= ANY($1)</code> with Go slices, <code>ARRAY[...]</code>, <code>array_agg</code>, <code>unnest</code>, <code>TEXT[]</code> results</td><td>Works, in text and binary form.</td></tr><tr><td><code>jsonb_build_object</code>, <code>json_agg</code>, <code>jsonb_set</code>, <code>-&gt;</code>, <code>-&gt;&gt;</code>, <code>#&gt;&gt;</code></td><td>Works. JSON sorts like <code>jsonb</code> (9 before 10).</td></tr><tr><td><code>pg_advisory_lock</code>, <code>pg_try_advisory_xact_lock</code>, ...</td><td>Real locks between sessions.</td></tr></tbody></table></div>
+<p>When all 2143 statements of the app run on KDB, <strong>1971</strong> work over HTTP (92.0%) and <strong>1952</strong> over the PostgreSQL protocol (91.1%) (checked on 2026-09-23). Before this work (and the schema work of chapter 22) it was 950 and 930. Most of the rest come from the test data or from table definitions the test schema left out (see the end).</p>
+<hr>
+<h2 id="part-a-upserts">Part A: Upserts</h2>
+<p><code>ON CONFLICT</code> says what to do when a new row has the key of a row that is there.</p>
+<pre><code class="language-sql">CREATE TABLE page_hits (page TEXT PRIMARY KEY, hits BIGINT NOT NULL, last_at TIMESTAMP);
+INSERT INTO page_hits VALUES (&#39;/chart&#39;, 5, &#39;2026-09-10T05:00:00Z&#39;);
+
+INSERT INTO page_hits (page, hits, last_at)
+VALUES (&#39;/chart&#39;, 1, &#39;2026-09-11T05:00:00Z&#39;), (&#39;/news&#39;, 1, &#39;2026-09-11T05:00:00Z&#39;)
+ON CONFLICT (page) DO UPDATE SET hits = page_hits.hits + EXCLUDED.hits, last_at = EXCLUDED.last_at
+RETURNING page, hits, (xmax = 0) AS inserted;</code></pre>
+<pre><code class="language-text">page   | hits | inserted
+-------+------+---------
+/chart |    6 | false
+/news  |    1 | true
+1 row(s) inserted, 1 updated</code></pre>
+<ul><li><code>EXCLUDED.column</code> is the value of the new row. <code>page_hits.column</code> is the value that is there now.</li><li>Write the table name (or the alias of <code>INSERT INTO t AS a</code>) before a column. A plain name is ambiguous in PostgreSQL.</li><li><code>RETURNING</code> gives the rows that were inserted or updated. <code>xmax</code> is 0 for an inserted row and 1 for an updated one.</li><li><code>DO UPDATE ... WHERE cond</code>: rows that do not match stay as they are and are not returned.</li><li><code>DO NOTHING</code> skips the row. Without a key list it means &quot;any unique key&quot;.</li></ul>
+<pre><code class="language-sql">INSERT INTO page_hits (page, hits) VALUES (&#39;/news&#39;, 100) ON CONFLICT (page) DO NOTHING RETURNING page;</code></pre>
+<pre><code class="language-text">(0 rows)
+0 row(s) inserted, 1 skipped (already there)</code></pre>
+<p><strong>Which keys.</strong> The key list must be the primary key, a <code>DEDUP KEY</code>, a <code>UNIQUE</code> column or constraint, or a <code>UNIQUE INDEX</code> with exactly those columns (a partial index needs <code>ON CONFLICT (cols) WHERE ...</code>). <code>ON CONFLICT ON CONSTRAINT name</code> names it (<code>table_pkey</code> for the primary key). Another list is an error, as in PostgreSQL: &quot;there is no unique key on (...)&quot;.</p>
+<p><strong>Rules from PostgreSQL.</strong></p>
+<ul><li>A key with a NULL never clashes.</li><li>Two new rows with the same key in one <code>DO UPDATE</code> statement are an error (&quot;cannot change the same row twice&quot;). With <code>DO NOTHING</code> the first one wins.</li><li><code>SERIAL</code> numbers are used also for rows that end as updates (so ids can have gaps).</li></ul>
+<p><strong>Speed.</strong> <code>DO NOTHING</code>, and <code>DO UPDATE SET</code> of every other column from <code>EXCLUDED</code>, on the table&#39;s own key, run as <code>INSERT OR IGNORE</code> / <code>INSERT OR REPLACE</code>: big batches go in without looking rows up one by one. Other forms look each row up by its key (or index).</p>
+<h2 id="part-b-copying-and-joined-changes">Part B: Copying and joined changes</h2>
+<p><code>INSERT ... SELECT</code> copies the rows of a query. <code>DEFAULT VALUES</code> writes one row of defaults.</p>
+<pre><code class="language-sql">INSERT INTO ledger (user_id, amount, balance_after) SELECT user_id, 25, balance FROM wallets WHERE balance &gt; 0;
+INSERT INTO logs DEFAULT VALUES;</code></pre>
+<p><code>UPDATE ... FROM</code> changes rows with values from other tables. <code>DELETE ... USING</code> deletes rows that have a match.</p>
+<pre><code class="language-sql">UPDATE wallets w SET balance = v.balance
+FROM (VALUES (1, 10), (2, 20), (9, 90)) AS v(user_id, balance)
+WHERE w.user_id = v.user_id
+RETURNING w.user_id, w.balance;</code></pre>
+<pre><code class="language-text">user_id | balance
+--------+--------
+      1 |      10
+      2 |      20
+2 row(s) updated</code></pre>
+<pre><code class="language-sql">DELETE FROM ledger l USING wallets w WHERE l.user_id = w.user_id AND w.balance &lt; 15 RETURNING l.id;</code></pre>
+<ul><li>A row of the table changes once, also when it matches several rows of <code>FROM</code> (as in PostgreSQL, one of them is used).</li><li>The join is a hash join: <code>WHERE w.user_id = v.user_id</code> does not compare every pair.</li><li>Subqueries work in <code>SET</code>, <code>WHERE</code> and <code>VALUES</code>, also ones that use the row being changed:</li></ul>
+<pre><code class="language-sql">UPDATE tickets t SET vote_count = (SELECT count(*) FROM votes v WHERE v.ticket_id = t.ticket_id);
+DELETE FROM tickets WHERE NOT EXISTS (SELECT 1 FROM votes WHERE votes.ticket_id = tickets.ticket_id);
+UPDATE ai_models SET is_default = TRUE WHERE (provider, model) = (SELECT provider, model FROM ai_models ORDER BY rank LIMIT 1);</code></pre>
+<h2 id="part-c-with-queries">Part C: WITH queries</h2>
+<p>A <code>WITH</code> query names a result for the statement. KDB runs it the first time the statement reads it, once, and keeps its rows for the statement.</p>
+<p><code>WITH RECURSIVE</code> runs its second part again on the rows found last, until no new rows come. <code>UNION</code> (without <code>ALL</code>) stops at rows it has seen, so a loop in the data ends.</p>
+<pre><code class="language-sql">WITH RECURSIVE upline(user_id, referred_by, lvl) AS (
+  SELECT user_id, referred_by, 0 FROM referrals WHERE user_id = 4
+  UNION ALL
+  SELECT r.user_id, r.referred_by, u.lvl + 1 FROM referrals r JOIN upline u ON r.user_id = u.referred_by WHERE u.lvl &lt; 20
+)
+SELECT user_id, lvl FROM upline ORDER BY lvl;</code></pre>
+<pre><code class="language-text">user_id | lvl
+--------+----
+      4 |   0
+      3 |   1
+      2 |   2
+      1 |   3</code></pre>
+<p>A recursive query that never stops is stopped after 100,000 rounds or 10 million rows, with an error.</p>
+<p><strong>WITH queries that change data.</strong> The app&#39;s wallet top-up changes a row, writes a ledger row from the changed row, and returns it, in one statement:</p>
+<pre><code class="language-sql">WITH upd AS (UPDATE wallets SET balance = balance + 25 WHERE user_id = 1 RETURNING user_id, balance),
+     led AS (INSERT INTO ledger (user_id, amount, balance_after) SELECT user_id, 25, balance FROM upd)
+SELECT user_id, balance FROM upd;</code></pre>
+<pre><code class="language-text">user_id | balance
+--------+--------
+      1 |     125</code></pre>
+<ul><li>The data changes run first, in the order written. Then the main query runs.</li><li>The statement is one transaction: when a part fails, nothing is written.</li><li>Such a <code>SELECT</code> locks the tables it changes, as any writer does (chapter 15), and is never kept in the result cache.</li></ul>
+<h2 id="part-d-correlated-subqueries-and-lateral">Part D: Correlated subqueries and LATERAL</h2>
+<p>A <strong>correlated</strong> subquery uses a column of the outer row.</p>
+<pre><code class="language-sql">SELECT t.ticket_id, t.title,
+       (SELECT count(*) FROM votes v WHERE v.ticket_id = t.ticket_id) AS votes,
+       EXISTS (SELECT 1 FROM votes v WHERE v.ticket_id = t.ticket_id AND v.user_id = 8) AS i_voted
+FROM tickets t ORDER BY t.ticket_id;</code></pre>
+<pre><code class="language-text">ticket_id | title           | votes | i_voted
+----------+-----------------+-------+--------
+        1 | Dark mode       |     2 | true
+        2 | Faster charts   |     1 | false
+        3 | Nepali calendar |     0 | false</code></pre>
+<p><strong>How KDB keeps this fast.</strong> It does not run the subquery once per outer row.</p>
+<ul><li>When the subquery joins the outer row with <code>=</code> (<code>v.ticket_id = t.ticket_id</code>), KDB runs it <strong>once</strong> for all keys (grouped by <code>ticket_id</code>), puts the answers in a hash table, and every outer row looks its answer up. The work is one pass over <code>votes</code> plus one lookup per ticket.</li><li><code>count(*)</code> of a key without rows is 0, and <code>sum</code> is NULL, as in PostgreSQL.</li><li><code>EXISTS</code>, <code>NOT EXISTS</code>, <code>IN (SELECT ...)</code> and <code>NOT IN (SELECT ...)</code> work the same way (a set of keys).</li><li>Other shapes (<code>v.amount &gt; t.limit</code>) run once per <strong>different</strong> outer value, and the answers are kept for the statement.</li><li>A subquery that uses no outer column runs once, before the query.</li><li>A value subquery that finds two rows is an error, as in PostgreSQL. Add <code>LIMIT 1</code> or an aggregate.</li></ul>
+<p><code>LATERAL</code> lets a <code>FROM</code> subquery use the tables before it:</p>
+<pre><code class="language-sql">SELECT t.title, last_vote.user_id
+FROM tickets t
+LEFT JOIN LATERAL (SELECT user_id FROM votes v WHERE v.ticket_id = t.ticket_id ORDER BY user_id DESC LIMIT 1) last_vote ON TRUE
+ORDER BY t.ticket_id;</code></pre>
+<pre><code class="language-text">title           | user_id
+----------------+--------
+Dark mode       |       8
+Faster charts   |       7
+Nepali calendar |    NULL</code></pre>
+<p>A <code>LATERAL</code> subquery with an aggregate becomes a hash join; one with <code>ORDER BY ... LIMIT</code> runs per outer row (answers are kept for rows with the same key).</p>
+<h2 id="part-e-more-query-forms">Part E: More query forms</h2>
+<pre><code class="language-sql">SELECT symbol,
+       count(*) FILTER (WHERE qty &gt;= 10) AS big_trades,
+       string_agg(price::text, &#39; -&gt; &#39; ORDER BY ts) AS path
+FROM trades GROUP BY 1 ORDER BY 1;</code></pre>
+<pre><code class="language-text">symbol | big_trades | path
+-------+------------+-----------
+CITY   |          2 | 510 -&gt; 512
+COAST  |          0 | 900 -&gt; 905</code></pre>
+<pre><code class="language-sql">SELECT DISTINCT ON (symbol) symbol, ts, price FROM trades ORDER BY symbol, ts DESC;  -- the newest trade of each symbol</code></pre>
+<pre><code class="language-text">symbol | ts                       | price
+-------+--------------------------+------
+CITY   | 2026-09-10T05:20:00.000Z |   512
+COAST  | 2026-09-10T05:30:00.000Z |   905</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>Meaning</th></tr></thead><tbody><tr><td><code>agg(x) FILTER (WHERE cond)</code></td><td>The aggregate only sees rows where <code>cond</code> is true.</td></tr><tr><td><code>array_agg(x ORDER BY y)</code>, <code>string_agg(x, &#39;,&#39; ORDER BY y)</code></td><td>The rows come in that order.</td></tr><tr><td><code>DISTINCT ON (a) ... ORDER BY a, b</code></td><td>The first row of each <code>a</code> in <code>ORDER BY</code> order.</td></tr><tr><td><code>GROUP BY 1</code>, <code>ORDER BY 2</code></td><td>Position of a select column. An alias works too: <code>GROUP BY day</code>.</td></tr><tr><td><code>ORDER BY sum(x)</code>, <code>HAVING count(*) &gt; 1</code></td><td>Aggregates that are not select columns.</td></tr><tr><td><code>NULLS FIRST</code>, <code>NULLS LAST</code></td><td>NULL counts as bigger than every value (first with <code>DESC</code>), as in PostgreSQL.</td></tr><tr><td><code>LIMIT ALL</code>, <code>OFFSET n ROWS</code>, <code>FETCH FIRST n ROWS ONLY</code></td><td>Also QuestDB&#39;s <code>LIMIT lo, hi</code>.</td></tr><tr><td><code>UNION</code>, <code>INTERSECT</code>, <code>EXCEPT</code> [<code>ALL</code>]</td><td>Without <code>ALL</code> the result has no copies. <code>INTERSECT</code> goes first.</td></tr><tr><td><code>(VALUES (1, &#39;a&#39;), (2, &#39;b&#39;)) AS v(n, s)</code></td><td>A small table of values.</td></tr><tr><td><code>(a, b) &lt; (x, y)</code>, <code>(a, b) = (SELECT ...)</code></td><td>Row comparisons.</td></tr><tr><td><code>FROM (SELECT ...)</code></td><td>The subquery needs no alias.</td></tr></tbody></table></div>
+<h2 id="part-f-casts-times-and-intervals">Part F: Casts, times and intervals</h2>
+<pre><code class="language-sql">SELECT &#39;12.5&#39;::numeric(6,1) AS n, 2.5::int AS rounded, E&#39;tab\there&#39; AS e,
+       (DATE &#39;2026-01-31&#39; + INTERVAL &#39;1 month&#39;)::date AS next_month;</code></pre>
+<pre><code class="language-text">n    | rounded | e        | next_month
+-----+---------+----------+-----------
+12.5 |       3 | tab	here | 2026-02-28</code></pre>
+<ul><li>Every PostgreSQL type name works after <code>::</code> and in <code>CAST</code>: <code>int4</code>, <code>float8</code>, <code>numeric(10,2)</code>, <code>text</code>, <code>varchar(20)</code>, <code>timestamptz</code>, <code>interval</code>, <code>text[]</code>, <code>bigint[]</code>, ...</li><li>A cast to a whole number or to <code>numeric(p,s)</code> rounds half away from zero. Other places (a value for an <code>INT</code> column, an argument of a saved function) still refuse <code>2.5</code>.</li><li><code>x::text</code> of a time gives PostgreSQL&#39;s text: <code>2026-09-10 12:00:00</code> (with <code>+00</code> for a <code>timestamptz</code>).</li><li>A text constant next to a number is read as a number: <code>&#39;1.50&#39; + 1</code> is <code>2.50</code> (a numeric parameter sent as text works too). Text from a column or a function is not: <code>doc -&gt;&gt; &#39;n&#39; + 1</code> is an error; write <code>(doc -&gt;&gt; &#39;n&#39;)::int + 1</code>.</li><li><code>md5(text)</code> and <code>initcap(text)</code> work as in PostgreSQL.</li><li><code>CURRENT_TIMESTAMP</code>, <code>CURRENT_DATE</code>, <code>LOCALTIMESTAMP</code>, <code>now()</code> are the time the statement started. KDB times are UTC.</li><li><code>DATE - DATE</code> is a number of days. A month added to the 31st ends on the last day of the next month.</li></ul>
+<p><strong>Intervals</strong> keep months, days and time apart, as in PostgreSQL:</p>
+<pre><code class="language-sql">SELECT INTERVAL &#39;1 day&#39; - INTERVAL &#39;1 hour&#39; AS i, EXTRACT(EPOCH FROM INTERVAL &#39;1 month&#39;) AS month_seconds,
+       make_interval(days =&gt; 3, hours =&gt; 2) AS m;</code></pre>
+<pre><code class="language-text">i               | month_seconds | m
+----------------+---------------+----------------
+1 day -01:00:00 |       2592000 | 3 days 02:00:00</code></pre>
+<p><code>justify_hours</code>, <code>justify_days</code> and <code>justify_interval</code> move 24 hours into a day and 30 days into a month. For comparing, a month counts as 30 days.</p>
+<p><strong>AT TIME ZONE</strong> follows PostgreSQL:</p>
+<ul><li><code>timestamp AT TIME ZONE z</code> reads a clock time of zone <code>z</code> and gives the instant (a <code>timestamptz</code>).</li><li><code>timestamptz AT TIME ZONE z</code> shows an instant as the clock time of zone <code>z</code> (a <code>timestamp</code>).</li></ul>
+<pre><code class="language-sql">SELECT (TIMESTAMP &#39;2026-09-10 12:00:00&#39; AT TIME ZONE &#39;Asia/Kathmandu&#39;)::text AS utc_instant,
+       (TIMESTAMPTZ &#39;2026-09-10 06:15:00+00&#39; AT TIME ZONE &#39;Asia/Kathmandu&#39;)::text AS local_clock;</code></pre>
+<pre><code class="language-text">utc_instant            | local_clock
+-----------------------+--------------------
+2026-09-10 06:15:00+00 | 2026-09-10 12:00:00</code></pre>
+<p>A <code>TIMESTAMP</code> column holds UTC instants in KDB, so KDB treats <code>now()</code>, <code>CURRENT_TIMESTAMP</code>, <code>timestamptz</code> casts and <code>TIMESTAMPTZ</code> columns as instants, and other <code>TIMESTAMP</code> values as clock times. Zones are fixed offsets (<code>&#39;+05:45&#39;</code>, <code>&#39;UTC&#39;</code>, <code>&#39;Asia/Kathmandu&#39;</code>, ...); zones with daylight saving time are refused.</p>
+<h2 id="part-g-arrays-and-json">Part G: Arrays and JSON</h2>
+<p>KDB keeps an array as a JSON array. Over the PostgreSQL protocol it is a real array (<code>text[]</code> is type 1009, <code>bigint[]</code> 1016, ...) in text and binary form, so <code>pgx</code> scans it into a Go slice and sends Go slices as parameters.</p>
+<pre><code class="language-sql">CREATE TABLE feeds (id BIGINT PRIMARY KEY, tags TEXT[], roles JSONB);
+INSERT INTO feeds VALUES (1, &#39;{market,ipo}&#39;, &#39;{&quot;admin&quot;: &quot;sita&quot;}&#39;), (2, ARRAY[&#39;hydro&#39;], &#39;{}&#39;);
+SELECT id, unnest(tags) AS tag FROM feeds ORDER BY id, tag;</code></pre>
+<pre><code class="language-text">id | tag
+---+-------
+ 1 | ipo
+ 1 | market
+ 2 | hydro</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x = ANY($1)</code>, <code>x &lt;&gt; ALL($1)</code></td><td><code>$1</code> is an array (a Go slice, <code>&#39;{1,2}&#39;</code>, or <code>ARRAY[...]</code>). A constant array becomes an <code>IN</code> list, so indexes and key ranges still work.</td></tr><tr><td><code>ARRAY[1, 2]</code>, <code>ARRAY(SELECT ...)</code>, <code>&#39;{a,b}&#39;::text[]</code></td><td>Make an array.</td></tr><tr><td><code>tags[1]</code>, <code>cardinality(tags)</code>, <code>array_length(tags, 1)</code>, <code>array_to_string</code>, <code>string_to_array</code>, <code>array_append</code>, <code>array_remove</code>, <code>array_position</code></td><td>Read and change arrays (from 1, as in PostgreSQL).</td></tr><tr><td><code>array_agg(x)</code>, <code>(array_agg(x ORDER BY y))[1]</code></td><td>Collect values.</td></tr><tr><td><code>unnest(array)</code></td><td>In <code>SELECT</code>: one row per element. In <code>FROM</code>: a table (<code>FROM unnest($1::int[]) AS u(id)</code>).</td></tr><tr><td><code>tags @&gt; ARRAY[&#39;a&#39;]</code>, <code>&amp;&amp;</code>, <code>&lt;@</code></td><td>Contains, overlaps, is contained.</td></tr></tbody></table></div>
+<p>JSON functions: <code>jsonb_build_object</code>, <code>jsonb_build_array</code>, <code>json_agg</code> / <code>jsonb_agg</code> (with <code>ORDER BY</code>), <code>to_jsonb</code>, <code>row_to_json(t)</code>, <code>jsonb_set(doc, path, value, create)</code>, <code>jsonb_typeof</code>, <code>jsonb_array_length</code>, <code>-&gt;</code>, <code>-&gt;&gt;</code>, <code>#&gt;</code>, <code>#&gt;&gt;</code>.</p>
+<pre><code class="language-sql">UPDATE feeds SET roles = jsonb_set(roles, ARRAY[&#39;editor&#39;], to_jsonb(&#39;ram&#39;::text), true) WHERE id = 1 RETURNING roles;</code></pre>
+<pre><code class="language-text">roles
+-------------------------------
+{&quot;admin&quot;:&quot;sita&quot;,&quot;editor&quot;:&quot;ram&quot;}</code></pre>
+<p>JSON values sort like PostgreSQL&#39;s <code>jsonb</code>: numbers by value (9 before 10), strings by text, and null &lt; strings &lt; numbers &lt; booleans &lt; arrays &lt; objects.</p>
+<h2 id="part-h-advisory-locks">Part H: Advisory locks</h2>
+<p>Advisory locks are named by a number (or two). KDB keeps them between sessions of one database.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Meaning</th></tr></thead><tbody><tr><td><code>pg_advisory_lock(key)</code></td><td>Waits until no other session holds the key, then holds it until <code>pg_advisory_unlock</code> or the session ends.</td></tr><tr><td><code>pg_try_advisory_lock(key)</code></td><td>The same without waiting: <code>true</code> or <code>false</code>.</td></tr><tr><td><code>pg_advisory_xact_lock(key)</code>, <code>pg_try_advisory_xact_lock(key)</code></td><td>Held until <code>COMMIT</code> / <code>ROLLBACK</code> (or the end of the statement outside <code>BEGIN</code>).</td></tr><tr><td><code>pg_advisory_unlock(key)</code>, <code>pg_advisory_unlock_all()</code></td><td>Let it go. <code>unlock</code> returns <code>false</code> when the session did not hold it.</td></tr><tr><td><code>..._shared</code> forms</td><td>Several sessions may share the key; an exclusive lock waits for all of them.</td></tr></tbody></table></div>
+<ul><li><code>(a, b)</code> with two <code>int</code> keys is another lock than one <code>bigint</code> key, as in PostgreSQL.</li><li>A session may take its own lock again; it must unlock it as many times.</li><li>Waiting ends after 30 seconds with an error (PostgreSQL waits forever).</li><li>A statement alone outside a transaction waits without holding any table lock, so the session that holds the key can go on working. Inside <code>BEGIN ... COMMIT</code> it waits holding the locks of the tables the transaction used; keep such waits short.</li><li>Over HTTP without a session, locks end with the request.</li></ul>
+<h2 id="part-i-questdb-apps">Part I: QuestDB apps</h2>
+<p><strong>The dialect.</strong> <code>ALTER DATABASE qdb SET dialect = &#39;questdb&#39;</code> makes a database read SQL the QuestDB way:</p>
+<ul><li>A plain <code>INSERT</code> into a table with a <code>DEDUP KEY</code> replaces the row with the same key (QuestDB&#39;s <code>DEDUP UPSERT KEYS</code>).</li><li><code>CAST(time AS LONG)</code> gives microseconds since 1970 (PostgreSQL mode: milliseconds).</li></ul>
+<p><code>SET dialect = &#39;postgres&#39;</code> goes back. The setting is kept in <code>_system</code> and applies every time the database opens (chapter 21 has the other <code>ALTER DATABASE</code> settings).</p>
+<p><strong>CSV import.</strong> <code>POST /imp</code> takes a CSV file the way QuestDB does (chapter 8 has the details):</p>
+<pre><code class="language-bash">curl -F &quot;data=@Ochl_Day.csv&quot; &quot;http://127.0.0.1:9900/imp?name=Ochl_Day&amp;timestamp=time&amp;partitionBy=DAY&amp;fmt=json&quot;</code></pre>
+<p><strong>Functions.</strong> <code>to_str(time, &#39;yyyy-MM-dd HH:mm:ss&#39;)</code> formats a time with QuestDB&#39;s letters.</p>
+<h2 id="what-is-different-from-postgresql">What is different from PostgreSQL</h2>
+<ul><li><code>WITH</code> queries that change data run before the main query and the main query sees their changes (PostgreSQL uses one snapshot). The app&#39;s statements give the same answers.</li><li>A recursive <code>WITH</code> query stops with an error after 100,000 rounds or 10 million rows.</li><li>Advisory locks wait at most 30 seconds.</li><li>Time zones are fixed offsets; <code>AT TIME ZONE &#39;Europe/London&#39;</code> is refused.</li><li>A plain column name in <code>ON CONFLICT DO UPDATE SET</code> means the row that is there (PostgreSQL calls it ambiguous).</li><li>Casting a whole number from <code>double precision</code> rounds half away from zero (PostgreSQL: to the nearest even number).</li><li>Arrays have one dimension in binary form; nested arrays are sent as text.</li><li><code>refdata.companies</code> means the table <code>companies</code> of the <strong>database</strong> <code>refdata</code> on the same server (PostgreSQL would look for a schema <code>refdata</code>). You can read it in <code>SELECT</code>, joins, subqueries and <code>INSERT ... SELECT</code>. A statement changes only the database it runs in. <code>public.companies</code> is your own table. The help topic <strong>Queries across databases</strong> has the details.</li></ul>
+<h2 id="the-app-s-queries-on-kdb">The app&#39;s queries on KDB</h2>
+<p><code>tests/app_compat/run_compat.mjs</code> runs all 2143 statements of the app against a fresh server with sample data.</p>
+<div class="table-wrap"><table><thead><tr><th>Statements</th><th>HTTP before</th><th>HTTP now</th><th>PostgreSQL protocol before</th><th>now</th></tr></thead><tbody><tr><td>All 2143</td><td>950 (44.3%)</td><td>1971 (92.0%)</td><td>930 (43.4%)</td><td>1952 (91.1%)</td></tr><tr><td>SELECT (786)</td><td>549</td><td>734</td><td>548</td><td>734</td></tr><tr><td>WITH (20)</td><td>0</td><td>15</td><td>0</td><td>15</td></tr><tr><td>INSERT (209)</td><td>26</td><td>142</td><td>26</td><td>142</td></tr><tr><td>UPDATE (164)</td><td>81</td><td>156</td><td>79</td><td>155</td></tr><tr><td>DELETE (72)</td><td>55</td><td>56</td><td>55</td><td>55</td></tr><tr><td>Schema statements (889, chapter 22)</td><td>238</td><td>866</td><td>221</td><td>849</td></tr></tbody></table></div>
+<p>&quot;Now&quot; is the run of 2026-09-23. Over the PostgreSQL protocol a few QuestDB <code>ALTER</code> and <code>RENAME</code> statements of the test fail because the test tool replays them in another order (the column or table is already there), and a few test values (<code>&#39;test&#39;</code> for a number) are refused earlier, when the parameters are read.</p>
+<p>Most of the statements that still fail are not about query support:</p>
+<ul><li>44 &quot;no unique key&quot; for <code>ON CONFLICT</code>: the test schema (<code>schema_kdb.sql</code>) was written for an older KDB and left out composite keys. With the app&#39;s own <code>CREATE TABLE</code> they work.</li><li>Sample values that do not fit (<code>&#39;test&#39;</code> for a number), and template parts the test cannot fill (<code>{{spec.conflict}}</code>).</li><li>A few features of other chapters: QuestDB&#39;s <code>tables()</code> functions, and <code>COPY</code> sent over HTTP (over the PostgreSQL port <code>COPY</code> works, chapter 14).</li></ul>
+<h2 id="speed">Speed</h2>
+<ul><li>A statement without the new forms runs the same code as before: the checks are a few flag tests.</li><li><code>ON CONFLICT</code> on the table&#39;s key with <code>DO NOTHING</code> or a full <code>DO UPDATE SET ... EXCLUDED</code> writes batches as fast as <code>INSERT OR REPLACE</code>.</li><li>Correlated subqueries and <code>LATERAL</code> with <code>=</code> joins cost one pass over the inner table plus one hash lookup per outer row.</li><li>A constant <code>= ANY(...)</code> becomes <code>IN (...)</code>: indexes, key ranges and the column engine still work.</li><li>Queries with <code>FILTER</code> or <code>ORDER BY</code> inside an aggregate use the row engine.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/23-postgresql-queries.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Candles cookbook - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Ready market-data queries: candles from minute data and from trades, daily change, top gainers, volume leaders, 52-week high and low, moving averages and filled gaps.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/candles-cookbook.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/candles-cookbook.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="candles-cookbook">Candles cookbook</h1>
+<blockquote><p>Ready market-data queries: candles from minute data and from trades, daily change, top gainers, volume leaders, 52-week high and low, moving averages and filled gaps.</p></blockquote>
+<ul><li>Category: Time-series</li><li>Keywords: cookbook, recipes, candles, TA folders, indicator table, candles by timer, precompile, ta-folders.mjs, OHLC, candlestick, chart data, 5-minute candles, hourly candles, weekly candles, monthly candles, daily change, percent change, change %, top gainers, top losers, movers, volume leaders, turnover, broker turnover, 52-week high, 52-week low, moving average, SMA, EMA, RSI, crossover, golden cross, VWAP, gaps, missing minutes, FILL(PREV), stock market</li><li>See also: <a href="sample-by.html">SAMPLE BY</a>, <a href="latest-on.html">LATEST ON</a>, <a href="functions-indicators.html">Technical indicators</a>, <a href="views.html#materialized-view">Views (materialized-view)</a>, <a href="timers.html">Timers</a>, <a href="calendars.html">Trading calendars</a>, <a href="functions-window.html">Window and series functions</a>, <a href="functions-aggregate.html">Aggregate functions</a>, <a href="time-and-time-zones.html#nepal-time">Time and time zones (nepal-time)</a></li></ul>
+<p>Copy these queries and change the symbol, the dates and the periods. All of them run on the sample market data (the prices are made up).</p>
+<p>Most recipes use three building blocks:</p>
+<ul><li><a href="sample-by.html">SAMPLE BY</a> makes candles: <code>first(open)</code>, <code>max(high)</code>, <code>min(low)</code>, <code>last(close)</code>, <code>sum(volume)</code>.</li><li><a href="latest-on.html">LATEST ON</a> finds the newest row of each symbol.</li><li>Series functions (<code>lag</code>, <code>sma</code>, <code>ema</code>, <code>rsi</code>, ...) with <code>OVER (PARTITION BY symbol ORDER BY time)</code> look at the rows before (<a href="functions-window.html">window functions</a>, <a href="functions-indicators.html">indicators</a>).</li></ul>
+<h2 id="candles-from-minutes">Candles from minute data</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT time, symbol,
+       first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close,
+       sum(volume) AS volume
+FROM ochl_minutes
+WHERE time IN &#39;day&#39;
+SAMPLE BY 5m | 15m | 30m
+ORDER BY symbol, time</code></pre>
+<p>Makes bigger candles from 1-minute candles. Open is the first open, close the last close, high the biggest high, low the smallest low, volume the sum.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>For 5, 15 and 30 minutes, UTC and Nepal buckets are the same. For hours use the <a href="candles-cookbook.html#hourly-nepal">next recipe</a>.</li><li>Always filter by time: the query then reads only the partitions it needs.</li><li>A bucket with no trades gives no candle. See <a href="candles-cookbook.html#fill-gaps">filling gaps</a>.</li></ul></li></ul>
+<p><strong>Example: 5-minute candles of both symbols, first 3 of each</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol,
+       first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close,
+       sum(volume) AS volume
+FROM ochl_minutes
+WHERE time IN &#39;2026-09-09&#39; AND time &lt; &#39;2026-09-09T11:15:00+05:45&#39;
+SAMPLE BY 5m
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T05:15:00.000Z</td><td>CITY</td><td>512</td><td>512.4</td><td>511.2</td><td>512</td><td>4490</td></tr><tr><td>2026-09-09T05:20:00.000Z</td><td>CITY</td><td>512</td><td>512.3</td><td>509.8</td><td>509.9</td><td>5340</td></tr><tr><td>2026-09-09T05:25:00.000Z</td><td>CITY</td><td>509.9</td><td>511.3</td><td>509.8</td><td>510.7</td><td>3900</td></tr><tr><td>2026-09-09T05:15:00.000Z</td><td>COAST</td><td>398</td><td>398.5</td><td>397.5</td><td>398.5</td><td>2640</td></tr><tr><td>2026-09-09T05:20:00.000Z</td><td>COAST</td><td>398.5</td><td>398.8</td><td>397.2</td><td>397.7</td><td>4500</td></tr><tr><td>2026-09-09T05:25:00.000Z</td><td>COAST</td><td>397.7</td><td>398.4</td><td>396.6</td><td>396.9</td><td>3260</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: The newest 3 candles first (for a chart that loads backwards)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+SAMPLE BY 15m
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:00:00.000Z</td><td>375.5</td><td>376.5</td><td>374.3</td><td>376.1</td><td>14450</td></tr><tr><td>2026-09-10T08:45:00.000Z</td><td>373.5</td><td>376.3</td><td>373.2</td><td>375.5</td><td>12030</td></tr><tr><td>2026-09-10T08:30:00.000Z</td><td>377.6</td><td>377.9</td><td>373.4</td><td>373.5</td><td>10730</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="hourly-nepal">Hourly candles on a local clock (Nepal)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT time, first(open), max(high), min(low), last(close), sum(volume)
+FROM ochl_minutes
+WHERE symbol = &#39;...&#39; AND time IN &#39;day&#39;
+SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code></pre>
+<p>The sample market opens at 11:00 local time in Nepal (05:15 UTC). The same idea works for any zone, for example <code>America/New_York</code>. Plain <code>SAMPLE BY 1h</code> makes UTC hours, which cut the trading day at the wrong places. <code>TIME ZONE &#39;Asia/Kathmandu&#39;</code> makes the hours 11:00, 12:00, 13:00 and 14:00 Nepal time.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>The result times are in UTC: <code>05:15Z</code> is 11:00 in Nepal.</li><li><code>vwap(price, volume)</code> is the volume-weighted average price of the candle.</li><li>QuestDB&#39;s <code>SAMPLE BY 1h ALIGN TO CALENDAR WITH OFFSET &#39;00:15&#39;</code> gives the same buckets and also runs.</li></ul></li></ul>
+<p><strong>Example: Hourly candles with VWAP for both symbols</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol,
+       first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close,
+       sum(volume) AS volume, round(vwap(close, volume), 2) AS vwap
+FROM ochl_minutes
+WHERE time IN &#39;2026-09-10&#39;
+SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th><th>vwap (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>504.6</td><td>507</td><td>503.8</td><td>505.3</td><td>47020</td><td>505.3</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>CITY</td><td>505.3</td><td>506.6</td><td>500.7</td><td>502.7</td><td>41230</td><td>503.78</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>CITY</td><td>502.7</td><td>504.1</td><td>501.5</td><td>502.6</td><td>46180</td><td>502.84</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>CITY</td><td>502.6</td><td>507</td><td>502.2</td><td>504.9</td><td>48610</td><td>504.95</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>COAST</td><td>380.1</td><td>382</td><td>379</td><td>381.3</td><td>47660</td><td>380.44</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>COAST</td><td>381.3</td><td>382</td><td>377.9</td><td>378.4</td><td>45870</td><td>379.71</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>COAST</td><td>378.4</td><td>379.1</td><td>375.7</td><td>376.4</td><td>43950</td><td>377.6</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>COAST</td><td>376.4</td><td>378.3</td><td>373.2</td><td>376.1</td><td>48720</td><td>375.67</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="candles-from-trades">Daily candles from trade log trades</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT date, symbol,
+       first(rate) AS open, max(rate) AS high, min(rate) AS low, last(rate) AS close,
+       sum(quantity) AS volume, sum(amount) AS turnover, count(*) AS trades
+FROM trade_log
+SAMPLE BY 1d</code></pre>
+<p>Makes candles from single trades. The price is <code>rate</code>, the volume is <code>quantity</code>, the turnover is <code>amount</code> (quantity × rate).</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>The trade log has only the trade <strong>date</strong>, not the time of each trade. All trades of a day have the same time, so <code>first</code> and <code>last</code> follow the order the rows are stored in (here: by <code>transaction_id</code>). With a real trade time column, <code>first</code> and <code>last</code> follow the time.</li><li>To compare with the official candles, join the result with <code>ochl_day</code> on symbol and date.</li></ul></li></ul>
+<p><strong>Example: Daily candles and turnover from trades</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date, symbol,
+       first(rate) AS open, max(rate) AS high, min(rate) AS low, last(rate) AS close,
+       sum(quantity) AS volume, round(sum(amount), 2) AS turnover, count(*) AS trades
+FROM trade_log
+SAMPLE BY 1d
+ORDER BY symbol, date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (LONG)</th><th>turnover (DOUBLE)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>515</td><td>517</td><td>513</td><td>517</td><td>1510</td><td>777400</td><td>4</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>517</td><td>518</td><td>514.5</td><td>515</td><td>910</td><td>469830</td><td>7</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>401</td><td>401</td><td>398.5</td><td>398.5</td><td>220</td><td>88170</td><td>2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>400</td><td>402</td><td>398</td><td>402</td><td>2850</td><td>1139340</td><td>9</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>TELCO</td><td>881</td><td>881</td><td>879</td><td>879</td><td>2000</td><td>1760000</td><td>2</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>TELCO</td><td>881</td><td>883</td><td>878</td><td>881</td><td>770</td><td>678260</td><td>4</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>184</td><td>187</td><td>184</td><td>187</td><td>400</td><td>73950</td><td>4</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<h2 id="weekly-candles">Weekly candles, Sunday to Thursday</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT time, symbol, first(open), max(high), min(low), last(close), sum(volume)
+FROM ochl_day
+WHERE time IN &#39;year&#39;
+SAMPLE BY 1w WEEK START SUNDAY</code></pre>
+<p>The sample market trades Sunday to Thursday, as some exchanges do. <code>WEEK START SUNDAY</code> makes each week start on Sunday, so one trading week is one candle.</p>
+<ul><li><strong>Notes:</strong> the daily rows are at 00:00 UTC, so do <strong>not</strong> add <code>TIME ZONE</code> here (the week would be stamped Saturday 18:15 UTC).</li></ul>
+<p><strong>Example: Weekly candles of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol,
+       first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close,
+       sum(volume) AS volume
+FROM ochl_day
+WHERE time IN &#39;2026&#39;
+SAMPLE BY 1w WEEK START SUNDAY
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>CITY</td><td>505</td><td>517</td><td>502</td><td>505.9</td><td>601770</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>CITY</td><td>507.3</td><td>511.2</td><td>494.1</td><td>497.9</td><td>538130</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>CITY</td><td>497.4</td><td>512.4</td><td>495</td><td>504.9</td><td>591860</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>COAST</td><td>392.1</td><td>393.3</td><td>366.2</td><td>367.1</td><td>421000</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>COAST</td><td>368</td><td>375.4</td><td>364.1</td><td>373.2</td><td>356390</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>COAST</td><td>374.6</td><td>398.8</td><td>372.5</td><td>376.1</td><td>690140</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>183.6</td><td>172</td><td>173.3</td><td>535470</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>VOLT</td><td>172.5</td><td>177.3</td><td>167.3</td><td>176</td><td>368150</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>VOLT</td><td>174.2</td><td>192.1</td><td>172.4</td><td>191.2</td><td>486760</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<h2 id="monthly-candles">Monthly and yearly candles</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SAMPLE BY 1M      -- month: capital M
+SAMPLE BY 1y      -- year</code></pre>
+<p><code>1M</code> is a calendar month; small <code>1m</code> is one minute. Months without rows are not shown.</p>
+<p><strong>Example: Monthly candles of COAST</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39;
+SAMPLE BY 1M;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>420.3</td><td>429.9</td><td>417.6</td><td>426.5</td><td>206980</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>392.1</td><td>393.3</td><td>364.2</td><td>368.2</td><td>557260</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>367</td><td>398.8</td><td>364.1</td><td>376.1</td><td>910270</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Yearly high, low and last close of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, max(high) AS year_high, min(low) AS year_low, last(close) AS year_close
+FROM ochl_day
+SAMPLE BY 1y
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>year_high (DOUBLE)</th><th>year_low (DOUBLE)</th><th>year_close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-01-01T00:00:00.000Z</td><td>CITY</td><td>546.2</td><td>536.4</td><td>542.4</td></tr><tr><td>2026-01-01T00:00:00.000Z</td><td>CITY</td><td>517</td><td>494.1</td><td>504.9</td></tr><tr><td>2025-01-01T00:00:00.000Z</td><td>COAST</td><td>429.9</td><td>417.6</td><td>426.5</td></tr><tr><td>2026-01-01T00:00:00.000Z</td><td>COAST</td><td>398.8</td><td>364.1</td><td>376.1</td></tr><tr><td>2025-01-01T00:00:00.000Z</td><td>VOLT</td><td>199.7</td><td>187.5</td><td>194.3</td></tr><tr><td>2026-01-01T00:00:00.000Z</td><td>VOLT</td><td>192.1</td><td>167.3</td><td>191.2</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="daily-change">Daily change %</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close,
+       pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS change_pct
+FROM ochl_day</code></pre>
+<p>The change from the day before: <code>(close - previous close) / previous close × 100</code>. <code>lag(close)</code> is the close of the row before; <code>pct_change(close)</code> computes the percent for you.</p>
+<ul><li><strong>NULL:</strong> the first row of each symbol has no day before, so its change is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>Without <code>PARTITION BY symbol</code>, all rows are one series: COAST&#39;s first row would use CITY&#39;s last close.</li><li><code>WHERE</code> runs before <code>lag</code>. With <code>WHERE time IN &#39;2026-09-10&#39;</code> alone there is no day before. Compute in a subquery over more days, and pick the day outside (<a href="union-subqueries.html#from-subquery">subqueries</a>).</li></ul></li></ul>
+<p><strong>Example: Change % of the last three days</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close,
+       round(pct_change(close) OVER (PARTITION BY symbol ORDER BY time), 2) AS change_pct
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>prev_close (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>497.5</td><td>1.43</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>504.6</td><td>0.06</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>377.2</td><td>0.77</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>380.1</td><td>-1.05</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>182.4</td><td>2.69</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>187.3</td><td>2.08</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Wrong: WHERE keeps one day, so there is no day before</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, round(pct_change(close) OVER (PARTITION BY symbol ORDER BY time), 2) AS change_pct
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>change_pct (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>NULL</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>NULL</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="top-gainers">Top gainers and losers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT symbol, prev_close, close, change_pct
+FROM (SELECT time, symbol, close, lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
+      FROM ochl_day WHERE time &gt;= &#39;a few days before&#39;) t
+WHERE time IN &#39;the day&#39;
+ORDER BY change_pct DESC
+LIMIT 10</code></pre>
+<p>Gainers of a day: the change %, biggest first. Losers: the same with <code>ORDER BY change_pct</code> (smallest first).</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>The inner <code>WHERE time &gt;= ...</code> should start a few days before the day you want (weekends and holidays have no rows). Then KDB does not read the whole table.</li><li>For the market <strong>right now</strong>, use the live snapshots with <code>LATEST ON</code> (second example).</li></ul></li></ul>
+<p><strong>Example: Top gainers of 2026-09-10 from daily candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, prev_close, close,
+       round((close - prev_close) / prev_close * 100, 2) AS change_pct
+FROM (
+  SELECT time, symbol, close,
+         lag(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
+  FROM ochl_day
+  WHERE time &gt;= &#39;2026-09-01&#39;
+) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY change_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>prev_close (DOUBLE)</th><th>close (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>187.3</td><td>191.2</td><td>2.08</td></tr><tr><td>CITY</td><td>504.6</td><td>504.9</td><td>0.06</td></tr><tr><td>COAST</td><td>380.1</td><td>376.1</td><td>-1.05</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Top 2 gainers and top 2 losers right now (live snapshots)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, ltp, pct_change FROM live_data
+LATEST ON timestamp PARTITION BY symbol
+ORDER BY pct_change DESC LIMIT 2;
+
+SELECT symbol, ltp, pct_change FROM live_data
+LATEST ON timestamp PARTITION BY symbol
+ORDER BY pct_change LIMIT 2;</code></pre>
+<p>Result:</p>
+<p><code>SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY pct_c</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>2.71</td></tr><tr><td>TELCO</td><td>897.7</td><td>1.9</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY pct_c</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>184</td><td>-0.86</td></tr><tr><td>COAST</td><td>401.9</td><td>0.7</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="volume-leaders">Volume and turnover leaders</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT symbol, sum(volume) AS volume FROM ochl_day WHERE time IN &#39;day&#39; GROUP BY symbol ORDER BY volume DESC LIMIT n
+SELECT symbol, sum(quantity), sum(amount) AS turnover FROM trade_log WHERE date IN &#39;day&#39; GROUP BY symbol ORDER BY turnover DESC</code></pre>
+<p>The most traded shares of a day, by volume (number of shares) or by turnover (money).</p>
+<ul><li><strong>Notes:</strong> the trade log has buyer and seller brokers, so you can also rank brokers. Each trade counts for its buyer <strong>and</strong> its seller: <code>UNION ALL</code> the two sides first.</li></ul>
+<p><strong>Example: Volume leaders of a day (daily candles)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, volume, close
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY volume DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>COAST</td><td>186200</td><td>376.1</td></tr><tr><td>CITY</td><td>183040</td><td>504.9</td></tr><tr><td>VOLT</td><td>41470</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Turnover leaders of a day (trade log)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, sum(quantity) AS shares, round(sum(amount), 2) AS turnover, count(*) AS trades
+FROM trade_log
+WHERE date IN &#39;2026-09-10&#39;
+GROUP BY symbol
+ORDER BY turnover DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th><th>turnover (DOUBLE)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>COAST</td><td>2850</td><td>1139340</td><td>9</td></tr><tr><td>TELCO</td><td>770</td><td>678260</td><td>4</td></tr><tr><td>CITY</td><td>910</td><td>469830</td><td>7</td></tr><tr><td>VOLT</td><td>400</td><td>73950</td><td>4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Brokers with the biggest turnover (bought + sold)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT b.name, round(sum(t.amount), 2) AS turnover, count(*) AS trades
+FROM (
+  SELECT buyer AS broker, amount FROM trade_log WHERE date IN &#39;2026-09-10&#39;
+  UNION ALL
+  SELECT seller AS broker, amount FROM trade_log WHERE date IN &#39;2026-09-10&#39;
+) t
+JOIN brokers b ON b.id = t.broker
+GROUP BY b.name
+ORDER BY turnover DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>turnover (DOUBLE)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>Imperial Securities</td><td>1288160</td><td>11</td></tr><tr><td>Online Securities</td><td>1173580</td><td>9</td></tr><tr><td>Vision Securities</td><td>773260</td><td>9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="high-low-52w">52-week high and low</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT symbol, max(high) AS high_52w, min(low) AS low_52w
+FROM ochl_day
+WHERE time &gt; dateadd(&#39;d&#39;, -365, now())
+GROUP BY symbol</code></pre>
+<p>The highest high and lowest low of the last 365 days. <code>dateadd(&#39;d&#39;, -365, t)</code> is the time 365 days before <code>t</code> (<a href="functions-date-time.html">date and time functions</a>).</p>
+<ul><li><strong>Notes:</strong> the examples use the fixed date <code>2026-09-10</code> so the result does not change. For &quot;until today&quot; write <code>now()</code>.</li></ul>
+<p><strong>Example: 52-week high and low of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, max(high) AS high_52w, min(low) AS low_52w
+FROM ochl_day
+WHERE time &gt; dateadd(&#39;d&#39;, -365, CAST(&#39;2026-09-10&#39; AS TIMESTAMP))
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>high_52w (DOUBLE)</th><th>low_52w (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>546.2</td><td>494.1</td></tr><tr><td>COAST</td><td>429.9</td><td>364.1</td></tr><tr><td>VOLT</td><td>199.7</td><td>167.3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: How far the last close is below the 52-week high</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT h.symbol, l.close, h.high_52w, h.low_52w,
+       round((l.close - h.high_52w) / h.high_52w * 100, 2) AS below_high_pct
+FROM (SELECT symbol, max(high) AS high_52w, min(low) AS low_52w
+      FROM ochl_day
+      WHERE time &gt; dateadd(&#39;d&#39;, -365, CAST(&#39;2026-09-10&#39; AS TIMESTAMP))
+      GROUP BY symbol) h
+JOIN (SELECT symbol, close FROM ochl_day LATEST ON time PARTITION BY symbol) l ON l.symbol = h.symbol
+ORDER BY below_high_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>high_52w (DOUBLE)</th><th>low_52w (DOUBLE)</th><th>below_high_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>191.2</td><td>199.7</td><td>167.3</td><td>-4.26</td></tr><tr><td>CITY</td><td>504.9</td><td>546.2</td><td>494.1</td><td>-7.56</td></tr><tr><td>COAST</td><td>376.1</td><td>429.9</td><td>364.1</td><td>-12.51</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<blockquote><p>Prices after a bonus share or a split jump on the ex-date. To chart or compute indicators over the history without that jump, read the table with <a href="adjusted-prices.html">ADJUSTED BY</a>.</p></blockquote>
+<h2 id="moving-averages">Moving averages and crossovers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sma(close, n) OVER (PARTITION BY symbol ORDER BY time)
+ema(close, n) OVER (PARTITION BY symbol ORDER BY time)
+rsi(close, n) OVER (PARTITION BY symbol ORDER BY time)</code></pre>
+<p><code>sma</code> is the simple moving average of the last <code>n</code> rows, <code>ema</code> the exponential one, <code>rsi</code> the Relative Strength Index (0 to 100). See <a href="functions-indicators.html">indicator functions</a> for all of them.</p>
+<ul><li><strong>NULL:</strong> before there are <code>n</code> rows (for <code>rsi</code>: <code>n + 1</code>), the result is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>Use <code>PARTITION BY symbol</code> when the rows have many symbols.</li><li>Compute over <strong>enough history</strong> in a subquery, then filter the days you want to show outside.</li><li>An indicator can be inside another one: <code>lag(sma(close, 3)) OVER (...)</code>, <code>cross_above(sma(close, 3), sma(close, 5)) OVER (...)</code>. The inner one, written without <code>OVER</code>, takes the outer one&#39;s <code>PARTITION BY</code> and <code>ORDER BY</code>; KDB computes it first, in a subquery of its own.</li></ul></li></ul>
+<p><strong>Example: 5-day SMA and EMA, newest rows of CITY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       round(sma(close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS sma5,
+       round(ema(close, 5) OVER (PARTITION BY symbol ORDER BY time), 2) AS ema5
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026&#39;
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>sma5 (DOUBLE)</th><th>ema5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>500.94</td><td>502.22</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>499.54</td><td>500.88</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>497.9</td><td>499.01</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: RSI of every symbol on the last day (computed over all days)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, rsi5
+FROM (
+  SELECT time, symbol, close,
+         round(rsi(close, 5) OVER (PARTITION BY symbol ORDER BY time), 1) AS rsi5
+  FROM ochl_day
+) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY rsi5 DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>rsi5 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>79.4</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>55.1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>43.7</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Crossover in one line: cross_above and cross_below</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close,
+       CASE WHEN cross_above(sma(close, 3), sma(close, 5)) OVER (ORDER BY time) THEN &#39;BUY&#39;
+            WHEN cross_below(sma(close, 3), sma(close, 5)) OVER (ORDER BY time) THEN &#39;SELL&#39;
+            ELSE &#39;&#39; END AS signal
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026&#39;
+ORDER BY time DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>signal (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td></td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td></td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td></td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td></td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>BUY</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Crossover written out: BUY when the 3-day SMA goes above the 5-day SMA</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, fast, slow,
+       CASE WHEN fast &gt; slow AND prev_fast &lt;= prev_slow THEN &#39;BUY&#39;
+            WHEN fast &lt; slow AND prev_fast &gt;= prev_slow THEN &#39;SELL&#39;
+            ELSE &#39;&#39; END AS signal
+FROM (
+  SELECT time, close, fast, slow, lag(fast) AS prev_fast, lag(slow) AS prev_slow
+  FROM (
+    SELECT time, close, round(sma(close, 3), 2) AS fast, round(sma(close, 5), 2) AS slow
+    FROM ochl_day
+    WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026&#39;
+  ) a
+) b
+WHERE time &gt;= &#39;2026-09-01&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>fast (DOUBLE)</th><th>slow (DOUBLE)</th><th>signal (STRING)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>171.53</td><td>172.42</td><td></td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>171.03</td><td>171.88</td><td></td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>172.17</td><td>172.42</td><td></td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>175.87</td><td>173.84</td><td>BUY</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>177.67</td><td>174.7</td><td></td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>179.8</td><td>177.38</td><td></td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>182.2</td><td>180.54</td><td></td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>186.97</td><td>183.58</td><td></td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="indicators-on-candles">Indicators on candles</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT time, close, sma(close, n) AS sma
+FROM (SELECT time, last(close) AS close FROM ... SAMPLE BY interval) candles</code></pre>
+<p>To put an indicator on weekly or hourly candles, make the candles in a subquery and compute the indicator outside. In one SELECT with <code>SAMPLE BY</code>, a window function runs over the candles, so it may only use the time bucket, group keys or aggregates, not a raw column like <code>close</code>.</p>
+<ul><li><strong>Notes:</strong> the subquery result has a <code>time</code> column, so the series functions outside use its time order.</li></ul>
+<p><strong>Example: SAMPLE BY and sma(close) in one SELECT: close is not a candle value</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT time, last(close) AS close, sma(close, 2) AS sma2
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+SAMPLE BY 1w WEEK START SUNDAY;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 40: column &#39;close&#39; is used by a window function in a query with aggregates, so it must be a key of the groups: add it to the SELECT list or to GROUP BY</code></p>
+<p><strong>Example: The fix: hourly Nepal candles inside, a 2-candle SMA outside</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sma(close, 2), 2) AS sma2
+FROM (
+  SELECT time, last(close) AS close
+  FROM ochl_minutes
+  WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+  SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;
+) h;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma2 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>505.3</td><td>NULL</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>502.7</td><td>504</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>502.6</td><td>502.65</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>504.9</td><td>503.75</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="ta-folders">Candle and indicator tables kept by a timer</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">-- 1. candles, kept up to date after every insert
+CREATE MATERIALIZED VIEW ta_v_h1 AS (
+  SELECT time, symbol, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+  FROM minute_table SAMPLE BY 1h ALIGN TO CALENDAR WITH OFFSET &#39;00:15&#39;);
+-- 2. a table for the candles plus indicator columns
+CREATE TABLE ta_h1 (time TIMESTAMP, symbol SYMBOL, open DOUBLE, ..., rsi14 DOUBLE, ...) TIMESTAMP(time);
+-- 3. a procedure that rebuilds it in one transaction
+CREATE PROCEDURE ta_build_h1() AS BEGIN
+  DELETE FROM ta_h1;
+  INSERT INTO ta_h1 SELECT time, symbol, open, ..., rsi(close, 14) OVER (PARTITION BY symbol ORDER BY time) AS rsi14, ... FROM ta_v_h1;
+END;
+-- 4. a timer that runs it after each trading day (POST /api/timers)
+{&quot;name&quot;: &quot;ta_h1&quot;, &quot;schedule&quot;: &quot;trading nepse 15:10&quot;, &quot;sql&quot;: &quot;REFRESH MATERIALIZED VIEW ta_v_h1 INCREMENTAL; CALL ta_build_h1()&quot;}</code></pre>
+<p>Screeners and charts often read the same candles again and again: 5-minute, 15-minute, hourly, weekly and monthly, each with a set of indicators. Build them once in KDB, and read the table.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Why</th></tr></thead><tbody><tr><td><a href="views.html#materialized-view">Materialized view</a></td><td>Holds the candles. KDB updates only the buckets an insert touches.</td></tr><tr><td>Table with indicator columns</td><td>An indicator needs every candle before it, so it cannot be in the view. The procedure writes it.</td></tr><tr><td><a href="procedures.html">Procedure</a></td><td><code>DELETE</code> and <code>INSERT</code> in one <code>CALL</code> are one transaction: a reader sees the old rows or the new ones, never an empty table.</td></tr><tr><td><a href="timers.html">Timer</a> on a <a href="calendars.html">calendar</a></td><td><code>trading nepse 15:10</code> runs after the close on trading days only. Start the server with <code>--timezone Asia/Kathmandu</code> so 15:10 is Nepal time.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong>
+<ul><li>Nepal is UTC+05:45. 5- and 15-minute buckets are the same in UTC and Nepal time. Hours need <code>WITH OFFSET &#39;00:15&#39;</code> (or <code>TIME ZONE &#39;Asia/Kathmandu&#39;</code>), see <a href="candles-cookbook.html#hourly-nepal">hourly candles</a>.</li><li>Weekly and monthly candles come from the day table: <code>SAMPLE BY 1w WEEK START SUNDAY</code> and <code>SAMPLE BY 1M</code>, see <a href="candles-cookbook.html#weekly-candles">weekly candles</a>.</li><li>Give each timeframe its own names. KDB names ignore case, so <code>ta_1m</code> and <code>ta_1M</code> would be the same table: use <code>m5</code>, <code>m15</code>, <code>h1</code>, <code>w1</code>, <code>mo1</code>.</li><li><code>bench/006/ta-folders.mjs</code> in the source sets all of this up for the five timeframes, writes one file per symbol and timeframe, and with <code>--compare &lt;folder&gt;</code> checks the files against another set, column by column with a tolerance (<code>node bench/006/ta-folders.mjs</code> prints the help; <code>sql</code> prints the whole recipe).</li></ul></li></ul>
+<p><strong>Example: Hourly Nepal candles with indicators, rebuilt by one CALL</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW ta_v_h1 AS (
+  SELECT time, symbol, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+  FROM ochl_minutes SAMPLE BY 1h ALIGN TO CALENDAR WITH OFFSET &#39;00:15&#39;);
+CREATE TABLE ta_h1 (time TIMESTAMP, symbol SYMBOL, close DOUBLE, volume DOUBLE, sma3 DOUBLE, rsi3 DOUBLE) TIMESTAMP(time);
+CREATE PROCEDURE ta_build_h1() AS BEGIN
+  DELETE FROM ta_h1;
+  INSERT INTO ta_h1
+  SELECT time, symbol, close, volume,
+         sma(close, 3) OVER (PARTITION BY symbol ORDER BY time),
+         rsi(close, 3) OVER (PARTITION BY symbol ORDER BY time)
+  FROM ta_v_h1;
+END;</code></pre>
+<pre><code class="language-sql">CALL ta_build_h1();
+SELECT time, close, round(sma3, 2) AS sma3, round(rsi3, 1) AS rsi3
+FROM ta_h1 WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 4;</code></pre>
+<p>Result:</p>
+<p><code>CALL ta_build_h1()</code></p>
+<pre><code class="language-text">procedure &#39;ta_build_h1&#39; done: 16 row(s) changed</code></pre>
+<p><code>SELECT time, close, round(sma3, 2) AS sma3, round(rsi3, 1) AS rsi3 FROM ta_h1 WHERE symbol = &#39;CITY&#39; </code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>sma3 (DOUBLE)</th><th>rsi3 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T08:15:00.000Z</td><td>504.9</td><td>503.4</td><td>59.9</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>502.6</td><td>503.53</td><td>31.7</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>502.7</td><td>504.2</td><td>32.4</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>505.3</td><td>506.53</td><td>50.7</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Weekly candles (Sunday weeks) with a 2-week EMA</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE MATERIALIZED VIEW ta_v_w1 AS (
+  SELECT time, symbol, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+  FROM ochl_day SAMPLE BY 1w WEEK START SUNDAY);</code></pre>
+<pre><code class="language-sql">SELECT time, close, round(ema(close, 2) OVER (PARTITION BY symbol ORDER BY time), 2) AS ema2
+FROM ta_v_w1 WHERE symbol = &#39;VOLT&#39; ORDER BY time DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>ema2 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>191.2</td><td>187</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>176</td><td>178.6</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>173.3</td><td>183.8</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="fill-gaps">Filling gaps in minute candles</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SAMPLE BY 1m FILL(PREV)
+-- open, high, low, close = the minute before, volume = 0: one rule per column
+SAMPLE BY 1m FILL(PREV, PREV, PREV, PREV, 0)
+-- every minute of a fixed range, also before the first trade
+SAMPLE BY 1m FROM &#39;...&#39; TO &#39;...&#39; FILL(PREV, 0)</code></pre>
+<p>Some minutes have no trades, so there is no candle. A chart with a fixed number of minutes needs a row for every minute.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li><code>FILL(PREV)</code> copies <strong>every</strong> column of the minute before, also the volume. That is right for the price, wrong for the volume.</li><li><code>FILL(PREV, 0)</code> gives each aggregate column its own rule, in SELECT order: close from the minute before, volume 0.</li><li><code>FROM ... TO ...</code> fills a fixed range of minutes (a chart window), <code>TO</code> not included. See <a href="sample-by.html#from-to">FROM / TO</a>.</li><li>FILL fills every empty minute between the first and the last row, also the night. Filter <strong>one trading day</strong> (or a shorter range).</li><li>Details: <a href="sample-by.html#fill">FILL</a>.</li></ul></li></ul>
+<p><strong>Example: COAST had no trades from 12:31 to 12:34: FILL(PREV)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-09-10T12:30:00+05:45&#39; AND time &lt; &#39;2026-09-10T12:36:00+05:45&#39;
+SAMPLE BY 1m FILL(PREV);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T06:45:00.000Z</td><td>380.2</td><td>620</td></tr><tr><td>2026-09-10T06:46:00.000Z</td><td>380.2</td><td>620</td></tr><tr><td>2026-09-10T06:47:00.000Z</td><td>380.2</td><td>620</td></tr><tr><td>2026-09-10T06:48:00.000Z</td><td>380.2</td><td>620</td></tr><tr><td>2026-09-10T06:49:00.000Z</td><td>380.2</td><td>620</td></tr><tr><td>2026-09-10T06:50:00.000Z</td><td>379.8</td><td>800</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Candles with open, high, low, close from the minute before, volume 0</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39;
+SAMPLE BY 1m FROM &#39;2026-09-10T12:30:00+05:45&#39; TO &#39;2026-09-10T12:36:00+05:45&#39;
+FILL(PREV, PREV, PREV, PREV, 0);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T06:45:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>620</td></tr><tr><td>2026-09-10T06:46:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:47:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:48:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:49:00.000Z</td><td>379.9</td><td>380.4</td><td>379.9</td><td>380.2</td><td>0</td></tr><tr><td>2026-09-10T06:50:00.000Z</td><td>380.2</td><td>380.2</td><td>379.8</td><td>379.8</td><td>800</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/candles-cookbook.md">This page as markdown</a>.</footer>
+</body>
+</html>

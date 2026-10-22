@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Returns and risk - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Returns, drawdown, volatility, z-score and the risk numbers of an investment: Sharpe, Sortino, Calmar, information ratio, value at risk and expected shortfall.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-returns-risk.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-returns-risk.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="returns-and-risk">Returns and risk</h1>
+<blockquote><p>Returns, drawdown, volatility, z-score and the risk numbers of an investment: Sharpe, Sortino, Calmar, information ratio, value at risk and expected shortfall.</p></blockquote>
+<ul><li>Category: Functions — statistics</li><li>Keywords: return, returns, daily return, monthly return, simple return, simple return, log return, logarithmic return, continuous return, cumulative return, total return, growth, drawdown, peak, MDD, maximum drawdown, volatility, annualized volatility, historical volatility, risk, risk-free rate, z-score, standard score, standardize, normalize, min-max scaling, sharpe, Sharpe ratio, sortino, Sortino ratio, downside deviation, calmar, Calmar ratio, information ratio, tracking error, benchmark, VaR, value at risk, CVaR, conditional value at risk, expected shortfall, portfolio, mutual fund, NAV, periods per year, annualize, 240 trading days</li><li>See also: <a href="functions-window.html#pct-change">Window and series functions (pct-change)</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="functions-correlation.html">Correlation and regression</a>, <a href="functions-finance.html#cagr">Finance and price functions (cagr)</a>, <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-window.html#cummax">Window and series functions (cummax)</a></li></ul>
+<p>A <strong>return</strong> is how much an investment grew: a price that goes from 500 to 510 has a return of <code>0.02</code> (2%). <strong>Risk</strong> is how much the returns jump up and down, and how deep the losses can be. The functions on this page measure both.</p>
+<p>There are two kinds:</p>
+<ul><li><strong>Series functions</strong> give a value for <strong>every row</strong>: <code>pct_return</code>, <code>log_return</code>, <code>cum_return</code>, <code>drawdown</code>, <code>volatility</code>, <code>zscore</code>, <code>minmax_scale</code>. They follow the rules of the <a href="functions-indicators.html">technical indicators</a>:
+<ul><li>Without <code>OVER</code>, all result rows are one series in time order. With <strong>many symbols</strong>, always write <code>OVER (PARTITION BY symbol ORDER BY time)</code>.</li><li><code>WHERE</code> runs first: the function only sees the rows that <code>WHERE</code> keeps.</li><li>They cannot be in the same <code>SELECT</code> as <code>GROUP BY</code>, <code>SAMPLE BY</code> or an aggregate.</li></ul></li><li><strong>Aggregates</strong> give <strong>one value per group</strong>: <code>max_drawdown</code>, <code>sharpe_ratio</code>, <code>sortino_ratio</code>, <code>calmar_ratio</code>, <code>information_ratio</code>, <code>value_at_risk</code>, <code>expected_shortfall</code>. Like <code>avg</code>, they work with <code>GROUP BY</code>, skip NULL values, and give <code>NULL</code> for no rows. Most of them read <strong>returns</strong>, not prices. So the usual query has two steps: the returns in a subquery, the aggregate outside.</li></ul>
+<p>More rules:</p>
+<ul><li><strong>Returns are fractions:</strong> <code>0.025</code> means +2.5%. Multiply by 100 for percent. (The older <a href="functions-window.html#pct-change">pct_change</a> already gives percent: <code>2.5</code>.)</li><li><strong>Periods per year:</strong> some functions take <code>periods</code>, the number of returns in one year. They use it to give a <strong>yearly</strong> (annualized) number. Use <code>240</code> for daily returns of a market with about 240 trading days a year (<code>252</code> is usual for US markets), <code>52</code> for weekly and <code>12</code> for monthly returns. Without it the number is &quot;per period&quot; (per day, per month).</li><li><strong>Warm-up:</strong> at the start of a series there are not enough rows yet, and the result is <code>NULL</code>:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>First value on row</th><th>NULL rows at the start</th></tr></thead><tbody><tr><td><code>pct_return(x)</code>, <code>log_return(x)</code></td><td>2</td><td>1</td></tr><tr><td><code>pct_return(x, k)</code>, <code>log_return(x, k)</code></td><td>k + 1</td><td>k</td></tr><tr><td><code>cum_return(x)</code>, <code>drawdown(x)</code></td><td>1</td><td>0</td></tr><tr><td><code>volatility(price, n)</code></td><td>n + 1</td><td>n</td></tr><tr><td><code>zscore(x, n)</code>, <code>minmax_scale(x, n)</code></td><td>n</td><td>n - 1</td></tr></tbody></table></div>
+<ul><li><strong>Data of the examples:</strong> the daily candles (<code>ochl_day</code>) have a gap between 2025-12-31 and 2026-08-23, so the daily examples use <code>time &gt;= &#39;2026-08-23&#39;</code>. <code>fund_nav</code> holds the month-start NAV (the price of one unit) of two made-up mutual funds, GROWTH and INCOME, from 2024-09 to 2026-08.</li></ul>
+<p><strong>Example: VOLT: daily return, total return and drawdown</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(pct_return(close), 4) AS daily_return,
+       round(cum_return(close), 4) AS total_return,
+       round(drawdown(close), 4) AS drawdown
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>daily_return (DOUBLE)</th><th>total_return (DOUBLE)</th><th>drawdown (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>NULL</td><td>0</td><td>0</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>-0.0138</td><td>-0.0138</td><td>-0.0138</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>-0.0095</td><td>-0.0232</td><td>-0.0232</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>-0.0147</td><td>-0.0376</td><td>-0.0376</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>-0.0052</td><td>-0.0425</td><td>-0.0425</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>-0.0017</td><td>-0.0442</td><td>-0.0442</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>-0.0023</td><td>-0.0464</td><td>-0.0464</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>-0.0209</td><td>-0.0663</td><td>-0.0663</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>0.0148</td><td>-0.0525</td><td>-0.0525</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>0.0262</td><td>-0.0276</td><td>-0.0276</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>0.0233</td><td>-0.005</td><td>-0.005</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>-0.0178</td><td>-0.0227</td><td>-0.0227</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>0.0311</td><td>0.0077</td><td>0</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>0.0269</td><td>0.0348</td><td>0</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>0.0208</td><td>0.0564</td><td>0</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Risk report of two funds: monthly returns inside, the risk numbers outside</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund,
+       count(r) AS months,
+       round(avg(r) * 100, 2) AS avg_month_pct,
+       round(sharpe_ratio(r, 0, 12), 2) AS sharpe,
+       round(sortino_ratio(r, 0, 12), 2) AS sortino,
+       round(calmar_ratio(r, 12), 2) AS calmar,
+       round(max_drawdown(nav) * 100, 2) AS max_drawdown_pct,
+       round(value_at_risk(r, 0.95) * 100, 2) AS var95_pct
+FROM (SELECT time, fund, nav,
+             pct_return(nav) OVER (PARTITION BY fund ORDER BY time) AS r
+      FROM fund_nav) t
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>months (LONG)</th><th>avg_month_pct (DOUBLE)</th><th>sharpe (DOUBLE)</th><th>sortino (DOUBLE)</th><th>calmar (DOUBLE)</th><th>max_drawdown_pct (DOUBLE)</th><th>var95_pct (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>23</td><td>0.89</td><td>1.35</td><td>2.33</td><td>1.26</td><td>-8.61</td><td>3.09</td></tr><tr><td>INCOME</td><td>23</td><td>0.33</td><td>2.85</td><td>6.76</td><td>4.5</td><td>-0.89</td><td>0.39</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="pct_return">pct_return, percent_return, returns</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pct_return(x)
+pct_return(x, k)
+pct_return(x, k) OVER ([PARTITION BY ...] [ORDER BY ...])
+percent_return(x [, k])
+returns(x [, k])</code></pre>
+<p>The <strong>simple return</strong>: the change from <code>k</code> rows before, as a fraction: <code>x / previous x - 1</code>. On daily closes it is the <strong>daily return</strong>; <code>0.012</code> means the price rose 1.2%. <code>percent_return</code> and <code>returns</code> are the same function.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price, usually <code>close</code> or a fund&#39;s NAV</td></tr><tr><td><code>k</code></td><td>whole number, 1 or more</td><td>how many rows back; default <code>1</code>. <code>5</code> on daily candles is the return over 5 trading days (about one week)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, a fraction (<code>0.012</code> = +1.2%).</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>k</code> rows, when this or the earlier value is <code>NULL</code>, and when the earlier value is <code>0</code>.</li><li><strong>Notes:</strong> the same as <code>pct_change(x) / 100</code>, but <code>pct_return</code> can look <code>k</code> rows back. <code>ROWS</code> inside <code>OVER</code> is ignored.</li></ul>
+<p><strong>Example: Daily return of each symbol: a fraction, and pct_change in percent</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, symbol, close,
+       round(pct_return(close) OVER (PARTITION BY symbol ORDER BY time), 5) AS daily_return,
+       round(pct_change(close) OVER (PARTITION BY symbol ORDER BY time), 3) AS change_pct
+FROM ochl_day
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>daily_return (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>0.01427</td><td>1.427</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>0.00059</td><td>0.059</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>0.00769</td><td>0.769</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>-0.01052</td><td>-1.052</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>0.02686</td><td>2.686</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>0.02082</td><td>2.082</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Return over the last 5 trading days</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close, lag(close, 5) AS close_5_days_ago,
+       round(pct_return(close, 5) * 100, 2) AS return_5d_pct
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>close_5_days_ago (DOUBLE)</th><th>return_5d_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>391</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>384.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>379.8</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>373</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>367.1</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>372.4</td><td>391</td><td>-4.76</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>368.2</td><td>384.9</td><td>-4.34</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>367.4</td><td>379.8</td><td>-3.26</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>369.2</td><td>373</td><td>-1.02</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>373.2</td><td>367.1</td><td>1.66</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td><td>372.4</td><td>0.81</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td><td>368.2</td><td>2.99</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td><td>367.4</td><td>2.67</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>380.1</td><td>369.2</td><td>2.95</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td><td>373.2</td><td>0.78</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: NULL and zero prices</strong> (sample data: sample, analysis-market)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE prices (time TIMESTAMP, close DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO prices VALUES (&#39;2026-09-01&#39;, 100), (&#39;2026-09-02&#39;, 110), (&#39;2026-09-03&#39;, NULL),
+  (&#39;2026-09-04&#39;, 99), (&#39;2026-09-05&#39;, 121), (&#39;2026-09-06&#39;, 0), (&#39;2026-09-07&#39;, 50);</code></pre>
+<pre><code class="language-sql">SELECT time, close,
+       round(pct_return(close), 4) AS pct_return,
+       round(log_return(close), 4) AS log_return,
+       round(cum_return(close), 4) AS cum_return,
+       round(drawdown(close), 4) AS drawdown
+FROM prices
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>pct_return (DOUBLE)</th><th>log_return (DOUBLE)</th><th>cum_return (DOUBLE)</th><th>drawdown (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01T00:00:00.000Z</td><td>100</td><td>NULL</td><td>NULL</td><td>0</td><td>0</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>110</td><td>0.1</td><td>0.0953</td><td>0.1</td><td>0</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-04T00:00:00.000Z</td><td>99</td><td>NULL</td><td>NULL</td><td>-0.01</td><td>-0.1</td></tr><tr><td>2026-09-05T00:00:00.000Z</td><td>121</td><td>0.2222</td><td>0.2007</td><td>0.21</td><td>0</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>0</td><td>-1</td><td>NULL</td><td>-1</td><td>-1</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>50</td><td>NULL</td><td>NULL</td><td>-0.5</td><td>-0.5868</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<h2 id="log_return">log_return</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">log_return(x)
+log_return(x, k)
+log_return(x, k) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>log return</strong>: <code>ln(x / previous x)</code>. For small moves it is almost the same as the simple return: a rise from 507.9 to 510.3 is <code>0.00473</code> as a simple return and <code>0.00471</code> as a log return. Traders like it because log returns <strong>add up</strong>: the sum of the daily log returns is the log return of the whole period.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price</td></tr><tr><td><code>k</code></td><td>whole number, 1 or more</td><td>how many rows back; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>k</code> rows, when this or the earlier value is <code>NULL</code>, and when the ratio is <code>0</code> or less (a price of <code>0</code>).</li><li><strong>Notes:</strong> <code>exp(log return) - 1</code> is the simple return. <a href="functions-returns-risk.html#volatility">volatility</a> is made from log returns.</li></ul>
+<p><strong>Example: Log returns add up to the log return of the whole period</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT symbol, first(close) AS first_close, last(close) AS last_close,
+       round(sum(lr), 6) AS sum_of_log_returns,
+       round(ln(last(close) / first(close)), 6) AS log_of_whole_period,
+       round(exp(sum(lr)) - 1, 6) AS total_return
+FROM (SELECT time, symbol, close,
+             log_return(close) OVER (PARTITION BY symbol ORDER BY time) AS lr
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>first_close (DOUBLE)</th><th>last_close (DOUBLE)</th><th>sum_of_log_returns (DOUBLE)</th><th>log_of_whole_period (DOUBLE)</th><th>total_return (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>507.9</td><td>504.9</td><td>-0.005924</td><td>-0.005924</td><td>-0.005907</td></tr><tr><td>COAST</td><td>391</td><td>376.1</td><td>-0.038852</td><td>-0.038852</td><td>-0.038107</td></tr><tr><td>VOLT</td><td>181</td><td>191.2</td><td>0.054823</td><td>0.054823</td><td>0.056354</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Simple and log return of CITY&#39;s last 4 minutes</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close, simple_return, log_return
+FROM (SELECT time, close,
+             round(pct_return(close), 6) AS simple_return,
+             round(log_return(close), 6) AS log_return
+      FROM ochl_minutes
+      WHERE symbol = &#39;CITY&#39;) t
+ORDER BY time DESC
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>simple_return (DOUBLE)</th><th>log_return (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>504.9</td><td>-0.000396</td><td>-0.000396</td></tr><tr><td>2026-09-10T09:13:00.000Z</td><td>505.1</td><td>0.000594</td><td>0.000594</td></tr><tr><td>2026-09-10T09:12:00.000Z</td><td>504.8</td><td>0.000595</td><td>0.000594</td></tr><tr><td>2026-09-10T09:11:00.000Z</td><td>504.5</td><td>-0.000198</td><td>-0.000198</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="cum_return">cum_return</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cum_return(x)
+cum_return(x) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>cumulative (total) return</strong>: the change from the <strong>first</strong> value of the series to this row, <code>x / first x - 1</code>. It answers &quot;how much did I make since I bought on the first day?&quot;.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price or NAV</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, a fraction. The first row is <code>0</code>.</li><li><strong>NULL:</strong> <code>NULL</code> on rows where <code>x</code> is <code>NULL</code> (the first value that is not NULL is the start). <code>NULL</code> on every row when the first value is <code>0</code>.</li><li><strong>Notes:</strong> it takes prices, not returns. <code>100 × (1 + cum_return)</code> is the value of 100 dollars invested at the start.</li></ul>
+<p><strong>Example: What became of 100 dollars in each fund (the last 4 months)</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, fund, nav, growth_of_100
+FROM (SELECT time, fund, nav,
+             round(100 * (1 + cum_return(nav) OVER (PARTITION BY fund ORDER BY time)), 2) AS growth_of_100
+      FROM fund_nav) t
+WHERE time &gt;= &#39;2026-05-01&#39;
+ORDER BY fund, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>fund (SYMBOL)</th><th>nav (DOUBLE)</th><th>growth_of_100 (DOUBLE)</th></tr></thead><tbody><tr><td>2026-05-01T00:00:00.000Z</td><td>GROWTH</td><td>11.31</td><td>113.1</td></tr><tr><td>2026-06-01T00:00:00.000Z</td><td>GROWTH</td><td>11.66</td><td>116.6</td></tr><tr><td>2026-07-01T00:00:00.000Z</td><td>GROWTH</td><td>11.94</td><td>119.4</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>GROWTH</td><td>12.18</td><td>121.8</td></tr><tr><td>2026-05-01T00:00:00.000Z</td><td>INCOME</td><td>10.58</td><td>105.8</td></tr><tr><td>2026-06-01T00:00:00.000Z</td><td>INCOME</td><td>10.65</td><td>106.5</td></tr><tr><td>2026-07-01T00:00:00.000Z</td><td>INCOME</td><td>10.71</td><td>107.1</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>INCOME</td><td>10.78</td><td>107.8</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Total return of every symbol since 23 August</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT symbol, close, total_return_pct
+FROM (SELECT time, symbol, close,
+             round(cum_return(close) OVER (PARTITION BY symbol ORDER BY time) * 100, 2) AS total_return_pct
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY total_return_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>total_return_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>191.2</td><td>5.64</td></tr><tr><td>CITY</td><td>504.9</td><td>-0.59</td></tr><tr><td>COAST</td><td>376.1</td><td>-3.81</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="drawdown">drawdown</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">drawdown(x)
+drawdown(x) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>drawdown</strong>: how far the price is below its <strong>highest value so far</strong> (the peak), as a fraction: <code>x / peak - 1</code>. <code>-0.05</code> means 5% below the peak. It is <code>0</code> on a new high. Traders use it to see how painful a fall was, and when the price got back to its old high.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the price or NAV</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, <code>0</code> or less.</li><li><strong>NULL:</strong> <code>NULL</code> on rows where <code>x</code> is <code>NULL</code> (NULL values do not change the peak), and while the peak is <code>0</code> or less.</li><li><strong>Notes:</strong> the peak is the running maximum, the same as <a href="functions-window.html#cummax">cummax</a>. The deepest drawdown of a group is the aggregate <a href="functions-returns-risk.html#max_drawdown">max_drawdown</a>.</li></ul>
+<p><strong>Example: VOLT: the peak so far and the drawdown from it</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close, cummax(close) AS peak, round(drawdown(close) * 100, 2) AS drawdown_pct
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>peak (DOUBLE)</th><th>drawdown_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>181</td><td>0</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>181</td><td>-1.38</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>181</td><td>-2.32</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>181</td><td>-3.76</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>181</td><td>-4.25</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>181</td><td>-4.42</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>181</td><td>-4.64</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>181</td><td>-6.63</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>181</td><td>-5.25</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>181</td><td>-2.76</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>181</td><td>-0.5</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>181</td><td>-2.27</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>182.4</td><td>0</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>187.3</td><td>0</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>191.2</td><td>0</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Days when a share was more than 3% below its peak</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, drawdown_pct
+FROM (SELECT time, symbol, close,
+             round(drawdown(close) OVER (PARTITION BY symbol ORDER BY time) * 100, 2) AS drawdown_pct
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE drawdown_pct &lt; -3
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>drawdown_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-02T00:00:00.000Z</td><td>CITY</td><td>496.4</td><td>-3.29</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>-3.08</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>COAST</td><td>373</td><td>-4.6</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>COAST</td><td>367.1</td><td>-6.11</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>COAST</td><td>372.4</td><td>-4.76</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>COAST</td><td>368.2</td><td>-5.83</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>COAST</td><td>367.4</td><td>-6.04</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>COAST</td><td>369.2</td><td>-5.58</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>COAST</td><td>373.2</td><td>-4.55</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>COAST</td><td>375.4</td><td>-3.99</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>COAST</td><td>379.2</td><td>-3.02</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>-3.53</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>-3.81</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>VOLT</td><td>174.2</td><td>-3.76</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>VOLT</td><td>173.3</td><td>-4.25</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>VOLT</td><td>173</td><td>-4.42</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>VOLT</td><td>172.6</td><td>-4.64</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>VOLT</td><td>169</td><td>-6.63</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>VOLT</td><td>171.5</td><td>-5.25</td></tr></tbody></table></div>
+<p>(19 rows)</p>
+<h2 id="volatility">volatility</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">volatility(price, n)
+volatility(price, n, periods)
+volatility(price, n, periods) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>historical volatility</strong>: how much the price jumps, as a fraction. It is the sample standard deviation of the last <code>n</code> log returns. With <code>periods</code> it is made yearly: × <code>sqrt(periods)</code>. A yearly volatility of <code>0.25</code> means the price usually moves about 25% up or down in a year. High volatility means high risk.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>price</code></td><td>number</td><td>the price, usually <code>close</code></td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>how many returns to use (<code>20</code> is about one month of trading days)</td></tr><tr><td><code>periods</code></td><td>number, more than 0</td><td>returns per year, to make it yearly: <code>240</code> for daily candles; default <code>1</code> (per period, not yearly)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, a fraction.</li><li><strong>NULL:</strong> <code>NULL</code> for the first <code>n</code> rows (the first row has no return). <code>NULL</code> when one of the <code>n</code> returns is missing (a <code>NULL</code> price, or a price of <code>0</code> or less).</li><li><strong>Notes:</strong> it uses <strong>log</strong> returns and divides by <code>n - 1</code>, like most charting programs. For small daily moves it is almost the same as <a href="functions-statistics.html#stddev">stddev</a> of the last <code>n</code> simple returns. <code>ROWS</code> inside <code>OVER</code> is ignored.</li></ul>
+<p><strong>Example: CITY: 5-day volatility per day, and made yearly with 240 trading days</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(volatility(close, 5), 5) AS vol_per_day,
+       round(volatility(close, 5, 240) * 100, 1) AS vol_per_year_pct
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>vol_per_day (DOUBLE)</th><th>vol_per_year_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>0.00829</td><td>12.8</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>0.00838</td><td>13</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>0.0073</td><td>11.3</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>0.00755</td><td>11.7</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>0.00712</td><td>11</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>0.00732</td><td>11.3</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>0.00638</td><td>9.9</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>0.00603</td><td>9.3</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>0.00647</td><td>10</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>0.00658</td><td>10.2</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<p><strong>Example: Which share is most volatile? 10-day yearly volatility on 10 September</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT symbol, close, vol_year_pct
+FROM (SELECT time, symbol, close,
+             round(volatility(close, 10, 240) OVER (PARTITION BY symbol ORDER BY time) * 100, 1) AS vol_year_pct
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY vol_year_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>vol_year_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>191.2</td><td>29.6</td></tr><tr><td>COAST</td><td>376.1</td><td>14.2</td></tr><tr><td>CITY</td><td>504.9</td><td>11.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: n must be 2 or more</strong> (sample data: sample, analysis-market; shows an error)</p>
+<pre><code class="language-sql">SELECT volatility(close, 1) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: volatility: the period must be a whole number of rows (2 or more)</code></p>
+<h2 id="zscore">zscore</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">zscore(x)
+zscore(x) OVER ([PARTITION BY ...] [ORDER BY ...] [ROWS ...])
+zscore(x, n)
+zscore(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>The <strong>z-score</strong> (standard score): how many standard deviations <code>x</code> is above (<code>+</code>) or below (<code>-</code>) the average: <code>(x - average) / stddev</code>. <code>0</code> is a normal value; above <code>2</code> or below <code>-2</code> is unusual. Traders use it to find strange volume, or a price far from its average (&quot;mean reversion&quot;).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the value</td></tr><tr><td><code>n</code></td><td>whole number, 2 or more</td><td>optional: compare with the last <code>n</code> rows (this row and the <code>n - 1</code> before it)</td></tr></tbody></table></div>
+<p>Which values it compares with:</p>
+<div class="table-wrap"><table><thead><tr><th>Call</th><th>Average and stddev of</th></tr></thead><tbody><tr><td><code>zscore(x)</code> or <code>zscore(x) OVER (PARTITION BY ...)</code></td><td>all rows of the series (or of the part)</td></tr><tr><td><code>zscore(x) OVER (... ORDER BY time)</code></td><td>the first row to this row (running)</td></tr><tr><td><code>zscore(x) OVER (... ORDER BY time ROWS 4 PRECEDING)</code></td><td>the frame: this row and the 4 before it</td></tr><tr><td><code>zscore(x, n)</code></td><td>the last <code>n</code> rows; <code>NULL</code> until there are <code>n</code> rows</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when <code>x</code> is <code>NULL</code>, when there are fewer than 2 values, and when all values are equal (stddev <code>0</code>). Without <code>n</code>, NULL values in the window are skipped; with <code>n</code>, a NULL in the last <code>n</code> rows gives <code>NULL</code>.</li><li><strong>Notes:</strong> it uses the sample standard deviation (divide by <code>n - 1</code>), like <a href="functions-statistics.html#stddev">stddev</a>.</li></ul>
+<p><strong>Example: How unusual is the volume? z-score of each day&#39;s volume per symbol</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, symbol, volume, volume_z
+FROM (SELECT time, symbol, volume,
+             round(zscore(volume) OVER (PARTITION BY symbol), 2) AS volume_z
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY symbol, time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>volume (DOUBLE)</th><th>volume_z (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>34400</td><td>-2</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>182390</td><td>1.65</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>183040</td><td>1.67</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>60980</td><td>-0.77</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>186330</td><td>1.85</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>186200</td><td>1.85</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>136770</td><td>1.19</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>94410</td><td>0.05</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>41470</td><td>-1.38</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Rolling 5-day z-score against the running z-score</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(zscore(close, 5), 3) AS z_last_5_days,
+       round(zscore(close) OVER (ORDER BY time), 3) AS z_since_start
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>z_last_5_days (DOUBLE)</th><th>z_since_start (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>507.9</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>510.3</td><td>NULL</td><td>0.707</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>513.3</td><td>NULL</td><td>1.035</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>513.2</td><td>NULL</td><td>0.782</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>505.9</td><td>-1.297</td><td>-1.297</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>503.1</td><td>-1.338</td><td>-1.432</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>505.7</td><td>-0.54</td><td>-0.71</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>502.4</td><td>-0.855</td><td>-1.261</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>-1.638</td><td>-1.842</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>-0.832</td><td>-1.325</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>-0.341</td><td>-1.024</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>-0.081</td><td>-0.982</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>-0.388</td><td>-1.082</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>1.75</td><td>0.106</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>1.124</td><td>0.153</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<h2 id="minmax_scale">minmax_scale</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">minmax_scale(x)
+minmax_scale(x) OVER ([PARTITION BY ...] [ORDER BY ...] [ROWS ...])
+minmax_scale(x, n)
+minmax_scale(x, n) OVER ([PARTITION BY ...] [ORDER BY ...])</code></pre>
+<p>Puts <code>x</code> on a scale from <code>0</code> to <code>1</code>: <code>(x - lowest) / (highest - lowest)</code>. <code>0</code> is the lowest value, <code>1</code> the highest, <code>0.5</code> the middle. Use it to draw shares with very different prices on one chart, or to see where today&#39;s close sits in its recent range.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number</td><td>the value</td></tr><tr><td><code>n</code></td><td>whole number, 1 or more</td><td>optional: the lowest and highest of the last <code>n</code> rows</td></tr></tbody></table></div>
+<p>The values it compares with are chosen like <a href="functions-returns-risk.html#zscore">zscore</a>: all rows, the window frame, or the last <code>n</code> rows.</p>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from <code>0</code> to <code>1</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when <code>x</code> is <code>NULL</code>, and when the lowest and highest are equal (for example the first row of a running window). With <code>n</code>: <code>NULL</code> for the first <code>n - 1</code> rows, and when a value in the last <code>n</code> rows is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>minmax_scale(close, 14)</code> on a close is close to the fast stochastic, which uses the high and low of the candles instead.</li></ul>
+<p><strong>Example: Three shares with different prices on one 0-1 scale</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, symbol, close, scaled
+FROM (SELECT time, symbol, close,
+             round(minmax_scale(close) OVER (PARTITION BY symbol), 3) AS scaled
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+WHERE time &gt;= &#39;2026-09-08&#39;
+ORDER BY time, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>scaled (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td><td>0.065</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>COAST</td><td>377.2</td><td>0.423</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>VOLT</td><td>182.4</td><td>0.604</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>0.485</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>0.544</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>187.3</td><td>0.824</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td><td>0.503</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>376.1</td><td>0.377</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>191.2</td><td>1</td></tr></tbody></table></div>
+<p>(9 rows)</p>
+<p><strong>Example: Where is the close in its 5-day range? (0 = at the low, 1 = at the high)</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close, round(minmax_scale(close, 5), 3) AS place_in_5_day_range
+FROM ochl_day
+WHERE symbol = &#39;COAST&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>place_in_5_day_range (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>391</td><td>NULL</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>384.9</td><td>NULL</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>379.8</td><td>NULL</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>373</td><td>NULL</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>367.1</td><td>0</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>372.4</td><td>0.298</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>368.2</td><td>0.087</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>367.4</td><td>0.051</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>369.2</td><td>0.396</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>373.2</td><td>1</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>375.4</td><td>1</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>379.2</td><td>1</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>377.2</td><td>0.8</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>380.1</td><td>1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>376.1</td><td>0.149</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<h2 id="max_drawdown">max_drawdown</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">max_drawdown(price)
+max_drawdown(price) OVER (...)</code></pre>
+<p>The <strong>maximum drawdown</strong>: the biggest fall from a peak to a later low, as a fraction. <code>-0.086</code> means that at the worst moment, an investor who bought at the top had lost 8.6%. It is the deepest value of <a href="functions-returns-risk.html#drawdown">drawdown</a>. Fund reports show it next to the return.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>price</code></td><td>number</td><td>the price or NAV (not returns)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, <code>0</code> or less. <code>0</code> when the price never fell.</li><li><strong>NULL:</strong> NULL prices are skipped. <code>NULL</code> when there are no prices, or when a price is <code>0</code> or less.</li><li><strong>Notes:</strong> an aggregate that needs <strong>time order</strong>: it reads the rows by their time (or in the order they come, when there is no time column). With <code>OVER (ORDER BY time)</code> it gives the worst drawdown so far on every row.</li></ul>
+<p><strong>Example: Worst fall of each fund</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund, first(nav) AS start_nav, last(nav) AS end_nav,
+       round(max_drawdown(nav) * 100, 2) AS max_drawdown_pct
+FROM fund_nav
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>start_nav (DOUBLE)</th><th>end_nav (DOUBLE)</th><th>max_drawdown_pct (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>10</td><td>12.18</td><td>-8.61</td></tr><tr><td>INCOME</td><td>10</td><td>10.78</td><td>-0.89</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Drawdown of the day and the worst drawdown so far</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, close,
+       round(drawdown(close) * 100, 2) AS drawdown_pct,
+       round(max_drawdown(close) OVER (ORDER BY time) * 100, 2) AS worst_so_far_pct
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>drawdown_pct (DOUBLE)</th><th>worst_so_far_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-08-23T00:00:00.000Z</td><td>181</td><td>0</td><td>0</td></tr><tr><td>2026-08-24T00:00:00.000Z</td><td>178.5</td><td>-1.38</td><td>-1.38</td></tr><tr><td>2026-08-25T00:00:00.000Z</td><td>176.8</td><td>-2.32</td><td>-2.32</td></tr><tr><td>2026-08-26T00:00:00.000Z</td><td>174.2</td><td>-3.76</td><td>-3.76</td></tr><tr><td>2026-08-27T00:00:00.000Z</td><td>173.3</td><td>-4.25</td><td>-4.25</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>173</td><td>-4.42</td><td>-4.42</td></tr><tr><td>2026-08-31T00:00:00.000Z</td><td>172.6</td><td>-4.64</td><td>-4.64</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>169</td><td>-6.63</td><td>-6.63</td></tr><tr><td>2026-09-02T00:00:00.000Z</td><td>171.5</td><td>-5.25</td><td>-6.63</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>176</td><td>-2.76</td><td>-6.63</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>-0.5</td><td>-6.63</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>-2.27</td><td>-6.63</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>0</td><td>-6.63</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>0</td><td>-6.63</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>0</td><td>-6.63</td></tr></tbody></table></div>
+<p>(15 rows)</p>
+<h2 id="sharpe_ratio">sharpe_ratio</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sharpe_ratio(returns)
+sharpe_ratio(returns, risk_free)
+sharpe_ratio(returns, risk_free, periods)</code></pre>
+<p>The <strong>Sharpe ratio</strong>: how much return you get for each unit of risk. It is the average return above the risk-free rate, divided by the standard deviation of the returns: <code>(avg(returns) - risk_free) / stddev(returns) × sqrt(periods)</code>. Bigger is better: above <code>1</code> (yearly) is good, above <code>2</code> very good. The <strong>risk-free rate</strong> is what a safe investment pays, like a bank fixed deposit.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>returns</code></td><td>number</td><td>one return per row, as a fraction (from <a href="functions-returns-risk.html#pct_return">pct_return</a>)</td></tr><tr><td><code>risk_free</code></td><td>number</td><td>the safe return <strong>per period</strong>, as a fraction; default <code>0</code>. A fixed deposit of 6% a year is <code>0.06 / 12</code> = <code>0.005</code> per month</td></tr><tr><td><code>periods</code></td><td>number</td><td>returns per year, to make the ratio yearly (<code>12</code> for monthly, <code>240</code> for daily stock returns); default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL returns are skipped. <code>NULL</code> with fewer than 2 returns, when all returns are equal, when <code>risk_free</code> or <code>periods</code> is <code>NULL</code>, and when <code>periods</code> is <code>0</code> or less.</li><li><strong>Notes:</strong> it uses the sample standard deviation. <code>risk_free</code> and <code>periods</code> are read once, from the first row. A ratio made from a few returns (a few weeks of data) is not reliable.</li></ul>
+<p><strong>Example: Sharpe ratio of each fund: per month, per year, and above a 6% fixed deposit</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund,
+       round(sharpe_ratio(r), 3) AS per_month,
+       round(sharpe_ratio(r, 0, 12), 3) AS per_year,
+       round(sharpe_ratio(r, 0.06 / 12, 12), 3) AS per_year_above_fd
+FROM (SELECT time, fund, pct_return(nav) OVER (PARTITION BY fund ORDER BY time) AS r
+      FROM fund_nav) t
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>per_month (DOUBLE)</th><th>per_year (DOUBLE)</th><th>per_year_above_fd (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>0.39</td><td>1.351</td><td>0.588</td></tr><tr><td>INCOME</td><td>0.822</td><td>2.847</td><td>-1.495</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Yearly Sharpe ratio of the shares from daily returns (only 14 returns: just a demo)</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT symbol, count(r) AS returns, round(avg(r) * 100, 3) AS avg_day_pct,
+       round(sharpe_ratio(r, 0, 240), 2) AS sharpe_year
+FROM (SELECT time, symbol, pct_return(close) OVER (PARTITION BY symbol ORDER BY time) AS r
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY sharpe_year DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>returns (LONG)</th><th>avg_day_pct (DOUBLE)</th><th>sharpe_year (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>14</td><td>0.409</td><td>3.36</td></tr><tr><td>CITY</td><td>14</td><td>-0.04</td><td>-0.82</td></tr><tr><td>COAST</td><td>14</td><td>-0.271</td><td>-3.67</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="sortino_ratio">sortino_ratio</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sortino_ratio(returns)
+sortino_ratio(returns, target)
+sortino_ratio(returns, target, periods)</code></pre>
+<p>The <strong>Sortino ratio</strong>: like the Sharpe ratio, but it only counts the <strong>bad</strong> jumps as risk. Rises above the target do not hurt an investor, so only returns below <code>target</code> go into the risk (the <strong>downside deviation</strong>). <code>(avg(returns) - target) / downside deviation × sqrt(periods)</code>. Bigger is better.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>returns</code></td><td>number</td><td>one return per row, as a fraction</td></tr><tr><td><code>target</code></td><td>number</td><td>the smallest return you are happy with, per period; default <code>0</code></td></tr><tr><td><code>periods</code></td><td>number</td><td>returns per year, to make it yearly; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL returns are skipped. <code>NULL</code> when no return is below <code>target</code> (no downside), when <code>target</code> or <code>periods</code> is <code>NULL</code>, and when <code>periods</code> is <code>0</code> or less.</li><li><strong>Notes:</strong> the downside deviation is <code>sqrt(sum(min(0, return - target)²) / number of returns)</code>: it divides by <strong>all</strong> returns, like most fund reports. A fund with rare, small losses has a Sortino ratio much bigger than its Sharpe ratio.</li></ul>
+<p><strong>Example: Sortino against Sharpe for both funds</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund,
+       round(sharpe_ratio(r, 0, 12), 2) AS sharpe,
+       round(sortino_ratio(r, 0, 12), 2) AS sortino,
+       round(sortino_ratio(r, 0.005, 12), 2) AS sortino_target_half_pct
+FROM (SELECT time, fund, pct_return(nav) OVER (PARTITION BY fund ORDER BY time) AS r
+      FROM fund_nav) t
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>sharpe (DOUBLE)</th><th>sortino (DOUBLE)</th><th>sortino_target_half_pct (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>1.35</td><td>2.33</td><td>0.84</td></tr><tr><td>INCOME</td><td>2.85</td><td>6.76</td><td>-1.43</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="calmar_ratio">calmar_ratio</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">calmar_ratio(returns, periods)</code></pre>
+<p>The <strong>Calmar ratio</strong>: the yearly return divided by the maximum drawdown. It answers &quot;how much did I earn per year for each 1% of the worst fall?&quot;. Bigger is better; above <code>1</code> is good. Fund reports usually use the last 36 monthly returns.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>returns</code></td><td>number</td><td>one return per row, as a fraction, in time order</td></tr><tr><td><code>periods</code></td><td>number</td><td>returns per year: <code>12</code> for monthly, <code>240</code> for daily stock returns (needed)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> NULL returns are skipped. <code>NULL</code> when the value never fell (no drawdown), when <code>periods</code> is <code>NULL</code>, <code>0</code> or less, and when the investment lost everything.</li><li><strong>Notes:</strong> the yearly return is compounded, like <a href="functions-finance.html#cagr">cagr</a>: <code>(product of (1 + return)) ^ (periods / number of returns) - 1</code>. The drawdown comes from the same returns, in time order. Both arguments are needed.</li></ul>
+<p><strong>Example: Calmar ratio of each fund, with its drawdown</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund, count(r) AS months,
+       round(max_drawdown(nav) * 100, 2) AS max_drawdown_pct,
+       round(calmar_ratio(r, 12), 2) AS calmar
+FROM (SELECT time, fund, nav, pct_return(nav) OVER (PARTITION BY fund ORDER BY time) AS r
+      FROM fund_nav) t
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>months (LONG)</th><th>max_drawdown_pct (DOUBLE)</th><th>calmar (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>23</td><td>-8.61</td><td>1.26</td></tr><tr><td>INCOME</td><td>23</td><td>-0.89</td><td>4.5</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The number of periods per year is needed</strong> (sample data: sample, analysis-market; shows an error)</p>
+<pre><code class="language-sql">SELECT calmar_ratio(nav) FROM fund_nav;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: function &#39;calmar_ratio&#39; takes 2 argument(s), got 1</code></p>
+<h2 id="information_ratio">information_ratio</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">information_ratio(returns, benchmark)
+information_ratio(returns, benchmark, periods)</code></pre>
+<p>The <strong>information ratio</strong>: how well an investment beats a <strong>benchmark</strong> (a market index), for the risk of being different from it. It is the average of <code>returns - benchmark</code>, divided by the standard deviation of that difference (the <strong>tracking error</strong>), × <code>sqrt(periods)</code>. Above <code>0</code> the share did better than the index; above <code>0.5</code> (yearly) is good.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>returns</code></td><td>number</td><td>the returns of the share or fund</td></tr><tr><td><code>benchmark</code></td><td>number</td><td>the returns of the index on the same days</td></tr><tr><td><code>periods</code></td><td>number</td><td>returns per year, to make it yearly; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> a row where <code>returns</code> or <code>benchmark</code> is <code>NULL</code> is skipped. <code>NULL</code> with fewer than 2 rows, when the difference is always the same (tracking error <code>0</code>), and when <code>periods</code> is <code>NULL</code>, <code>0</code> or less.</li><li><strong>Notes:</strong> join the share and the index on the time, and make both returns in the same subquery.</li></ul>
+<p><strong>Example: Did the shares beat the market index? (daily returns since 23 August)</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT symbol, count(r) AS days,
+       round(avg(r - m) * 100, 3) AS avg_excess_day_pct,
+       round(information_ratio(r, m), 3) AS per_day,
+       round(information_ratio(r, m, 240), 2) AS per_year
+FROM (SELECT d.time, d.symbol,
+             pct_return(d.close) OVER (PARTITION BY d.symbol ORDER BY d.time) AS r,
+             pct_return(i.close) OVER (PARTITION BY d.symbol ORDER BY d.time) AS m
+      FROM ochl_day d
+      JOIN market_index i ON i.time = d.time
+      WHERE d.time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY per_year DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>avg_excess_day_pct (DOUBLE)</th><th>per_day (DOUBLE)</th><th>per_year (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>14</td><td>0.41</td><td>0.252</td><td>3.9</td></tr><tr><td>CITY</td><td>14</td><td>-0.038</td><td>-0.058</td><td>-0.89</td></tr><tr><td>COAST</td><td>14</td><td>-0.27</td><td>-0.294</td><td>-4.55</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="value_at_risk">value_at_risk</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value_at_risk(returns, confidence)</code></pre>
+<p>The <strong>value at risk (VaR)</strong>: a loss that is <strong>not</strong> passed in most periods. With <code>confidence</code> <code>0.95</code>, a VaR of <code>0.031</code> means: in 95 months of 100 the loss is at most 3.1%; in about 5 of 100 it is bigger. Banks and brokers use it to set limits: &quot;the 1-day 95% VaR of this position is $12,000&quot;.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>returns</code></td><td>number</td><td>one return per row, as a fraction</td></tr><tr><td><code>confidence</code></td><td>number, more than 0 and less than 1</td><td>how sure: <code>0.95</code> or <code>0.99</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, the loss as a <strong>positive</strong> fraction. It is negative when even the bad returns are gains.</li><li><strong>NULL:</strong> NULL returns are skipped. <code>NULL</code> with no returns, and when <code>confidence</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> this is <strong>historical</strong> VaR: minus the <code>1 - confidence</code> percentile of the returns you have, with the same interpolation as <a href="functions-aggregate.html#percentile">percentile</a>. It needs many returns to be useful. Multiply by the money invested to get an amount of money. <code>confidence</code> is read once, from the first row.</li></ul>
+<p><strong>Example: 95% monthly VaR of each fund, and in dollars for 500,000 invested</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund,
+       round(value_at_risk(r, 0.95) * 100, 2) AS var95_pct,
+       round(value_at_risk(r, 0.95) * 500000) AS var95_dollars
+FROM (SELECT time, fund, pct_return(nav) OVER (PARTITION BY fund ORDER BY time) AS r
+      FROM fund_nav) t
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>var95_pct (DOUBLE)</th><th>var95_dollars (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>3.09</td><td>15433</td></tr><tr><td>INCOME</td><td>0.39</td><td>1927</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Confidence is a fraction, not a percent</strong> (sample data: sample, analysis-market; shows an error)</p>
+<pre><code class="language-sql">SELECT value_at_risk(close, 95) FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: value_at_risk: the confidence level must be more than 0 and less than 1, like 0.95, got 95</code></p>
+<h2 id="expected_shortfall">expected_shortfall</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">expected_shortfall(returns, confidence)</code></pre>
+<p>The <strong>expected shortfall</strong> (also called CVaR, conditional value at risk): the <strong>average</strong> loss in the bad periods that <a href="functions-returns-risk.html#value_at_risk">value_at_risk</a> leaves out. VaR says &quot;in the worst 5% of months you lose at least this much&quot;; expected shortfall says &quot;and in those months you lose this much on average&quot;. It is always the same as VaR or bigger.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>returns</code></td><td>number</td><td>one return per row, as a fraction</td></tr><tr><td><code>confidence</code></td><td>number, more than 0 and less than 1</td><td>how sure: <code>0.95</code> or <code>0.99</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, the average loss as a <strong>positive</strong> fraction.</li><li><strong>NULL:</strong> NULL returns are skipped. <code>NULL</code> with no returns, and when <code>confidence</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> it is minus the average of the returns at or below the <code>1 - confidence</code> percentile.</li></ul>
+<p><strong>Example: Both funds: VaR and expected shortfall of monthly returns, at 90% and 95%</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT fund,
+       round(value_at_risk(r, 0.90) * 100, 2) AS var90_pct,
+       round(expected_shortfall(r, 0.90) * 100, 2) AS es90_pct,
+       round(value_at_risk(r, 0.95) * 100, 2) AS var95_pct,
+       round(expected_shortfall(r, 0.95) * 100, 2) AS es95_pct
+FROM (SELECT time, fund, pct_return(nav) OVER (PARTITION BY fund ORDER BY time) AS r
+      FROM fund_nav) t
+GROUP BY fund
+ORDER BY fund;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fund (SYMBOL)</th><th>var90_pct (DOUBLE)</th><th>es90_pct (DOUBLE)</th><th>var95_pct (DOUBLE)</th><th>es95_pct (DOUBLE)</th></tr></thead><tbody><tr><td>GROWTH</td><td>2.31</td><td>3.08</td><td>3.09</td><td>3.45</td></tr><tr><td>INCOME</td><td>0.28</td><td>0.42</td><td>0.39</td><td>0.48</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The worst monthly returns of GROWTH, to see where the numbers come from</strong> (sample data: sample, analysis-market)</p>
+<pre><code class="language-sql">SELECT time, round(r * 100, 2) AS return_pct
+FROM (SELECT time, pct_return(nav) AS r FROM fund_nav WHERE fund = &#39;GROWTH&#39;) t
+WHERE r &lt; 0
+ORDER BY r
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>return_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-04-01T00:00:00.000Z</td><td>-3.73</td></tr><tr><td>2025-02-01T00:00:00.000Z</td><td>-3.17</td></tr><tr><td>2025-03-01T00:00:00.000Z</td><td>-2.35</td></tr><tr><td>2025-01-01T00:00:00.000Z</td><td>-2.13</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-returns-risk.md">This page as markdown</a>.</footer>
+</body>
+</html>

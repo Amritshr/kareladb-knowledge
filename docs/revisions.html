@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Change revisions: GET /api/rev and kdb_rev() - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="A cheap number per table and per symbol that changes when committed rows change, so a chart polls it and reads its candles again only when they changed.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/revisions.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/revisions.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="change-revisions-get-api-rev-and-kdb-rev">Change revisions: GET /api/rev and kdb_rev()</h1>
+<blockquote><p>A cheap number per table and per symbol that changes when committed rows change, so a chart polls it and reads its candles again only when they changed.</p></blockquote>
+<ul><li>Category: HTTP API</li><li>Keywords: revision, revisions, rev, GET /api/rev, api/rev, kdb_rev, candle rev, candle-rev, change signal, did it change, poll, polling, chart refresh, table_rev, boot, rev column, per-symbol revision</li><li>See also: <a href="performance-tips.html#result-cache">Performance tips (result-cache)</a>, <a href="pinned-queries.html">Pinned queries</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="create-table.html">CREATE TABLE</a></li></ul>
+<p>A chart that shows NABIL&#39;s candles does not need to read them every few seconds. It can ask for NABIL&#39;s <strong>revision</strong> instead, and read the candles again only when the revision changed.</p>
+<ul><li>A revision is a short text such as <code>a67f6ff8e720.1532</code>. Compare it for <strong>equality</strong> only; the number is not a count and not a time.</li><li>It changes after every <strong>committed</strong> change of rows holding that value: <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>POST /write</code>, <code>POST /imp</code>, a trigger, a <code>CALL</code>.</li><li>A change <strong>inside an open transaction</strong> does not move it. It moves at <code>COMMIT</code>. A rollback may move it too; the rows are then the same as before, and a read again simply gives them.</li><li>Another value&#39;s writes never move it: a new NEPSE candle leaves NABIL&#39;s revision alone.</li><li>A <strong>restart</strong> changes every revision (the part before the dot is new).</li><li>It never waits for the database lock: it answers in well under a millisecond, even while a long <code>CALL</code> or bulk load writes.</li></ul>
+<h2 id="rev-column">Which column has revisions</h2>
+<p>Each table keeps revisions for the values of <strong>one</strong> column, when it has one of these:</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>Column with revisions</th></tr></thead><tbody><tr><td><code>PARTITION BY ..., SYMBOL(symbol)</code></td><td><code>symbol</code> (the column named in <code>SYMBOL(...)</code>)</td></tr><tr><td><code>SORT BY (symbol, time)</code>, <code>DEDUP KEY (symbol, time)</code>, or a <code>PRIMARY KEY</code> whose first column is a <code>SYMBOL</code></td><td>that first column</td></tr><tr><td>anything else (<code>SORT BY (time, symbol)</code>, no SYMBOL key)</td><td>none: every value gets the table&#39;s revision</td></tr></tbody></table></div>
+<p>A table without a rev column still works: its values then change together, whenever any row of the table changes.</p>
+<p>Revisions per value are for columns with <strong>up to 10,000 values</strong>, such as the symbols of a market. They live in memory, outside <code>--memory</code>. When a table&#39;s rev column gets more values than that (a <code>SYMBOL</code> primary key of customer ids, say), the table drops its list and goes on as if it had no rev column: every write then moves every value&#39;s revision. <code>rev_values</code> in <code>GET /api/stats</code> counts the values kept.</p>
+<p>The same values decide what the <a href="performance-tips.html#result-cache">result cache</a> keeps: a cached <code>WHERE symbol = &#39;NABIL&#39;</code> result stays valid while only other symbols are written.</p>
+<h2 id="api-rev">GET /api/rev</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /api/rev?table=&lt;name&gt;&amp;symbol=&lt;value&gt;[&amp;symbol=&lt;value&gt; ...][&amp;column=&lt;name&gt;][&amp;db=&lt;name&gt;]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code></td><td>the table (required)</td></tr><tr><td><code>symbol</code></td><td>a value of the rev column; repeat it for more (up to 1000). <code>value=</code> is the same</td></tr><tr><td><code>column</code></td><td>optional: the rev column&#39;s name. A different name is a 400 that names the right one</td></tr><tr><td><code>db</code></td><td>the database; the default database without it</td></tr></tbody></table></div>
+<p>The answer:</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code>, <code>column</code></td><td>the table and its rev column (<code>null</code> when it has none)</td></tr><tr><td><code>boot</code></td><td>changes when the database opens again</td></tr><tr><td><code>table_rev</code></td><td>changes after every committed change of the table</td></tr><tr><td><code>revs</code></td><td>one revision per value asked for</td></tr></tbody></table></div>
+<p>It needs read rights on the table: role <code>read</code> on the database, or <code>GRANT SELECT</code> on the table. An unknown table is a 404.</p>
+<p><strong>HTTP: The revisions of two symbols</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE candles (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time)
+  PARTITION BY YEAR, SYMBOL(symbol) SORT BY (symbol, time) DEDUP KEY (symbol, time);
+INSERT INTO candles VALUES (&#39;2026-09-24T10:00:00Z&#39;, &#39;NABIL&#39;, 1510), (&#39;2026-09-24T10:00:00Z&#39;, &#39;NEPSE&#39;, 2750);</code></pre>
+<pre><code class="language-http">GET /api/rev?table=candles&amp;symbol=NABIL&amp;symbol=NEPSE</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;database&quot;: &quot;demo&quot;,
+  &quot;table&quot;: &quot;candles&quot;,
+  &quot;column&quot;: &quot;symbol&quot;,
+  &quot;boot&quot;: &quot;52589fb436f3&quot;,
+  &quot;table_rev&quot;: &quot;52589fb436f3.0&quot;,
+  &quot;revs&quot;: {&quot;NABIL&quot;: &quot;52589fb436f3.0&quot;, &quot;NEPSE&quot;: &quot;52589fb436f3.0&quot;}
+}</code></pre>
+<p><strong>HTTP: Asking by the wrong column says which one has revisions</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE candles (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time)
+  PARTITION BY YEAR, SYMBOL(symbol) SORT BY (symbol, time) DEDUP KEY (symbol, time);</code></pre>
+<pre><code class="language-http">GET /api/rev?table=candles&amp;column=close&amp;symbol=NABIL</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;table &#39;candles&#39; keeps revisions per value of column &#39;symbol&#39;, not &#39;close&#39;&quot;}</code></pre>
+<p>A page that polls:</p>
+<pre><code class="language-js">let seen = null;
+setInterval(async () =&gt; {
+  const r = await (await fetch(&#39;/api/rev?table=candles&amp;symbol=NABIL&#39;)).json();
+  if (r.revs.NABIL !== seen) {
+    seen = r.revs.NABIL;
+    drawChart(await readCandles(&#39;NABIL&#39;));  // only when NABIL changed
+  }
+}, 2000);</code></pre>
+<h2 id="kdb_rev">kdb_rev</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb_rev(&#39;&lt;table&gt;&#39;)
+kdb_rev(&#39;&lt;table&gt;&#39;, &#39;&lt;value&gt;&#39;)</code></pre>
+<p>The same revisions in SQL, for clients that only speak the <a href="postgres-protocol.html">PostgreSQL protocol</a>. With one argument: the table&#39;s revision (<code>table_rev</code>). With two: the revision of that value of the rev column. It gives the same text as <code>GET /api/rev</code>, and needs the same right: reading the table (a user whose <code>SELECT</code> on it was revoked gets an error). Unlike the route it runs as a statement, so it waits for the database lock like any <code>SELECT</code>. A NULL argument gives NULL; an unknown table is an error.</p>
+<p><strong>Example: A symbol&#39;s revision and the table&#39;s</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT length(kdb_rev(&#39;ochl_minutes&#39;, &#39;CITY&#39;)) &gt; 0 AS has_rev,
+       kdb_rev(&#39;ochl_minutes&#39;, &#39;CITY&#39;) = kdb_rev(&#39;ochl_minutes&#39;, &#39;CITY&#39;) AS stable;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>has_rev (BOOL)</th><th>stable (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/revisions.md">This page as markdown</a>.</footer>
+</body>
+</html>

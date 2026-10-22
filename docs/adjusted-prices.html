@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prices adjusted for splits and bonus shares - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Read a price table as if every split and bonus share had always been there - a chart without the jump on the ex-date - while the table keeps the traded prices.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/adjusted-prices.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/adjusted-prices.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="prices-adjusted-for-splits-and-bonus-shares">Prices adjusted for splits and bonus shares</h1>
+<blockquote><p>Read a price table as if every split and bonus share had always been there - a chart without the jump on the ex-date - while the table keeps the traded prices.</p></blockquote>
+<ul><li>Category: Time-series</li><li>Keywords: ADJUSTED BY, adjusted prices, adjusted close, adjusted candles, adjust, split, stock split, bonus share, bonus shares, right share, corporate action, corporate actions, ex_date, ex-date, factor, adjustment factor, back-adjusted, unadjusted, PRICES, VOLUMES, NEPSE</li><li>See also: <a href="candles-cookbook.html">Candles cookbook</a>, <a href="calendars.html">Trading calendars</a>, <a href="select.html">SELECT</a>, <a href="views.html">Views</a>, <a href="joins.html">Joins</a></li></ul>
+<p>When a company gives a <strong>bonus share</strong> or <strong>splits</strong> its shares, the price falls on the <strong>ex-date</strong>: one old share became more shares, each worth less. A chart of the traded prices then shows a jump that was never a loss. An <strong>adjusted</strong> price divides every price before the ex-date by the same factor, so the history lines up with today&#39;s shares.</p>
+<p><code>ADJUSTED BY</code> reads a table that way. Nothing is written: the table keeps the prices as they were traded, and you choose per query which ones you want.</p>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT ... FROM table [alias] ADJUSTED BY actions [PRICES (column, ...)] [VOLUMES (column, ...)] ...</code></pre>
+<h2 id="actions">The table of corporate actions</h2>
+<p>One row per symbol and ex-date. It needs these three columns (other columns are allowed):</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>symbol</code></td><td><code>STRING</code> or <code>SYMBOL</code></td><td>the symbol, as in the price table&#39;s <code>symbol</code> column</td></tr><tr><td><code>ex_date</code></td><td><code>TIMESTAMP</code> or <code>DATE</code></td><td>the first day that trades with the new number of shares</td></tr><tr><td><code>factor</code></td><td>a number</td><td>how many shares one old share became: <code>2</code> for a 1:1 bonus or a 2-for-1 split, <code>1.1</code> for a 10% bonus</td></tr></tbody></table></div>
+<p><strong>Example: A 10% bonus, then a 2-for-1 split</strong></p>
+<pre><code class="language-sql">CREATE TABLE corp_actions (symbol STRING, ex_date TIMESTAMP, factor DOUBLE, PRIMARY KEY (symbol, ex_date));
+INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-08-15&#39;, 1.1), (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2);
+SELECT * FROM corp_actions;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE corp_actions (</code></p>
+<pre><code class="language-text">table &#39;corp_actions&#39; created</code></pre>
+<p><code>INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-08-15&#39;, 1.1), (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT * FROM corp_actions</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>ex_date (TIMESTAMP)</th><th>factor (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-08-15T00:00:00.000Z</td><td>1.1</td></tr><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="rule">How a row is adjusted</h2>
+<div class="table-wrap"><table><thead><tr><th>Row</th><th>Prices</th><th>Volumes</th></tr></thead><tbody><tr><td>before an ex-date of its symbol</td><td>divided by the product of the factors of <strong>every later</strong> ex-date</td><td>multiplied by that product</td></tr><tr><td>on or after the symbol&#39;s last ex-date</td><td>as stored</td><td>as stored</td></tr><tr><td>of a symbol with no actions</td><td>as stored</td><td>as stored</td></tr></tbody></table></div>
+<p>So turnover (price x volume) stays the same, as it should: the money traded did not change.</p>
+<p><strong>Example: Daily closes of CITY, as traded and adjusted</strong></p>
+<pre><code class="language-sql">CREATE TABLE corp_actions (symbol STRING, ex_date TIMESTAMP, factor DOUBLE, PRIMARY KEY (symbol, ex_date));
+INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-08-15&#39;, 1.1), (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2);
+CREATE TABLE day_bars (time TIMESTAMP, symbol SYMBOL, close DOUBLE, volume LONG) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO day_bars VALUES (&#39;2026-08-14&#39;, &#39;CITY&#39;, 880, 100), (&#39;2026-08-15&#39;, &#39;CITY&#39;, 800, 110),
+                            (&#39;2026-09-09&#39;, &#39;CITY&#39;, 820, 90), (&#39;2026-09-10&#39;, &#39;CITY&#39;, 410, 200);
+SELECT b.time, b.close AS traded, a.close AS adjusted, a.volume AS adjusted_volume
+FROM day_bars b
+JOIN (SELECT time, close, volume FROM day_bars ADJUSTED BY corp_actions WHERE symbol = &#39;CITY&#39;) a ON a.time = b.time
+ORDER BY b.time;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE corp_actions (</code></p>
+<pre><code class="language-text">table &#39;corp_actions&#39; created</code></pre>
+<p><code>INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-08-15&#39;, 1.1), (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>CREATE TABLE day_bars (</code></p>
+<pre><code class="language-text">table &#39;day_bars&#39; created</code></pre>
+<p><code>INSERT INTO day_bars VALUES (&#39;2026-08-14&#39;, &#39;CITY&#39;, 880, 100), (&#39;2026-08-15&#39;, &#39;CITY&#39;, 800, 110), (&#39;20</code></p>
+<pre><code class="language-text">4 row(s) inserted</code></pre>
+<p><code>SELECT b.time, b.close AS traded, a.close AS adjusted, a.volume AS adjusted_volume FROM day_bars AS </code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>traded (DOUBLE)</th><th>adjusted (DOUBLE)</th><th>adjusted_volume (LONG)</th></tr></thead><tbody><tr><td>2026-08-14T00:00:00.000Z</td><td>880</td><td>400</td><td>220</td></tr><tr><td>2026-08-15T00:00:00.000Z</td><td>800</td><td>400</td><td>220</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>820</td><td>410</td><td>180</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>410</td><td>410</td><td>200</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p>The 14 August close of 880 was before both ex-dates: 880 / (1.1 x 2) = 400. The 9 September close was only before the split: 820 / 2 = 410. From the split on, prices are as traded.</p>
+<h2 id="columns">Which columns change</h2>
+<p>Without <code>PRICES (...)</code> and <code>VOLUMES (...)</code>, the columns are found by name:</p>
+<div class="table-wrap"><table><thead><tr><th>Kind</th><th>Column names</th></tr></thead><tbody><tr><td>prices (divided)</td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, <code>price</code>, <code>rate</code>, <code>vwap</code>, <code>ltp</code>, <code>prev_close</code>, <code>avg_price</code></td></tr><tr><td>volumes (multiplied)</td><td><code>volume</code>, <code>qty</code>, <code>quantity</code>, <code>shares</code></td></tr></tbody></table></div>
+<p>Every other column (the time, the symbol, turnover, counts) is as stored. Name the columns yourself when yours have other names; <code>()</code> changes none of that kind:</p>
+<p><strong>Example: Only the close, volumes as traded</strong></p>
+<pre><code class="language-sql">CREATE TABLE corp_actions (symbol STRING, ex_date TIMESTAMP, factor DOUBLE, PRIMARY KEY (symbol, ex_date));
+INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2);
+CREATE TABLE day_bars (time TIMESTAMP, symbol SYMBOL, close DOUBLE, volume LONG) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO day_bars VALUES (&#39;2026-09-09&#39;, &#39;CITY&#39;, 820, 90), (&#39;2026-09-10&#39;, &#39;CITY&#39;, 410, 200);
+SELECT time, close, volume FROM day_bars ADJUSTED BY corp_actions PRICES (close) VOLUMES () ORDER BY time;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE corp_actions (</code></p>
+<pre><code class="language-text">table &#39;corp_actions&#39; created</code></pre>
+<p><code>INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>CREATE TABLE day_bars (</code></p>
+<pre><code class="language-text">table &#39;day_bars&#39; created</code></pre>
+<p><code>INSERT INTO day_bars VALUES (&#39;2026-09-09&#39;, &#39;CITY&#39;, 820, 90), (&#39;2026-09-10&#39;, &#39;CITY&#39;, 410, 200)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT time, close, volume FROM day_bars ADJUSTED BY corp_actions PRICES (close) VOLUMES () ORDER BY</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>volume (LONG)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>410</td><td>90</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>410</td><td>200</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p>A whole-number volume column stays a whole number (rounded): 10 shares before a 1.5 bonus are 15.</p>
+<h2 id="use">Filters, candles and indicators</h2>
+<p>Everything after <code>FROM t ADJUSTED BY actions</code> sees the adjusted values: <code>WHERE close &gt; 100</code>, <code>SAMPLE BY</code>, <code>GROUP BY</code>, <code>sma(close, 20) OVER (...)</code>. A condition on a column that is not adjusted (<code>symbol</code>, <code>time</code>) is also run before the adjustment, so <code>WHERE symbol = &#39;CITY&#39;</code> reads one symbol&#39;s rows only.</p>
+<p><strong>Example: Weekly adjusted candles</strong></p>
+<pre><code class="language-sql">CREATE TABLE corp_actions (symbol STRING, ex_date TIMESTAMP, factor DOUBLE, PRIMARY KEY (symbol, ex_date));
+INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2);
+CREATE TABLE day_bars (time TIMESTAMP, symbol SYMBOL, close DOUBLE, volume LONG) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO day_bars VALUES (&#39;2026-09-07&#39;, &#39;CITY&#39;, 800, 90), (&#39;2026-09-08&#39;, &#39;CITY&#39;, 840, 90),
+                            (&#39;2026-09-09&#39;, &#39;CITY&#39;, 820, 90), (&#39;2026-09-10&#39;, &#39;CITY&#39;, 410, 200), (&#39;2026-09-11&#39;, &#39;CITY&#39;, 420, 150);
+SELECT time, first(close) AS open, max(close) AS high, min(close) AS low, last(close) AS close, sum(volume) AS volume
+FROM day_bars ADJUSTED BY corp_actions
+WHERE symbol = &#39;CITY&#39;
+SAMPLE BY 7d ALIGN TO CALENDAR;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE corp_actions (</code></p>
+<pre><code class="language-text">table &#39;corp_actions&#39; created</code></pre>
+<p><code>INSERT INTO corp_actions VALUES (&#39;CITY&#39;, &#39;2026-09-10&#39;, 2)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>CREATE TABLE day_bars (</code></p>
+<pre><code class="language-text">table &#39;day_bars&#39; created</code></pre>
+<p><code>INSERT INTO day_bars VALUES (&#39;2026-09-07&#39;, &#39;CITY&#39;, 800, 90), (&#39;2026-09-08&#39;, &#39;CITY&#39;, 840, 90), (&#39;2026</code></p>
+<pre><code class="language-text">5 row(s) inserted</code></pre>
+<p><code>SELECT time, first(close) AS open, max(close) AS high, min(close) AS low, last(close) AS close, sum(</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (LONG)</th></tr></thead><tbody><tr><td>2026-09-03T00:00:00.000Z</td><td>400</td><td>420</td><td>400</td><td>410</td><td>540</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>410</td><td>420</td><td>410</td><td>420</td><td>350</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<ul><li><strong>Speed:</strong> the adjusted rows are worked out for each query; filter by symbol and time when the table is big.</li><li><strong>Views:</strong> <code>CREATE VIEW adjusted_days AS SELECT ... FROM day_bars ADJUSTED BY corp_actions</code> keeps the adjusted reading under a name.</li><li><strong>Rights:</strong> the query reads both tables, so it needs the right to read both.</li></ul>
+<h2 id="errors">Errors</h2>
+<div class="table-wrap"><table><thead><tr><th>Message</th><th>Why</th></tr></thead><tbody><tr><td><code>table &#39;...&#39; needs the columns symbol, ex_date and factor</code></td><td>the actions table has other column names</td></tr><tr><td><code>table &#39;...&#39; has no time column</code></td><td>the price table needs <code>TIMESERIES(time)</code> (or <code>TIMESTAMP(col)</code>) to know which rows come first</td></tr><tr><td><code>has no column symbol</code></td><td>the price table needs a <code>symbol</code> column to match the actions by</td></tr><tr><td><code>ADJUSTED BY works on a table of this database</code></td><td>not on a subquery, a function, a view, <code>AS OF</code> or another database&#39;s table</td></tr></tbody></table></div>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/adjusted-prices.md">This page as markdown</a>.</footer>
+</body>
+</html>

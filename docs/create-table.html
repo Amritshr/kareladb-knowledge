@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CREATE TABLE - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Make a relational or a time-series table, with partitions, sort order, a dedup key, rounded times and computed columns, or make one from a query with CREATE TABLE ... AS.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/create-table.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/create-table.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="create-table">CREATE TABLE</h1>
+<blockquote><p>Make a relational or a time-series table, with partitions, sort order, a dedup key, rounded times and computed columns, or make one from a query with CREATE TABLE ... AS.</p></blockquote>
+<ul><li>Category: Tables</li><li>Keywords: create table, new table, IF NOT EXISTS, TEMP TABLE, TEMPORARY, UNLOGGED, table options, relational table, time-series table, timeseries table, RECORDS, TIMESERIES, PARTITION BY, DAY, MONTH, YEAR, NONE, SYMBOL(col), SORT BY, DEDUP KEY, DEDUP UPSERT KEYS, TIMESTAMP(col), WAL, CREATE TABLE AS, CREATE TABLE ... AS SELECT, AS SELECT, WITH NO DATA, copy a table, deduplication, ROUND, round time, computed column, generated column, GENERATED ALWAYS, STORED, stored generated column, virtual column, AS, schema, design, ttl_column, row TTL, expire, EXPIRE, expires_at, per-row TTL, key expiry, redis, session table, rate limit, max_bytes, evict, durability, cache table, LRU, eviction, maxmemory, kv_memory, volatile_ttl</li><li>See also: <a href="column-types.html">Column types</a>, <a href="constraints.html">Constraints</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="show-tables.html">SHOW TABLES, COLUMNS, CREATE TABLE</a>, <a href="insert.html">INSERT</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a>, <a href="indexes.html">Indexes</a></li></ul>
+<p><code>CREATE TABLE</code> makes a new table. KDB has <strong>two kinds</strong> of tables:</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>Relational table</th><th>Time-series table</th></tr></thead><tbody><tr><td>Holds</td><td>lists of things: users, accounts, brokers, posts</td><td>rows with a time: candles, trades, live prices</td></tr><tr><td>Written as</td><td><code>CREATE TABLE t (...)</code></td><td><code>CREATE TABLE t (...) TIMESERIES(time_column)</code></td></tr><tr><td>Duplicate check</td><td><code>PRIMARY KEY</code>, <code>UNIQUE</code></td><td><code>DEDUP KEY (..., time)</code></td></tr><tr><td>Split into files</td><td>no</td><td><code>PARTITION BY DAY</code>, <code>MONTH</code>, <code>YEAR</code> or <code>NONE</code></td></tr></tbody></table></div>
+<p>Simple rule: <strong>if every row has a time and many new rows come every day, use a time-series table.</strong> You cannot change the kind, the partitions or the sort order later, so choose carefully before you load big data. The dedup key can be changed later, but that rewrites every row (<a href="alter-table.html#dedup-enable">DEDUP ENABLE</a>).</p>
+<p><strong>Example: Daily stock candles: a time-series table</strong></p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (
+  time   TIMESTAMP ROUND 1d,
+  symbol SYMBOL,
+  open   DOUBLE,
+  high   DOUBLE,
+  low    DOUBLE,
+  close  DOUBLE,
+  volume DOUBLE
+) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">table &#39;ochl_day&#39; created</code></pre>
+<h2 id="create-table-2">CREATE TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE [IF NOT EXISTS] name (
+  column TYPE [PRIMARY KEY [AUTO]] [NOT NULL] [UNIQUE] [DEFAULT expr]
+              [REFERENCES table(column)] [ROUND interval] [AS (expr) | GENERATED ALWAYS AS (expr) STORED]
+              [[CONSTRAINT name] CHECK (condition)],
+  ...
+  [, [CONSTRAINT name] CHECK (condition) ...]
+)
+[TIMESERIES(time_column)]
+[PARTITION BY DAY | MONTH | YEAR | NONE [, SYMBOL(column)]]
+[SORT BY (column, ...)]
+[DEDUP KEY (column, ...)]
+[TTL n HOURS | DAYS | WEEKS | MONTHS | YEARS]
+[RECORDS]
+[WITH (ttl_column = column)]</code></pre>
+<p>Makes a table with at least one column. The table options after <code>)</code> can come in any order, each at most once.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>IF NOT EXISTS</code></td><td>a table with this name is already there: do nothing, no error (the old table is <strong>not</strong> changed)</td></tr><tr><td><code>name</code></td><td>the table name; see <a href="sql-basics.html#names">names</a></td></tr><tr><td><code>column TYPE</code></td><td>a column and its <a href="column-types.html">type</a></td></tr><tr><td>column rules</td><td><code>PRIMARY KEY</code>, <code>AUTO</code>, <code>NOT NULL</code>, <code>UNIQUE</code>, <code>DEFAULT</code>, <code>REFERENCES</code>, <code>CHECK</code>: see <a href="constraints.html">constraints</a></td></tr><tr><td><code>TTL</code></td><td>drop partitions older than this, by itself; see <a href="alter-table.html#set-ttl">SET TTL</a></td></tr><tr><td><code>WITH (ttl_column = c)</code></td><td>each row expires at the time in column <code>c</code>: see <a href="#row-ttl">rows that expire</a></td></tr><tr><td><code>WITH (max_bytes = &#39;64MB&#39;, evict = &#39;lru&#39;)</code></td><td>a cache table: rows used longest ago go when it is full; see <a href="#cache-table">cache tables</a></td></tr><tr><td><code>ROUND</code>, <code>AS (...)</code>, <code>GENERATED ... STORED</code></td><td>see <a href="#round">ROUND</a>, <a href="#computed">computed columns</a> and <a href="#generated">stored generated columns</a></td></tr><tr><td>table options</td><td>see the entries below</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; created</code>, or <code>table &#39;name&#39; already exists</code> with <code>IF NOT EXISTS</code>.</li><li><strong>Notes:</strong> a view and a table cannot have the same name. <code>CREATE TABLE</code> cannot be used inside <code>BEGIN ... COMMIT</code>. To make a table from a query, see <a href="#create-table-as">CREATE TABLE ... AS</a>.</li><li><strong>PostgreSQL:</strong> <code>CREATE TEMP TABLE</code> makes a <a href="#temp-table">temporary table</a>. <code>CREATE UNLOGGED TABLE</code> is refused: every KDB table is written to the log.</li><li><strong>QuestDB:</strong> <code>TIMESTAMP(col)</code> means <code>TIMESERIES(col)</code>, <code>DEDUP UPSERT KEYS (...)</code> means <code>DEDUP KEY (...)</code> with <code>dedup_insert = &#39;upsert&#39;</code> (a plain <code>INSERT</code> replaces the row, as in QuestDB), and <code>WAL</code> / <code>BYPASS WAL</code> are read and ignored. <code>col SYMBOL INDEX [CAPACITY n]</code>, and <code>INDEX(col [CAPACITY n])</code> after the column list, make an <a href="indexes.html">index</a> on the column. A SYMBOL&#39;s <code>CAPACITY n</code>, <code>CACHE</code> and <code>NOCACHE</code> are read and ignored: KDB sizes its dictionaries itself.</li></ul>
+<p><strong>Example: App users: a relational table with keys and defaults</strong></p>
+<pre><code class="language-sql">CREATE TABLE users (
+  id            LONG PRIMARY KEY AUTO,
+  email         STRING NOT NULL UNIQUE,
+  password_hash STRING NOT NULL,
+  name          STRING,
+  created       TIMESTAMP NOT NULL DEFAULT now()
+);
+SHOW COLUMNS FROM users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE users (</code></p>
+<pre><code class="language-text">table &#39;users&#39; created</code></pre>
+<p><code>SHOW COLUMNS FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>type (STRING)</th><th>primary_key (BOOL)</th><th>not_null (BOOL)</th><th>computed (BOOL)</th><th>references (STRING)</th></tr></thead><tbody><tr><td>id</td><td>LONG</td><td>true</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>email</td><td>STRING</td><td>false</td><td>true</td><td>false</td><td>NULL</td></tr><tr><td>password_hash</td><td>STRING</td><td>false</td><td>true</td><td>false</td><td>NULL</td></tr><tr><td>name</td><td>STRING</td><td>false</td><td>false</td><td>false</td><td>NULL</td></tr><tr><td>created</td><td>TIMESTAMP</td><td>false</td><td>true</td><td>false</td><td>NULL</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: An install script that can run many times</strong></p>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+CREATE TABLE IF NOT EXISTS brokers (id INT PRIMARY KEY, name STRING NOT NULL);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE IF NOT EXISTS brokers (</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; created</code></pre>
+<p><code>CREATE TABLE IF NOT EXISTS brokers (</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; already exists</code></pre>
+<p><strong>Example: The same name twice without IF NOT EXISTS</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY);</code></pre>
+<p>Result:</p>
+<p>Error: <code>table &#39;brokers&#39; already exists; expected a new table name, or CREATE TABLE IF NOT EXISTS</code></p>
+<h2 id="temp-table">Temporary tables: CREATE TEMP TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE [GLOBAL | LOCAL] TEMP | TEMPORARY TABLE name (...) [table options]
+CREATE TEMP TABLE name AS query</code></pre>
+<p>A <strong>temporary table</strong> belongs to one session, as in PostgreSQL:</p>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>Who sees it</td><td>only the session that made it. For every other session the name does not exist</td></tr><tr><td>A table of the same name</td><td>is hidden in that session while the temporary one exists; <code>DROP TABLE</code> of the temporary one shows it again</td></tr><tr><td>When it goes</td><td>when the session ends (the PostgreSQL connection closes, or the HTTP <a href="http-sessions-and-cursors.html">session</a> ends). Without a session, at the end of the request. A server that stopped with sessions open drops their tables when it starts</td></tr><tr><td>What it is</td><td>an ordinary table under the name <code>pg_temp_&lt;session&gt;_&lt;name&gt;</code>: indexes, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>TRUNCATE</code> and <code>ALTER TABLE</code> work as on any table</td></tr></tbody></table></div>
+<ul><li><strong>Role:</strong> <code>ddl</code>, like <code>CREATE TABLE</code>.</li><li><strong>Notes:</strong> <code>ON COMMIT DROP</code> and <code>ON COMMIT DELETE ROWS</code> are not supported; the table lives until the session ends.</li></ul>
+<p><strong>Example: A scratch table for one request: made, used, gone</strong></p>
+<pre><code class="language-sql">CREATE TEMP TABLE scratch (id INT, score DOUBLE);
+INSERT INTO scratch VALUES (1, 0.5), (2, 0.9);
+SELECT count(*) AS rows_now, max(score) AS best FROM scratch;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE pg_temp_4611686018427387904_scratch (</code></p>
+<pre><code class="language-text">table &#39;pg_temp_4611686018427387904_scratch&#39; created</code></pre>
+<p><code>INSERT INTO pg_temp_4611686018427387904_scratch VALUES (1, 0.5), (2, 0.9)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT count(*) AS rows_now, max(score) AS best FROM pg_temp_4611686018427387904_scratch</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows_now (LONG)</th><th>best (DOUBLE)</th></tr></thead><tbody><tr><td>2</td><td>0.9</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: After the request, the name is gone</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TEMP TABLE scratch2 (id INT);</code></pre>
+<pre><code class="language-sql">SELECT * FROM scratch2;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 15: table or view &#39;scratch2&#39; does not exist</code></p>
+<p><strong>Example: UNLOGGED is refused</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE UNLOGGED TABLE fast_scratch (id INT);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: CREATE UNLOGGED TABLE is not supported: every KDB table is written to the log and kept. Use CREATE TABLE</code></p>
+<h2 id="create-table-as">CREATE TABLE ... AS</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE [IF NOT EXISTS] name [(column, ...)] AS query
+    [TIMESERIES(time_column)] [PARTITION BY DAY | MONTH | YEAR | NONE]
+    [SORT BY (column, ...)] [DEDUP KEY (column, ...)] [RECORDS]
+CREATE TABLE name AS query WITH NO DATA</code></pre>
+<p>Makes a new table from the result of a query, and copies the rows in. The columns get the names and types of the query&#39;s columns. The query may be in brackets: <code>AS (SELECT ...)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>(column, ...)</code></td><td>new names for the first columns, in order</td></tr><tr><td>table options</td><td>as for <code>CREATE TABLE</code>; without <code>TIMESERIES</code> the new table is a relational table</td></tr><tr><td><code>WITH NO DATA</code></td><td>make the empty table only</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; created with N row(s)</code>.</li><li><strong>Notes:</strong>
+<ul><li>A <code>SYMBOL</code> column of the query becomes <code>STRING</code>. Keys, <code>NOT NULL</code>, defaults, <code>CHECK</code> rules and indexes are <strong>not</strong> copied. Add them with <a href="alter-table.html">ALTER TABLE</a> afterwards, or make the table first and <code>INSERT INTO t SELECT ...</code> (see <a href="insert.html#insert-select">INSERT ... SELECT</a>).</li><li><code>PARTITION BY ..., SYMBOL(col)</code> is not accepted here.</li><li>Two query columns with the same name are refused: name them with <code>AS</code>.</li></ul></li></ul>
+<p><strong>Example: Copy one symbol&#39;s daily candles into a time-series table</strong> (sample data: sample)</p>
+<pre><code class="language-sql">CREATE TABLE city_day AS
+  SELECT time, close, volume FROM ochl_day WHERE symbol = &#39;CITY&#39;
+  TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (time);
+SHOW CREATE TABLE city_day;
+SELECT count(*) AS rows FROM city_day;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE city_day AS SELECT time, close, volume FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></p>
+<pre><code class="language-text">table &#39;city_day&#39; created with 19 row(s)</code></pre>
+<p><code>SHOW CREATE TABLE city_day</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE city_day (   time TIMESTAMP,   close DOUBLE,   volume DOUBLE ) TIMESERIES(time) PARTITION BY YEAR SORT BY (time) DEDUP KEY (time)</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS rows FROM city_day</code></p>
+<div class="table-wrap"><table><thead><tr><th>rows (LONG)</th></tr></thead><tbody><tr><td>19</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A summary table with new column names</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (symbol SYMBOL, qty LONG, rate DOUBLE);
+INSERT INTO trades VALUES (&#39;CITY&#39;, 10, 515.0), (&#39;CITY&#39;, 20, 516.0), (&#39;COAST&#39;, 5, 376.0);</code></pre>
+<pre><code class="language-sql">CREATE TABLE turnover (symbol, amount) AS SELECT symbol, sum(qty * rate) FROM trades GROUP BY symbol;
+SELECT * FROM turnover ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE turnover (symbol, amount) AS SELECT symbol, sum(qty * rate) FROM trades GROUP BY symbol</code></p>
+<pre><code class="language-text">table &#39;turnover&#39; created with 2 row(s)</code></pre>
+<p><code>SELECT * FROM turnover ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>15470</td></tr><tr><td>COAST</td><td>1880</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The same column name twice</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (symbol SYMBOL, qty LONG);</code></pre>
+<pre><code class="language-sql">CREATE TABLE bad AS SELECT symbol, qty, qty FROM trades;</code></pre>
+<p>Result:</p>
+<p>Error: <code>the query of CREATE TABLE bad gives two columns named &#39;qty&#39;; name them with AS</code></p>
+<h2 id="relational">Relational tables (RECORDS)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (column TYPE [rules], ...) [RECORDS]</code></pre>
+<p>A table without <code>TIMESERIES</code> is a <strong>relational</strong> table. The word <code>RECORDS</code> says it explicitly; it changes nothing. Use relational tables for lists of things that you look up by a key and change often: users, accounts, the ledger, brokers, forum posts, news articles.</p>
+<ul><li>Give it a <code>PRIMARY KEY</code>. Rows are kept in key order, so a lookup by key is fast.</li><li>Without a key, every <code>INSERT</code> adds rows, also exact copies.</li><li>For money, add rules like <code>CHECK (balance &gt;= 0)</code>; see <a href="constraints.html#check">CHECK</a>.</li><li><strong>Notes:</strong> <code>PARTITION BY</code>, <code>SORT BY</code> and <code>DEDUP KEY</code> are only for time-series tables. <code>RECORDS</code> together with <code>TIMESERIES</code> is an error.</li></ul>
+<p><strong>Example: Accounting: accounts and a ledger with exact money</strong></p>
+<pre><code class="language-sql">CREATE TABLE accounts (
+  id      INT PRIMARY KEY AUTO,
+  owner   STRING NOT NULL,
+  balance DECIMAL(2) NOT NULL DEFAULT 0
+) RECORDS;
+
+CREATE TABLE ledger (
+  id           LONG PRIMARY KEY AUTO,
+  from_account INT NOT NULL REFERENCES accounts(id),
+  to_account   INT NOT NULL REFERENCES accounts(id),
+  amount       DECIMAL(2) NOT NULL,
+  created      TIMESTAMP DEFAULT now()
+);
+SHOW TABLES;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>CREATE TABLE ledger (</code></p>
+<pre><code class="language-text">table &#39;ledger&#39; created</code></pre>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>accounts</td><td>relational</td><td>NONE</td><td>3</td><td>0</td></tr><tr><td>ledger</td><td>relational</td><td>NONE</td><td>5</td><td>0</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Forum posts and news articles</strong></p>
+<pre><code class="language-sql">CREATE TABLE posts (
+  id         LONG PRIMARY KEY AUTO,
+  thread_id  LONG NOT NULL,
+  parent_id  LONG REFERENCES posts(id),
+  author     STRING NOT NULL,
+  body       STRING NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE news (
+  id           LONG PRIMARY KEY AUTO,
+  symbol       STRING,
+  published_at TIMESTAMP NOT NULL,
+  lang         STRING NOT NULL DEFAULT &#39;en&#39;,
+  title        STRING NOT NULL,
+  body         STRING NOT NULL,
+  source_url   STRING
+);
+SHOW TABLES;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>CREATE TABLE news (</code></p>
+<pre><code class="language-text">table &#39;news&#39; created</code></pre>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>news</td><td>relational</td><td>NONE</td><td>7</td><td>0</td></tr><tr><td>posts</td><td>relational</td><td>NONE</td><td>6</td><td>0</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: PARTITION BY on a relational table</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY, email STRING) PARTITION BY MONTH;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 56: PARTITION BY is only for time-series tables; expected TIMESERIES(&lt;TIMESTAMP or DATE column&gt;) on table &#39;users&#39;</code></p>
+<h2 id="timeseries">TIMESERIES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (...) TIMESERIES(time_column) [PARTITION BY ...] [SORT BY (...)] [DEDUP KEY (...)]</code></pre>
+<p>Makes a <strong>time-series</strong> table. <code>time_column</code> is its time column: a stored <code>TIMESTAMP</code> or <code>DATE</code> column. Time-series tables are made for many rows with a time: they are split into files by time (<a href="#partition-by">PARTITION BY</a>), and they work with <a href="sample-by.html">SAMPLE BY</a>, <a href="latest-on.html">LATEST ON</a>, <a href="joins.html">ASOF JOIN</a> and <code>WHERE time IN &#39;2026-09&#39;</code>.</p>
+<ul><li>Every row needs a value in the time column.</li><li>A time-series table cannot have a <code>PRIMARY KEY</code>. Use <a href="#dedup-key">DEDUP KEY</a>.</li><li><strong>Notes:</strong> partitions use the <strong>UTC</strong> date of the time column.</li></ul>
+<p><strong>Example: Minute candles and live prices</strong></p>
+<pre><code class="language-sql">CREATE TABLE ochl_minutes (
+  time TIMESTAMP ROUND 1m, symbol SYMBOL,
+  open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume DOUBLE
+) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (symbol, time);
+
+CREATE TABLE live_data (
+  timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE, pct_change DOUBLE, volume LONG
+) TIMESERIES(timestamp) PARTITION BY DAY DEDUP KEY (timestamp, symbol);
+SHOW TABLES;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ochl_minutes (</code></p>
+<pre><code class="language-text">table &#39;ochl_minutes&#39; created</code></pre>
+<p><code>CREATE TABLE live_data (</code></p>
+<pre><code class="language-text">table &#39;live_data&#39; created</code></pre>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>live_data</td><td>timeseries</td><td>DAY</td><td>5</td><td>0</td></tr><tr><td>ochl_minutes</td><td>timeseries</td><td>MONTH</td><td>7</td><td>0</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A DATE time column: one row per company per trading day</strong></p>
+<pre><code class="language-sql">CREATE TABLE market_cap (day DATE, symbol SYMBOL, cap DECIMAL(2)) TIMESERIES(day) PARTITION BY YEAR DEDUP KEY (symbol, day);
+INSERT INTO market_cap VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 136637213200.00);
+SELECT day, symbol, cap FROM market_cap;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE market_cap (</code></p>
+<pre><code class="language-text">table &#39;market_cap&#39; created</code></pre>
+<p><code>INSERT INTO market_cap VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 136637213200.00)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT day, symbol, cap FROM market_cap</code></p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th><th>symbol (SYMBOL)</th><th>cap (DECIMAL(2))</th></tr></thead><tbody><tr><td>2026-09-10</td><td>CITY</td><td>136637213200.00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The time column must be a TIMESTAMP or DATE</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE trades (id LONG, price DOUBLE) TIMESERIES(id);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 56: TIMESERIES column &#39;id&#39; is LONG; expected a TIMESTAMP or DATE column</code></p>
+<p><strong>Example: A time-series table with a PRIMARY KEY</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE trades (time TIMESTAMP, id LONG PRIMARY KEY, price DOUBLE) TIMESERIES(time);</code></pre>
+<p>Result:</p>
+<p>Error: <code>time-series tables cannot have a PRIMARY KEY (&#39;id&#39;); use DEDUP KEY (..., time) instead, or make it a relational table</code></p>
+<h2 id="partition-by">PARTITION BY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">PARTITION BY DAY | MONTH | YEAR | NONE</code></pre>
+<p>A time-series table keeps its rows in one file (a <strong>partition</strong>) per day, month or year of the time column. The default is <code>DAY</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Value</th><th>Partition names</th><th>Good for</th></tr></thead><tbody><tr><td><code>DAY</code></td><td><code>&#39;2026-09-10&#39;</code></td><td>trade log trades, live prices: many rows per day</td></tr><tr><td><code>MONTH</code></td><td><code>&#39;2026-09&#39;</code></td><td>minute candles</td></tr><tr><td><code>YEAR</code></td><td><code>&#39;2026&#39;</code></td><td>daily candles</td></tr><tr><td><code>NONE</code></td><td>one partition</td><td>very small time-series tables</td></tr></tbody></table></div>
+<p>Add <code>, SYMBOL(column)</code> after <code>YEAR</code>, <code>MONTH</code> or <code>NONE</code> to split each partition again, one file per symbol: <code>PARTITION BY YEAR, SYMBOL(symbol)</code>. The rules are in <a href="partitions-and-dedup.html#partition-by-symbol">PARTITION BY ..., SYMBOL(col)</a>.</p>
+<p>Why partitions help:</p>
+<ul><li><p><code>WHERE time IN &#39;2026-09&#39;</code> reads only the files of September 2026.</p></li><li><p><code>ALTER TABLE t DROP PARTITION &#39;2025&#39;</code> deletes a whole year at once (<a href="alter-table.html#drop-partition">DROP PARTITION</a>).</p></li><li><p><strong>Notes:</strong> the choices are <code>DAY</code>, <code>MONTH</code>, <code>YEAR</code> and <code>NONE</code>; there are no weekly partitions, and <code>PARTITION BY WEEK</code> is an error. The partition is the <strong>UTC</strong> date. <code>2026-09-10T02:00:00+05:45</code> is 2026-09-09 20:15 UTC, so it goes into the partition <code>2026-09-09</code>. Too small partitions (DAY for a table with 50 rows a day) make many tiny files; too big ones (NONE for millions of rows) make writes slower. See <a href="partitions-and-dedup.html">partitions and dedup</a>.</p></li></ul>
+<p><strong>Example: Rows go to monthly partitions; drop one month</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_minutes (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY MONTH;
+INSERT INTO ochl_minutes VALUES
+  (&#39;2026-08-30T11:00:00+05:45&#39;, &#39;CITY&#39;, 508.1),
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 504.6);</code></pre>
+<pre><code class="language-sql">ALTER TABLE ochl_minutes DROP PARTITION &#39;2026-08&#39;;
+SELECT time, symbol, close FROM ochl_minutes;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE ochl_minutes DROP PARTITION &#39;2026-08&#39;</code></p>
+<pre><code class="language-text">1 partition(s) of &#39;ochl_minutes&#39; dropped</code></pre>
+<p><code>SELECT time, symbol, close FROM ochl_minutes</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>504.6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="sort-by">SORT BY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SORT BY (column, ...)</code></pre>
+<p>The order of the rows <strong>inside</strong> each partition file. Rows with the same first columns are stored close together, so a query for one symbol reads less.</p>
+<ul><li><strong>Default:</strong> the first <code>SYMBOL</code> column, then the time column: <code>SORT BY (symbol, time)</code>. Without a <code>SYMBOL</code> column: the time column only.</li><li>Only stored columns (not computed ones), each once.</li><li><strong>Notes:</strong> you cannot change <code>SORT BY</code> later. Columns in <code>SORT BY</code> cannot be dropped. <code>SHOW CREATE TABLE</code> shows the sort order KDB uses.</li></ul>
+<p><strong>Example: The default sort order is shown by SHOW CREATE TABLE</strong></p>
+<pre><code class="language-sql">CREATE TABLE trade_log (date TIMESTAMP, transaction_id LONG, symbol SYMBOL, quantity LONG, rate DOUBLE) TIMESERIES(date);
+SHOW CREATE TABLE trade_log;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trade_log (</code></p>
+<pre><code class="language-text">table &#39;trade_log&#39; created</code></pre>
+<p><code>SHOW CREATE TABLE trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE trade_log (   date TIMESTAMP,   transaction_id LONG,   symbol SYMBOL,   quantity LONG,   rate DOUBLE ) TIMESERIES(date) PARTITION BY DAY SORT BY (symbol, date)</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Sort the trades of a day by transaction number</strong></p>
+<pre><code class="language-sql">CREATE TABLE trade_log (date TIMESTAMP ROUND 1d, transaction_id LONG, symbol SYMBOL, quantity LONG, rate DOUBLE)
+  TIMESERIES(date) PARTITION BY DAY SORT BY (date, transaction_id) DEDUP KEY (date, transaction_id);
+SHOW CREATE TABLE trade_log;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trade_log (</code></p>
+<pre><code class="language-text">table &#39;trade_log&#39; created</code></pre>
+<p><code>SHOW CREATE TABLE trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE trade_log (   date TIMESTAMP ROUND 1d,   transaction_id LONG,   symbol SYMBOL,   quantity LONG,   rate DOUBLE ) TIMESERIES(date) PARTITION BY DAY SORT BY (date, transaction_id) DEDUP K...</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="dedup-key">DEDUP KEY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DEDUP KEY (column, ..., time_column)</code></pre>
+<p>The columns that make two rows &quot;the same row&quot;. It is the key of a time-series table, and it <strong>must include the time column</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>The key is new</th><th>The key is already there</th></tr></thead><tbody><tr><td><code>INSERT</code></td><td>row added</td><td><strong>error</strong>, nothing saved</td></tr><tr><td><code>INSERT OR REPLACE</code></td><td>row added</td><td>the old row is replaced</td></tr><tr><td><code>INSERT OR IGNORE</code></td><td>row added</td><td>the new row is skipped</td></tr></tbody></table></div>
+<ul><li>Without a <code>DEDUP KEY</code>, KDB keeps every row, also exact copies.</li><li><code>NULL</code> counts as a value here: two rows with the same time and <code>symbol</code> <code>NULL</code> are the same row.</li><li><strong>Tip:</strong> give every time-series table a <code>DEDUP KEY</code>. Then an import file can be loaded twice without double rows.</li><li><strong>Notes:</strong> QuestDB&#39;s <code>DEDUP UPSERT KEYS(...)</code> is read as <code>DEDUP KEY (...)</code> and, as in QuestDB, a plain <code>INSERT</code> of a key that is there then <strong>replaces</strong> the row (<a href="partitions-and-dedup.html#dedup-insert">dedup_insert</a>). With KDB&#39;s own <code>DEDUP KEY</code>, duplicates give an error unless you write <code>INSERT OR REPLACE</code>, the table has <code>dedup_insert = &#39;upsert&#39;</code>, or the database uses the <a href="databases.html#dialect">QuestDB dialect</a>. See <a href="insert.html#duplicates">INSERT</a>.</li><li><strong>Notes:</strong> a load over the line protocol does less work when every <code>SORT BY</code> column is in the <code>DEDUP KEY</code> (<a href="partitions-and-dedup.html#load-dedup">how loads find duplicates</a>).</li></ul>
+<p><strong>Example: One candle per symbol per day</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);
+INSERT INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.9);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 505.2);
+SELECT time, symbol, close FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 505.2)</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT time, symbol, close FROM ochl_day</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>505.2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Without a DEDUP KEY, the same tick is stored twice</strong></p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510);
+INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510);
+SELECT time, symbol, price FROM ticks;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ticks (</code></p>
+<pre><code class="language-text">table &#39;ticks&#39; created</code></pre>
+<p><code>INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO ticks VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 510)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT time, symbol, price FROM ticks</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>510</td></tr><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>510</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A DEDUP KEY without the time column</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE live_data (timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(timestamp) DEDUP KEY (symbol);</code></pre>
+<p>Result:</p>
+<p>Error: <code>DEDUP KEY must include the time column &#39;timestamp&#39;, e.g. DEDUP KEY (symbol, timestamp), or a column GENERATED ALWAYS AS (date_trunc(&#39;minute&#39;, timestamp)) STORED</code></p>
+<h2 id="round">ROUND</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TIMESTAMP ROUND interval
+interval: number + ms | s | m | h | d | w      (1m, 5m, 15m, 1h, 1d)</code></pre>
+<p>Cuts every time <strong>down</strong> to the interval when a row is written. <code>ROUND 1m</code> turns <code>11:05:42</code> into <code>11:05:00</code>. Use it for candles, so that times are clean and the <code>DEDUP KEY</code> finds the same minute or day.</p>
+<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Meaning</th></tr></thead><tbody><tr><td><code>ms</code></td><td>milliseconds</td></tr><tr><td><code>s</code></td><td>seconds</td></tr><tr><td><code>m</code></td><td>minutes (also <code>M</code>: <code>ROUND</code> has no months)</td></tr><tr><td><code>h</code></td><td>hours</td></tr><tr><td><code>d</code></td><td>days (UTC)</td></tr><tr><td><code>w</code></td><td>weeks of 7 days, counted from 1970-01-01 (a <strong>Thursday</strong>)</td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> a <code>NULL</code> time stays <code>NULL</code>.</li><li><strong>Notes:</strong> only for <code>TIMESTAMP</code> columns. <code>ROUND 1d</code> rounds to the <strong>UTC</strong> day: <code>2026-09-10T02:00:00+05:45</code> becomes <code>2026-09-09T00:00:00Z</code>. For weeks that start on Sunday, use <code>ROUND 1d</code> and <a href="sample-by.html">SAMPLE BY 1w</a> in queries instead of <code>ROUND 1w</code>.</li></ul>
+<p><strong>Example: Minute candles: 11:05:42 Nepal time is stored as 05:20:00 UTC</strong></p>
+<pre><code class="language-sql">CREATE TABLE ochl_minutes (time TIMESTAMP ROUND 1m, symbol SYMBOL, close DOUBLE) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (symbol, time);
+INSERT INTO ochl_minutes VALUES (&#39;2026-09-10T11:05:42+05:45&#39;, &#39;CITY&#39;, 504.8);
+SELECT time, symbol, close FROM ochl_minutes;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ochl_minutes (</code></p>
+<pre><code class="language-text">table &#39;ochl_minutes&#39; created</code></pre>
+<p><code>INSERT INTO ochl_minutes VALUES (&#39;2026-09-10T11:05:42+05:45&#39;, &#39;CITY&#39;, 504.8)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT time, symbol, close FROM ochl_minutes</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>504.8</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: With ROUND 1d a second row of the same day is a duplicate</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE) TIMESERIES(time) DEDUP KEY (symbol, time);
+INSERT INTO ochl_day VALUES (&#39;2026-09-10 14:37:12&#39;, &#39;CITY&#39;, 504.9);</code></pre>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-10 09:00&#39;, &#39;CITY&#39;, 1);</code></pre>
+<p>Result:</p>
+<p>Error: <code>a row with symbol=&#39;CITY&#39;, time=&#39;2026-09-10T00:00:00.000Z&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></p>
+<p><strong>Example: 15-minute buckets</strong></p>
+<pre><code class="language-sql">CREATE TABLE index_15m (time TIMESTAMP ROUND 15m, index_name SYMBOL, value DOUBLE) TIMESERIES(time) DEDUP KEY (index_name, time);
+INSERT OR REPLACE INTO index_15m VALUES
+  (&#39;2026-09-10T11:14:59+05:45&#39;, &#39;INDEX&#39;, 2710.5),
+  (&#39;2026-09-10T11:15:00+05:45&#39;, &#39;INDEX&#39;, 2712.0);
+SELECT time, index_name, value FROM index_15m;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE index_15m (</code></p>
+<pre><code class="language-text">table &#39;index_15m&#39; created</code></pre>
+<p><code>INSERT OR REPLACE INTO index_15m VALUES (&#39;2026-09-10T11:14:59+05:45&#39;, &#39;INDEX&#39;, 2710.5), (&#39;2026-09-10</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT time, index_name, value FROM index_15m</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>index_name (SYMBOL)</th><th>value (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>INDEX</td><td>2710.5</td></tr><tr><td>2026-09-10T05:30:00.000Z</td><td>INDEX</td><td>2712</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: ROUND on a column that is not a TIMESTAMP</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE t (day DATE ROUND 1d, v DOUBLE);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 26: ROUND needs a TIMESTAMP column; expected TIMESTAMP but column &#39;day&#39; is DATE</code></p>
+<h2 id="computed">Computed columns: AS (expr)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE AS (expression)</code></pre>
+<p>A <strong>computed</strong> column is not stored. KDB works it out from the other columns of the same row each time you read it.</p>
+<ul><li>The expression uses <strong>stored</strong> columns of the same row, operators and built-in functions.</li><li>You cannot give it a value in <code>INSERT</code>, and <code>UPDATE</code> cannot set it. Change the columns it is made from.</li><li><code>INSERT INTO t VALUES (...)</code> without a column list skips computed columns.</li><li>To keep the value on disk (for an index, <code>UNIQUE</code> or <code>NOT NULL</code>), use a <a href="#generated">stored generated column</a>.</li><li><strong>Notes:</strong> a computed column cannot also have <code>PRIMARY KEY</code>, <code>NOT NULL</code>, <code>UNIQUE</code>, <code>DEFAULT</code>, <code>REFERENCES</code> or <code>ROUND</code>, and cannot be in <code>SORT BY</code>, <code>DEDUP KEY</code>, a <code>CHECK</code> or an index. No subqueries, window functions or other computed columns inside. Do not use random functions (<code>gen_random_uuid()</code>) or <code>now()</code> in it: the value changes on every read.</li></ul>
+<p><strong>Example: Trade log amount and broker commission</strong></p>
+<pre><code class="language-sql">CREATE TABLE trade_log (
+  date TIMESTAMP ROUND 1d, transaction_id LONG, symbol SYMBOL,
+  quantity LONG, rate DOUBLE,
+  amount DOUBLE AS (quantity * rate),
+  commission DOUBLE AS (round(quantity * rate * 0.004, 2))
+) TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, transaction_id);
+INSERT INTO trade_log VALUES (&#39;2026-09-10&#39;, 100010, &#39;CITY&#39;, 50, 517.0);
+SELECT transaction_id, quantity, rate, amount, commission FROM trade_log;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE trade_log (</code></p>
+<pre><code class="language-text">table &#39;trade_log&#39; created</code></pre>
+<p><code>INSERT INTO trade_log VALUES (&#39;2026-09-10&#39;, 100010, &#39;CITY&#39;, 50, 517.0)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT transaction_id, quantity, rate, amount, commission FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th><th>commission (DOUBLE)</th></tr></thead><tbody><tr><td>100010</td><td>50</td><td>517</td><td>25850</td><td>103.4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A computed column cannot be given a value</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (quantity LONG, rate DOUBLE, amount DOUBLE AS (quantity * rate));</code></pre>
+<pre><code class="language-sql">INSERT INTO trade_log (quantity, rate, amount) VALUES (100, 515.5, 51550);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;amount&#39; is computed (AS ...) and cannot be given a value</code></p>
+<p><strong>Example: A computed column that uses a missing column</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (quantity LONG, amount DOUBLE AS (quantity * price));</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;amount&#39; of table &#39;trade_log&#39; uses column &#39;price&#39; in AS (...), which does not exist in table &#39;trade_log&#39;</code></p>
+<h2 id="generated">Stored generated columns: GENERATED ALWAYS AS (expr) STORED</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">column TYPE GENERATED ALWAYS AS (expression) STORED
+column TYPE GENERATED ALWAYS AS (expression) [VIRTUAL]</code></pre>
+<p>The PostgreSQL form. With <code>STORED</code>, KDB works the value out <strong>when the row is written</strong> and keeps it like any other column. Without <code>STORED</code> (or with <code>VIRTUAL</code>) it is a <a href="#computed">computed column</a>, worked out when read.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th><code>AS (expr)</code>, <code>VIRTUAL</code></th><th><code>STORED</code></th></tr></thead><tbody><tr><td>worked out</td><td>on every read</td><td>on every write</td></tr><tr><td>takes disk space</td><td>no</td><td>yes</td></tr><tr><td>an index, <code>UNIQUE</code>, <code>NOT NULL</code>, <code>CHECK</code>, <code>REFERENCES</code></td><td>no</td><td>yes</td></tr></tbody></table></div>
+<ul><li>Every write works it out again: <code>INSERT</code>, <code>UPDATE</code> of a column it reads, <code>ON CONFLICT DO UPDATE</code>, a foreign key <code>ON UPDATE CASCADE</code>, and API and line-protocol inserts.</li><li>You cannot give it a value in <code>INSERT</code> or <code>UPDATE</code>, as in PostgreSQL. <code>INSERT INTO t VALUES (...)</code> without a column list skips it; <code>COPY</code> without a column list too.</li><li><code>ALTER TABLE ... ADD COLUMN ... GENERATED ALWAYS AS (...) STORED</code> fills it in for the rows already in the table (the rows are written again).</li><li><strong>Notes:</strong> it cannot be the <code>PRIMARY KEY</code>, a time-series table&#39;s time column, or in <code>SORT BY</code>, and cannot have <code>DEFAULT</code>, <code>AUTO</code> or <code>ROUND</code>. It <strong>can</strong> be in a <code>DEDUP KEY</code>: <code>date_trunc(&#39;minute&#39;, time)</code> there makes seconds of one minute the same row (<a href="partitions-and-dedup.html#minute-key">a key on the minute</a>). The expression uses stored columns that are not generated themselves, and built-in functions only. A column it uses cannot be dropped first.</li><li>Tables made before 2026-09-24 with <code>STORED</code> keep a computed column (worked out when read). To store it, drop the column and add it again.</li></ul>
+<p><strong>Example: An order total you can index and search</strong></p>
+<pre><code class="language-sql">CREATE TABLE order_lines (
+  id INT PRIMARY KEY, qty INT, price DECIMAL(2),
+  total DECIMAL(2) GENERATED ALWAYS AS (qty * price) STORED
+);
+CREATE INDEX order_lines_total ON order_lines (total);
+INSERT INTO order_lines (id, qty, price) VALUES (1, 2, 1.50), (2, 4, 2.00);
+UPDATE order_lines SET qty = 3 WHERE id = 1;
+SELECT id, qty, price, total FROM order_lines WHERE total &gt; 4 ORDER BY id;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE order_lines (</code></p>
+<pre><code class="language-text">table &#39;order_lines&#39; created</code></pre>
+<p><code>CREATE INDEX order_lines_total ON order_lines (total)</code></p>
+<pre><code class="language-text">index &#39;order_lines_total&#39; created on table &#39;order_lines&#39; (0 rows)</code></pre>
+<p><code>INSERT INTO order_lines (id, qty, price) VALUES (1, 2, 1.50), (2, 4, 2.00)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>UPDATE order_lines SET qty = 3 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT id, qty, price, total FROM order_lines WHERE total &gt; 4 ORDER BY id</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>qty (INT)</th><th>price (DECIMAL(2))</th><th>total (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>3</td><td>1.50</td><td>4.50</td></tr><tr><td>2</td><td>4</td><td>2.00</td><td>8.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A stored generated column cannot be given a value</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE order_lines (id INT PRIMARY KEY, qty INT, price DECIMAL(2), total DECIMAL(2) GENERATED ALWAYS AS (qty * price) STORED);</code></pre>
+<pre><code class="language-sql">UPDATE order_lines SET total = 10;</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;total&#39; is GENERATED ALWAYS AS (...) STORED and cannot be set; KDB works it out from the row</code></p>
+<h2 id="row-ttl">Rows that expire: WITH (ttl_column = ...)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (..., expires_at TIMESTAMP, ...) WITH (ttl_column = expires_at)</code></pre>
+<p>Each row can have its own end of life, like a Redis key with <code>EXPIRE</code>. When the time in <code>expires_at</code> has come, the row is <strong>gone at once</strong> for every statement, and a background thread deletes it within about a second. Use it for login sessions, rate-limit counters, caches and short-lived tokens.</p>
+<div class="table-wrap"><table><thead><tr><th><code>expires_at</code> is</th><th>the row is</th></tr></thead><tbody><tr><td>later than now</td><td>there</td></tr><tr><td>now or earlier</td><td>gone: no <code>SELECT</code>, join, <code>UPDATE</code> or <code>DELETE</code> sees it</td></tr><tr><td><code>NULL</code></td><td>there for ever</td></tr></tbody></table></div>
+<ul><li>An <code>INSERT</code> of an expired row&#39;s key is a new row, not an &quot;already exists&quot; error. <code>INSERT ... ON CONFLICT DO UPDATE</code> starts a fresh row, so a counter that expires counts from 1 again.</li><li>To keep a row alive longer, <code>UPDATE</code> its <code>expires_at</code>.</li><li>The deletes are ordinary deletes: they are in the log, and <code>DELETE</code> <a href="triggers.html">triggers</a> see the rows.</li><li><strong>Notes:</strong> the column must be a stored <code>TIMESTAMP</code>. It cannot be dropped while the table has the option, and the option is set by <code>CREATE TABLE</code> only (<code>ALTER TABLE ... SET (ttl_column = ...)</code> is refused for now). A database with such a table needs KDB 2026-09-25 or later (<a href="versions.html">versions</a>).</li><li><strong>Speed:</strong> a read of such a table checks the time on each row and never comes from the <a href="performance-tips.html#result-cache">result cache</a>. The table&#39;s <code>TTL n DAYS</code> (whole partitions) is a different, older option: <a href="alter-table.html#set-ttl">SET TTL</a>.</li></ul>
+<p><strong>Example: Sessions that expire, and a counter that starts again</strong></p>
+<pre><code class="language-sql">CREATE TABLE sessions (
+  token      STRING PRIMARY KEY,
+  user_id    LONG,
+  hits       LONG,
+  expires_at TIMESTAMP
+) WITH (ttl_column = expires_at);
+INSERT INTO sessions VALUES (&#39;old&#39;, 1, 5, &#39;2020-01-01T00:00:00Z&#39;), (&#39;new&#39;, 2, 1, &#39;2099-01-01T00:00:00Z&#39;), (&#39;api&#39;, 3, 0, NULL);
+SELECT token, user_id FROM sessions ORDER BY token;
+INSERT INTO sessions VALUES (&#39;old&#39;, 1, 1, &#39;2099-01-01T00:00:00Z&#39;)
+  ON CONFLICT (token) DO UPDATE SET hits = sessions.hits + 1 RETURNING hits;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE sessions (</code></p>
+<pre><code class="language-text">table &#39;sessions&#39; created</code></pre>
+<p><code>INSERT INTO sessions VALUES (&#39;old&#39;, 1, 5, &#39;2020-01-01T00:00:00Z&#39;), (&#39;new&#39;, 2, 1, &#39;2099-01-01T00:00:0</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT token, user_id FROM sessions ORDER BY token</code></p>
+<div class="table-wrap"><table><thead><tr><th>token (STRING)</th><th>user_id (LONG)</th></tr></thead><tbody><tr><td>api</td><td>3</td></tr><tr><td>new</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>INSERT INTO sessions VALUES (&#39;old&#39;, 1, 1, &#39;2099-01-01T00:00:00Z&#39;) ON CONFLICT (token) DO UPDATE SET </code></p>
+<div class="table-wrap"><table><thead><tr><th>hits (LONG)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<h2 id="cache-table">Cache tables: WITH (max_bytes, evict, durability)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (key ... PRIMARY KEY, ...)
+  WITH (max_bytes = &#39;64MB&#39; [, evict = &#39;lru&#39;] [, durability = &#39;none&#39;])
+ALTER TABLE name SET (max_bytes = &#39;128MB&#39;)
+ALTER TABLE name RESET (max_bytes)</code></pre>
+<p>A <strong>cache table</strong> has a memory cap, like Redis with <code>maxmemory</code>. When its rows take more than <code>max_bytes</code>, a background thread deletes rows until it fits again (within about a second), in the order <code>evict</code> says:</p>
+<div class="table-wrap"><table><thead><tr><th><code>evict</code></th><th>Rows that go first</th><th>Redis name</th></tr></thead><tbody><tr><td><code>&#39;lru&#39;</code> (the default with a cap)</td><td>the rows read or written longest ago</td><td><code>allkeys-lru</code></td></tr><tr><td><code>&#39;volatile_lru&#39;</code></td><td>the same, but only rows that expire</td><td><code>volatile-lru</code></td></tr><tr><td><code>&#39;random&#39;</code></td><td>any rows</td><td><code>allkeys-random</code></td></tr><tr><td><code>&#39;volatile_random&#39;</code></td><td>any rows that expire</td><td><code>volatile-random</code></td></tr><tr><td><code>&#39;volatile_ttl&#39;</code></td><td>the rows that <a href="#row-ttl">expire</a> soonest</td><td><code>volatile-ttl</code></td></tr><tr><td><code>&#39;none&#39;</code></td><td>nothing (no cap)</td><td><code>noeviction</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Means</th></tr></thead><tbody><tr><td><code>max_bytes</code></td><td>the cap: <code>&#39;64MB&#39;</code>, <code>&#39;512KB&#39;</code>, <code>&#39;1GB&#39;</code> or a number of bytes; <code>0</code> = no cap</td></tr><tr><td><code>durability = &#39;none&#39;</code></td><td>the table is <strong>emptied every time the database opens</strong> (Redis <code>appendonly no</code>), for data you can rebuild</td></tr><tr><td><code>durability = &#39;log&#39;</code></td><td>rows survive a restart (the default)</td></tr></tbody></table></div>
+<ul><li><code>SELECT kv_memory(&#39;name&#39;)</code> answers the bytes the table holds, as last measured. A row counts the bytes of its values (text by its length, numbers and times 8 bytes) plus 48 bytes.</li><li>A row is &quot;used&quot; when a statement reads it row by row (a look-up by key, <code>SELECT ... WHERE</code>) or writes it. Aggregates over many rows (<code>count(*)</code>, <code>sum</code>) do not count as a use.</li><li><strong>Needs:</strong> a <code>PRIMARY KEY</code> for any <code>evict</code>; a <a href="#row-ttl">ttl_column</a> for the <code>volatile_</code> ones. The evicting deletes are ordinary deletes: they are in the log and <code>DELETE</code> triggers see them.</li><li>The key-value store has the same cap: <code>CONFIG SET maxmemory 64mb</code> (<a href="kv.html#kv-memory">kv</a>).</li><li>A database with a cache table needs KDB 2026-10-02 or later (<a href="versions.html">versions</a>).</li></ul>
+<p><strong>Example: A cache of 1 MB that keeps the rows in use</strong></p>
+<pre><code class="language-sql">CREATE TABLE page_cache (url STRING PRIMARY KEY, html STRING)
+  WITH (max_bytes = &#39;1MB&#39;, evict = &#39;lru&#39;);
+INSERT INTO page_cache VALUES (&#39;/&#39;, &#39;&lt;h1&gt;home&lt;/h1&gt;&#39;), (&#39;/about&#39;, &#39;&lt;h1&gt;about&lt;/h1&gt;&#39;);
+SELECT html FROM page_cache WHERE url = &#39;/&#39;;
+ALTER TABLE page_cache SET (max_bytes = &#39;4MB&#39;, durability = &#39;none&#39;);</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE page_cache (</code></p>
+<pre><code class="language-text">table &#39;page_cache&#39; created</code></pre>
+<p><code>INSERT INTO page_cache VALUES (&#39;/&#39;, &#39;&lt;h1&gt;home&lt;/h1&gt;&#39;), (&#39;/about&#39;, &#39;&lt;h1&gt;about&lt;/h1&gt;&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT html FROM page_cache WHERE url = &#39;/&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>html (STRING)</th></tr></thead><tbody><tr><td>&lt;h1&gt;home&lt;/h1&gt;</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>ALTER TABLE page_cache SET (max_bytes = 4194304, durability = &#39;none&#39;)</code></p>
+<pre><code class="language-text">table &#39;page_cache&#39;: max_bytes = 4194304, evict = &#39;lru&#39;, durability = &#39;none&#39; (emptied every time the database opens)</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/create-table.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The trash - UNDROP TABLE - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="DROP TABLE keeps the table hidden for some days; UNDROP TABLE brings it back with its rows and indexes.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/trash.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/trash.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="the-trash-undrop-table">The trash - UNDROP TABLE</h1>
+<blockquote><p>DROP TABLE keeps the table hidden for some days; UNDROP TABLE brings it back with its rows and indexes.</p></blockquote>
+<ul><li>Category: Tables</li><li>Keywords: trash, undo drop, undrop, UNDROP, restore table, dropped table, recover table, DROPPED, <em>dropped</em>, --trash-days, PurgeDroppedTables</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="databases.html">Databases and the data folder</a></li></ul>
+<p><code>DROP TABLE</code> is easy to type by mistake. With the trash, the table is only hidden: its rows stay where they are, and <code>UNDROP TABLE</code> brings it back. After the keep time (7 days by default) KDB removes it for good.</p>
+<p><code>kdb serve</code>, <code>kdb sql</code> and <code>kdb shell</code> keep dropped tables for <code>--trash-days 7</code>. Programs that use the KDB library set <code>DatabaseOptions::dropped_table_keep_ms</code> (0 = off, the default there).</p>
+<h2 id="drop">DROP TABLE and the trash</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP TABLE [IF EXISTS] &lt;name&gt;                 -- kept in the trash
+kdb serve --trash-days 7                      (0 = DROP TABLE removes at once)
+DROP TABLE _dropped_&lt;time&gt;_&lt;name&gt;             -- remove one from the trash for good</code></pre>
+<ul><li><strong>Returns:</strong> <code>table &#39;t&#39; dropped; UNDROP TABLE t brings it back within 7 days</code>.</li><li><strong>Notes:</strong>
+<ul><li>A new table with the same name, and indexes with the same names, can be made at once.</li><li>Dropping takes no time and no space: nothing is copied. The rows use disk space until the table is removed for good.</li><li>When it is removed for good, its files go and so do its entries in the database&#39;s list of files; any left by an older build are swept at the next checkpoint or open (<code>kdb info</code> counts them under <code>manifest keys</code>).</li><li>This trash is for tables. <a href="databases.html#purge-trash">PURGE TRASH</a> empties the database&#39;s <code>_trash</code> folder of replaced files, and <code>PURGE TRASH ALL</code> also the dropped databases; it leaves dropped tables alone.</li><li>A dropped table is hidden from <code>SHOW TABLES</code>, <code>SHOW INDEXES</code> and <code>/api/info</code>, and nobody can read or change it.</li><li>A dropped table that REFERENCES another table is removed for good when that other table is dropped.</li><li>A table with named <code>UNIQUE</code> or <code>PRIMARY KEY</code> constraints (PostgreSQL style) is dropped for good at once for now.</li><li>Table grants (<a href="table-rights.html">GRANT ... ON TABLE</a>) do not come back with <code>UNDROP TABLE</code>.</li></ul></li></ul>
+<h2 id="undrop-table">UNDROP TABLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">UNDROP TABLE &lt;name&gt;</code></pre>
+<p>Brings back the newest dropped table with this name: its columns, rows and indexes.</p>
+<ul><li><strong>Returns:</strong> <code>table &#39;t&#39; is back, with N row(s)</code>.</li><li><strong>Notes:</strong> refused while a table or view with that name exists (rename or drop it first), or when an index name is used again meanwhile. Needs role admin on the database.</li></ul>
+<p><strong>Example: Drop by mistake, then bring it back</strong> (sample data: sample)</p>
+<pre><code class="language-sql">DROP TABLE live_data;
+SHOW DROPPED TABLES;
+UNDROP TABLE live_data;
+SELECT count(*) FROM live_data;</code></pre>
+<p>Result:</p>
+<p><code>DROP TABLE live_data</code></p>
+<pre><code class="language-text">table &#39;live_data&#39; dropped; UNDROP TABLE live_data brings it back within 7 days</code></pre>
+<p><code>SHOW DROPPED TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>dropped (TIMESTAMP)</th><th>removed_after (TIMESTAMP)</th><th>rows (LONG)</th><th>stored_as (STRING)</th></tr></thead><tbody><tr><td>live_data</td><td>2026-10-22T05:44:32.842Z</td><td>2026-10-29T05:44:32.842Z</td><td>12</td><td>_dropped_1792647872842_live_data</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>UNDROP TABLE live_data</code></p>
+<pre><code class="language-text">table &#39;live_data&#39; is back, with 12 row(s)</code></pre>
+<p><code>SELECT count(*) FROM live_data</code></p>
+<div class="table-wrap"><table><thead><tr><th>count(*) (LONG)</th></tr></thead><tbody><tr><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="show-dropped-tables">SHOW DROPPED TABLES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW DROPPED TABLES</code></pre>
+<p>The tables in the trash of the current database, newest first.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the name the table had</td></tr><tr><td><code>dropped</code></td><td>when it was dropped</td></tr><tr><td><code>removed_after</code></td><td>when KDB removes it for good</td></tr><tr><td><code>rows</code></td><td>rows in it</td></tr><tr><td><code>stored_as</code></td><td>its hidden name, for <code>DROP TABLE</code> to remove it at once</td></tr></tbody></table></div>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/trash.md">This page as markdown</a>.</footer>
+</body>
+</html>

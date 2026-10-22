@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Date and time functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Take a time apart, find the weekday, quarter and week, cut, add and build times, count days or months between times, fiscal years (also Nepal&#39;s), and write a time as text.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-date-time.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-date-time.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="date-and-time-functions">Date and time functions</h1>
+<blockquote><p>Take a time apart, find the weekday, quarter and week, cut, add and build times, count days or months between times, fiscal years (also Nepal&#39;s), and write a time as text.</p></blockquote>
+<ul><li>Category: Functions — date and time</li><li>Keywords: date, time, timestamp, UTC, milliseconds, weekday, weekday, trading day, holiday, truncate time, timestamp_floor, timestamp floor, local midnight, start of month, start of week, add days, add months, date_add, timestampadd, interval, month end, difference between dates, age, date_diff, timestampdiff, format date, strftime, date_format, format, time zone, timezone, Nepal time, NPT, Asia/Kathmandu, +05:45, 20700000, current_timestamp, getdate, EXTRACT, datepart, date part, epoch, ISO week, week number, weekofyear, dayofyear, day of year, quarter of the year, end of month, EOMONTH, last day of month, build a date, date from parts, datefromparts, how old, time between, financial year, FY, fiscal year, Nepal fiscal year, Nepali fiscal year, Shrawan, Bikram Sambat, BS year, arthik barsa, to_timezone, to_utc, AT TIME ZONE, timestamp_ceil, round up time, timestamp_floor_utc, today, yesterday, tomorrow, interval_start, interval_end, days_in_month, is_leap_year, leap year, is_end_of_month, day_of_week_sunday_first, millis, to_pg_date, sysdate, timestamp_sequence, timestamp_shuffle, QuestDB</li><li>See also: <a href="functions-conversion.html#to_timestamp">Conversion functions (to_timestamp)</a>, <a href="functions-conversion.html#cast">Conversion functions (cast)</a>, <a href="time-and-time-zones.html">Time and time zones</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="sample-by.html#time-zone">SAMPLE BY (time-zone)</a>, <a href="where.html#in-interval">WHERE (in-interval)</a>, <a href="functions-aggregate.html">Aggregate functions</a>, <a href="functions-finance.html">Finance and price functions</a></li></ul>
+<p>KDB keeps a <code>TIMESTAMP</code> as the number of <strong>milliseconds</strong> (1/1000 of a second) since 1970-01-01, in <strong>UTC</strong>. UTC is the world clock time with no time zone. A local time is UTC plus its zone offset: Nepal is <code>+05:45</code> (11:00 in Kathmandu is 05:15 UTC), New York is <code>-04:00</code> in summer (07:00 there is 11:00 UTC).</p>
+<ul><li>Every function here works on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s time zone</a>, which is <strong>UTC</strong> unless the session ran <code>SET TIME ZONE</code> or the server has <code>--timezone</code>. A time zone given in the call wins: <a href="#date_trunc">date_trunc</a><code>(unit, t, zone)</code>, <a href="#timestamp_floor">timestamp_floor</a>, <a href="#to_timezone">to_timezone and to_utc</a>, <a href="#to_char">to_char</a><code>(t, format, zone)</code>. <code>hour()</code> of 11:00 local time in Nepal is <code>5</code>. See <a href="#nepal-time">Local time</a>.</li><li>A time argument can be a <code>TIMESTAMP</code>, a <code>DATE</code>, time text like <code>&#39;2026-09-10T11:00:00+05:45&#39;</code>, or a whole number (milliseconds since 1970).</li><li>A <code>NULL</code> argument gives <code>NULL</code>.</li><li>Text that is not a time is an error: <code>year(&#39;hello&#39;)</code>.</li><li><code>to_timestamp</code> and <code>to_date</code> change a value into a time: see <a href="functions-conversion.html#to_timestamp">conversion functions</a>.</li><li>For reports: <a href="#date_part">date_part</a> takes any part of a time, <a href="#quarter">quarter</a> and <a href="#week_of_year">week_of_year</a> group by quarter and week, <a href="#last_day">last_day</a> finds the month end, and <a href="#fiscal_year">fiscal_year</a> and <a href="#nepal_fiscal_year">nepal_fiscal_year</a> group by financial year.</li></ul>
+<p><strong>Example: CITY volume per Nepal clock hour</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT hour(time + 20700000) AS nepal_hour,
+       count(*) AS candles,
+       sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+GROUP BY hour(time + 20700000)
+ORDER BY nepal_hour;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_hour (LONG)</th><th>candles (LONG)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>11</td><td>60</td><td>47020</td></tr><tr><td>12</td><td>60</td><td>41230</td></tr><tr><td>13</td><td>60</td><td>46180</td></tr><tr><td>14</td><td>60</td><td>48610</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="now">now, systimestamp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">now()
+systimestamp()</code></pre>
+<p>The current time. <code>systimestamp</code> is the same function.</p>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code> (UTC).</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> the value is the same for the whole statement, so every row of one <code>SELECT</code> or <code>INSERT</code> gets the same time. As a column <code>DEFAULT now()</code>, a new row gets the time it was inserted. The PostgreSQL names <code>CURRENT_TIMESTAMP</code>, <a href="#current_date">current_date</a>, <a href="#localtimestamp">localtimestamp</a>, <a href="#transaction_timestamp">transaction_timestamp</a>, <code>statement_timestamp</code> and <code>clock_timestamp</code> give the same time, and so does QuestDB&#39;s <a href="#sysdate">sysdate</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT now() &gt; &#39;2026-01-01&#39; AS after_2026, now() = systimestamp() AS same_time, year(now()) &gt;= 2026 AS year_ok;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>after_2026 (BOOL)</th><th>same_time (BOOL)</th><th>year_ok (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Save the login time of an app user</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE logins (user_id INT, logged_in_at TIMESTAMP DEFAULT now());
+INSERT INTO logins (user_id) VALUES (7);</code></pre>
+<pre><code class="language-sql">SELECT user_id, logged_in_at &gt; &#39;2026-01-01&#39; AS has_time FROM logins;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>has_time (BOOL)</th></tr></thead><tbody><tr><td>7</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The PostgreSQL names give the same time</strong></p>
+<pre><code class="language-sql">SELECT now() = current_timestamp AS same_1, now() = current_timestamp() AS same_2, now() = localtimestamp AS same_3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>same_1 (BOOL)</th><th>same_2 (BOOL)</th><th>same_3 (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: getdate is not KDB SQL</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT getdate();</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: unknown function &#39;getdate&#39;</code></p>
+<h2 id="year">year</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">year(t)</code></pre>
+<p>The year of the UTC date: <code>year(&#39;2026-09-10&#39;)</code> is <code>2026</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>year(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> the date is the date on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a>, UTC unless set. In a UTC session a time just after midnight in Nepal (before 05:45) still belongs to the day before; on 1 January that is even the year before.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT year(&#39;2026-09-10T08:30:15Z&#39;) AS a, year(CAST(&#39;2025-12-31&#39; AS DATE)) AS b, year(&#39;2026-01-01T02:00:00+05:45&#39;) AS nepal_new_year, year(NULL) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>nepal_new_year (LONG)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>2026</td><td>2025</td><td>2025</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Average CITY close per year</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT year(time) AS year, round(avg(close), 2) AS avg_close, count(*) AS days
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+GROUP BY year(time)
+ORDER BY year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>year (LONG)</th><th>avg_close (DOUBLE)</th><th>days (LONG)</th></tr></thead><tbody><tr><td>2025</td><td>540.9</td><td>4</td></tr><tr><td>2026</td><td>504.05</td><td>15</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Text that is not a full date</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT year(&#39;2026-09&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: year: argument 1 must be a time, got &#39;2026-09&#39;</code></p>
+<h2 id="month">month</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">month(t)</code></pre>
+<p>The month of the UTC date, from <code>1</code> (January) to <code>12</code> (December).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>month(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> for the month name use <a href="#to_char">to_char</a> with <code>Mon</code> or <code>Month</code>. For the first moment of the month use <a href="#date_trunc">date_trunc</a><code>(&#39;month&#39;, t)</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT month(&#39;2026-09-10&#39;) AS a, month(CAST(&#39;2025-12-28&#39; AS DATE)) AS b;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th></tr></thead><tbody><tr><td>9</td><td>12</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Month report: trading days and volume per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT year(time) AS year, month(time) AS month, symbol,
+       count(*) AS days, sum(volume) AS volume
+FROM ochl_day
+WHERE symbol IN (&#39;CITY&#39;, &#39;VOLT&#39;)
+GROUP BY year(time), month(time), symbol
+ORDER BY year, month, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>year (LONG)</th><th>month (LONG)</th><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2025</td><td>12</td><td>CITY</td><td>4</td><td>255090</td></tr><tr><td>2025</td><td>12</td><td>VOLT</td><td>4</td><td>409650</td></tr><tr><td>2026</td><td>8</td><td>CITY</td><td>7</td><td>855550</td></tr><tr><td>2026</td><td>8</td><td>VOLT</td><td>7</td><td>677070</td></tr><tr><td>2026</td><td>9</td><td>CITY</td><td>8</td><td>876210</td></tr><tr><td>2026</td><td>9</td><td>VOLT</td><td>8</td><td>713310</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="day">day</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">day(t)</code></pre>
+<p>The day of the month of the UTC date, from <code>1</code> to <code>31</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>day(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> the UTC day and the Nepal day differ between 00:00 and 05:45 Nepal time. Add <code>20700000</code> ms (5 h 45 min) to get the Nepal day.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT day(&#39;2026-09-10T20:00:00Z&#39;) AS a, day(&#39;2026-09-02T02:30:00+05:45&#39;) AS utc_day, day(CAST(&#39;2026-09-02T02:30:00+05:45&#39; AS TIMESTAMP) + 20700000) AS nepal_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>utc_day (LONG)</th><th>nepal_day (LONG)</th></tr></thead><tbody><tr><td>10</td><td>1</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: App sign-ups per day: the UTC day and the Nepal day</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT day(created_at) AS utc_day, day(created_at + 20700000) AS nepal_day, count(*) AS signups
+FROM signups
+GROUP BY day(created_at), day(created_at + 20700000)
+ORDER BY nepal_day, utc_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>utc_day (LONG)</th><th>nepal_day (LONG)</th><th>signups (LONG)</th></tr></thead><tbody><tr><td>1</td><td>1</td><td>3</td></tr><tr><td>1</td><td>2</td><td>1</td></tr><tr><td>2</td><td>2</td><td>1</td></tr><tr><td>3</td><td>3</td><td>3</td></tr><tr><td>4</td><td>4</td><td>1</td></tr><tr><td>6</td><td>6</td><td>1</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="hour">hour</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">hour(t)</code></pre>
+<p>The hour of the UTC time, from <code>0</code> to <code>23</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>hour(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> UTC. <code>hour(&#39;2026-09-10T11:00:00+05:45&#39;)</code> is <code>5</code>, not <code>11</code>. Use <code>hour(time + 20700000)</code> for the Nepal clock hour (20700000 ms is 5 h 45 min; this is always right because Nepal has no summer time). A <code>DATE</code> has hour <code>0</code>. Text without a zone is read as UTC.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT hour(&#39;2026-09-10 11:00:00&#39;) AS no_zone_is_utc, hour(&#39;2026-09-10T11:00:00+05:45&#39;) AS nepal_11_in_utc, hour(CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) + 20700000) AS nepal_hour;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>no_zone_is_utc (LONG)</th><th>nepal_11_in_utc (LONG)</th><th>nepal_hour (LONG)</th></tr></thead><tbody><tr><td>11</td><td>5</td><td>11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Forum posts per Nepal hour of the day</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT hour(created_at + 20700000) AS nepal_hour, count(*) AS posts
+FROM forum_posts
+GROUP BY hour(created_at + 20700000)
+ORDER BY posts DESC, nepal_hour
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_hour (LONG)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>10</td><td>2</td></tr><tr><td>11</td><td>2</td></tr><tr><td>14</td><td>2</td></tr><tr><td>8</td><td>1</td></tr><tr><td>9</td><td>1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="minute">minute</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">minute(t)</code></pre>
+<p>The minute of the UTC time, from <code>0</code> to <code>59</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>minute(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> Nepal is 45 minutes off from a whole hour, so the minute changes too: 11:07 in Nepal is 05:22 UTC.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT minute(&#39;2026-09-10T11:07:30+05:45&#39;) AS utc_minute, minute(CAST(&#39;2026-09-10T11:07:30+05:45&#39; AS TIMESTAMP) + 20700000) AS nepal_minute;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>utc_minute (LONG)</th><th>nepal_minute (LONG)</th></tr></thead><tbody><tr><td>22</td><td>7</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: COAST candles in the first 5 minutes of the day (Nepal 11:00-11:04)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, open, close
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+  AND hour(time + 20700000) = 11 AND minute(time + 20700000) &lt; 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>380.1</td><td>380</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>380</td><td>379.6</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>379.6</td><td>380.1</td></tr><tr><td>2026-09-10T05:18:00.000Z</td><td>380.1</td><td>380.4</td></tr><tr><td>2026-09-10T05:19:00.000Z</td><td>380.4</td><td>380.7</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="second">second</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">second(t)</code></pre>
+<p>The second of the UTC time, from <code>0</code> to <code>59</code>. Milliseconds are not included.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>second(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> for the milliseconds use <a href="#to_char">to_char</a> with <code>MS</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT second(&#39;2026-09-10T11:00:59.999Z&#39;) AS a, second(&#39;2026-09-10T11:00:05+05:45&#39;) AS b;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th></tr></thead><tbody><tr><td>59</td><td>5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="day_of_week">day_of_week</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">day_of_week(t)</code></pre>
+<p>The weekday of the UTC date as a number: <code>0</code> = Sunday, <code>1</code> = Monday, ... <code>6</code> = Saturday.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>day_of_week(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> Sunday is <code>0</code> (like PostgreSQL <code>EXTRACT(DOW ...)</code>). For the name use <a href="#to_char">to_char</a> with <code>Dy</code> or <code>Day</code>. <code>to_char(t, &#39;D&#39;)</code> counts from <code>1</code> = Sunday instead.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT day_of_week(&#39;2026-09-06&#39;) AS sunday, day_of_week(&#39;2026-09-10&#39;) AS thursday, day_of_week(CAST(&#39;2026-09-12&#39; AS DATE)) AS saturday;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sunday (LONG)</th><th>thursday (LONG)</th><th>saturday (LONG)</th></tr></thead><tbody><tr><td>0</td><td>4</td><td>6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Trading days per weekday (a Sunday-to-Thursday week)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT day_of_week(time) AS dow, count(*) AS candles, round(avg(volume)) AS avg_volume
+FROM ochl_day
+GROUP BY day_of_week(time)
+ORDER BY dow;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>dow (LONG)</th><th>candles (LONG)</th><th>avg_volume (DOUBLE)</th></tr></thead><tbody><tr><td>0</td><td>12</td><td>97458</td></tr><tr><td>1</td><td>12</td><td>91830</td></tr><tr><td>2</td><td>12</td><td>83335</td></tr><tr><td>3</td><td>12</td><td>96533</td></tr><tr><td>4</td><td>9</td><td>114613</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="is_trading_day">is_trading_day</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">is_trading_day(t)</code></pre>
+<p><code>true</code> when the UTC date is a Sunday, Monday, Tuesday, Wednesday or Thursday: a Sunday-to-Thursday trading week, as on some exchanges. <code>false</code> on Friday and Saturday.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>is_trading_day(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> this one-argument form knows no holidays and one fixed week. For a market&#39;s own weekdays (also a week that changed, like NEPSE&#39;s in April 2026) and its holidays, make a <a href="calendars.html">trading calendar</a> and write <code>is_trading_day(&#39;nepse&#39;, t)</code>; <code>next_trading_day</code>, <code>prev_trading_day</code> and <code>trading_days_between</code> come with it.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT is_trading_day(&#39;2026-09-10&#39;) AS thursday, is_trading_day(&#39;2026-09-11&#39;) AS friday, is_trading_day(&#39;2026-09-12&#39;) AS saturday, is_trading_day(&#39;2026-09-13&#39;) AS sunday;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>thursday (BOOL)</th><th>friday (BOOL)</th><th>saturday (BOOL)</th><th>sunday (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: App sign-ups on trading days and on the weekend (Nepal date)</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT is_trading_day(created_at + 20700000) AS trading_day, count(*) AS signups
+FROM signups
+GROUP BY is_trading_day(created_at + 20700000)
+ORDER BY trading_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>trading_day (BOOL)</th><th>signups (LONG)</th></tr></thead><tbody><tr><td>false</td><td>1</td></tr><tr><td>true</td><td>9</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="date_part">date_part, extract</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">date_part(field, t)
+extract(field FROM t)
+extract(field, t)</code></pre>
+<p>Takes one part of a time: the year, the month, the hour, the weekday, the week number and so on. <code>date_part(&#39;month&#39;, &#39;2026-09-10&#39;)</code> is <code>9</code>. <code>extract(month FROM t)</code> is the SQL standard way to write the same thing; <code>extract(&#39;month&#39;, t)</code> also works.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>field</code></td><td>text (a word after <code>extract</code>)</td><td>the part you want; see the table below (any case, <code>years</code>, <code>months</code>, ... also work)</td></tr><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Gives</th><th>2026-09-10 05:20:30.250 UTC gives</th></tr></thead><tbody><tr><td><code>year</code></td><td>the year</td><td><code>2026</code></td></tr><tr><td><code>quarter</code></td><td>quarter of the year, 1-4</td><td><code>3</code></td></tr><tr><td><code>month</code></td><td>1-12</td><td><code>9</code></td></tr><tr><td><code>week</code></td><td>ISO week number, 1-53 (see <a href="#week_of_year">week_of_year</a>)</td><td><code>37</code></td></tr><tr><td><code>day</code></td><td>day of the month, 1-31</td><td><code>10</code></td></tr><tr><td><code>dow</code></td><td>weekday, <code>0</code> = Sunday ... <code>6</code> = Saturday</td><td><code>4</code></td></tr><tr><td><code>isodow</code></td><td>weekday, <code>1</code> = Monday ... <code>7</code> = Sunday</td><td><code>4</code></td></tr><tr><td><code>doy</code></td><td>day of the year, 1-366</td><td><code>253</code></td></tr><tr><td><code>hour</code></td><td>0-23</td><td><code>5</code></td></tr><tr><td><code>minute</code></td><td>0-59</td><td><code>20</code></td></tr><tr><td><code>second</code></td><td>seconds <strong>with</strong> the milliseconds, as a <code>DOUBLE</code></td><td><code>30.25</code></td></tr><tr><td><code>millisecond</code></td><td>the seconds counted in milliseconds, 0-59999</td><td><code>30250</code></td></tr><tr><td><code>epoch</code></td><td>seconds since 1970-01-01 UTC, as a <code>DOUBLE</code></td><td><code>1789017630.25</code></td></tr><tr><td><code>isoyear</code></td><td>the year the ISO week belongs to</td><td><code>2026</code></td></tr><tr><td><code>decade</code></td><td>the year / 10</td><td><code>202</code></td></tr><tr><td><code>century</code></td><td>the century</td><td><code>21</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>; <code>DOUBLE</code> for <code>second</code> and <code>epoch</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when <code>field</code> or <code>t</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> UTC, like every function on this page: add <code>20700000</code> for Nepal time. An unknown field is an error that lists the fields. <code>extract(field FROM t)</code> is PostgreSQL style; <code>date_part</code> has the same result.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT date_part(&#39;year&#39;, &#39;2026-09-10T05:20:30.250Z&#39;) AS year,
+       extract(month FROM &#39;2026-09-10T05:20:30.250Z&#39;) AS month,
+       extract(&#39;dow&#39;, &#39;2026-09-10&#39;) AS dow,
+       date_part(&#39;isodow&#39;, &#39;2026-09-13&#39;) AS isodow_sunday,
+       date_part(&#39;doy&#39;, CAST(&#39;2026-09-10&#39; AS DATE)) AS doy,
+       date_part(&#39;second&#39;, &#39;2026-09-10T05:20:30.250Z&#39;) AS second,
+       date_part(&#39;epoch&#39;, &#39;2026-09-10T00:00:00Z&#39;) AS epoch;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>year (LONG)</th><th>month (LONG)</th><th>dow (LONG)</th><th>isodow_sunday (LONG)</th><th>doy (LONG)</th><th>second (DOUBLE)</th><th>epoch (DOUBLE)</th></tr></thead><tbody><tr><td>2026</td><td>9</td><td>4</td><td>7</td><td>253</td><td>30.25</td><td>1788998400</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: App sales per year and quarter</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT extract(year FROM invoice_date) AS year, extract(quarter FROM invoice_date) AS quarter,
+       count(*) AS invoices, sum(amount) AS sales
+FROM invoices
+GROUP BY extract(year FROM invoice_date), extract(quarter FROM invoice_date)
+ORDER BY year, quarter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>year (LONG)</th><th>quarter (LONG)</th><th>invoices (LONG)</th><th>sales (DECIMAL(2))</th></tr></thead><tbody><tr><td>2025</td><td>2</td><td>1</td><td>12000.00</td></tr><tr><td>2025</td><td>3</td><td>3</td><td>15000.00</td></tr><tr><td>2025</td><td>4</td><td>1</td><td>4500.00</td></tr><tr><td>2026</td><td>1</td><td>2</td><td>13500.00</td></tr><tr><td>2026</td><td>2</td><td>1</td><td>4500.00</td></tr><tr><td>2026</td><td>3</td><td>4</td><td>30000.00</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Traded volume per Nepal weekday (0 = Sunday)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date_part(&#39;dow&#39;, time + 20700000) AS nepal_weekday, count(*) AS minutes, sum(volume) AS volume
+FROM ochl_minutes
+GROUP BY date_part(&#39;dow&#39;, time + 20700000)
+ORDER BY nepal_weekday;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_weekday (LONG)</th><th>minutes (LONG)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>3</td><td>480</td><td>368720</td></tr><tr><td>4</td><td>476</td><td>369240</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: An unknown field lists the fields you can use</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT date_part(&#39;fortnight&#39;, &#39;2026-09-10&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: date_part: unknown field &#39;fortnight&#39;; use year, quarter, month, week, day, dow, isodow, doy, hour, minute, second, millisecond, epoch, isoyear, decade or century</code></p>
+<h2 id="quarter">quarter</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">quarter(t)</code></pre>
+<p>The quarter of the year of the UTC date: <code>1</code> for January-March, <code>2</code> for April-June, <code>3</code> for July-September, <code>4</code> for October-December. For a fiscal year that does not start in January, use <a href="#fiscal_quarter">fiscal_quarter</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>quarter(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>date_part(&#39;quarter&#39;, t)</code> and <code>to_char(t, &#39;Q&#39;)</code>. For the first day of the quarter use <a href="#date_trunc">date_trunc</a><code>(&#39;quarter&#39;, t)</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT quarter(&#39;2026-01-01&#39;) AS jan, quarter(&#39;2026-06-30&#39;) AS jun, quarter(&#39;2026-09-10T05:15:00Z&#39;) AS sep, quarter(CAST(&#39;2026-12-31&#39; AS DATE)) AS dec;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>jan (LONG)</th><th>jun (LONG)</th><th>sep (LONG)</th><th>dec (LONG)</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Volume of every symbol per quarter</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT year(time) AS year, quarter(time) AS quarter, symbol, count(*) AS days, sum(volume) AS volume
+FROM ochl_day
+GROUP BY year(time), quarter(time), symbol
+ORDER BY year, quarter, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>year (LONG)</th><th>quarter (LONG)</th><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2025</td><td>4</td><td>CITY</td><td>4</td><td>255090</td></tr><tr><td>2025</td><td>4</td><td>COAST</td><td>4</td><td>206980</td></tr><tr><td>2025</td><td>4</td><td>VOLT</td><td>4</td><td>409650</td></tr><tr><td>2026</td><td>3</td><td>CITY</td><td>15</td><td>1731760</td></tr><tr><td>2026</td><td>3</td><td>COAST</td><td>15</td><td>1467530</td></tr><tr><td>2026</td><td>3</td><td>VOLT</td><td>15</td><td>1390380</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="day_of_year">day_of_year</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">day_of_year(t)</code></pre>
+<p>The day number in the year of the UTC date: <code>1</code> for 1 January, <code>365</code> for 31 December (<code>366</code> in a leap year).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>day_of_year(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>date_part(&#39;doy&#39;, t)</code>. Useful to compare the same day of different years (&quot;how far into the year are we?&quot;).</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT day_of_year(&#39;2026-01-01&#39;) AS first_day, day_of_year(&#39;2026-09-10&#39;) AS today, day_of_year(&#39;2026-12-31&#39;) AS last_day, day_of_year(CAST(&#39;2024-12-31&#39; AS DATE)) AS leap_year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_day (LONG)</th><th>today (LONG)</th><th>last_day (LONG)</th><th>leap_year (LONG)</th></tr></thead><tbody><tr><td>1</td><td>253</td><td>365</td><td>366</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How much of the year had passed on each candle day?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, day_of_year(time) AS day_no, round(day_of_year(time) * 100.0 / 365, 1) AS year_done_pct
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-08&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>day_no (LONG)</th><th>year_done_pct (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-08T00:00:00.000Z</td><td>251</td><td>68.8</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>252</td><td>69</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>253</td><td>69.3</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="week_of_year">week_of_year</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">week_of_year(t)</code></pre>
+<p>The <strong>ISO week number</strong> of the UTC date, from <code>1</code> to <code>53</code>. ISO weeks start on <strong>Monday</strong>, and week 1 is the week that has the first Thursday of the year. So the first days of January can be in week 52 or 53 of the year before, and the last days of December in week 1 of the next year.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>week_of_year(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> the same as <code>date_part(&#39;week&#39;, t)</code>. When you group by week across a new year, also group by <code>date_part(&#39;isoyear&#39;, t)</code>, not by <code>year(t)</code>. A Sunday-to-Thursday trading week (as on some exchanges) starts on Sunday: for that, use <a href="#date_trunc">date_trunc</a><code>(&#39;week&#39;, t)</code> instead.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT week_of_year(&#39;2026-09-10&#39;) AS thursday, week_of_year(&#39;2026-01-01&#39;) AS new_year_2026,
+       week_of_year(&#39;2027-01-01&#39;) AS new_year_2027, date_part(&#39;isoyear&#39;, &#39;2027-01-01&#39;) AS its_iso_year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>thursday (LONG)</th><th>new_year_2026 (LONG)</th><th>new_year_2027 (LONG)</th><th>its_iso_year (LONG)</th></tr></thead><tbody><tr><td>37</td><td>1</td><td>53</td><td>2026</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Forum posts per ISO week</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT date_part(&#39;isoyear&#39;, created_at) AS iso_year, week_of_year(created_at) AS week, count(*) AS posts
+FROM forum_posts
+GROUP BY date_part(&#39;isoyear&#39;, created_at), week_of_year(created_at)
+ORDER BY iso_year, week;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>iso_year (LONG)</th><th>week (LONG)</th><th>posts (LONG)</th></tr></thead><tbody><tr><td>2026</td><td>33</td><td>1</td></tr><tr><td>2026</td><td>34</td><td>3</td></tr><tr><td>2026</td><td>35</td><td>4</td></tr><tr><td>2026</td><td>36</td><td>3</td></tr><tr><td>2026</td><td>37</td><td>3</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="date_trunc">date_trunc</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">date_trunc(unit, t)
+date_trunc(unit, t, time_zone)</code></pre>
+<p>Cuts the time down to the start of its year, month, week, day, hour, minute or second. <code>date_trunc(&#39;month&#39;, &#39;2026-09-10T08:30:00Z&#39;)</code> is <code>2026-09-01T00:00:00.000Z</code>. Use it to put rows into groups by time.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>unit</code></td><td>text</td><td><code>&#39;year&#39;</code>, <code>&#39;quarter&#39;</code>, <code>&#39;month&#39;</code>, <code>&#39;week&#39;</code>, <code>&#39;day&#39;</code>, <code>&#39;hour&#39;</code>, <code>&#39;minute&#39;</code>, <code>&#39;second&#39;</code> or <code>&#39;ms&#39;</code> (any case). Short and plural forms also work: <code>&#39;d&#39;</code>, <code>&#39;h&#39;</code>, <code>&#39;m&#39;</code> (minute), <code>&#39;s&#39;</code>, <code>&#39;days&#39;</code>, <code>&#39;hours&#39;</code>, ...</td></tr><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr><tr><td><code>time_zone</code></td><td>text</td><td>optional: cut on this zone&#39;s clock, like <code>&#39;Asia/Kathmandu&#39;</code> or <code>&#39;+05:45&#39;</code> (the PostgreSQL form). The <a href="time-and-time-zones.html#time-zone-names">zone names</a> are the same as for SAMPLE BY.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a <code>DATE</code> when <code>t</code> is a <code>DATE</code> and there is no zone; else a <code>TIMESTAMP</code>. With a zone the result is the start on that clock, as a UTC time: <code>date_trunc(&#39;day&#39;, &#39;2026-09-10T02:00:00Z&#39;, &#39;Asia/Kathmandu&#39;)</code> is <code>2026-09-09T18:15:00.000Z</code> (Nepal midnight of 10 Sep).</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>Without a zone: the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a>, which is UTC unless set. Then <code>date_trunc(&#39;day&#39;, ...)</code> gives UTC midnight, which is 05:45 in Nepal. Give the zone, or <code>SET TIME ZONE &#39;Asia/Kathmandu&#39;</code>, for Nepal days, as <a href="sample-by.html#time-zone">SAMPLE BY ... TIME ZONE</a> does.</li><li>Zones that change for summer time (like <code>Europe/London</code>) are refused.</li><li><code>&#39;week&#39;</code> starts on <strong>Sunday</strong> (as in a Sunday-to-Thursday trading week).</li><li>Careful: <code>&#39;w&#39;</code> and <code>&#39;weeks&#39;</code> are not the same as <code>&#39;week&#39;</code>. They make 7-day steps counted from 1970-01-01, which was a Thursday, so they start on Thursday.</li><li><code>&#39;m&#39;</code> is a minute, not a month. <code>&#39;quarter&#39;</code> gives 1 January, 1 April, 1 July or 1 October (only this spelling; for the quarter number use <a href="#quarter">quarter</a>).</li><li>For candles of any size (15 minutes, 1 hour) use <a href="sample-by.html">SAMPLE BY</a>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;year&#39;, &#39;2026-09-10T08:30:00Z&#39;) AS year, date_trunc(&#39;month&#39;, &#39;2026-09-10T08:30:00Z&#39;) AS month, date_trunc(&#39;week&#39;, &#39;2026-09-10T08:30:00Z&#39;) AS week_sunday, date_trunc(&#39;hour&#39;, &#39;2026-09-10T08:30:00Z&#39;) AS hour, date_trunc(&#39;month&#39;, CAST(&#39;2026-09-10&#39; AS DATE)) AS date_stays_date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>year (TIMESTAMP)</th><th>month (TIMESTAMP)</th><th>week_sunday (TIMESTAMP)</th><th>hour (TIMESTAMP)</th><th>date_stays_date (DATE)</th></tr></thead><tbody><tr><td>2026-01-01T00:00:00.000Z</td><td>2026-09-01T00:00:00.000Z</td><td>2026-09-06T00:00:00.000Z</td><td>2026-09-10T08:00:00.000Z</td><td>2026-09-01</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Forum posts per week</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;week&#39;, created_at) AS week, count(*) AS posts, count(DISTINCT author) AS authors
+FROM forum_posts
+GROUP BY date_trunc(&#39;week&#39;, created_at)
+ORDER BY week;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>week (TIMESTAMP)</th><th>posts (LONG)</th><th>authors (LONG)</th></tr></thead><tbody><tr><td>2026-08-16T00:00:00.000Z</td><td>3</td><td>3</td></tr><tr><td>2026-08-23T00:00:00.000Z</td><td>4</td><td>4</td></tr><tr><td>2026-08-30T00:00:00.000Z</td><td>3</td><td>3</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>4</td><td>4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Monthly candles of CITY from daily candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;month&#39;, time) AS month,
+       first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+GROUP BY date_trunc(&#39;month&#39;, time)
+ORDER BY month;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>month (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>540.3</td><td>546.2</td><td>536.4</td><td>542.4</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>505</td><td>517</td><td>500.1</td><td>505.7</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>504.9</td><td>512.4</td><td>494.1</td><td>504.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: &#39;week&#39; and &#39;w&#39; are different</strong></p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;week&#39;, &#39;2026-09-10&#39;) AS week_from_sunday, date_trunc(&#39;w&#39;, &#39;2026-09-10&#39;) AS w_from_thursday;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>week_from_sunday (TIMESTAMP)</th><th>w_from_thursday (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Start of the quarter: sales per quarter</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;quarter&#39;, invoice_date) AS quarter_start, count(*) AS invoices, sum(amount) AS sales
+FROM invoices
+GROUP BY date_trunc(&#39;quarter&#39;, invoice_date)
+ORDER BY quarter_start;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>quarter_start (TIMESTAMP)</th><th>invoices (LONG)</th><th>sales (DECIMAL(2))</th></tr></thead><tbody><tr><td>2025-04-01T00:00:00.000Z</td><td>1</td><td>12000.00</td></tr><tr><td>2025-07-01T00:00:00.000Z</td><td>3</td><td>15000.00</td></tr><tr><td>2025-10-01T00:00:00.000Z</td><td>1</td><td>4500.00</td></tr><tr><td>2026-01-01T00:00:00.000Z</td><td>2</td><td>13500.00</td></tr><tr><td>2026-04-01T00:00:00.000Z</td><td>1</td><td>4500.00</td></tr><tr><td>2026-07-01T00:00:00.000Z</td><td>4</td><td>30000.00</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Decade is not a unit</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;decade&#39;, &#39;2026-09-10&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: date_trunc: unit must be year, month, week, day, hour, minute, second or ms</code></p>
+<p><strong>Example: The UTC day and the Nepal day of the same moments</strong></p>
+<pre><code class="language-sql">SELECT t, date_trunc(&#39;day&#39;, t) AS utc_midnight, date_trunc(&#39;day&#39;, t, &#39;Asia/Kathmandu&#39;) AS nepal_midnight,
+       date_trunc(&#39;month&#39;, t, &#39;Asia/Kathmandu&#39;) AS nepal_month
+FROM (SELECT CAST(&#39;2026-09-09T20:00:00Z&#39; AS TIMESTAMP) AS t
+      UNION ALL SELECT CAST(&#39;2026-08-31T19:00:00Z&#39; AS TIMESTAMP)) x
+ORDER BY t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>t (TIMESTAMP)</th><th>utc_midnight (TIMESTAMP)</th><th>nepal_midnight (TIMESTAMP)</th><th>nepal_month (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-08-31T19:00:00.000Z</td><td>2026-08-31T00:00:00.000Z</td><td>2026-08-31T18:15:00.000Z</td><td>2026-08-31T18:15:00.000Z</td></tr><tr><td>2026-09-09T20:00:00.000Z</td><td>2026-09-09T00:00:00.000Z</td><td>2026-09-09T18:15:00.000Z</td><td>2026-08-31T18:15:00.000Z</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Sign-ups per Nepal day, as times</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT date_trunc(&#39;day&#39;, created_at, &#39;Asia/Kathmandu&#39;) AS nepal_day, count(*) AS signups
+FROM signups
+GROUP BY date_trunc(&#39;day&#39;, created_at, &#39;Asia/Kathmandu&#39;)
+ORDER BY nepal_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_day (TIMESTAMP)</th><th>signups (LONG)</th></tr></thead><tbody><tr><td>2026-08-31T18:15:00.000Z</td><td>3</td></tr><tr><td>2026-09-01T18:15:00.000Z</td><td>2</td></tr><tr><td>2026-09-02T18:15:00.000Z</td><td>3</td></tr><tr><td>2026-09-03T18:15:00.000Z</td><td>1</td></tr><tr><td>2026-09-05T18:15:00.000Z</td><td>1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="timestamp_floor">timestamp_floor</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">timestamp_floor(unit, t)
+timestamp_floor(unit, t, time_zone)
+timestamp_floor(unit, t, origin)</code></pre>
+<p>The QuestDB function: cuts the time down to a whole number of units. <code>timestamp_floor(&#39;15m&#39;, &#39;2026-09-10T05:22:10Z&#39;)</code> is <code>2026-09-10T05:15:00.000Z</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>unit</code></td><td>text</td><td>an optional count and one letter: <code>T</code> millisecond, <code>s</code> second, <code>m</code> minute, <code>h</code> hour, <code>d</code> day, <code>w</code> week, <code>M</code> month, <code>y</code> year. <code>&#39;15m&#39;</code>, <code>&#39;4h&#39;</code>, <code>&#39;1d&#39;</code>, <code>&#39;M&#39;</code>. Upper and lower case matter (<code>m</code> minute, <code>M</code> month).</td></tr><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr><tr><td><code>time_zone</code></td><td>text</td><td>optional: cut on this zone&#39;s clock, like <code>&#39;Asia/Kathmandu&#39;</code> or <code>&#39;+05:45&#39;</code></td></tr><tr><td><code>origin</code></td><td>a time</td><td>optional instead of a zone: count the units from this time, not from 1970-01-01</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>, in UTC. With a zone it is the start on that clock: <code>timestamp_floor(&#39;1d&#39;, t, &#39;Asia/Kathmandu&#39;)</code> is Nepal midnight, shown as 18:15 UTC the day before.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>Counts start at 1970-01-01 00:00 (on the zone&#39;s clock when one is given): <code>&#39;2d&#39;</code> gives days 0, 2, 4, ... from then, <code>&#39;3M&#39;</code> gives January, April, July and October. Weeks start on <strong>Monday</strong>; for Sunday weeks use <a href="#date_trunc">date_trunc</a><code>(&#39;week&#39;, t)</code> or <a href="sample-by.html#week-start">SAMPLE BY ... WEEK START SUNDAY</a>.</li><li><code>U</code> (microseconds) is not a unit: KDB keeps milliseconds.</li><li>For candles, <a href="sample-by.html">SAMPLE BY</a> does the same cut and the aggregates in one step.</li></ul></li></ul>
+<p><strong>Example: Cut one moment by several units</strong></p>
+<pre><code class="language-sql">SELECT timestamp_floor(&#39;15m&#39;, &#39;2026-09-10T05:22:10Z&#39;) AS quarter_hour,
+       timestamp_floor(&#39;1d&#39;, &#39;2026-09-09T20:00:00Z&#39;) AS utc_day,
+       timestamp_floor(&#39;1d&#39;, &#39;2026-09-09T20:00:00Z&#39;, &#39;Asia/Kathmandu&#39;) AS nepal_day,
+       timestamp_floor(&#39;w&#39;, &#39;2026-09-10T05:00:00Z&#39;) AS monday,
+       timestamp_floor(&#39;3M&#39;, &#39;2026-09-10T05:00:00Z&#39;) AS quarter_month,
+       timestamp_floor(&#39;2d&#39;, &#39;2026-09-10T05:00:00Z&#39;, &#39;2026-09-01&#39;) AS two_days_from_sep_1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>quarter_hour (TIMESTAMP)</th><th>utc_day (TIMESTAMP)</th><th>nepal_day (TIMESTAMP)</th><th>monday (TIMESTAMP)</th><th>quarter_month (TIMESTAMP)</th><th>two_days_from_sep_1 (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>2026-09-09T00:00:00.000Z</td><td>2026-09-09T18:15:00.000Z</td><td>2026-09-07T00:00:00.000Z</td><td>2026-07-01T00:00:00.000Z</td><td>2026-09-09T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Nepal-hour candles with timestamp_floor, like SAMPLE BY 1h TIME ZONE</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT timestamp_floor(&#39;1h&#39;, time, &#39;Asia/Kathmandu&#39;) AS hour, first(open) AS open, last(close) AS close, count(*) AS minutes
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+GROUP BY timestamp_floor(&#39;1h&#39;, time, &#39;Asia/Kathmandu&#39;)
+ORDER BY hour;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>hour (TIMESTAMP)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>minutes (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>504.6</td><td>505.3</td><td>60</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>505.3</td><td>502.7</td><td>60</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>502.7</td><td>502.6</td><td>60</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>502.6</td><td>504.9</td><td>60</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: An unknown unit</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT timestamp_floor(&#39;1x&#39;, &#39;2026-09-10&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: timestamp_floor: unit must be T, s, m, h, d, w, M or y with an optional count, like &#39;15m&#39; or &#39;1d&#39;; got &#39;1x&#39;</code></p>
+<p><code>timestamp_floor_utc(unit, t [, zone])</code> is QuestDB&#39;s name for the same function: its answer is in UTC, and KDB&#39;s always is.</p>
+<h2 id="timestamp_ceil">timestamp_ceil</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">timestamp_ceil(unit, t)
+timestamp_ceil(unit, t, time_zone)
+timestamp_ceil(unit, t, origin)</code></pre>
+<p>The QuestDB function: moves the time <strong>up</strong> to the next whole unit. A time that is already on a whole unit stays as it is: <code>timestamp_ceil(&#39;1h&#39;, &#39;06:00&#39;)</code> is <code>06:00</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>unit</code></td><td>text</td><td>as for <a href="#timestamp_floor">timestamp_floor</a>: <code>&#39;15m&#39;</code>, <code>&#39;1h&#39;</code>, <code>&#39;1d&#39;</code>, <code>&#39;M&#39;</code>, ...</td></tr><tr><td><code>t</code></td><td>a time</td><td>the time</td></tr><tr><td><code>time_zone</code> or <code>origin</code></td><td>text or a time</td><td>optional, as for <a href="#timestamp_floor">timestamp_floor</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>, in UTC.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li></ul>
+<p><strong>Example: Round up to the quarter hour, the day and the month</strong></p>
+<pre><code class="language-sql">SELECT timestamp_ceil(&#39;15m&#39;, &#39;2026-09-10T05:22:10Z&#39;) AS quarter_hour,
+       timestamp_ceil(&#39;15m&#39;, &#39;2026-09-10T05:30:00Z&#39;) AS already_whole,
+       timestamp_ceil(&#39;1d&#39;, &#39;2026-09-10T05:22:10Z&#39;) AS next_midnight,
+       timestamp_ceil(&#39;M&#39;, &#39;2026-09-10T05:22:10Z&#39;) AS next_month;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>quarter_hour (TIMESTAMP)</th><th>already_whole (TIMESTAMP)</th><th>next_midnight (TIMESTAMP)</th><th>next_month (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T05:30:00.000Z</td><td>2026-09-10T05:30:00.000Z</td><td>2026-09-11T00:00:00.000Z</td><td>2026-10-01T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="today">today, yesterday, tomorrow</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">today()
+today(time_zone)
+today(t)
+yesterday(...)
+tomorrow(...)</code></pre>
+<p>QuestDB&#39;s day intervals: the whole day, from 00:00 to 23:59:59.999. Use them after <code>IN</code>: <code>WHERE time IN today()</code> (<a href="where.html#interval-lists">interval lists</a>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>time_zone</code></td><td>text</td><td>optional: the day on this zone&#39;s clock, like <code>&#39;Asia/Kathmandu&#39;</code></td></tr><tr><td><code>t</code></td><td>a time</td><td>optional: the day of this time instead of now</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the interval as text, <code>(&#39;2026-09-10T00:00:00.000Z&#39;, &#39;2026-09-10T23:59:59.999Z&#39;)</code>. <a href="#interval">interval_start and interval_end</a> take the two ends out.</li><li><strong>Notes:</strong> the day is taken once, when the statement starts.</li></ul>
+<p><strong>Example: Today&#39;s rows, and the start of tomorrow</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS rows_today, interval_start(tomorrow()) AS tomorrow_starts
+FROM live_data WHERE timestamp IN today();</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rows_today (LONG)</th><th>tomorrow_starts (TIMESTAMP)</th></tr></thead><tbody><tr><td>0</td><td>2026-10-23T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The day of a given time, and the day before it</strong></p>
+<pre><code class="language-sql">SELECT today(&#39;2026-09-10T20:00:00Z&#39;) AS that_day, interval_start(yesterday(&#39;2026-09-10T20:00:00Z&#39;)) AS day_before;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>that_day (STRING)</th><th>day_before (TIMESTAMP)</th></tr></thead><tbody><tr><td>(&#39;2026-09-10T00:00:00.000Z&#39;, &#39;2026-09-10T23:59:59.999Z&#39;)</td><td>2026-09-09T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="interval">interval, interval_start, interval_end</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">interval(from, to)
+interval_start(an_interval)
+interval_end(an_interval)</code></pre>
+<p><code>interval</code> makes a QuestDB interval from two times, both included. <code>interval_start</code> and <code>interval_end</code> give its first and last moment.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>from</code>, <code>to</code></td><td>a time</td><td>the first and the last moment; <code>to</code> must not be before <code>from</code></td></tr><tr><td><code>an_interval</code></td><td>text</td><td>an interval from <code>interval()</code>, <code>today()</code>, <code>yesterday()</code> or <code>tomorrow()</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>interval</code> gives text <code>(&#39;from&#39;, &#39;to&#39;)</code>; <code>interval_start</code> and <code>interval_end</code> give a <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li></ul>
+<p><strong>Example: An interval and its two ends</strong></p>
+<pre><code class="language-sql">SELECT interval(&#39;2026-09-10T05:15:00Z&#39;, &#39;2026-09-10T09:15:00Z&#39;) AS session,
+       interval_start(interval(&#39;2026-09-10T05:15:00Z&#39;, &#39;2026-09-10T09:15:00Z&#39;)) AS opens,
+       interval_end(interval(&#39;2026-09-10T05:15:00Z&#39;, &#39;2026-09-10T09:15:00Z&#39;)) AS closes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>session (STRING)</th><th>opens (TIMESTAMP)</th><th>closes (TIMESTAMP)</th></tr></thead><tbody><tr><td>(&#39;2026-09-10T05:15:00.000Z&#39;, &#39;2026-09-10T09:15:00.000Z&#39;)</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T09:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The end must not be before the start</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT interval(&#39;2026-09-10&#39;, &#39;2026-09-09&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: interval: the end 2026-09-09T00:00:00.000Z is before the start 2026-09-10T00:00:00.000Z</code></p>
+<h2 id="days_in_month">days_in_month, is_leap_year, is_end_of_month, day_of_week_sunday_first, millis, to_pg_date</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">days_in_month(t)
+is_leap_year(t)
+is_leap_year(year)
+is_end_of_month(t)
+day_of_week_sunday_first(t)
+millis(t)
+to_pg_date(t)</code></pre>
+<p>Small QuestDB calendar functions.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th></tr></thead><tbody><tr><td><code>days_in_month(t)</code></td><td>the days in the month of <code>t</code>: 28 to 31</td></tr><tr><td><code>is_leap_year(t)</code></td><td><code>true</code> when the year of <code>t</code> (or the year number) has 29 February</td></tr><tr><td><code>is_end_of_month(t)</code></td><td><code>true</code> on the last day of the month</td></tr><tr><td><code>day_of_week_sunday_first(t)</code></td><td>1 Sunday, 2 Monday, ... 7 Saturday</td></tr><tr><td><code>millis(t)</code></td><td>the milliseconds of the second: 0 to 999</td></tr><tr><td><code>to_pg_date(t)</code></td><td>the day of <code>t</code> as a <code>DATE</code></td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> <code>NULL</code> for a <code>NULL</code> argument.</li><li><strong>Notes:</strong> the day is taken on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s time zone</a>, as for <a href="#day_of_week">day_of_week</a>. KDB&#39;s own <code>day_of_week</code> is 0 Sunday to 6 Saturday; a database set to the QuestDB dialect numbers it as QuestDB does, 1 Monday to 7 Sunday.</li></ul>
+<p><strong>Example: Facts about a date</strong></p>
+<pre><code class="language-sql">SELECT days_in_month(&#39;2028-02-10&#39;) AS feb_2028_days,
+       is_leap_year(&#39;2028-02-10&#39;) AS leap_2028,
+       is_leap_year(2026) AS leap_2026,
+       is_end_of_month(&#39;2026-09-30&#39;) AS month_end,
+       day_of_week_sunday_first(&#39;2026-09-27&#39;) AS sunday,
+       millis(&#39;2026-09-10T05:15:00.250Z&#39;) AS ms,
+       to_pg_date(&#39;2026-09-10T20:00:00Z&#39;) AS day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>feb_2028_days (LONG)</th><th>leap_2028 (BOOL)</th><th>leap_2026 (BOOL)</th><th>month_end (BOOL)</th><th>sunday (LONG)</th><th>ms (LONG)</th><th>day (DATE)</th></tr></thead><tbody><tr><td>29</td><td>true</td><td>false</td><td>true</td><td>1</td><td>250</td><td>2026-09-10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="sysdate">sysdate</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sysdate()</code></pre>
+<p>QuestDB&#39;s clock: the time now, the same as <a href="#now">now</a><code>()</code>.</p>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code> (KDB keeps milliseconds, which is what QuestDB&#39;s <code>DATE</code> holds).</li></ul>
+<p><strong>Example: sysdate is now</strong></p>
+<pre><code class="language-sql">SELECT sysdate() = now() AS same;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>same (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="timestamp_sequence">timestamp_sequence, timestamp_shuffle</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">timestamp_sequence(start, step_microseconds)
+timestamp_shuffle(from, to)</code></pre>
+<p>QuestDB&#39;s test-data helpers. <code>timestamp_sequence</code> gives <code>start</code> on the first row, <code>start + step</code> on the next, and so on. <code>timestamp_shuffle</code> gives a random time from <code>from</code> to <code>to</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>start</code></td><td>a time</td><td>the first time</td></tr><tr><td><code>step_microseconds</code></td><td>whole number</td><td>the step, in <strong>microseconds</strong> as in QuestDB (<code>60000000</code> is one minute); KDB keeps milliseconds, so the time is cut to the millisecond</td></tr><tr><td><code>from</code>, <code>to</code></td><td>a time</td><td>the range for a random time, both ends included</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>Notes:</strong> each use of <code>timestamp_sequence</code> in a query counts its own rows.</li></ul>
+<p><strong>Example: One row a minute, with long_sequence</strong></p>
+<pre><code class="language-sql">SELECT x, timestamp_sequence(&#39;2026-09-10T05:15:00Z&#39;, 60000000) AS time
+FROM long_sequence(4);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>x (LONG)</th><th>time (TIMESTAMP)</th></tr></thead><tbody><tr><td>1</td><td>2026-09-10T05:15:00.000Z</td></tr><tr><td>2</td><td>2026-09-10T05:16:00.000Z</td></tr><tr><td>3</td><td>2026-09-10T05:17:00.000Z</td></tr><tr><td>4</td><td>2026-09-10T05:18:00.000Z</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Random times in one day</strong></p>
+<pre><code class="language-sql">SELECT count(*) AS inside FROM (SELECT timestamp_shuffle(&#39;2026-09-10&#39;, &#39;2026-09-11&#39;) AS t FROM long_sequence(100)) s
+WHERE t &gt;= &#39;2026-09-10&#39; AND t &lt;= &#39;2026-09-11&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>inside (LONG)</th></tr></thead><tbody><tr><td>100</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="to_timezone">to_timezone, to_utc</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_timezone(t, time_zone)
+to_utc(t, time_zone)</code></pre>
+<p>The QuestDB functions. <code>to_timezone</code> shows a UTC time on the clock of a zone: <code>to_timezone(&#39;2026-09-10T05:15:00Z&#39;, &#39;Asia/Kathmandu&#39;)</code> is <code>2026-09-10T11:00:00.000Z</code>. <code>to_utc</code> is the other way round: it reads <code>t</code> as that zone&#39;s clock and gives the UTC time.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr><tr><td><code>time_zone</code></td><td>text</td><td>a zone name like <code>&#39;Asia/Kathmandu&#39;</code>, or an offset like <code>&#39;+05:45&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>The result of <code>to_timezone</code> holds the Nepal clock time but still ends with <code>Z</code>. Use it for <code>hour()</code>, <code>day()</code> and showing, not to store.</li><li><code>to_utc(t, &#39;Asia/Kathmandu&#39;)</code> is the same as <code>t AT TIME ZONE &#39;Asia/Kathmandu&#39;</code>.</li><li>Zones that change for summer time are refused.</li></ul></li></ul>
+<p><strong>Example: UTC to the Nepal clock and back</strong></p>
+<pre><code class="language-sql">SELECT to_timezone(&#39;2026-09-10T05:15:00Z&#39;, &#39;Asia/Kathmandu&#39;) AS nepal_clock,
+       to_utc(&#39;2026-09-10T11:00:00Z&#39;, &#39;Asia/Kathmandu&#39;) AS utc,
+       hour(to_timezone(&#39;2026-09-10T05:15:00Z&#39;, &#39;Asia/Kathmandu&#39;)) AS nepal_hour;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_clock (TIMESTAMP)</th><th>utc (TIMESTAMP)</th><th>nepal_hour (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T11:00:00.000Z</td><td>2026-09-10T05:15:00.000Z</td><td>11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A zone with summer time: London is +01:00 in September, +00:00 in January</strong></p>
+<pre><code class="language-sql">SELECT to_timezone(&#39;2026-09-10T05:15:00Z&#39;, &#39;Europe/London&#39;) AS september, to_timezone(&#39;2026-01-10T05:15:00Z&#39;, &#39;Europe/London&#39;) AS january;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>september (TIMESTAMP)</th><th>january (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T06:15:00.000Z</td><td>2026-01-10T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="last_day">last_day</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">last_day(t)</code></pre>
+<p>The <strong>last day of the month</strong> of the UTC date: <code>last_day(&#39;2026-02-10&#39;)</code> is <code>2026-02-28</code>. Accountants use it for the month-end date of a report (like Excel <code>EOMONTH(date, 0)</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DATE</code>, also for a <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> <code>last_day(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> knows leap years (29 February). For the first day of the month use <a href="#date_trunc">date_trunc</a><code>(&#39;month&#39;, t)</code>. For the month end of the next month: <code>last_day(dateadd(&#39;month&#39;, 1, t))</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT last_day(&#39;2026-02-10&#39;) AS feb, last_day(&#39;2028-02-10T10:00:00Z&#39;) AS leap_feb, last_day(CAST(&#39;2026-09-10&#39; AS DATE)) AS sep,
+       last_day(dateadd(&#39;month&#39;, 1, &#39;2026-09-10&#39;)) AS next_month_end;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>feb (DATE)</th><th>leap_feb (DATE)</th><th>sep (DATE)</th><th>next_month_end (DATE)</th></tr></thead><tbody><tr><td>2026-02-28</td><td>2028-02-29</td><td>2026-09-30</td><td>2026-10-31</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Month-end report date of every invoice</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT last_day(invoice_date) AS month_end, count(*) AS invoices, sum(amount) AS sales
+FROM invoices
+WHERE invoice_date &gt;= &#39;2026-01-01&#39;
+GROUP BY last_day(invoice_date)
+ORDER BY month_end;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>month_end (DATE)</th><th>invoices (LONG)</th><th>sales (DECIMAL(2))</th></tr></thead><tbody><tr><td>2026-01-31</td><td>1</td><td>1500.00</td></tr><tr><td>2026-03-31</td><td>1</td><td>12000.00</td></tr><tr><td>2026-05-31</td><td>1</td><td>4500.00</td></tr><tr><td>2026-07-31</td><td>2</td><td>13500.00</td></tr><tr><td>2026-08-31</td><td>1</td><td>4500.00</td></tr><tr><td>2026-09-30</td><td>1</td><td>12000.00</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="dateadd">dateadd</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">dateadd(unit, amount, t)</code></pre>
+<p>Adds <code>amount</code> units to the time. A negative amount goes back. <code>dateadd(&#39;d&#39;, 7, &#39;2026-09-10&#39;)</code> is one week later.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>unit</code></td><td>text</td><td><code>&#39;y&#39;</code> (years), <code>&#39;month&#39;</code> or <code>&#39;mo&#39;</code> (months), <code>&#39;w&#39;</code> (weeks), <code>&#39;d&#39;</code> (days), <code>&#39;h&#39;</code> (hours), <code>&#39;m&#39;</code> (minutes), <code>&#39;s&#39;</code> (seconds), <code>&#39;ms&#39;</code>. Long forms also work: <code>&#39;year&#39;</code>, <code>&#39;months&#39;</code>, <code>&#39;week&#39;</code>, <code>&#39;day&#39;</code>, <code>&#39;hour&#39;</code>, <code>&#39;minute&#39;</code>, ... (any case)</td></tr><tr><td><code>amount</code></td><td>whole number</td><td>how many units; negative to go back</td></tr><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the start time</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a <code>DATE</code> when <code>t</code> is a <code>DATE</code>; else a <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>Months and years follow the calendar. When the day does not exist in the new month, you get the last day of that month: 31 January + 1 month is 28 February.</li><li><code>&#39;m&#39;</code> is minutes. Write <code>&#39;month&#39;</code> or <code>&#39;mo&#39;</code> for months.</li><li>With a <code>DATE</code>, the result is a <code>DATE</code>, so hours are cut off: <code>dateadd(&#39;h&#39;, 30, date)</code> gives the next day.</li><li><code>amount</code> must be a whole number: <code>1.5</code> is an error. For 1.5 days use <code>36</code> hours.</li><li>A <code>TIMESTAMP</code> plus a number of milliseconds (<code>time + 3600000</code>) also works; see <a href="functions-math.html#operators">arithmetic operators</a>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT dateadd(&#39;d&#39;, 7, &#39;2026-09-10T05:15:00Z&#39;) AS next_week, dateadd(&#39;month&#39;, 1, &#39;2026-01-31&#39;) AS end_of_feb, dateadd(&#39;y&#39;, 1, CAST(&#39;2024-02-29&#39; AS DATE)) AS leap_day_plus_year, dateadd(&#39;m&#39;, -90, &#39;2026-09-10T05:15:00Z&#39;) AS minus_90_minutes, dateadd(&#39;h&#39;, 30, CAST(&#39;2026-09-10&#39; AS DATE)) AS date_stays_date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>next_week (TIMESTAMP)</th><th>end_of_feb (TIMESTAMP)</th><th>leap_day_plus_year (DATE)</th><th>minus_90_minutes (TIMESTAMP)</th><th>date_stays_date (DATE)</th></tr></thead><tbody><tr><td>2026-09-17T05:15:00.000Z</td><td>2026-02-28T00:00:00.000Z</td><td>2025-02-28</td><td>2026-09-10T03:45:00.000Z</td><td>2026-09-11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: When does the 7-day free trial of each new user end?</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT id, email, created_at, dateadd(&#39;d&#39;, 7, created_at) AS trial_ends
+FROM signups
+WHERE created_at &gt;= &#39;2026-09-03&#39;
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>created_at (TIMESTAMP)</th><th>trial_ends (TIMESTAMP)</th></tr></thead><tbody><tr><td>6</td><td>anita@hotmail.com</td><td>2026-09-03T02:35:00.000Z</td><td>2026-09-10T02:35:00.000Z</td></tr><tr><td>7</td><td>suman@gmail.com</td><td>2026-09-03T14:00:00.000Z</td><td>2026-09-10T14:00:00.000Z</td></tr><tr><td>8</td><td>maya@gmail.com</td><td>2026-09-03T18:05:00.000Z</td><td>2026-09-10T18:05:00.000Z</td></tr><tr><td>9</td><td>kiran@gmail.com</td><td>2026-09-04T04:25:00.000Z</td><td>2026-09-11T04:25:00.000Z</td></tr><tr><td>10</td><td>nabin@yahoo.com</td><td>2026-09-06T06:15:00.000Z</td><td>2026-09-13T06:15:00.000Z</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The 10-year listing anniversary of each company</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT symbol, listed_on, dateadd(&#39;y&#39;, 10, listed_on) AS ten_years
+FROM listings
+ORDER BY listed_on;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>listed_on (DATE)</th><th>ten_years (DATE)</th></tr></thead><tbody><tr><td>CITY</td><td>1986-01-01</td><td>1996-01-01</td></tr><tr><td>COAST</td><td>1998-07-28</td><td>2008-07-28</td></tr><tr><td>TELCO</td><td>2008-07-11</td><td>2018-07-11</td></tr><tr><td>ACME</td><td>2015-05-08</td><td>2025-05-08</td></tr><tr><td>VOLT</td><td>2019-08-28</td><td>2029-08-28</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The amount must be a whole number</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT dateadd(&#39;d&#39;, 1.5, &#39;2026-09-10&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: dateadd: the amount must be a whole number</code></p>
+<h2 id="datediff">datediff</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">datediff(unit, from, to)</code></pre>
+<p>How many whole units there are from <code>from</code> to <code>to</code>. <code>datediff(&#39;d&#39;, &#39;2026-09-01&#39;, &#39;2026-09-10&#39;)</code> is <code>9</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>unit</code></td><td>text</td><td><code>&#39;y&#39;</code> (years), <code>&#39;month&#39;</code> or <code>&#39;mo&#39;</code> (months), <code>&#39;w&#39;</code> (weeks), <code>&#39;d&#39;</code> (days), <code>&#39;h&#39;</code> (hours), <code>&#39;m&#39;</code> (minutes), <code>&#39;s&#39;</code> (seconds), <code>&#39;ms&#39;</code>; long forms like <code>&#39;year&#39;</code>, <code>&#39;months&#39;</code>, <code>&#39;day&#39;</code>, <code>&#39;hours&#39;</code> also work</td></tr><tr><td><code>from</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the start</td></tr><tr><td><code>to</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the end</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>The result is negative when <code>to</code> is before <code>from</code>.</li><li>Parts are dropped, not rounded: 5 hours 59 minutes is <code>5</code> hours. For a negative result they are dropped toward zero (<code>-5</code>, not <code>-6</code>).</li><li>Months and years count <strong>whole calendar months</strong>, like <a href="#dateadd">dateadd</a>: from 10 January 10:00 to 10 February 09:00 is <code>0</code> months (one hour short), and from 31 January to 28 February is <code>1</code> month (the month end is reached). Years are whole months / 12. For the months, days and hours together use <a href="#age">age</a>.</li><li>The order of the arguments is like SQL Server (<code>unit, from, to</code>).</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT datediff(&#39;d&#39;, &#39;2026-09-01&#39;, &#39;2026-09-10&#39;) AS days, datediff(&#39;d&#39;, &#39;2026-09-10&#39;, &#39;2026-09-01&#39;) AS negative, datediff(&#39;h&#39;, &#39;2026-09-10T00:00:00Z&#39;, &#39;2026-09-10T05:59:00Z&#39;) AS hours_cut, datediff(&#39;m&#39;, &#39;2026-09-10T11:00:00+05:45&#39;, &#39;2026-09-10T15:00:00+05:45&#39;) AS market_minutes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>days (LONG)</th><th>negative (LONG)</th><th>hours_cut (LONG)</th><th>market_minutes (LONG)</th></tr></thead><tbody><tr><td>9</td><td>-9</td><td>5</td><td>240</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How long each company has been listed (up to 2026-09-11)</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT symbol, listed_on,
+       datediff(&#39;d&#39;, listed_on, &#39;2026-09-11&#39;) AS days,
+       datediff(&#39;w&#39;, listed_on, &#39;2026-09-11&#39;) AS weeks,
+       year(&#39;2026-09-11&#39;) - year(listed_on) AS calendar_years
+FROM listings
+ORDER BY listed_on;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>listed_on (DATE)</th><th>days (LONG)</th><th>weeks (LONG)</th><th>calendar_years (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>1986-01-01</td><td>14863</td><td>2123</td><td>40</td></tr><tr><td>COAST</td><td>1998-07-28</td><td>10272</td><td>1467</td><td>28</td></tr><tr><td>TELCO</td><td>2008-07-11</td><td>6636</td><td>948</td><td>18</td></tr><tr><td>ACME</td><td>2015-05-08</td><td>4144</td><td>592</td><td>11</td></tr><tr><td>VOLT</td><td>2019-08-28</td><td>2571</td><td>367</td><td>7</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: First and last day of the sample candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT min(time) AS first_day, max(time) AS last_day, datediff(&#39;d&#39;, min(time), max(time)) AS days_between
+FROM ochl_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_day (TIMESTAMP)</th><th>last_day (TIMESTAMP)</th><th>days_between (LONG)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td><td>256</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Whole months and years between two dates</strong></p>
+<pre><code class="language-sql">SELECT datediff(&#39;month&#39;, &#39;2026-01-01&#39;, &#39;2026-09-10&#39;) AS months,
+       datediff(&#39;month&#39;, &#39;2026-01-10T10:00:00Z&#39;, &#39;2026-02-10T09:00:00Z&#39;) AS one_hour_short,
+       datediff(&#39;month&#39;, &#39;2026-01-31&#39;, &#39;2026-02-28&#39;) AS to_month_end,
+       datediff(&#39;y&#39;, &#39;2025-09-11&#39;, &#39;2026-09-10&#39;) AS one_day_short,
+       datediff(&#39;years&#39;, &#39;1998-07-28&#39;, &#39;2026-09-10&#39;) AS years;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>months (LONG)</th><th>one_hour_short (LONG)</th><th>to_month_end (LONG)</th><th>one_day_short (LONG)</th><th>years (LONG)</th></tr></thead><tbody><tr><td>8</td><td>0</td><td>1</td><td>0</td><td>28</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Quarter is not a unit of datediff</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT datediff(&#39;quarter&#39;, &#39;2026-01-01&#39;, &#39;2026-09-10&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: datediff: unit must be y, month, w, d, h, m, s or ms</code></p>
+<h2 id="age">age</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">age(t)
+age(to, from)</code></pre>
+<p>The time between two times, written like a person says it: <code>&#39;28 years 1 mon 13 days&#39;</code>. With one argument it is the time from <code>t</code> to <strong>today</strong> (today&#39;s UTC midnight), like PostgreSQL. Use it to show how old a company listing, an account or a user is.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>to</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the later time</td></tr><tr><td><code>from</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the earlier time</td></tr><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>one argument: the time to count from, up to today at 00:00 UTC</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code> with years, months (<code>mon</code>), days, and <code>hh:mm:ss</code> when there are hours (plus <code>.mmm</code> for milliseconds). Parts that are 0 are left out; equal times give <code>&#39;00:00:00&#39;</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> the order is <strong>later first</strong>, like PostgreSQL. When <code>to</code> is before <code>from</code>, every part is negative: <code>&#39;-1 mons -1 days&#39;</code>. The result is text, so you cannot add or compare it as a number: for a number use <a href="#datediff">datediff</a>. With one argument the result changes every day.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT age(&#39;2026-09-10&#39;, &#39;1998-07-28&#39;) AS listed_age,
+       age(&#39;2026-09-10T15:30:00Z&#39;, &#39;2026-09-10T11:00:00Z&#39;) AS hours,
+       age(&#39;2026-09-11&#39;, &#39;2025-09-11&#39;) AS one_year,
+       age(&#39;2026-03-01&#39;, &#39;2026-01-31&#39;) AS month_and_day,
+       age(&#39;2026-01-31&#39;, &#39;2026-03-01&#39;) AS negative;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>listed_age (STRING)</th><th>hours (STRING)</th><th>one_year (STRING)</th><th>month_and_day (STRING)</th><th>negative (STRING)</th></tr></thead><tbody><tr><td>28 years 1 mon 13 days</td><td>04:30:00</td><td>1 year</td><td>1 mon 1 day</td><td>-1 mons -1 days</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How long each company has been listed (up to 2026-09-11)</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT symbol, listed_on, age(&#39;2026-09-11&#39;, listed_on) AS listed_for
+FROM listings
+ORDER BY listed_on;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>listed_on (DATE)</th><th>listed_for (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>1986-01-01</td><td>40 years 8 mons 10 days</td></tr><tr><td>COAST</td><td>1998-07-28</td><td>28 years 1 mon 14 days</td></tr><tr><td>TELCO</td><td>2008-07-11</td><td>18 years 2 mons</td></tr><tr><td>ACME</td><td>2015-05-08</td><td>11 years 4 mons 3 days</td></tr><tr><td>VOLT</td><td>2019-08-28</td><td>7 years 14 days</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: One argument: counted up to today&#39;s midnight (UTC)</strong></p>
+<pre><code class="language-sql">SELECT age(&#39;2000-01-01&#39;) = age(date_trunc(&#39;day&#39;, now()), &#39;2000-01-01&#39;) AS same;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>same (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="make_date">make_date</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">make_date(year, month, day)</code></pre>
+<p>Builds a <code>DATE</code> from three numbers: <code>make_date(2026, 9, 10)</code> is <code>2026-09-10</code>. Useful when a table keeps the year, month and day in separate columns, or to build the start of a fiscal year.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>year</code></td><td>whole number</td><td>-9999 to 9999</td></tr><tr><td><code>month</code></td><td>whole number</td><td>1 to 12</td></tr><tr><td><code>day</code></td><td>whole number</td><td>1 to the last day of that month</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DATE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> a date that does not exist (30 February) is an error, not the next month. A number with a fraction (<code>2026.5</code>) is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT make_date(2026, 9, 10) AS d, make_date(2028, 2, 29) AS leap_day, make_date(year(&#39;2026-09-10&#39;), 7, 17) AS fiscal_year_start;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>d (DATE)</th><th>leap_day (DATE)</th><th>fiscal_year_start (DATE)</th></tr></thead><tbody><tr><td>2026-09-10</td><td>2028-02-29</td><td>2026-07-17</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Invoices from the start of Nepal&#39;s fiscal year 2083/84</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT id, invoice_date, customer, amount
+FROM invoices
+WHERE invoice_date &gt;= make_date(2026, 7, 17)
+ORDER BY invoice_date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>invoice_date (TIMESTAMP)</th><th>customer (STRING)</th><th>amount (DECIMAL(2))</th></tr></thead><tbody><tr><td>10</td><td>2026-07-20T00:00:00.000Z</td><td>hari</td><td>1500.00</td></tr><tr><td>11</td><td>2026-08-25T00:00:00.000Z</td><td>gita</td><td>4500.00</td></tr><tr><td>12</td><td>2026-09-10T00:00:00.000Z</td><td>maya</td><td>12000.00</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: 30 February does not exist</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT make_date(2026, 2, 30);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: make_date: date 2026-2-30 does not exist</code></p>
+<h2 id="make_timestamp">make_timestamp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">make_timestamp(year, month, day, hour, minute, second)</code></pre>
+<p>Builds a <code>TIMESTAMP</code> from its parts. The parts are <strong>UTC</strong>. <code>second</code> may have a fraction: <code>30.5</code> is 30 seconds and 500 milliseconds.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>year</code>, <code>month</code>, <code>day</code></td><td>whole numbers</td><td>the date, as in <a href="#make_date">make_date</a></td></tr><tr><td><code>hour</code></td><td>whole number</td><td>0 to 23</td></tr><tr><td><code>minute</code></td><td>whole number</td><td>0 to 59</td></tr><tr><td><code>second</code></td><td>number</td><td>0 to less than 60, with a fraction for milliseconds</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code> (UTC).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> a date that does not exist, or a time out of range (<code>24:00</code>), is an error. For a <strong>Nepal</strong> clock time subtract <code>20700000</code> ms (5 h 45 min): <code>make_timestamp(2026, 9, 10, 11, 0, 0) - 20700000</code> is 11:00 in Kathmandu.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT make_timestamp(2026, 9, 10, 5, 15, 30.5) AS utc_time,
+       make_timestamp(2026, 9, 10, 11, 0, 0) - 20700000 AS market_opens;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>utc_time (TIMESTAMP)</th><th>market_opens (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:30.500Z</td><td>2026-09-10T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Hour 24 is out of range</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT make_timestamp(2026, 9, 10, 24, 0, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: make_timestamp: the time of day is out of range</code></p>
+<h2 id="to_char">to_char</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_char(t, format)
+to_char(t, format, time_zone)</code></pre>
+<p>Writes a time as text in the format you want. <code>to_char(&#39;2026-09-10T08:30:00Z&#39;, &#39;DD Mon YYYY&#39;)</code> is <code>10 Sep 2026</code>. With a time zone, the time is first moved to that zone: this is the easy way to show <strong>Nepal time</strong>. To write a <strong>number</strong> (<code>to_char(1234.5, &#39;FM999,999.00&#39;)</code>), see <a href="functions-text.html#to_char-number">to_char for numbers</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the time</td></tr><tr><td><code>format</code></td><td>text</td><td>the pattern; the codes are in the table below</td></tr><tr><td><code>time_zone</code></td><td>text</td><td>optional: a zone name like <code>&#39;Asia/Kathmandu&#39;</code>, or an offset like <code>&#39;+05:45&#39;</code> or <code>&#39;-03:00&#39;</code>. Without it: UTC</td></tr></tbody></table></div>
+<p>Format codes (upper and lower case matter):</p>
+<div class="table-wrap"><table><thead><tr><th>Code</th><th>Meaning</th><th>2026-09-10 15:30:05.042 UTC gives</th></tr></thead><tbody><tr><td><code>YYYY</code></td><td>year, 4 digits</td><td><code>2026</code></td></tr><tr><td><code>YY</code></td><td>last 2 digits of the year</td><td><code>26</code></td></tr><tr><td><code>MM</code></td><td>month number, 2 digits</td><td><code>09</code></td></tr><tr><td><code>Mon</code> / <code>MON</code> / <code>mon</code></td><td>short month name</td><td><code>Sep</code> / <code>SEP</code> / <code>sep</code></td></tr><tr><td><code>Month</code> / <code>MONTH</code> / <code>month</code></td><td>full month name</td><td><code>September</code> / <code>SEPTEMBER</code> / <code>september</code></td></tr><tr><td><code>DD</code></td><td>day of the month, 2 digits</td><td><code>10</code></td></tr><tr><td><code>DDD</code></td><td>day of the year, 3 digits (001-366)</td><td><code>253</code></td></tr><tr><td><code>Dy</code> / <code>DY</code> / <code>dy</code></td><td>short weekday name</td><td><code>Thu</code> / <code>THU</code> / <code>thu</code></td></tr><tr><td><code>Day</code> / <code>DAY</code> / <code>day</code></td><td>full weekday name</td><td><code>Thursday</code> / <code>THURSDAY</code> / <code>thursday</code></td></tr><tr><td><code>D</code></td><td>weekday number, <code>1</code> = Sunday ... <code>7</code> = Saturday</td><td><code>5</code></td></tr><tr><td><code>HH24</code></td><td>hour 00-23</td><td><code>15</code></td></tr><tr><td><code>HH12</code>, <code>HH</code></td><td>hour 01-12</td><td><code>03</code></td></tr><tr><td><code>MI</code></td><td>minute, 2 digits</td><td><code>30</code></td></tr><tr><td><code>SS</code></td><td>second, 2 digits</td><td><code>05</code></td></tr><tr><td><code>MS</code></td><td>millisecond, 3 digits</td><td><code>042</code></td></tr><tr><td><code>AM</code>, <code>PM</code></td><td><code>AM</code> or <code>PM</code> (both codes give the right one)</td><td><code>PM</code></td></tr><tr><td><code>am</code>, <code>pm</code></td><td><code>am</code> or <code>pm</code></td><td><code>pm</code></td></tr><tr><td><code>Q</code></td><td>quarter of the year, 1-4</td><td><code>3</code></td></tr><tr><td><code>FM</code></td><td>accepted and ignored (names are never padded; numbers stay 2 digits)</td><td></td></tr><tr><td><code>&quot;text&quot;</code></td><td>text in double quotes is copied as it is</td><td></td></tr></tbody></table></div>
+<p>Time zones: <code>UTC</code>, <code>GMT</code>, <code>Z</code>, <code>Etc/UTC</code>, <code>Asia/Kathmandu</code>, <code>Asia/Katmandu</code>, <code>NPT</code>, <code>Asia/Kolkata</code>, <code>Asia/Calcutta</code>, <code>IST</code>, <code>Asia/Colombo</code>, <code>Asia/Dhaka</code>, <code>Asia/Thimphu</code>, <code>Asia/Karachi</code>, <code>Asia/Dubai</code>, <code>Asia/Bangkok</code>, <code>Asia/Jakarta</code>, <code>Asia/Shanghai</code>, <code>Asia/Hong_Kong</code>, <code>Asia/Singapore</code>, <code>Asia/Taipei</code>, <code>Asia/Tokyo</code>, <code>Asia/Seoul</code> (any case), or an offset with a sign: <code>&#39;+05:45&#39;</code>, <code>&#39;-03:00&#39;</code>.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code> (also a <code>NULL</code> time zone).</li><li><strong>Notes:</strong>
+<ul><li>Every other character is copied as it is: <code>-</code>, <code>/</code>, <code>:</code>, spaces, and letters that are not a code.</li><li>Careful with words: letters that are a code are replaced. <code>&#39;Date: DD&#39;</code> gives <code>5ate: 10</code>, because <code>D</code> is the weekday number. Put words in double quotes: <code>&#39;&quot;Date:&quot; DD&#39;</code>.</li><li>Zones that change for summer time (like <code>Europe/London</code>) are refused. An offset needs its sign: <code>&#39;05:45&#39;</code> and <code>&#39;+0545&#39;</code> are errors.</li><li><code>WW</code> (week of the year) and other PostgreSQL codes are not supported; they are copied as text.</li><li>The result is text, so <code>ORDER BY</code> on it sorts like text: <code>&#39;Aug 2026&#39;</code> comes before <code>&#39;Sep 2025&#39;</code>. Also select a sortable form like <code>&#39;YYYY-MM&#39;</code> and order by that (after <code>GROUP BY</code>, <code>ORDER BY</code> can only use result columns).</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_char(&#39;2026-09-10T15:30:05.042Z&#39;, &#39;YYYY-MM-DD HH24:MI:SS.MS&#39;) AS iso,
+       to_char(&#39;2026-09-10T15:30:05.042Z&#39;, &#39;Dy, DD Mon YYYY HH12:MI AM&#39;) AS english,
+       to_char(&#39;2026-09-10T15:30:05.042Z&#39;, &#39;DDD Q D&#39;) AS day_of_year_quarter_weekday,
+       to_char(CAST(&#39;2026-09-10&#39; AS DATE), &#39;DD/MM/YYYY&#39;) AS from_date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>iso (STRING)</th><th>english (STRING)</th><th>day_of_year_quarter_weekday (STRING)</th><th>from_date (STRING)</th></tr></thead><tbody><tr><td>2026-09-10 15:30:05.042</td><td>Thu, 10 Sep 2026 03:30 PM</td><td>253 3 5</td><td>10/09/2026</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Show a UTC time in Nepal time</strong></p>
+<pre><code class="language-sql">SELECT to_char(&#39;2026-09-10T05:15:00Z&#39;, &#39;YYYY-MM-DD HH24:MI&#39;) AS utc,
+       to_char(&#39;2026-09-10T05:15:00Z&#39;, &#39;YYYY-MM-DD HH24:MI&#39;, &#39;Asia/Kathmandu&#39;) AS nepal,
+       to_char(&#39;2026-09-10T05:15:00Z&#39;, &#39;HH12:MI am&#39;, &#39;+05:45&#39;) AS nepal_12h,
+       to_char(&#39;2026-09-10T05:15:00Z&#39;, &#39;HH24:MI&#39;, &#39;Asia/Tokyo&#39;) AS tokyo;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>utc (STRING)</th><th>nepal (STRING)</th><th>nepal_12h (STRING)</th><th>tokyo (STRING)</th></tr></thead><tbody><tr><td>2026-09-10 05:15</td><td>2026-09-10 11:00</td><td>11:00 am</td><td>14:15</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Last COAST trades of the day with the Nepal clock time</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT to_char(time, &#39;HH24:MI&#39;, &#39;Asia/Kathmandu&#39;) AS nepal_time, close, volume
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_time (STRING)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>14:59</td><td>376.1</td><td>1060</td></tr><tr><td>14:58</td><td>376.2</td><td>1320</td></tr><tr><td>14:57</td><td>376</td><td>1150</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: App sign-ups per Nepal date</strong> (sample data: fn-dates)</p>
+<pre><code class="language-sql">SELECT to_char(created_at, &#39;YYYY-MM-DD&#39;, &#39;Asia/Kathmandu&#39;) AS nepal_date, count(*) AS signups
+FROM signups
+GROUP BY to_char(created_at, &#39;YYYY-MM-DD&#39;, &#39;Asia/Kathmandu&#39;)
+ORDER BY nepal_date;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_date (STRING)</th><th>signups (LONG)</th></tr></thead><tbody><tr><td>2026-09-01</td><td>3</td></tr><tr><td>2026-09-02</td><td>2</td></tr><tr><td>2026-09-03</td><td>3</td></tr><tr><td>2026-09-04</td><td>1</td></tr><tr><td>2026-09-06</td><td>1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Month report with month names</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT to_char(time, &#39;YYYY-MM&#39;) AS sort_key, to_char(time, &#39;Mon YYYY&#39;) AS month,
+       round(sum(close * volume) / 1000000, 2) AS turnover_millions
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39;
+GROUP BY to_char(time, &#39;YYYY-MM&#39;), to_char(time, &#39;Mon YYYY&#39;)
+ORDER BY sort_key;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sort_key (STRING)</th><th>month (STRING)</th><th>turnover_millions (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12</td><td>Dec 2025</td><td>79.27</td></tr><tr><td>2026-08</td><td>Aug 2026</td><td>119.22</td></tr><tr><td>2026-09</td><td>Sep 2026</td><td>128.05</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Words in the format: use double quotes</strong></p>
+<pre><code class="language-sql">SELECT to_char(&#39;2026-09-10&#39;, &#39;Date: DD&#39;) AS wrong, to_char(&#39;2026-09-10&#39;, &#39;&quot;Date:&quot; DD&#39;) AS right;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>wrong (STRING)</th><th>right (STRING)</th></tr></thead><tbody><tr><td>5ate: 10</td><td>Date: 10</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Zones with summer time are refused</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT to_char(&#39;2026-09-10T05:15:00Z&#39;, &#39;HH24:MI&#39;, &#39;Europe/London&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: to_char: time zone &#39;Europe/London&#39; is not supported (it may change for daylight saving); use a fixed offset like &#39;+05:45&#39;</code></p>
+<h2 id="fiscal_year">fiscal_year</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">fiscal_year(t)
+fiscal_year(t, start_month)
+fiscal_year(t, start_month, start_day)</code></pre>
+<p>The <strong>fiscal year</strong> (financial year) of a date, as the calendar year in which that fiscal year <strong>starts</strong>. A fiscal year is the 12-month year a company or a government uses for its accounts and taxes. It often does not start on 1 January: in Nepal it starts in mid-July, in India on 1 April.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the date</td></tr><tr><td><code>start_month</code></td><td>whole number</td><td>the month the fiscal year starts, 1-12; default <code>7</code> (July, Nepal)</td></tr><tr><td><code>start_day</code></td><td>whole number</td><td>the day of that month it starts, 1-28; default <code>17</code> (see the notes)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>: <code>2025</code> means the fiscal year that started in 2025 (for Nepal: 2025-07-17 to 2026-07-16).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>The default start is <strong>17 July</strong>, about Shrawan 1, the start of Nepal&#39;s fiscal year. For Nepal&#39;s own name of the year (like <code>2082/83</code>) use <a href="#nepal_fiscal_year">nepal_fiscal_year</a>.</li><li>Careful: <code>start_day</code> has the default <code>17</code> also when you give only <code>start_month</code>. For India write <code>fiscal_year(t, 4, 1)</code>, not <code>fiscal_year(t, 4)</code>.</li><li><code>start_month</code> outside 1-12 or <code>start_day</code> outside 1-28 is an error.</li><li>The date is the UTC date: add <code>20700000</code> for a Nepal date just after midnight.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT fiscal_year(&#39;2026-07-16&#39;) AS last_day_of_fy_2025, fiscal_year(&#39;2026-07-17&#39;) AS first_day_of_fy_2026,
+       fiscal_year(&#39;2026-03-31&#39;, 4, 1) AS india_before_april, fiscal_year(&#39;2026-04-01&#39;, 4, 1) AS india_april,
+       fiscal_year(&#39;2026-09-10&#39;, 1, 1) AS calendar_year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>last_day_of_fy_2025 (LONG)</th><th>first_day_of_fy_2026 (LONG)</th><th>india_before_april (LONG)</th><th>india_april (LONG)</th><th>calendar_year (LONG)</th></tr></thead><tbody><tr><td>2025</td><td>2026</td><td>2025</td><td>2026</td><td>2026</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Sales per fiscal year (Nepal start, 17 July)</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT fiscal_year(invoice_date) AS fiscal_year, count(*) AS invoices, sum(amount) AS sales
+FROM invoices
+GROUP BY fiscal_year(invoice_date)
+ORDER BY fiscal_year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fiscal_year (LONG)</th><th>invoices (LONG)</th><th>sales (DECIMAL(2))</th></tr></thead><tbody><tr><td>2024</td><td>2</td><td>13500.00</td></tr><tr><td>2025</td><td>7</td><td>48000.00</td></tr><tr><td>2026</td><td>3</td><td>18000.00</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Day 29 or later cannot start a fiscal year</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT fiscal_year(&#39;2026-09-10&#39;, 1, 31);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: fiscal_year: the start month must be 1-12 and the start day 1-28</code></p>
+<h2 id="fiscal_quarter">fiscal_quarter</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">fiscal_quarter(t)
+fiscal_quarter(t, start_month)
+fiscal_quarter(t, start_month, start_day)</code></pre>
+<p>The quarter <strong>inside the fiscal year</strong>, from <code>1</code> to <code>4</code>. Each fiscal quarter is 3 months counted from the start day: with the Nepal start (17 July), quarter 1 is 17 July to 16 October, quarter 2 is 17 October to 16 January, and so on. Banks and listed companies in Nepal publish their quarterly reports by these quarters.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the date</td></tr><tr><td><code>start_month</code></td><td>whole number</td><td>the month the fiscal year starts, 1-12; default <code>7</code></td></tr><tr><td><code>start_day</code></td><td>whole number</td><td>the day it starts, 1-28; default <code>17</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>, 1 to 4.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> the same start rules as <a href="#fiscal_year">fiscal_year</a> (also the default day <code>17</code> when only <code>start_month</code> is given). With <code>fiscal_quarter(t, 1, 1)</code> it is the calendar quarter, like <a href="#quarter">quarter</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT fiscal_quarter(&#39;2026-07-17&#39;) AS q1_start, fiscal_quarter(&#39;2026-10-16&#39;) AS q1_end, fiscal_quarter(&#39;2026-10-17&#39;) AS q2_start,
+       fiscal_quarter(&#39;2027-07-16&#39;) AS q4_end, fiscal_quarter(&#39;2026-09-10&#39;, 4, 1) AS india, fiscal_quarter(&#39;2026-09-10&#39;, 1, 1) AS calendar;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>q1_start (LONG)</th><th>q1_end (LONG)</th><th>q2_start (LONG)</th><th>q4_end (LONG)</th><th>india (LONG)</th><th>calendar (LONG)</th></tr></thead><tbody><tr><td>1</td><td>1</td><td>2</td><td>4</td><td>2</td><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Quarterly sales report of the fiscal year</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT nepal_fiscal_year(invoice_date) AS fiscal_year, fiscal_quarter(invoice_date) AS quarter,
+       count(*) AS invoices, sum(amount) AS sales
+FROM invoices
+GROUP BY nepal_fiscal_year(invoice_date), fiscal_quarter(invoice_date)
+ORDER BY fiscal_year, quarter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fiscal_year (STRING)</th><th>quarter (LONG)</th><th>invoices (LONG)</th><th>sales (DECIMAL(2))</th></tr></thead><tbody><tr><td>2081/82</td><td>4</td><td>2</td><td>13500.00</td></tr><tr><td>2082/83</td><td>1</td><td>2</td><td>13500.00</td></tr><tr><td>2082/83</td><td>2</td><td>2</td><td>6000.00</td></tr><tr><td>2082/83</td><td>3</td><td>1</td><td>12000.00</td></tr><tr><td>2082/83</td><td>4</td><td>2</td><td>16500.00</td></tr><tr><td>2083/84</td><td>1</td><td>3</td><td>18000.00</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="nepal_fiscal_year">nepal_fiscal_year</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">nepal_fiscal_year(t)</code></pre>
+<p>The name of <strong>Nepal&#39;s fiscal year</strong> of a date, as Nepal writes it in the Bikram Sambat (BS) calendar: <code>&#39;2083/84&#39;</code>. Nepal&#39;s fiscal year (arthik barsa) starts on <strong>Shrawan 1</strong>, which is about 16 or 17 July, and ends at the end of Ashadh the next year. Companies, banks and the tax office in Nepal use it for their reports.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>TIMESTAMP</code>, <code>DATE</code>, time text or milliseconds</td><td>the date</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code> like <code>&#39;2082/83&#39;</code>: the BS year in which the fiscal year starts, a slash, and the last two digits of the next BS year.</li><li><strong>NULL:</strong> <code>nepal_fiscal_year(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>KDB does <strong>not</strong> convert dates to the BS calendar. It uses a fixed start of <strong>17 July</strong> every year and adds 57 years. Shrawan 1 moves by a day between years, so a date on 16 or 17 July can be in the wrong year; check those days with the official calendar when it matters.</li><li>The same as <code>fiscal_year(t)</code> plus 57, written as a text. The date is the UTC date.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT nepal_fiscal_year(&#39;2026-07-16&#39;) AS before_shrawan, nepal_fiscal_year(&#39;2026-07-17&#39;) AS shrawan_1,
+       nepal_fiscal_year(&#39;2026-09-10&#39;) AS today, nepal_fiscal_year(CAST(&#39;2000-01-01&#39; AS DATE)) AS year_2000;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>before_shrawan (STRING)</th><th>shrawan_1 (STRING)</th><th>today (STRING)</th><th>year_2000 (STRING)</th></tr></thead><tbody><tr><td>2082/83</td><td>2083/84</td><td>2083/84</td><td>2056/57</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Sales per Nepal fiscal year</strong> (sample data: analysis-finance)</p>
+<pre><code class="language-sql">SELECT nepal_fiscal_year(invoice_date) AS fiscal_year, min(invoice_date) AS first_invoice, max(invoice_date) AS last_invoice,
+       count(*) AS invoices, sum(amount) AS sales
+FROM invoices
+GROUP BY nepal_fiscal_year(invoice_date)
+ORDER BY fiscal_year;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fiscal_year (STRING)</th><th>first_invoice (TIMESTAMP)</th><th>last_invoice (TIMESTAMP)</th><th>invoices (LONG)</th><th>sales (DECIMAL(2))</th></tr></thead><tbody><tr><td>2081/82</td><td>2025-06-20T00:00:00.000Z</td><td>2025-07-16T00:00:00.000Z</td><td>2</td><td>13500.00</td></tr><tr><td>2082/83</td><td>2025-07-17T00:00:00.000Z</td><td>2026-07-10T00:00:00.000Z</td><td>7</td><td>48000.00</td></tr><tr><td>2083/84</td><td>2026-07-20T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td><td>3</td><td>18000.00</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Expenses of the accounting book per fiscal year</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT nepal_fiscal_year(l.entry_date) AS fiscal_year, a.name AS expense, sum(l.debit) AS amount
+FROM ledger l
+JOIN accounts a ON a.code = l.account
+WHERE a.type = &#39;expense&#39;
+GROUP BY nepal_fiscal_year(l.entry_date), a.name
+ORDER BY fiscal_year, expense;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fiscal_year (STRING)</th><th>expense (STRING)</th><th>amount (DECIMAL(2))</th></tr></thead><tbody><tr><td>2083/84</td><td>Broker commission</td><td>1030.00</td></tr><tr><td>2083/84</td><td>Office rent</td><td>25000.00</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="nepal-time">Local time, for example Nepal</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&#39;2026-09-10T11:00:00+05:45&#39;        -- write Nepal times with +05:45
+to_timezone(time, &#39;Asia/Kathmandu&#39;)  -- the Nepal clock time (also time + 20700000)
+to_char(time, format, &#39;Asia/Kathmandu&#39;)
+time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;
+date_trunc(&#39;day&#39;, time, &#39;Asia/Kathmandu&#39;)
+SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code></pre>
+<p>KDB stores and shows every time in UTC. These tips use Nepal time as the example local zone: UTC + 5 hours 45 minutes, all year (Nepal has no summer time). For another zone change the offset and the milliseconds, for example <code>-05:00</code> and <code>- 18000000</code> for New York in winter. In a zone with summer time the fixed number is right for only part of the year.</p>
+<div class="table-wrap"><table><thead><tr><th>Task</th><th>Write</th></tr></thead><tbody><tr><td>Put a Nepal time into KDB</td><td><code>&#39;2026-09-10T11:00:00+05:45&#39;</code> (without <code>+05:45</code> the text is read as UTC)</td></tr><tr><td>Nepal hour, minute, day, weekday</td><td><code>hour(to_timezone(time, &#39;Asia/Kathmandu&#39;))</code>, or add 20700000 ms: <code>day_of_week(time + 20700000)</code></td></tr><tr><td>Show a time in Nepal time</td><td><code>to_char(time, &#39;YYYY-MM-DD HH24:MI&#39;, &#39;Asia/Kathmandu&#39;)</code></td></tr><tr><td>Rows of one Nepal day</td><td><code>WHERE time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="where.html#in-interval">time IN</a>)</td></tr><tr><td>Nepal midnight of a time</td><td><code>date_trunc(&#39;day&#39;, time, &#39;Asia/Kathmandu&#39;)</code> or <code>timestamp_floor(&#39;1d&#39;, time, &#39;Asia/Kathmandu&#39;)</code></td></tr><tr><td>Store daily bars at Nepal midnight</td><td>a column <code>time TIMESTAMP ROUND 1d TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="sample-by.html#time-zone">TIME ZONE</a>)</td></tr><tr><td>Candles by Nepal hours or days</td><td><code>SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;</code> (see <a href="sample-by.html#time-zone">TIME ZONE</a>)</td></tr><tr><td>QuestDB <code>to_timezone(time, &#39;Asia/Kathmandu&#39;)</code> (UTC to the local clock)</td><td>the same: <a href="#to_timezone">to_timezone</a></td></tr><tr><td>QuestDB <code>to_utc(time, &#39;Asia/Kathmandu&#39;)</code> (a local clock to UTC)</td><td>the same: <a href="#to_timezone">to_utc</a>, or <code>time AT TIME ZONE &#39;Asia/Kathmandu&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>to_timezone(...)</code> and <code>+ 20700000</code> give a <code>TIMESTAMP</code> that is shown with <code>Z</code> but holds the Nepal clock time. Use them inside <code>hour()</code>, <code>day()</code> and so on, not to store. <code>NPT</code> and <code>Asia/Kathmandu</code> are the same zone. More in <a href="time-and-time-zones.html">time and time zones</a>.</li></ul>
+<p><strong>Example: QuestDB to_timezone and to_utc, and the older ways</strong></p>
+<pre><code class="language-sql">SELECT to_timezone(&#39;2026-09-10T05:15:00Z&#39;, &#39;Asia/Kathmandu&#39;) AS to_timezone,
+       CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP) + 20700000 AS plus_ms,
+       to_utc(&#39;2026-09-10T11:00:00Z&#39;, &#39;Asia/Kathmandu&#39;) AS to_utc,
+       CAST(&#39;2026-09-10T11:00:00Z&#39; AS TIMESTAMP) AT TIME ZONE &#39;Asia/Kathmandu&#39; AS at_time_zone;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>to_timezone (TIMESTAMP)</th><th>plus_ms (TIMESTAMP)</th><th>to_utc (TIMESTAMP)</th><th>at_time_zone (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T11:00:00.000Z</td><td>2026-09-10T11:00:00.000Z</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: One market opening minute (11:00 in Nepal), three ways</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) AS stored_utc,
+       hour(&#39;2026-09-10T11:00:00+05:45&#39;) AS utc_hour,
+       hour(CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) + 20700000) AS nepal_hour;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>stored_utc (TIMESTAMP)</th><th>utc_hour (LONG)</th><th>nepal_hour (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>5</td><td>11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: All minute candles of one Nepal trading day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS candles, min(time) AS first_utc, max(time) AS last_utc
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39; TIME ZONE &#39;Asia/Kathmandu&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>candles (LONG)</th><th>first_utc (TIMESTAMP)</th><th>last_utc (TIMESTAMP)</th></tr></thead><tbody><tr><td>240</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T09:14:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Hourly COAST candles on the Nepal clock</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, count(*) AS minutes, first(open) AS open, last(close) AS close
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;
+SAMPLE BY 1h TIME ZONE &#39;Asia/Kathmandu&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>minutes (LONG)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>60</td><td>380.1</td><td>381.3</td></tr><tr><td>2026-09-10T06:15:00.000Z</td><td>56</td><td>381.3</td><td>378.4</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>60</td><td>378.4</td><td>376.4</td></tr><tr><td>2026-09-10T08:15:00.000Z</td><td>60</td><td>376.4</td><td>376.1</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="current_date">current_date</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">current_date
+current_date()</code></pre>
+<p>Today&#39;s date on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a> (UTC unless <code>SET TIME ZONE</code> names a zone). The PostgreSQL name; KDB gives the same as <code>CAST(now() AS DATE)</code>.</p>
+<ul><li><strong>Returns:</strong> <code>DATE</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> UTC, not Nepal time. After 18:15 Nepal time it is already the next UTC day, so for a Nepal day use <code>CAST(now() + 20700000 AS DATE)</code> (see <a href="#nepal-time">Nepal time</a>). It may be written with or without <code>()</code>.</li></ul>
+<p><strong>Example: Save the day a user logged in</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE user_logins (user_id INT PRIMARY KEY, login_day DATE DEFAULT current_date);
+INSERT INTO user_logins (user_id) VALUES (7);</code></pre>
+<pre><code class="language-sql">SELECT user_id, login_day = current_date AS logged_in_today FROM user_logins;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>logged_in_today (BOOL)</th></tr></thead><tbody><tr><td>7</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Today in UTC and on the Nepal clock</strong></p>
+<pre><code class="language-sql">SELECT current_date AS utc_day,
+       CAST(now() + 20700000 AS DATE) AS nepal_day,
+       current_date = CAST(now() AS DATE) AS same_as_now;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>utc_day (DATE)</th><th>nepal_day (DATE)</th><th>same_as_now (BOOL)</th></tr></thead><tbody><tr><td>2026-10-22</td><td>2026-10-22</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="current_time">current_time, localtime</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">current_time
+current_time()
+localtime
+localtime()</code></pre>
+<p>The clock time of day now, on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a> (UTC unless set), as text: <code>HH:MM:SS.mmm</code>. <code>localtime</code> is the same function.</p>
+<ul><li><strong>Returns:</strong> <code>STRING</code>, 12 characters, like <code>05:15:00.000</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> KDB has no <code>TIME</code> type, so this is text. To compare times of day, compare the text (<code>current_time &lt; &#39;09:00:00.000&#39;</code>) or use <code>hour(now())</code>. For a Nepal clock time use <code>to_str(now() + 20700000, &#39;HH:mm:ss&#39;)</code>.</li></ul>
+<p><strong>Example: Is the market session open right now (Nepal clock)?</strong></p>
+<pre><code class="language-sql">SELECT current_time AS utc_time_of_day,
+       to_str(now() + 20700000, &#39;HH:mm&#39;) AS nepal_clock,
+       localtime = current_time AS localtime_is_the_same;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>utc_time_of_day (STRING)</th><th>nepal_clock (STRING)</th><th>localtime_is_the_same (BOOL)</th></tr></thead><tbody><tr><td>05:43:50.533</td><td>11:28</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="localtimestamp">localtimestamp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">localtimestamp
+localtimestamp()
+localtimestamp(digits)</code></pre>
+<p>The time now on the <a href="time-and-time-zones.html#session-time-zone">session&#39;s clock</a>, the PostgreSQL name for a time without a zone. In a UTC session it is the same as <code>now()</code>; after <code>SET TIME ZONE &#39;Asia/Kathmandu&#39;</code> it is 5 h 45 min later (the Nepal wall clock, still shown with <code>Z</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>digits</code></td><td><code>INT</code></td><td>how many digits after the second PostgreSQL would keep; KDB always keeps milliseconds, so it changes nothing</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> the same value for the whole statement, like <code>now()</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT localtimestamp = now() AS same_as_now, year(localtimestamp) &gt;= 2026 AS year_ok;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>same_as_now (BOOL)</th><th>year_ok (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="transaction_timestamp">transaction_timestamp, statement_timestamp, clock_timestamp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">transaction_timestamp()
+statement_timestamp()
+clock_timestamp()</code></pre>
+<p>Three PostgreSQL names for the time now. In PostgreSQL they differ (start of the transaction, start of the statement, the clock right now). KDB gives the same time for all three: the time the statement started.</p>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> <code>clock_timestamp()</code> in PostgreSQL moves on inside one statement; in KDB it does not, so you cannot use it to time a loop. Use it only for app code that came from PostgreSQL.</li></ul>
+<p><strong>Example: All three are the time this statement started</strong></p>
+<pre><code class="language-sql">SELECT transaction_timestamp() = statement_timestamp() AS same_1,
+       statement_timestamp() = clock_timestamp() AS same_2,
+       clock_timestamp() = now() AS same_as_now;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>same_1 (BOOL)</th><th>same_2 (BOOL)</th><th>same_as_now (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="make_interval">make_interval</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">make_interval(years, months, weeks, days, hours, minutes, seconds)</code></pre>
+<p>Builds an interval (a length of time) from numbers. Every argument may be left out from the right; what is left out is <code>0</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>years</code></td><td>number</td><td>years (12 months each)</td></tr><tr><td><code>months</code></td><td>number</td><td>months</td></tr><tr><td><code>weeks</code></td><td>number</td><td>weeks (7 days each)</td></tr><tr><td><code>days</code></td><td>number</td><td>days</td></tr><tr><td><code>hours</code></td><td>number</td><td>hours</td></tr><tr><td><code>minutes</code></td><td>number</td><td>minutes</td></tr><tr><td><code>seconds</code></td><td>number</td><td>seconds</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>INTERVAL</code>. Add it to a time with <code>+</code>, take it off with <code>-</code>.</li><li><strong>NULL:</strong> any <code>NULL</code> argument gives <code>NULL</code>.</li><li><strong>Notes:</strong> a fraction is carried down, as PostgreSQL does: half a month becomes 15 days, half a day becomes 12 hours. Text that is a number (<code>&#39;3&#39;</code>) is accepted, so a driver parameter works. <code>INTERVAL &#39;15 minutes&#39;</code> writes the same thing shorter.</li></ul>
+<p><strong>Example: The candle 15 minutes after each market minute</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, time + make_interval(0, 0, 0, 0, 0, 15, 0) AS fifteen_minutes_later
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39;
+ORDER BY time
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>fifteen_minutes_later (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-09T05:15:00.000Z</td><td>2026-09-09T05:30:00.000Z</td></tr><tr><td>2026-09-09T05:16:00.000Z</td><td>2026-09-09T05:31:00.000Z</td></tr><tr><td>2026-09-09T05:17:00.000Z</td><td>2026-09-09T05:32:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Years, months, weeks and a fraction</strong></p>
+<pre><code class="language-sql">SELECT make_interval(1, 2, 0, 3) AS year_month_day,
+       make_interval(0, 0, 2) AS two_weeks,
+       make_interval(0, 0, 0, 0, 1, 30) AS ninety_minutes,
+       make_interval(0, 0.5) AS half_a_month;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>year_month_day (INTERVAL)</th><th>two_weeks (INTERVAL)</th><th>ninety_minutes (INTERVAL)</th><th>half_a_month (INTERVAL)</th></tr></thead><tbody><tr><td>1 year 2 mons 3 days</td><td>14 days</td><td>01:30:00</td><td>15 days</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="justify_days">justify_days, justify_hours, justify_interval</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">justify_days(interval)
+justify_hours(interval)
+justify_interval(interval)</code></pre>
+<p>Write an interval in bigger units: <code>justify_days</code> turns every 30 days into a month, <code>justify_hours</code> turns every 24 hours into a day, and <code>justify_interval</code> does both and also makes the signs agree.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>interval</code></td><td><code>INTERVAL</code></td><td>the length of time to tidy up</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>INTERVAL</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> interval gives <code>NULL</code>. A value that is not an <code>INTERVAL</code> is an error.</li><li><strong>Notes:</strong> a month counts as 30 days here, as in PostgreSQL. So <code>justify_days</code> is for showing a length to a reader, not for exact day counts; use <a href="#datediff">datediff</a> for those.</li></ul>
+<p><strong>Example: 45 days and 50 hours, written for a reader</strong></p>
+<pre><code class="language-sql">SELECT justify_days(INTERVAL &#39;45 days&#39;) AS in_months,
+       justify_hours(INTERVAL &#39;50 hours&#39;) AS in_days,
+       justify_interval(INTERVAL &#39;45 days 50 hours&#39;) AS both;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>in_months (INTERVAL)</th><th>in_days (INTERVAL)</th><th>both (INTERVAL)</th></tr></thead><tbody><tr><td>1 mon 15 days</td><td>2 days 02:00:00</td><td>1 mon 17 days 02:00:00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: How long a dividend book closure lasted</strong></p>
+<pre><code class="language-sql">SELECT justify_interval(make_interval(0, 0, 0, 40, 30)) AS book_closure_length;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>book_closure_length (INTERVAL)</th></tr></thead><tbody><tr><td>1 mon 11 days 06:00:00</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-date-time.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joins - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Put rows of two or more tables side by side: JOIN, LEFT / RIGHT / FULL JOIN, USING, CROSS JOIN, and ASOF / LT / SPLICE JOIN for time series.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/joins.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/joins.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="joins">Joins</h1>
+<blockquote><p>Put rows of two or more tables side by side: JOIN, LEFT / RIGHT / FULL JOIN, USING, CROSS JOIN, and ASOF / LT / SPLICE JOIN for time series.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: join, JOIN, hash join, join speed, key lookup, index lookup, index nested loop join, KDB_NO_COLUMN_JOIN, engine: column (hash join), GROUP BY over a join, join another database, INNER JOIN, INNER, ON, LEFT JOIN, LEFT OUTER JOIN, LEFT, OUTER, CROSS JOIN, CROSS, ASOF JOIN, ASOF, as of, time join, table alias, self join, join subquery, RIGHT JOIN, RIGHT OUTER JOIN, FULL JOIN, FULL OUTER JOIN, USING, JOIN USING, LT JOIN, SPLICE JOIN, RIGHT, FULL, LT, SPLICE, comma join, ambiguous column, join, left join, asof, cross join</li><li>See also: <a href="select.html#from">SELECT (from)</a>, <a href="where.html">WHERE</a>, <a href="group-by.html">GROUP BY and HAVING</a>, <a href="union-subqueries.html#correlated">UNION and subqueries (correlated)</a>, <a href="latest-on.html">LATEST ON</a>, <a href="explain.html">EXPLAIN</a></li></ul>
+<p>A <strong>join</strong> puts rows of two tables side by side. For example, a trade in <code>trade_log</code> has only the broker number (<code>buyer = 58</code>); a join with <code>brokers</code> adds the broker&#39;s name.</p>
+<p><code>ON</code> says which rows belong together. Give each table a short name (an <strong>alias</strong>) and write <code>alias.column</code> for the columns.</p>
+<div class="table-wrap"><table><thead><tr><th>Join</th><th>Rows you get</th></tr></thead><tbody><tr><td><code>JOIN</code> (or <code>INNER JOIN</code>)</td><td>only the rows that have a match on both sides</td></tr><tr><td><code>LEFT JOIN</code> (or <code>LEFT OUTER JOIN</code>)</td><td>every row of the left table; <code>NULL</code> columns when the right side has no match</td></tr><tr><td><code>RIGHT JOIN</code> (or <code>RIGHT OUTER JOIN</code>)</td><td>every row of the right table; <code>NULL</code> columns when the left side has no match</td></tr><tr><td><code>FULL JOIN</code> (or <code>FULL OUTER JOIN</code>)</td><td>every row of both tables, side by side where they match</td></tr><tr><td><code>CROSS JOIN</code></td><td>every left row with every right row</td></tr><tr><td><code>ASOF JOIN</code></td><td>for each left row, the last right row at or before its time</td></tr><tr><td><code>LT JOIN</code></td><td>for each left row, the last right row strictly before its time</td></tr><tr><td><code>SPLICE JOIN</code></td><td>every row of both time-series tables in time order, each with the other table&#39;s last row so far</td></tr></tbody></table></div>
+<p><strong>Example: The 5 biggest trades of the day, with the buyer&#39;s and the seller&#39;s names</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.transaction_id, f.symbol, b.name AS buyer, s.name AS seller, f.quantity, f.rate, f.amount
+FROM trade_log f
+JOIN brokers b ON f.buyer = b.id
+JOIN brokers s ON f.seller = s.id
+WHERE f.date IN &#39;2026-09-10&#39;
+ORDER BY f.amount DESC
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (STRING)</th><th>seller (STRING)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>100017</td><td>TELCO</td><td>Online Securities</td><td>Vision Securities</td><td>500</td><td>881</td><td>440500</td></tr><tr><td>100031</td><td>COAST</td><td>Imperial Securities</td><td>Northgate Securities</td><td>1000</td><td>402</td><td>402000</td></tr><tr><td>100015</td><td>COAST</td><td>Online Securities</td><td>Imperial Securities</td><td>1000</td><td>398</td><td>398000</td></tr><tr><td>100018</td><td>CITY</td><td>Imperial Securities</td><td>Keystone Securities</td><td>500</td><td>516</td><td>258000</td></tr><tr><td>100023</td><td>COAST</td><td>Northgate Securities</td><td>Keystone Securities</td><td>500</td><td>399</td><td>199500</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="join">JOIN, INNER JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+[INNER] JOIN right_table [[AS] alias] { ON condition | USING (column, ...) }
+[[INNER] JOIN ... ON ...] ...</code></pre>
+<p>For each row of the left side, KDB finds the rows of the right table where the <code>ON</code> condition is true, and gives one output row for each match. A row with no match is left out.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>right_table</code></td><td>a table, a <a href="views.html">view</a>, <code>(SELECT ...) alias</code>, or a table of another database: <code>otherdb.table</code> (see <a href="cross-database-queries.html">queries across databases</a>)</td></tr><tr><td><code>ON condition</code></td><td>which rows match; usually <code>a.key = b.key</code>, and more conditions with <code>AND</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per matching pair. The columns of all tables can be used in the select list, <code>WHERE</code>, <code>GROUP BY</code> and <code>ORDER BY</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> key never matches anything (not even another <code>NULL</code>).</li><li><strong>Notes:</strong> <code>ON</code> (or <a href="#using"><code>USING</code></a>) is required. The <code>a = b</code> parts of <code>ON</code> are used to find matches fast (a hash join); a join without any <code>=</code> between the two tables checks every pair (slow for big tables).</li><li>A join on <strong>one</strong> <code>=</code> between number columns (ids, <code>DATE</code> or <code>TIMESTAMP</code> values) is the fastest kind: the numbers themselves are the keys of the hash join. Joining on a text column, or on two <code>=</code>, works the same way but makes a text key for every row.</li><li>The first table in <code>FROM</code> is read with its time and symbol filters. A <strong>joined</strong> table is either looked up by key for each left row, or read completely into memory (see <a href="#join-speed">join speed</a>). Put the big time-series table first and join small tables to it.</li><li>The comma form <code>FROM a, b</code> is a <code>CROSS JOIN</code>; an <code>a.x = b.x</code> in <code>WHERE</code> makes it a hash join. <code>JOIN ... ON</code> says the same more clearly.</li><li>A <code>RIGHT</code>, <code>FULL</code> or <code>SPLICE JOIN</code> after a comma is refused: PostgreSQL reads <code>FROM a, b RIGHT JOIN c</code> as <code>a, (b RIGHT JOIN c)</code>, and joining left to right would give other rows. Write <code>CROSS JOIN</code> for the comma (left to right), or put the joins after the comma in a subquery.</li><li>At most 63 tables in one query.</li></ul>
+<p><strong>Example: Security names with the close price of the day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, s.name, s.sector, d.close
+FROM ochl_day d
+JOIN securities s ON s.symbol = d.symbol
+WHERE d.time IN &#39;2026-09-10&#39;
+ORDER BY s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>sector (STRING)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td><td>Banking</td><td>504.9</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td><td>Banking</td><td>376.1</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>Energy</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Turnover by sector</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.sector, count(*) AS trades, sum(f.quantity) AS shares, sum(f.amount) AS turnover
+FROM trade_log f
+JOIN securities s ON f.symbol = s.symbol
+WHERE f.date IN &#39;2026-09-10&#39;
+GROUP BY s.sector
+ORDER BY turnover DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sector (STRING)</th><th>trades (LONG)</th><th>shares (LONG)</th><th>turnover (DOUBLE)</th></tr></thead><tbody><tr><td>Banking</td><td>16</td><td>3760</td><td>1609170</td></tr><tr><td>Telecom</td><td>4</td><td>770</td><td>678260</td></tr><tr><td>Energy</td><td>4</td><td>400</td><td>73950</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Accounting: totals per account type (a small trial balance)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT a.type, sum(l.debit) AS debit, sum(l.credit) AS credit
+FROM ledger l
+JOIN accounts a ON a.code = l.account
+GROUP BY a.type
+ORDER BY a.type;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>type (STRING)</th><th>debit (DECIMAL(2))</th><th>credit (DECIMAL(2))</th></tr></thead><tbody><tr><td>asset</td><td>806350.00</td><td>323830.00</td></tr><tr><td>equity</td><td>NULL</td><td>500000.00</td></tr><tr><td>expense</td><td>26030.00</td><td>NULL</td></tr><tr><td>income</td><td>NULL</td><td>8550.00</td></tr><tr><td>liability</td><td>257500.00</td><td>257500.00</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Forum posts with the author&#39;s app plan</strong> (sample data: query-app, content-forum)</p>
+<pre><code class="language-sql">SELECT p.id, p.author, u.plan, u.city, p.body
+FROM posts p
+INNER JOIN app_users u ON u.username = p.author
+WHERE p.thread_id = 1
+ORDER BY p.id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>plan (STRING)</th><th>city (STRING)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>pro</td><td>Kathmandu</td><td>CITY dividend looks good this year.</td></tr><tr><td>2</td><td>sita</td><td>free</td><td>Pokhara</td><td>I agree, the profit grew 18%.</td></tr><tr><td>4</td><td>gita</td><td>pro</td><td>Dharan</td><td>What about the bonus shares?</td></tr><tr><td>5</td><td>ram</td><td>pro</td><td>Kathmandu</td><td>Bonus is 10% this time.</td></tr><tr><td>6</td><td>sita</td><td>free</td><td>Pokhara</td><td>सिटी बैंकको नाफा राम्रो छ।</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: ON is required</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM trade_log f JOIN brokers b;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 41: expected ON or USING (columns) and a join condition after the joined table but found &#39;;&#39;</code></p>
+<h3 id="join-speed">Join speed: key lookup or hash</h3>
+<p>KDB picks one of two ways to find the rows of a joined table (<code>JOIN</code> and <code>LEFT JOIN</code>):</p>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>When</th><th>Cost</th></tr></thead><tbody><tr><td><strong>key lookup</strong></td><td>The <code>a = b</code> parts of <code>ON</code> give the first columns of the joined table&#39;s key: its <code>PRIMARY KEY</code>, or for a time-series table its <code>SORT BY</code> / <code>DEDUP KEY</code> columns including the time column. Or they give the first column of an <a href="indexes.html">index</a> of the joined table.</td><td>Each left row reads only its own rows. A login row joined to its user among 100,000 users reads one user.</td></tr><tr><td><strong>hash</strong></td><td>Any other <code>ON</code>, or a left side with many rows (more than about a quarter of the joined table)</td><td>The joined table is read once (only the columns the query uses), then every left row is matched in it. Its rows are not copied: the hash points at them where they already are in memory, and a row is built only when a left row matches it.</td></tr></tbody></table></div>
+<ul><li><code>EXPLAIN</code> shows the choice: <code>join (key lookup on id) table users</code>, <code>join (index lookup on email) table users</code> or <code>join (hash on 1 key(s)) table users</code>.</li><li>When KDB cannot tell in advance how many left rows there are (a <code>WHERE</code> on a column without an index), it starts with lookups and switches to the hash once they cost more.</li><li>A key of type <code>DOUBLE</code> or <code>DECIMAL</code> is always joined with the hash.</li><li>A <code>GROUP BY</code> over joined rows keeps no copy of the joined tables&#39; rows either, and <code>ORDER BY ... LIMIT n</code> keeps only the best n rows while it groups. A report that joins 20,000 users to their accounts and transfers and shows the top 20 runs about twice as fast as before (2026-10-02).</li></ul>
+<p><strong>Example: Each trade looks up its buyer by the brokers&#39; PRIMARY KEY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">EXPLAIN SELECT f.transaction_id, b.name
+FROM trade_log f
+JOIN brokers b ON b.id = f.buyer
+WHERE f.date IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plan (STRING)</th></tr></thead><tbody><tr><td>scan table trade_log (1 of 2 partitions, about 32 rows)</td></tr><tr><td>join (key lookup on id) table brokers (1 of 1 partitions, about 5 rows)</td></tr><tr><td>build 3 of 7 stored column(s) per row: date, transaction_id, buyer</td></tr><tr><td>filter while scanning: 1 condition(s)</td></tr><tr><td>engine: row (a join)</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h3 id="join-column-engine">GROUP BY over a join: the column engine</h3>
+<p>Since 2026-10-02 a <code>GROUP BY</code> (or a plain <code>count(*)</code>, <code>sum</code>, ...) over <strong>two</strong> tables joined on <strong>one</strong> pair of columns runs on the column engine: the joined table is read once into a hash, the first table is read column by column on all threads, and no joined row is ever made. On 400,000 rows joined to 40,000 that is about 10 times faster than the row engine.</p>
+<p>It is used when all of these hold:</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>Allowed</th></tr></thead><tbody><tr><td>Tables</td><td>two stored tables (not a subquery or view), <code>JOIN</code> or <code>LEFT JOIN</code></td></tr><tr><td><code>ON</code></td><td>one <code>a.x = b.y</code> of whole-number columns (<code>BYTE</code> .. <code>LONG</code>) or of text columns (<code>SYMBOL</code>, <code>STRING</code>), plus conditions on the joined table alone</td></tr><tr><td><code>WHERE</code></td><td>conditions the column engine does (see <a href="where.html#fast-conditions">WHERE: fast conditions</a>) on either table; with <code>LEFT JOIN</code>, on the first table only</td></tr><tr><td><code>GROUP BY</code></td><td>up to 4 plain columns of either table; no <code>SAMPLE BY</code></td></tr><tr><td>Aggregates</td><td><code>count(*)</code>, <code>count(col)</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code> of plain columns (<code>sum</code>/<code>avg</code> of numbers, <code>min</code>/<code>max</code> also of times and dates)</td></tr><tr><td>Elsewhere</td><td>the <code>SELECT</code> list, <code>HAVING</code> and <code>ORDER BY</code> read only the group columns and the aggregates</td></tr></tbody></table></div>
+<ul><li><code>EXPLAIN</code> then ends with <code>engine: column (hash join)</code>; otherwise <code>engine: row (...)</code> says why not.</li><li>A first table with a filter, joined to a big table (over 65,536 rows) that it can look up by key or index, stays on the row engine: a few lookups are cheaper than reading the whole joined table.</li><li>The answers are the same on both engines, in the same order. <code>KDB_NO_COLUMN_JOIN=1</code> sends every join back to the row engine, for comparing.</li></ul>
+<h2 id="left-join">LEFT JOIN, LEFT OUTER JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+LEFT [OUTER] JOIN right_table [[AS] alias] ON condition</code></pre>
+<p>Like <code>JOIN</code>, but <strong>every row of the left table stays</strong>. When the right table has no matching row, its columns are <code>NULL</code>. <code>OUTER</code> is an optional word.</p>
+<ul><li><strong>Returns:</strong> at least one row for each left row.</li><li><strong>NULL:</strong> the right side&#39;s columns are <code>NULL</code> for left rows without a match. <code>count(right.column)</code> counts them as 0.</li><li><strong>Notes:</strong> a condition on the right table belongs in <code>ON</code> when you want to keep the left rows. In <code>WHERE</code> it removes the rows where the right side is <code>NULL</code>, so the <code>LEFT JOIN</code> acts like a plain <code>JOIN</code> (see the two examples below).</li><li>To keep the rows of the right table instead, use <a href="#right-join">RIGHT JOIN</a>; for both, <a href="#full-join">FULL JOIN</a>.</li></ul>
+<p><strong>Example: Every security, also the ones without trades</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, count(f.transaction_id) AS trades
+FROM securities s
+LEFT JOIN trade_log f ON f.symbol = s.symbol
+GROUP BY s.symbol
+ORDER BY trades DESC, s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td></tr><tr><td>COAST</td><td>11</td></tr><tr><td>TELCO</td><td>6</td></tr><tr><td>VOLT</td><td>4</td></tr><tr><td>ACME</td><td>0</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The day&#39;s close for every security: the condition on the day is in ON</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, d.close
+FROM securities s
+LEFT JOIN ochl_day d ON d.symbol = s.symbol AND d.time IN &#39;2026-09-10&#39;
+ORDER BY s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>ACME</td><td>NULL</td></tr><tr><td>CITY</td><td>504.9</td></tr><tr><td>COAST</td><td>376.1</td></tr><tr><td>TELCO</td><td>NULL</td></tr><tr><td>VOLT</td><td>191.2</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: The same condition in WHERE removes ACME and TELCO</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, d.close
+FROM securities s
+LEFT JOIN ochl_day d ON d.symbol = s.symbol
+WHERE d.time IN &#39;2026-09-10&#39;
+ORDER BY s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td></tr><tr><td>COAST</td><td>376.1</td></tr><tr><td>VOLT</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: App users and how many forum posts they wrote</strong> (sample data: query-app, content-forum)</p>
+<pre><code class="language-sql">SELECT u.username, count(p.id) AS posts, max(p.created_at) AS last_post
+FROM app_users u
+LEFT OUTER JOIN posts p ON p.author = u.username
+GROUP BY u.username
+ORDER BY posts DESC, u.username;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>posts (LONG)</th><th>last_post (TIMESTAMP)</th></tr></thead><tbody><tr><td>gita</td><td>2</td><td>2026-09-02T03:25:00.000Z</td></tr><tr><td>ram</td><td>2</td><td>2026-09-01T05:45:00.000Z</td></tr><tr><td>sita</td><td>2</td><td>2026-09-01T06:15:00.000Z</td></tr><tr><td>anita</td><td>0</td><td>NULL</td></tr><tr><td>bikash</td><td>0</td><td>NULL</td></tr><tr><td>hari_99</td><td>0</td><td>NULL</td></tr><tr><td>suman</td><td>0</td><td>NULL</td></tr><tr><td>test_user</td><td>0</td><td>NULL</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<p><strong>Example: Find what is missing: brokers who sold nothing on 2026-09-09</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT b.id, b.name
+FROM brokers b
+LEFT JOIN trade_log f ON f.seller = b.id AND f.date IN &#39;2026-09-09&#39;
+WHERE f.transaction_id IS NULL;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>58</td><td>Northgate Securities</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="right-join">RIGHT JOIN, RIGHT OUTER JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+RIGHT [OUTER] JOIN right_table [[AS] alias] { ON condition | USING (column, ...) }</code></pre>
+<p>The mirror of <code>LEFT JOIN</code>: <strong>every row of the right table stays</strong>. When no left row matches it, the left side&#39;s columns are <code>NULL</code>. It is the same as swapping the two tables in a <code>LEFT JOIN</code>, but keeps the column order you wrote.</p>
+<ul><li><strong>Returns:</strong> at least one row for each right row.</li><li><strong>NULL:</strong> a right row whose key is <code>NULL</code> matches nothing and still comes out, with <code>NULL</code> on the left.</li><li><strong>Notes:</strong> <code>WHERE</code> is checked after the join, on the added rows too: <code>WHERE left.col IS NULL</code> finds the right rows without a match.</li><li>The right table is read into memory (a hash join), as for <code>LEFT JOIN</code> with the hash. The rows that no left row matched come after the others, unless you <code>ORDER BY</code>.</li></ul>
+<p><strong>Example: Every security, also the ones nobody traded on 2026-09-10</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, count(f.transaction_id) AS trades
+FROM (SELECT * FROM trade_log WHERE date IN &#39;2026-09-10&#39;) f
+RIGHT JOIN securities s ON f.symbol = s.symbol
+GROUP BY s.symbol
+ORDER BY s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>ACME</td><td>0</td></tr><tr><td>CITY</td><td>7</td></tr><tr><td>COAST</td><td>9</td></tr><tr><td>TELCO</td><td>4</td></tr><tr><td>VOLT</td><td>4</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Only the right rows without a match</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol
+FROM ochl_minutes m
+RIGHT JOIN securities s ON m.symbol = s.symbol
+WHERE m.symbol IS NULL
+ORDER BY s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th></tr></thead><tbody><tr><td>ACME</td></tr><tr><td>TELCO</td></tr><tr><td>VOLT</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="full-join">FULL JOIN, FULL OUTER JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+FULL [OUTER] JOIN right_table [[AS] alias] { ON condition | USING (column, ...) }</code></pre>
+<p>Every row of <strong>both</strong> tables: the pairs that match side by side, then the left rows without a match (right side <code>NULL</code>) and the right rows without a match (left side <code>NULL</code>). Use it to compare two lists.</p>
+<ul><li><strong>Returns:</strong> at least max(left rows, right rows) rows.</li><li><strong>Notes:</strong> with <code>USING (id)</code>, the one <code>id</code> column holds whichever side&#39;s value is there (see <a href="#using">USING</a>).</li></ul>
+<p><strong>Example: Symbols with live prices, symbols that are not banks, or both</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT l.symbol AS live, s.symbol AS not_a_bank
+FROM (SELECT DISTINCT symbol FROM live_data) l
+FULL JOIN (SELECT symbol FROM securities WHERE sector &lt;&gt; &#39;Banking&#39;) s ON l.symbol = s.symbol
+ORDER BY coalesce(l.symbol, s.symbol);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>live (SYMBOL)</th><th>not_a_bank (SYMBOL)</th></tr></thead><tbody><tr><td>NULL</td><td>ACME</td></tr><tr><td>CITY</td><td>NULL</td></tr><tr><td>COAST</td><td>NULL</td></tr><tr><td>TELCO</td><td>TELCO</td></tr><tr><td>VOLT</td><td>VOLT</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: FULL JOIN after a comma is refused</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT count(*) FROM brokers b, securities s FULL JOIN live_data l ON l.symbol = s.symbol;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 46: FULL JOIN after a comma join is ambiguous: PostgreSQL joins it before the comma, KDB after. Write CROSS JOIN instead of the comma to join left to right, or put the joins after the comma in a subquery: FROM a, (SELECT ... FROM b RIGHT JOIN c ON ...) s</code></p>
+<h2 id="using">USING</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">JOIN right_table [[AS] alias] USING (column, ...)</code></pre>
+<p><code>USING (id)</code> is <code>ON left.id = right.id</code> for columns that have the same name in both tables (PostgreSQL). It works with <code>JOIN</code>, <code>LEFT JOIN</code>, <code>RIGHT JOIN</code> and <code>FULL JOIN</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>What you write</th><th>Means</th></tr></thead><tbody><tr><td><code>SELECT *</code></td><td>each <code>USING</code> column <strong>once</strong>, first, then the other columns of each table</td></tr><tr><td><code>id</code> (no table name)</td><td>the joined <code>id</code>: the left one for <code>JOIN</code> and <code>LEFT JOIN</code>, the right one for <code>RIGHT JOIN</code>, <code>coalesce(left.id, right.id)</code> for <code>FULL JOIN</code></td></tr><tr><td><code>a.id</code>, <code>b.id</code></td><td>each table&#39;s own column, as always; <code>a.*</code> still shows all of <code>a</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> the column must be in the right table and in exactly one table on the left; otherwise write <code>ON a.col = b.col</code>.</li></ul>
+<p><strong>Example: The day&#39;s candle for each security, joined on the column both tables have</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT * FROM securities JOIN (SELECT symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39;) d USING (symbol)
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>sector (STRING)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td><td>Banking</td><td>504.9</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td><td>Banking</td><td>376.1</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>Energy</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A column that is not in both tables</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM securities s JOIN brokers b USING (symbol);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 28: column &#39;symbol&#39; in USING is not in the right table &#39;b&#39;</code></p>
+<h2 id="cross-join">CROSS JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+CROSS JOIN right_table [[AS] alias]</code></pre>
+<p>Every row of the left side with every row of the right table. There is no <code>ON</code>.</p>
+<ul><li><strong>Returns:</strong> (left rows) × (right rows) rows. 5 brokers × 5 securities = 25 rows.</li><li><strong>Notes:</strong> the result grows very fast. Filter with <code>WHERE</code>, and use it only with small tables.</li><li>Useful to make a full grid (every broker with every symbol), or to compare every row with a few other rows.</li></ul>
+<p><strong>Example: How many pairs</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) AS pairs FROM brokers b CROSS JOIN securities s;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pairs (LONG)</th></tr></thead><tbody><tr><td>25</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Broker buy and sell summary of the day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT b.id, b.name,
+       sum(CASE WHEN f.buyer  = b.id THEN f.quantity ELSE 0 END) AS bought,
+       sum(CASE WHEN f.seller = b.id THEN f.quantity ELSE 0 END) AS sold
+FROM brokers b
+CROSS JOIN trade_log f
+WHERE f.date IN &#39;2026-09-10&#39;
+GROUP BY b.id, b.name
+ORDER BY bought DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th><th>bought (LONG)</th><th>sold (LONG)</th></tr></thead><tbody><tr><td>49</td><td>Online Securities</td><td>1740</td><td>340</td></tr><tr><td>45</td><td>Imperial Securities</td><td>1560</td><td>1520</td></tr><tr><td>58</td><td>Northgate Securities</td><td>760</td><td>1270</td></tr><tr><td>1</td><td>Keystone Securities</td><td>570</td><td>1100</td></tr><tr><td>34</td><td>Vision Securities</td><td>300</td><td>700</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: CROSS JOIN has no ON</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT b.name FROM brokers b CROSS JOIN securities s ON s.symbol = &#39;TELCO&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 54: expected JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN, ASOF JOIN, LT JOIN, SPLICE JOIN, CROSS JOIN, WHERE, LATEST ON, SAMPLE BY, GROUP BY, UNION ALL, ORDER BY, LIMIT, &#39;;&#39; or the end of the input but found &#39;ON&#39;</code></p>
+<h2 id="asof-join">ASOF JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+ASOF JOIN right_table [[AS] alias] [ON condition]</code></pre>
+<p>A join by <strong>time</strong>. For each row of the left table, KDB takes the <strong>last row of the right table whose time is at or before the left row&#39;s time</strong>. With <code>ON</code>, the right row must also match the <code>ON</code> condition (usually the same symbol).</p>
+<p>This answers questions like &quot;what was the last candle when this live price came in?&quot; or &quot;what was the price when this trade happened?&quot;.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>left_table</code></td><td>a time-series table (its <code>TIMESERIES</code> column is the time)</td></tr><tr><td><code>right_table</code></td><td>a time-series table, or a subquery whose result has a time column</td></tr><tr><td><code>ON a.symbol = b.symbol</code></td><td>match only rows of the same symbol; other <code>AND</code> conditions are checked too</td></tr><tr><td><code>ON (symbol)</code></td><td>QuestDB&#39;s short form of the same: the listed columns are equal in both tables</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row for each left row. When no right row is early enough (or none matches <code>ON</code>), the right columns are <code>NULL</code>, like a <code>LEFT JOIN</code>.</li><li><strong>Notes:</strong> both sides must have a time column: a relational table gives the error <code>ASOF JOIN needs a time column in both tables</code>.</li><li>&quot;At or before&quot; includes the same time. For strictly before, use <a href="#lt-join">LT JOIN</a>.</li><li>Without <code>ON</code>, any row of the right table can match, whatever its symbol.</li><li>QuestDB&#39;s <code>TOLERANCE</code> is not there yet.</li></ul>
+<p><strong>Example: Live prices with the last minute candle at or before each snapshot</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT l.timestamp, l.symbol, l.ltp, m.time AS candle_time, m.close AS candle_close
+FROM live_data l
+ASOF JOIN ochl_minutes m ON l.symbol = m.symbol
+WHERE l.symbol IN (&#39;CITY&#39;, &#39;COAST&#39;)
+ORDER BY l.symbol, l.timestamp;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>candle_time (TIMESTAMP)</th><th>candle_close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>513</td><td>2026-09-10T05:20:00.000Z</td><td>504.6</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>CITY</td><td>515.6</td><td>2026-09-10T07:15:00.000Z</td><td>502.3</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>527.1</td><td>2026-09-10T09:14:00.000Z</td><td>504.9</td></tr><tr><td>2026-09-10T05:20:00.000Z</td><td>COAST</td><td>390.6</td><td>2026-09-10T05:20:00.000Z</td><td>380.9</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>COAST</td><td>391.4</td><td>2026-09-10T07:15:00.000Z</td><td>377.8</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>COAST</td><td>401.9</td><td>2026-09-10T09:14:00.000Z</td><td>376.1</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: No match: there are no minute candles for TELCO, so the right side is NULL</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT l.timestamp, l.symbol, l.ltp, m.time AS candle_time, m.close
+FROM live_data l
+ASOF JOIN ochl_minutes m ON l.symbol = m.symbol
+WHERE l.symbol = &#39;TELCO&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>candle_time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>TELCO</td><td>860.5</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>TELCO</td><td>869</td><td>NULL</td><td>NULL</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>TELCO</td><td>897.7</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Trade rate compared with the day&#39;s close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.transaction_id, f.symbol, f.rate, d.close AS day_close, round(f.rate - d.close, 2) AS above_close
+FROM trade_log f
+ASOF JOIN ochl_day d ON f.symbol = d.symbol
+WHERE f.date IN &#39;2026-09-10&#39; AND f.symbol = &#39;COAST&#39;
+ORDER BY f.transaction_id
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>rate (DOUBLE)</th><th>day_close (DOUBLE)</th><th>above_close (DOUBLE)</th></tr></thead><tbody><tr><td>100009</td><td>COAST</td><td>400</td><td>376.1</td><td>23.9</td></tr><tr><td>100013</td><td>COAST</td><td>398</td><td>376.1</td><td>21.9</td></tr><tr><td>100014</td><td>COAST</td><td>399.5</td><td>376.1</td><td>23.4</td></tr><tr><td>100015</td><td>COAST</td><td>398</td><td>376.1</td><td>21.9</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: An extra ON condition: the last minute with more than 1400 shares</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT l.timestamp, l.ltp, m.time AS big_minute, m.volume
+FROM live_data l
+ASOF JOIN ochl_minutes m ON l.symbol = m.symbol AND m.volume &gt; 1400
+WHERE l.symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>ltp (DOUBLE)</th><th>big_minute (TIMESTAMP)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>513</td><td>2026-09-10T05:20:00.000Z</td><td>1420</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>515.6</td><td>2026-09-10T07:10:00.000Z</td><td>1440</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>527.1</td><td>2026-09-10T08:53:00.000Z</td><td>1480</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Both tables need a time column</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT l.symbol, s.name FROM live_data l ASOF JOIN securities s ON l.symbol = s.symbol;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 42: ASOF JOIN needs a time column in both tables (TIMESERIES tables)</code></p>
+<h2 id="lt-join">LT JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+LT JOIN right_table [[AS] alias] [ON condition | ON (column, ...)]</code></pre>
+<p>Like <code>ASOF JOIN</code>, but the right row must be <strong>strictly earlier</strong> than the left row (QuestDB). A right row at the same time is skipped. Use it to pair a row with the one before it, for example each day&#39;s candle with the previous day&#39;s.</p>
+<ul><li><strong>Returns:</strong> one row for each left row; <code>NULL</code> right columns when no right row is earlier.</li><li><strong>Notes:</strong> the same rules as <code>ASOF JOIN</code>: both tables need a time column, and <code>ON</code> may add conditions besides the keys.</li></ul>
+<p><strong>Example: Each day&#39;s close with the close of the day before</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT d.time, d.close, p.time AS prev_day, p.close AS prev_close
+FROM ochl_day d
+LT JOIN ochl_day p ON (symbol)
+WHERE d.symbol = &#39;CITY&#39; AND d.time &gt;= &#39;2026-09-06&#39;
+ORDER BY d.time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>prev_day (TIMESTAMP)</th><th>prev_close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>2026-09-03T00:00:00.000Z</td><td>497.9</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>2026-09-06T00:00:00.000Z</td><td>499</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>2026-09-07T00:00:00.000Z</td><td>498.7</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>2026-09-08T00:00:00.000Z</td><td>497.5</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>2026-09-09T00:00:00.000Z</td><td>504.6</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="splice-join">SPLICE JOIN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM left_table [[AS] alias]
+SPLICE JOIN right_table [[AS] alias] [ON a.key = b.key | ON (column, ...)]</code></pre>
+<p>A <strong>full</strong> time join (QuestDB): the rows of both tables are merged in time order. Each row comes out once, with the latest row of the other table so far (of the same key with <code>ON</code>). Rows of the two tables with the same time (and key) come out as one pair.</p>
+<ul><li><strong>Returns:</strong> at least as many rows as both tables together, minus the pairs of the same time. A row before any row of the other table has <code>NULL</code> on that side.</li><li><strong>Notes:</strong> <code>ON</code> takes only equal columns. <code>SPLICE JOIN</code> must be the first join of the query (joins after it are fine); both tables need a time column.</li><li>The rows come out in time order. Rows of <strong>one</strong> table with the same time come in that table&#39;s order (for a table with <code>SORT BY (symbol, time)</code>, by symbol).</li><li>With keys, every row of both tables is kept. QuestDB 9.4.3 pairs rows the same way for one key, but with several keys it drops some right rows and pairs some rows with an older row of their key; KDB keeps them all.</li></ul>
+<p><strong>Example: Live prices and a few minute candles on one time line (05:20 has both: one pair)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT l.timestamp, l.ltp, m.time AS candle, m.close
+FROM (SELECT * FROM live_data WHERE symbol = &#39;CITY&#39;) l
+SPLICE JOIN (SELECT * FROM ochl_minutes
+             WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-10T05:17:00Z&#39; AND time &lt; &#39;2026-09-10T05:23:00Z&#39;) m;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>ltp (DOUBLE)</th><th>candle (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>NULL</td><td>NULL</td><td>2026-09-10T05:17:00.000Z</td><td>504.2</td></tr><tr><td>NULL</td><td>NULL</td><td>2026-09-10T05:18:00.000Z</td><td>504.4</td></tr><tr><td>NULL</td><td>NULL</td><td>2026-09-10T05:19:00.000Z</td><td>504.5</td></tr><tr><td>2026-09-10T05:20:00.000Z</td><td>513</td><td>2026-09-10T05:20:00.000Z</td><td>504.6</td></tr><tr><td>2026-09-10T05:20:00.000Z</td><td>513</td><td>2026-09-10T05:21:00.000Z</td><td>505.1</td></tr><tr><td>2026-09-10T05:20:00.000Z</td><td>513</td><td>2026-09-10T05:22:00.000Z</td><td>504.9</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>515.6</td><td>2026-09-10T05:22:00.000Z</td><td>504.9</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>527.1</td><td>2026-09-10T05:22:00.000Z</td><td>504.9</td></tr></tbody></table></div>
+<p>(8 rows)</p>
+<h2 id="aliases">Table aliases</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM table [AS] alias
+JOIN table [AS] alias ON ...
+alias.column
+alias.*</code></pre>
+<p>An alias is a short name for a table in one query. After you give one, use it for the columns: <code>f.symbol</code>. <code>AS</code> is optional.</p>
+<ul><li><strong>Notes:</strong> when a column name is in more than one table (like <code>symbol</code> or <code>name</code>), you <strong>must</strong> write <code>alias.column</code>. Otherwise KDB says <code>column &#39;symbol&#39; is in more than one table</code>.</li><li>The same table can be joined twice with two aliases (<code>brokers b</code> and <code>brokers s</code> in the first example).</li><li>The words <code>ASOF</code>, <code>CROSS</code>, <code>FULL</code>, <code>INNER</code>, <code>LATEST</code>, <code>LEFT</code>, <code>LT</code>, <code>RIGHT</code>, <code>SAMPLE</code>, <code>SPLICE</code>, <code>UNION</code>, <code>USING</code> and a few more cannot be an alias without <code>AS</code>, because they start the next part of the query.</li></ul>
+<p><strong>Example: One table joined twice, with AS and long aliases: who sold to whom</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.transaction_id, buyer_broker.name AS buyer, seller_broker.name AS seller
+FROM trade_log AS f
+JOIN brokers AS buyer_broker ON buyer_broker.id = f.buyer
+JOIN brokers AS seller_broker ON seller_broker.id = f.seller
+WHERE seller_broker.name = &#39;Keystone Securities&#39;
+ORDER BY f.transaction_id
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>buyer (STRING)</th><th>seller (STRING)</th></tr></thead><tbody><tr><td>100002</td><td>Imperial Securities</td><td>Keystone Securities</td></tr><tr><td>100013</td><td>Northgate Securities</td><td>Keystone Securities</td></tr><tr><td>100016</td><td>Vision Securities</td><td>Keystone Securities</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A column in two tables needs the alias</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol, name FROM trade_log f JOIN securities s ON s.symbol = f.symbol;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: column &#39;symbol&#39; is in more than one table; write it as table.column</code></p>
+<h2 id="join-subquery">Joining a subquery</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">JOIN (SELECT ...) alias ON condition
+LEFT JOIN (SELECT ...) alias ON condition
+ASOF JOIN (SELECT ...) alias ON condition</code></pre>
+<p>The right side of a join can be the result of another query in <code>( )</code>. Give it an alias, so you can write <code>alias.column</code>. This is how you join a table with <strong>totals</strong> or with the <strong>latest row</strong> of something.</p>
+<ul><li><strong>Notes:</strong> the subquery runs once, before the join. To use columns of the tables before it, write <code>LATERAL (SELECT ...)</code> (see <a href="union-subqueries.html#correlated">correlated subqueries</a>).</li><li>A subquery in <code>FROM</code> (the left side) also works: see <a href="select.html#from">FROM</a>.</li></ul>
+<p><strong>Example: Each security with its latest live price</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, s.name, l.ltp, l.pct_change
+FROM securities s
+LEFT JOIN (SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol) l
+  ON l.symbol = s.symbol
+ORDER BY s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>ACME</td><td>Acme Investment Company</td><td>NULL</td><td>NULL</td></tr><tr><td>CITY</td><td>City Bank Limited</td><td>527.1</td><td>2.71</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td><td>401.9</td><td>0.7</td></tr><tr><td>TELCO</td><td>Northwind Telecom Limited</td><td>897.7</td><td>1.9</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>184</td><td>-0.86</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Each trade as a share of the symbol&#39;s total quantity of the day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.transaction_id, f.symbol, f.quantity, t.total,
+       round(f.quantity * 100.0 / t.total, 1) AS pct_of_day
+FROM trade_log f
+JOIN (SELECT symbol, sum(quantity) AS total FROM trade_log WHERE date IN &#39;2026-09-10&#39; GROUP BY symbol) t
+  ON t.symbol = f.symbol
+WHERE f.date IN &#39;2026-09-10&#39; AND f.symbol = &#39;CITY&#39;
+ORDER BY pct_of_day DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>total (LONG)</th><th>pct_of_day (DOUBLE)</th></tr></thead><tbody><tr><td>100018</td><td>CITY</td><td>500</td><td>910</td><td>54.9</td></tr><tr><td>100029</td><td>CITY</td><td>200</td><td>910</td><td>22</td></tr><tr><td>100024</td><td>CITY</td><td>100</td><td>910</td><td>11</td></tr><tr><td>100010</td><td>CITY</td><td>50</td><td>910</td><td>5.5</td></tr><tr><td>100022</td><td>CITY</td><td>20</td><td>910</td><td>2.2</td></tr><tr><td>100027</td><td>CITY</td><td>20</td><td>910</td><td>2.2</td></tr><tr><td>100030</td><td>CITY</td><td>20</td><td>910</td><td>2.2</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<p><strong>Example: Account balances with the account names</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT a.code, a.name, b.balance
+FROM accounts a
+JOIN (SELECT account, coalesce(sum(debit), 0) - coalesce(sum(credit), 0) AS balance
+      FROM ledger GROUP BY account) b
+  ON b.account = a.code
+WHERE a.type = &#39;asset&#39;
+ORDER BY a.code;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>code (INT)</th><th>name (STRING)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1000</td><td>Cash</td><td>5000.00</td></tr><tr><td>1100</td><td>Bank - City</td><td>230320.00</td></tr><tr><td>1200</td><td>Shares at cost</td><td>247200.00</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Without an alias it still works, but the columns have no name to use</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT b.id, b.name, count(*) AS trades
+FROM brokers b JOIN (SELECT buyer FROM trade_log) ON buyer = b.id
+GROUP BY b.id, b.name
+ORDER BY b.id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>1</td><td>Keystone Securities</td><td>9</td></tr><tr><td>34</td><td>Vision Securities</td><td>5</td></tr><tr><td>45</td><td>Imperial Securities</td><td>6</td></tr><tr><td>49</td><td>Online Securities</td><td>6</td></tr><tr><td>58</td><td>Northgate Securities</td><td>6</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/joins.md">This page as markdown</a>.</footer>
+</body>
+</html>

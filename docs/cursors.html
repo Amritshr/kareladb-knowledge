@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cursors - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Run a query once, keep its rows, and read them a few at a time.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/cursors.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cursors.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="cursors">Cursors</h1>
+<blockquote><p>Run a query once, keep its rows, and read them a few at a time.</p></blockquote>
+<ul><li>Category: Cursors</li><li>Keywords: cursor, CURSOR, DECLARE CURSOR, NEXT, ALL, paging, page by page, read in parts, big result, snapshot, FETCH NEXT, FETCH ALL, too many open cursors, is not open</li><li>See also: <a href="http-sessions-and-cursors.html">Sessions and cursors over HTTP</a>, <a href="procedure-language.html#local-cursors">The procedure language (local-cursors)</a>, <a href="transactions.html">Transactions</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
+<p>A <strong>cursor</strong> runs a <code>SELECT</code> once and keeps its rows. Then you read the rows a part at a time with <code>FETCH</code>, and end with <code>CLOSE</code>.
+Use it when a result is too big to read at once, for example to send a long trade log to an app page by page.</p>
+<ul><li>The rows are a <strong>snapshot</strong> (a copy made at <code>DECLARE</code>): changes to the table after that do not change what <code>FETCH</code> returns.</li><li>A cursor lives until <code>CLOSE</code>, or until the end of the text or session (see <a href="cursors.html#lifetime">where a cursor lives</a>).</li><li>Over HTTP, <code>POST /cursor</code> does the same job (see <a href="cursors.html#http">cursors over HTTP</a>).</li><li>Inside a procedure, a cursor reads one row at a time into variables: see <a href="procedure-language.html#local-cursors">cursors in a body</a>.</li></ul>
+<p><strong>Example: The trade log of one day, 5 trades at a time</strong> (sample data: sample)</p>
+<pre><code class="language-sql">DECLARE trades CURSOR FOR
+  SELECT transaction_id, symbol, buyer, seller, quantity, rate
+  FROM trade_log WHERE date = &#39;2026-09-10&#39; ORDER BY transaction_id;
+FETCH NEXT 5 FROM trades;
+FETCH NEXT 5 FROM trades;
+CLOSE trades;</code></pre>
+<p>Result:</p>
+<p><code>DECLARE trades CURSOR FOR SELECT transaction_id, symbol, buyer, seller, quantity, rate FROM trade_lo</code></p>
+<pre><code class="language-text">cursor &#39;trades&#39; declared: 24 row(s)</code></pre>
+<p><code>FETCH NEXT 5 FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (INT)</th><th>seller (INT)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th></tr></thead><tbody><tr><td>100009</td><td>COAST</td><td>34</td><td>45</td><td>50</td><td>400</td></tr><tr><td>100010</td><td>CITY</td><td>1</td><td>45</td><td>50</td><td>517</td></tr><tr><td>100011</td><td>VOLT</td><td>1</td><td>58</td><td>50</td><td>184</td></tr><tr><td>100012</td><td>VOLT</td><td>58</td><td>45</td><td>200</td><td>184</td></tr><tr><td>100013</td><td>COAST</td><td>58</td><td>1</td><td>50</td><td>398</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<pre><code class="language-text">5 row(s) fetched, 19 left</code></pre>
+<p><code>FETCH NEXT 5 FROM trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (INT)</th><th>seller (INT)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th></tr></thead><tbody><tr><td>100014</td><td>COAST</td><td>45</td><td>49</td><td>20</td><td>399.5</td></tr><tr><td>100015</td><td>COAST</td><td>49</td><td>45</td><td>1000</td><td>398</td></tr><tr><td>100016</td><td>VOLT</td><td>34</td><td>1</td><td>50</td><td>185</td></tr><tr><td>100017</td><td>TELCO</td><td>49</td><td>34</td><td>500</td><td>881</td></tr><tr><td>100018</td><td>CITY</td><td>45</td><td>1</td><td>500</td><td>516</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<pre><code class="language-text">5 row(s) fetched, 14 left</code></pre>
+<p><code>CLOSE trades</code></p>
+<pre><code class="language-text">cursor &#39;trades&#39; closed</code></pre>
+<h2 id="declare-cursor">DECLARE CURSOR</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DECLARE name CURSOR FOR SELECT ...</code></pre>
+<p>Runs the query at once and keeps all its rows under a name.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the cursor name. Upper and lower case are the same.</td></tr><tr><td><code>SELECT ...</code></td><td>one query. Not <code>SHOW</code>, not <code>EXPLAIN</code>. Use <code>ORDER BY</code> when the order of the parts matters.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>cursor &#39;name&#39; declared: N row(s)</code>.</li><li><strong>Notes:</strong>
+<ul><li>The query runs <strong>once</strong>, now. Its rows stay in memory until the cursor is closed.</li><li>A name that is already open in the same text or session is an error: <code>CLOSE</code> it first.</li><li><code>DECLARE name TYPE</code> (a variable) works only inside a procedure or trigger body.</li><li>At most 16 open cursors per database, and at most 10 million rows per cursor (see <a href="cursors.html#limits">limits</a>).</li><li><code>DECLARE ... CURSOR</code> works inside <code>BEGIN ... COMMIT</code>, and then it sees the changes of the transaction.</li></ul></li></ul>
+<p><strong>Example: A snapshot: rows deleted after DECLARE are still fetched</strong> (sample data: sample)</p>
+<pre><code class="language-sql">DECLARE s CURSOR FOR SELECT symbol, sector FROM securities ORDER BY symbol;
+DELETE FROM securities WHERE sector = &#39;Banking&#39;;
+FETCH ALL FROM s;
+SELECT count(*) AS securities_now FROM securities;</code></pre>
+<p>Result:</p>
+<p><code>DECLARE s CURSOR FOR SELECT symbol, sector FROM securities ORDER BY symbol</code></p>
+<pre><code class="language-text">cursor &#39;s&#39; declared: 5 row(s)</code></pre>
+<p><code>DELETE FROM securities WHERE sector = &#39;Banking&#39;</code></p>
+<pre><code class="language-text">2 row(s) deleted</code></pre>
+<p><code>FETCH ALL FROM s</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Investment</td></tr><tr><td>CITY</td><td>Banking</td></tr><tr><td>COAST</td><td>Banking</td></tr><tr><td>TELCO</td><td>Telecom</td></tr><tr><td>VOLT</td><td>Energy</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<pre><code class="language-text">5 row(s) fetched, no more rows</code></pre>
+<p><code>SELECT count(*) AS securities_now FROM securities</code></p>
+<div class="table-wrap"><table><thead><tr><th>securities_now (LONG)</th></tr></thead><tbody><tr><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The same name twice</strong> (shows an error)</p>
+<pre><code class="language-sql">DECLARE c CURSOR FOR SELECT 1 AS x;
+DECLARE c CURSOR FOR SELECT 2 AS x;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">cursor &#39;c&#39; declared: 1 row(s)</code></pre>
+<p>Error: <code>cursor &#39;c&#39; is already open; CLOSE it first</code></p>
+<p><strong>Example: Only a SELECT</strong> (shows an error)</p>
+<pre><code class="language-sql">DECLARE c CURSOR FOR SHOW TABLES;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 22: expected a query (SELECT ...) after CURSOR FOR but found &#39;SHOW&#39;</code></p>
+<h2 id="fetch">FETCH</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FETCH name
+FETCH [FROM] name
+FETCH NEXT [FROM] name
+FETCH NEXT count FROM name
+FETCH count FROM name
+FETCH ALL FROM name</code></pre>
+<p>Returns the next rows of the cursor and moves past them.</p>
+<div class="table-wrap"><table><thead><tr><th>Form</th><th>Rows</th></tr></thead><tbody><tr><td><code>FETCH c</code>, <code>FETCH FROM c</code>, <code>FETCH NEXT FROM c</code></td><td>the next 1 row</td></tr><tr><td><code>FETCH NEXT 100 FROM c</code>, <code>FETCH 100 FROM c</code></td><td>the next 100 rows (fewer at the end)</td></tr><tr><td><code>FETCH ALL FROM c</code></td><td>all rows that are left</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the rows (with the columns of the query), and the message <code>N row(s) fetched, M left</code> or <code>N row(s) fetched, no more rows</code>.</li><li><strong>Notes:</strong>
+<ul><li>With a count or <code>ALL</code>, the word <code>FROM</code> is needed: <code>FETCH NEXT 5 c</code> is an error.</li><li>The count must be 1 or more.</li><li>After the last row, <code>FETCH</code> returns 0 rows (not an error). The cursor stays open until <code>CLOSE</code>.</li><li>There is no going back (<code>PRIOR</code>, <code>ABSOLUTE</code>): a cursor only moves forward.</li><li><code>FETCH ... INTO variables</code> works only inside a procedure or trigger body.</li></ul></li></ul>
+<p><strong>Example: All forms of FETCH</strong> (sample data: sample)</p>
+<pre><code class="language-sql">DECLARE s CURSOR FOR SELECT symbol, sector FROM securities ORDER BY symbol;
+FETCH s;
+FETCH NEXT FROM s;
+FETCH 2 FROM s;
+FETCH ALL FROM s;
+FETCH ALL FROM s;</code></pre>
+<p>Result:</p>
+<p><code>DECLARE s CURSOR FOR SELECT symbol, sector FROM securities ORDER BY symbol</code></p>
+<pre><code class="language-text">cursor &#39;s&#39; declared: 5 row(s)</code></pre>
+<p><code>FETCH NEXT 1 FROM s</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Investment</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) fetched, 4 left</code></pre>
+<p><code>FETCH NEXT 1 FROM s</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Banking</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) fetched, 3 left</code></pre>
+<p><code>FETCH NEXT 2 FROM s</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>COAST</td><td>Banking</td></tr><tr><td>TELCO</td><td>Telecom</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<pre><code class="language-text">2 row(s) fetched, 1 left</code></pre>
+<p><code>FETCH ALL FROM s</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>VOLT</td><td>Energy</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) fetched, no more rows</code></pre>
+<p><code>FETCH ALL FROM s</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<pre><code class="language-text">0 row(s) fetched, no more rows</code></pre>
+<p><strong>Example: Minute candles of CITY, one hour at a time</strong> (sample data: sample)</p>
+<pre><code class="language-sql">DECLARE m CURSOR FOR
+  SELECT time, open, high, low, close, volume
+  FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39; ORDER BY time;
+FETCH NEXT 60 FROM m;
+FETCH NEXT 60 FROM m;
+CLOSE m;</code></pre>
+<p>Result:</p>
+<p><code>DECLARE m CURSOR FOR SELECT time, open, high, low, close, volume FROM ochl_minutes WHERE symbol = &#39;C</code></p>
+<pre><code class="language-text">cursor &#39;m&#39; declared: 240 row(s)</code></pre>
+<p><code>FETCH NEXT 60 FROM m</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>504.6</td><td>504.6</td><td>504.4</td><td>504.4</td><td>960</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>504.4</td><td>504.7</td><td>504.3</td><td>504.6</td><td>700</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>504.6</td><td>504.9</td><td>504</td><td>504.2</td><td>150</td></tr><tr><td>2026-09-10T05:18:00.000Z</td><td>504.2</td><td>504.6</td><td>504.1</td><td>504.4</td><td>1050</td></tr><tr><td>2026-09-10T05:19:00.000Z</td><td>504.4</td><td>504.8</td><td>504.1</td><td>504.5</td><td>450</td></tr></tbody></table></div>
+<p>(first 5 of 60 rows)</p>
+<pre><code class="language-text">60 row(s) fetched, 180 left</code></pre>
+<p><code>FETCH NEXT 60 FROM m</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T06:15:00.000Z</td><td>505.3</td><td>505.4</td><td>505.1</td><td>505.4</td><td>1210</td></tr><tr><td>2026-09-10T06:16:00.000Z</td><td>505.4</td><td>505.7</td><td>505.2</td><td>505.6</td><td>1080</td></tr><tr><td>2026-09-10T06:17:00.000Z</td><td>505.6</td><td>505.9</td><td>505.6</td><td>505.8</td><td>290</td></tr><tr><td>2026-09-10T06:18:00.000Z</td><td>505.8</td><td>506</td><td>505.6</td><td>505.6</td><td>330</td></tr><tr><td>2026-09-10T06:19:00.000Z</td><td>505.6</td><td>505.7</td><td>505.2</td><td>505.4</td><td>270</td></tr></tbody></table></div>
+<p>(first 5 of 60 rows)</p>
+<pre><code class="language-text">60 row(s) fetched, 120 left</code></pre>
+<p><code>CLOSE m</code></p>
+<pre><code class="language-text">cursor &#39;m&#39; closed</code></pre>
+<p><strong>Example: FROM is needed with a count</strong> (shows an error)</p>
+<pre><code class="language-sql">DECLARE c CURSOR FOR SELECT 1 AS x;
+FETCH NEXT 5 c;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 2, column 14: expected FROM and the cursor name, as in FETCH NEXT 100 FROM c, but found &#39;c&#39;</code></p>
+<p><strong>Example: A count of 0</strong> (shows an error)</p>
+<pre><code class="language-sql">DECLARE c CURSOR FOR SELECT 1 AS x;
+FETCH 0 FROM c;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 2, column 7: expected a row count of 1 or more but found &#39;0&#39;</code></p>
+<h2 id="close">CLOSE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CLOSE name</code></pre>
+<p>Closes the cursor and frees the memory of its rows.</p>
+<ul><li><strong>Returns:</strong> <code>cursor &#39;name&#39; closed</code>.</li><li><strong>Notes:</strong> closing a cursor that is not open is an error. Cursors also close by themselves at the end of the text, the end of the session, and after 10 minutes without <code>FETCH</code>. Still, close them when you are done: only 16 can be open.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id;
+FETCH NEXT 2 FROM b;
+CLOSE b;</code></pre>
+<p>Result:</p>
+<p><code>DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id</code></p>
+<pre><code class="language-text">cursor &#39;b&#39; declared: 5 row(s)</code></pre>
+<p><code>FETCH NEXT 2 FROM b</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Keystone Securities</td></tr><tr><td>34</td><td>Vision Securities</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<pre><code class="language-text">2 row(s) fetched, 3 left</code></pre>
+<p><code>CLOSE b</code></p>
+<pre><code class="language-text">cursor &#39;b&#39; closed</code></pre>
+<p><strong>Example: A cursor that is not open</strong> (shows an error)</p>
+<pre><code class="language-sql">CLOSE b;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cursor &#39;b&#39; is not open</code></p>
+<h2 id="lifetime">Where a cursor lives</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb sql db &quot;DECLARE ...; FETCH ...; CLOSE ...&quot;     -- one text
+kdb shell db                                        -- one session: many lines
+POST /session, then X-KDB-Session on POST /exec     -- one HTTP session: many requests</code></pre>
+<p>A cursor belongs to the text or the session that declared it.</p>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>The cursor lives until</th></tr></thead><tbody><tr><td>one text: <code>kdb sql</code>, <code>POST /exec</code> without a session, the web console</td><td><code>CLOSE</code>, or the end of that text</td></tr><tr><td><code>kdb shell</code></td><td><code>CLOSE</code>, or the end of the shell</td></tr><tr><td>an HTTP session (<a href="http-sessions-and-cursors.html"><code>POST /session</code></a>)</td><td><code>CLOSE</code>, or the end of the session</td></tr><tr><td>a procedure body (<code>OPEN</code>)</td><td>the end of the procedure</td></tr><tr><td>an HTTP cursor (<code>POST /cursor</code>)</td><td><code>DELETE /cursor/&lt;id&gt;</code></td></tr></tbody></table></div>
+<p>All of them also close after <strong>10 minutes</strong> without <code>FETCH</code>. Another session cannot see your cursor, even with the same name.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>When a statement of one text fails, the cursors of that text are closed too. In <code>kdb shell</code> and in an HTTP session, cursors stay open after an error.</li><li><code>ROLLBACK</code> does not close cursors: their rows were already read at <code>DECLARE</code>.</li></ul></li></ul>
+<p><strong>Command line: Two kdb sql commands: the cursor of the first is gone</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-bash">kdb sql market &quot;DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id; FETCH NEXT 2 FROM b&quot;
+kdb sql market &quot;FETCH NEXT 2 FROM b&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql market &quot;DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id; FETCH NEXT 2 FROM b&quot;</code></p>
+<pre><code class="language-text">cursor &#39;b&#39; declared: 5 row(s)
+
+id | name               
+---+--------------------
+ 1 | Keystone Securities
+34 | Vision Securities  
+(2 rows, 0.0 ms)
+2 row(s) fetched, 3 left</code></pre>
+<p><code>&gt; kdb sql market &quot;FETCH NEXT 2 FROM b&quot;</code></p>
+<pre><code class="language-text">error: cursor &#39;b&#39; is not open (DECLARE b CURSOR FOR SELECT ... first; an unused cursor closes after 10 minutes)</code></pre>
+<p>exit code 1</p>
+<p><strong>Command line: kdb shell: the cursor stays from one line to the next</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb shell market
+&gt; DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id;
+&gt; FETCH NEXT 2 FROM b;
+&gt; FETCH NEXT 2 FROM b;
+&gt; FETCH ALL FROM b;
+&gt; CLOSE b;
+&gt; .exit</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on market
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; cursor &#39;b&#39; declared: 5 row(s)
+kdb&gt; id | name               
+---+--------------------
+ 1 | Keystone Securities
+34 | Vision Securities  
+(2 rows, 0.0 ms)
+2 row(s) fetched, 3 left
+kdb&gt; id | name               
+---+--------------------
+45 | Imperial Securities
+49 | Online Securities  
+(2 rows, 0.0 ms)
+2 row(s) fetched, 1 left
+kdb&gt; id | name                
+---+---------------------
+58 | Northgate Securities
+(1 row, 0.0 ms)
+1 row(s) fetched, no more rows
+kdb&gt; cursor &#39;b&#39; closed
+kdb&gt;</code></pre>
+<p><strong>HTTP: An HTTP session: DECLARE in one request, FETCH in the next</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /session
+
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id
+###
+POST /exec
+X-KDB-Session: {{session}}
+
+FETCH NEXT 3 FROM b
+###
+DELETE /session/{{session}}</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;bc2b748660dfa76d2a145ccd793a280b&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;cursor &#39;b&#39; declared: 5 row(s)&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 295}
+    }
+  ],
+  &quot;columns&quot;: [],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 295}
+}</code></pre>
+<p><code>POST /exec</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;FETCH NEXT 3 FROM b&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;FETCH NEXT 3 FROM b&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1, &quot;Keystone Securities&quot;],
+        [34, &quot;Vision Securities&quot;],
+        [45, &quot;Imperial Securities&quot;]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;3 row(s) fetched, 2 left&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 8}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+    {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [1, &quot;Keystone Securities&quot;],
+    [34, &quot;Vision Securities&quot;],
+    [45, &quot;Imperial Securities&quot;]
+  ],
+  &quot;count&quot;: 3,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 8}
+}</code></pre>
+<p><code>DELETE /session/{{session}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;bc2b748660dfa76d2a145ccd793a280b&quot;, &quot;closed&quot;: true}</code></pre>
+<h2 id="http">Cursors over HTTP: POST /cursor</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST   /cursor                 body: one SELECT     -&gt; {&quot;cursor&quot;: &quot;&lt;id&gt;&quot;, &quot;columns&quot;: [...], &quot;rows&quot;: N}
+GET    /cursor/&lt;id&gt;?fetch=N                          -&gt; {&quot;cursor&quot;, &quot;columns&quot;, &quot;dataset&quot;, &quot;count&quot;, &quot;done&quot;}
+DELETE /cursor/&lt;id&gt;                                  -&gt; {&quot;cursor&quot;: &quot;&lt;id&gt;&quot;, &quot;closed&quot;: true}</code></pre>
+<p>An app does not need SQL cursor statements over HTTP. <code>POST /cursor</code> runs one <code>SELECT</code> and keeps the rows on the server; <code>GET /cursor/&lt;id&gt;?fetch=N</code> returns the next N rows; <code>DELETE</code> closes it.
+The full description is in <a href="http-sessions-and-cursors.html">HTTP sessions and cursors</a>.</p>
+<ul><li><strong>Notes:</strong>
+<ul><li><code>fetch</code> is 1,000 when you do not give it. <code>done</code> is <code>true</code> when no rows are left.</li><li>The id is long and random, so another client cannot guess it. No session is needed.</li><li>Use the same database (<code>db=</code> or the header <code>X-KDB-Database</code>) for all requests of one cursor.</li><li>HTTP cursors count toward the same 16 open cursors of the database.</li><li>A closed or unknown cursor answers HTTP 404.</li></ul></li></ul>
+<p><strong>HTTP: Page through the trade log over HTTP</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /cursor
+
+SELECT transaction_id, symbol, quantity, rate FROM trade_log WHERE date = &#39;2026-09-09&#39; ORDER BY transaction_id
+###
+GET /cursor/{{cursor}}?fetch=3
+###
+GET /cursor/{{cursor}}?fetch=3
+###
+DELETE /cursor/{{cursor}}
+###
+GET /cursor/{{cursor}}?fetch=3</code></pre>
+<p>Response:</p>
+<p><code>POST /cursor</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;d8c238e3eace8c6c&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;transaction_id&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;quantity&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;rate&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;rows&quot;: 8
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;d8c238e3eace8c6c&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;transaction_id&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;quantity&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;rate&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [100001, &quot;TELCO&quot;, 1000, 881],
+    [100002, &quot;CITY&quot;, 10, 515],
+    [100003, &quot;CITY&quot;, 500, 513]
+  ],
+  &quot;count&quot;: 3,
+  &quot;done&quot;: false
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;d8c238e3eace8c6c&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;transaction_id&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;quantity&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;rate&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [100004, &quot;CITY&quot;, 500, 514.5],
+    [100005, &quot;CITY&quot;, 500, 517],
+    [100006, &quot;COAST&quot;, 200, 401]
+  ],
+  &quot;count&quot;: 3,
+  &quot;done&quot;: false
+}</code></pre>
+<p><code>DELETE /cursor/{{cursor}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;d8c238e3eace8c6c&quot;, &quot;closed&quot;: true}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
+<p>HTTP 404 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;cursor &#39;d8c238e3eace8c6c&#39; does not exist (an unused cursor closes after 10 minutes)&quot;}</code></pre>
+<h2 id="limits">Limits of cursors</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DECLARE c17 CURSOR FOR SELECT ...   -- error when 16 cursors are open in the database</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Open cursors in one database (SQL and HTTP together)</td><td>16 (<code>DatabaseOptions::max_cursors</code>)</td></tr><tr><td>A cursor without <code>FETCH</code> closes after</td><td>10 minutes (<code>DatabaseOptions::cursor_idle_ms</code>)</td></tr><tr><td>Rows in one cursor</td><td>10 million. A bigger query is refused: narrow it with <code>WHERE</code>.</td></tr><tr><td>Rows of one <code>FETCH</code></td><td>the row limit of the request (for example <code>/exec</code> returns at most 1,000,000 rows)</td></tr><tr><td>Memory</td><td>all rows of an open cursor are kept in memory until it closes</td></tr></tbody></table></div>
+<p><strong>Example: The 17th open cursor</strong> (shows an error)</p>
+<pre><code class="language-sql">DECLARE c1 CURSOR FOR SELECT 1 AS x;
+DECLARE c2 CURSOR FOR SELECT 2 AS x;
+DECLARE c3 CURSOR FOR SELECT 3 AS x;
+DECLARE c4 CURSOR FOR SELECT 4 AS x;
+DECLARE c5 CURSOR FOR SELECT 5 AS x;
+DECLARE c6 CURSOR FOR SELECT 6 AS x;
+DECLARE c7 CURSOR FOR SELECT 7 AS x;
+DECLARE c8 CURSOR FOR SELECT 8 AS x;
+DECLARE c9 CURSOR FOR SELECT 9 AS x;
+DECLARE c10 CURSOR FOR SELECT 10 AS x;
+DECLARE c11 CURSOR FOR SELECT 11 AS x;
+DECLARE c12 CURSOR FOR SELECT 12 AS x;
+DECLARE c13 CURSOR FOR SELECT 13 AS x;
+DECLARE c14 CURSOR FOR SELECT 14 AS x;
+DECLARE c15 CURSOR FOR SELECT 15 AS x;
+DECLARE c16 CURSOR FOR SELECT 16 AS x;
+DECLARE c17 CURSOR FOR SELECT 17 AS x;</code></pre>
+<p>Result:</p>
+<p><code>DECLARE c1 CURSOR FOR SELECT 1 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c1&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c2 CURSOR FOR SELECT 2 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c2&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c3 CURSOR FOR SELECT 3 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c3&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c4 CURSOR FOR SELECT 4 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c4&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c5 CURSOR FOR SELECT 5 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c5&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c6 CURSOR FOR SELECT 6 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c6&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c7 CURSOR FOR SELECT 7 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c7&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c8 CURSOR FOR SELECT 8 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c8&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c9 CURSOR FOR SELECT 9 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c9&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c10 CURSOR FOR SELECT 10 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c10&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c11 CURSOR FOR SELECT 11 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c11&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c12 CURSOR FOR SELECT 12 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c12&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c13 CURSOR FOR SELECT 13 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c13&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c14 CURSOR FOR SELECT 14 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c14&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c15 CURSOR FOR SELECT 15 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c15&#39; declared: 1 row(s)</code></pre>
+<p><code>DECLARE c16 CURSOR FOR SELECT 16 AS x</code></p>
+<pre><code class="language-text">cursor &#39;c16&#39; declared: 1 row(s)</code></pre>
+<p>Error: <code>too many open cursors (16); CLOSE the ones you do not need (an unused cursor also closes after 10 minutes)</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cursors.md">This page as markdown</a>.</footer>
+</body>
+</html>

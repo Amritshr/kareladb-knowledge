@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17. Indexes and search - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/17-indexes-and-search.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/17-indexes-and-search.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="17-indexes-and-search">17. Indexes and search</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>Why a query can be slow, and how an index makes it fast.</li><li><code>CREATE INDEX</code>, <code>CREATE UNIQUE INDEX</code>, <code>DROP INDEX</code>, <code>SHOW INDEXES</code>.</li><li>A forum: pages of a thread, replies, and fast &quot;next page&quot; links.</li><li>News: full-text search in English, Nepali or any other language with <code>MATCH</code>, <code>search_rank</code> and <code>highlight</code>.</li><li>How to see if a query uses an index (<code>EXPLAIN</code>).</li><li>How fast it is, and the limits.</li></ul>
+<p>All examples are in examples/17-indexes-and-search/. The output under each example is real.</p>
+<h2 id="why-indexes">Why indexes</h2>
+<p>Every table has a <strong>storage key</strong>: the <code>PRIMARY KEY</code>, or <code>SORT BY</code> / <code>DEDUP KEY</code> of a time-series table (chapter 3). Rows are kept in the order of this key. So <code>WHERE id = 5</code> finds the row at once.</p>
+<p>A condition on another column is different. <code>WHERE thread_id = 7</code> must read <strong>every row</strong> of the table and check each one. With 10 rows this is fast. With 1 million forum posts it is slow.</p>
+<p>An <strong>index</strong> is a second, sorted list of one or more columns. Each entry points to its row. With an index on <code>thread_id</code>, KDB jumps to the posts of thread 7 and reads only those.</p>
+<div class="table-wrap"><table><thead><tr><th>Without index</th><th>With index</th></tr></thead><tbody><tr><td>Reads every row</td><td>Reads only the rows it needs</td></tr><tr><td>1 million posts: tens of milliseconds, more with long text</td><td>1 million posts: about 0.05 ms</td></tr><tr><td>Writes are a little faster</td><td>Every write also changes the index</td></tr></tbody></table></div>
+<p>Create an index for the columns your app uses in <code>WHERE</code> and <code>ORDER BY</code> again and again. Do not create indexes you do not use.</p>
+<h2 id="where-the-index-lives">Where the index lives</h2>
+<p>An index is kept <strong>in memory</strong>. KDB does not write it to disk:</p>
+<ul><li>When the database opens, <code>kdb serve</code> <strong>builds every index at once</strong>, on a background thread. The first query then finds it ready. Building takes about 0.2 seconds per million rows (a full-text index: about 2 seconds for 200,000 news articles). Queries and writes go on while it builds.</li><li>A query that needs an index before the build is done builds it itself, as before. <code>kdb sql</code> and <code>kdb shell</code> do not build at open: there the <strong>first query that needs an index builds it</strong>. <code>kdb serve --warm-indexes off</code> (or <code>KDB_WARM_INDEXES=off</code>) makes the server do the same.</li><li>After that, every change (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>InsertRows</code>, line protocol, <code>ROLLBACK</code>) also changes the index.</li><li>After a crash or a power cut, the index is built again from the rows. It can never be old or broken. <code>kdb check</code>, <code>kdb repair</code> and backups have nothing extra to do.</li><li>Only the <strong>definition</strong> (<code>CREATE INDEX ...</code>) is saved, with the table.</li><li>A slow query that a page asks again and again (a dashboard, a front page) can be <strong>pinned</strong>: the server keeps its result ready in the result cache and makes it again after a write. See the help topic <strong>Pinned queries</strong> (<code>/api/pins</code>).</li></ul>
+<h2 id="step-1-the-forum-tables">Step 1: the forum tables</h2>
+<p>01-forum-schema.sql:</p>
+<pre><code class="language-sql">CREATE TABLE threads (
+  id LONG PRIMARY KEY,
+  title STRING NOT NULL,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE posts (
+  id LONG PRIMARY KEY,
+  thread_id LONG NOT NULL REFERENCES threads(id),
+  parent_id LONG,
+  author STRING NOT NULL,
+  body STRING NOT NULL,
+  created_at TIMESTAMP NOT NULL
+);
+
+-- Pages of a thread, newest first.
+CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id);
+-- The replies of a post.
+CREATE INDEX posts_parent ON posts (parent_id);
+-- Posts of one author.
+CREATE INDEX posts_author ON posts (author);</code></pre>
+<pre><code class="language-text">table &#39;threads&#39; created
+
+table &#39;posts&#39; created
+
+index &#39;posts_thread_time&#39; created on table &#39;posts&#39; (0 rows)
+
+index &#39;posts_parent&#39; created on table &#39;posts&#39; (0 rows)
+
+index &#39;posts_author&#39; created on table &#39;posts&#39; (0 rows)</code></pre>
+<ul><li>A reply has the <code>id</code> of the post it answers in <code>parent_id</code>. A post that starts a discussion has <code>parent_id</code> NULL.</li><li><code>posts_thread_time</code> has <strong>three columns</strong>. The order matters: first <code>thread_id</code>, then <code>created_at</code>, then <code>id</code>. It helps <code>WHERE thread_id = ...</code>, and also <code>WHERE thread_id = ... ORDER BY created_at</code>. It does <strong>not</strong> help <code>WHERE created_at &gt; ...</code> alone, because <code>created_at</code> is not the first column.</li><li>You can create an index on a table that already has rows. KDB builds it at once.</li></ul>
+<p>The syntax:</p>
+<pre><code class="language-sql">CREATE [UNIQUE | FULLTEXT] INDEX [IF NOT EXISTS] name ON table (column, ...);
+DROP INDEX [IF EXISTS] name;
+SHOW INDEXES [FROM table];</code></pre>
+<p>Index names are unique in the whole database. A good habit: <code>table_columns</code>, for example <code>posts_thread_time</code>.</p>
+<p>Then some posts: 02-forum-data.sql.</p>
+<h2 id="step-2-pages-of-a-thread">Step 2: pages of a thread</h2>
+<p>A forum shows a thread in pages of 20 posts, newest first. Here the pages have 3 posts, so the example stays short.</p>
+<p>03-thread-pages.sql:</p>
+<pre><code class="language-sql">-- Page 1 of thread 1: the 3 newest posts.
+SELECT id, author, created_at FROM posts
+WHERE thread_id = 1
+ORDER BY created_at DESC, id DESC
+LIMIT 3;
+
+-- Page 2: the 3 posts older than the last row of page 1 (created_at and id of post 4).
+SELECT id, author, created_at FROM posts
+WHERE thread_id = 1 AND (created_at, id) &lt; (&#39;2026-09-01T11:00:00+05:45&#39;, 4)
+ORDER BY created_at DESC, id DESC
+LIMIT 3;</code></pre>
+<pre><code class="language-text">id | author | created_at
+---+--------+-------------------------
+ 6 | sita   | 2026-09-01T06:15:00.000Z
+ 5 | ram    | 2026-09-01T05:45:00.000Z
+ 4 | gita   | 2026-09-01T05:15:00.000Z
+(3 rows, 0.4 ms)
+
+id | author | created_at
+---+--------+-------------------------
+ 3 | hari   | 2026-09-01T04:35:00.000Z
+ 2 | sita   | 2026-09-01T04:20:00.000Z
+ 1 | ram    | 2026-09-01T04:15:00.000Z
+(3 rows, 0.1 ms)</code></pre>
+<p>How it works:</p>
+<ol><li>The index <code>(thread_id, created_at, id)</code> already has the posts of thread 1 sorted by time. KDB reads them from the newest end and <strong>stops after 3 rows</strong>. It does not read the other posts, not even the other posts of the thread.</li><li>For the next page, the app remembers <code>created_at</code> and <code>id</code> of the <strong>last row</strong> it showed (post 4). The <strong>row comparison</strong> <code>(created_at, id) &lt; (&#39;...&#39;, 4)</code> means: older than post 4, or the same time and a smaller id. KDB starts reading the index right there.</li></ol>
+<p>This is called <strong>keyset pagination</strong>. Page 1000 is as fast as page 1.</p>
+<p>Why not <code>LIMIT 20 OFFSET 20000</code>? <code>OFFSET</code> must still count the 20,000 rows before the page. It gets slower on every page. Use <code>OFFSET</code> only for small tables.</p>
+<p>Why <code>id</code> in the index and in <code>ORDER BY</code>? Two posts can have the same <code>created_at</code>. <code>id</code> makes the order exact, so no post is shown twice or skipped between pages.</p>
+<h2 id="step-3-replies-and-authors">Step 3: replies and authors</h2>
+<p>04-replies.sql:</p>
+<pre><code class="language-sql">-- Posts that start a discussion (not replies) in thread 1.
+SELECT id, author, body FROM posts WHERE thread_id = 1 AND parent_id IS NULL ORDER BY created_at;
+
+-- The replies to post 1.
+SELECT id, author, body FROM posts WHERE parent_id = 1 ORDER BY created_at;
+
+-- How many posts each author wrote in thread 1.
+SELECT author, count(*) AS posts FROM posts WHERE thread_id = 1 GROUP BY author ORDER BY author;</code></pre>
+<pre><code class="language-text">id | author | body
+---+--------+------------------------------------
+ 1 | ram    | CITY dividend looks good this year.
+ 4 | gita   | What about the bonus shares?
+ 6 | sita   | सिटी बैंकको नाफा राम्रो छ।
+(3 rows, 0.4 ms)
+
+id | author | body
+---+--------+-----------------------------------
+ 2 | sita   | I agree, the profit grew 18%.
+ 3 | hari   | Price is high now. Wait for a dip.
+(2 rows, 0.1 ms)
+
+author | posts
+-------+------
+gita   |     1
+hari   |     1
+ram    |     2
+sita   |     2
+(4 rows, 0.1 ms)</code></pre>
+<ul><li><code>parent_id IS NULL</code> can also use an index.</li><li>Aggregates (<code>count</code>, <code>sum</code>, <code>GROUP BY</code>) read only the rows the index finds.</li></ul>
+<h2 id="step-4-does-my-query-use-an-index">Step 4: does my query use an index?</h2>
+<p>Put <code>EXPLAIN</code> before the query. 05-explain.sql (CSV output, so the lines are not cut):</p>
+<pre><code class="language-sql">EXPLAIN SELECT id FROM posts WHERE thread_id = 1 ORDER BY created_at DESC, id DESC LIMIT 20;
+EXPLAIN SELECT id FROM posts WHERE parent_id = 1;
+-- No index on body: the table is read.
+EXPLAIN SELECT id FROM posts WHERE body = &#39;Which ones?&#39;;</code></pre>
+<pre><code class="language-text">plan
+&quot;scan table posts (1 of 1 partitions, about 8 rows)&quot;
+&quot;use index posts_thread_time (thread_id = value, rows in ORDER BY order, stops after 20 row(s))&quot;
+&quot;build 3 of 6 stored column(s) per row: id, thread_id, created_at&quot;
+filter while scanning: 1 condition(s)
+sort by 2 key(s)
+limit 20
+plan
+&quot;scan table posts (1 of 1 partitions, about 8 rows)&quot;
+use index posts_parent (parent_id = value)
+&quot;build 2 of 6 stored column(s) per row: id, parent_id&quot;
+filter while scanning: 1 condition(s)
+plan
+&quot;scan table posts (1 of 1 partitions, about 8 rows)&quot;
+&quot;build 2 of 6 stored column(s) per row: id, body&quot;
+filter while scanning: 1 condition(s)</code></pre>
+<p>The line <code>use index &lt;name&gt;</code> says which index is used. No such line: every row is read.
+The line <code>build 3 of 6 stored column(s)</code> says that KDB reads only the columns the query needs, not the long <code>body</code> text of every post.</p>
+<p><strong>When KDB uses an index</strong> (plain index, columns <code>(a, b, c)</code>):</p>
+<div class="table-wrap"><table><thead><tr><th>Your query</th><th>Uses the index</th></tr></thead><tbody><tr><td><code>a = 5</code>, <code>a IN (1, 2, 3)</code>, <code>a IS NULL</code></td><td>yes</td></tr><tr><td><code>a = 5 AND b = 7</code></td><td>yes, both columns</td></tr><tr><td><code>a = 5 AND b &gt; 100</code>, <code>b BETWEEN ...</code>, <code>b LIKE &#39;abc%&#39;</code></td><td>yes: <code>a</code> exactly, then a range of <code>b</code></td></tr><tr><td><code>a = 5 ORDER BY b DESC LIMIT 20</code></td><td>yes, and it stops after 20 rows</td></tr><tr><td><code>a = 5 AND (b, c) &lt; (x, y) ORDER BY b DESC, c DESC LIMIT 20</code></td><td>yes: keyset pagination</td></tr><tr><td><code>b = 7</code> alone</td><td>no: <code>b</code> is not the first column</td></tr><tr><td><code>a = 5 OR b = 7</code></td><td>no: <code>OR</code></td></tr><tr><td><code>lower(a) = &#39;x&#39;</code>, <code>a + 1 = 6</code></td><td>only with an expression index on exactly that expression: <code>CREATE INDEX ix ON t (lower(a))</code></td></tr><tr><td><code>a != 5</code>, <code>a NOT IN (...)</code>, <code>a LIKE &#39;%abc&#39;</code></td><td>no</td></tr></tbody></table></div>
+<p>Other rules:</p>
+<ul><li><code>UPDATE ... WHERE</code> and <code>DELETE ... WHERE</code> use indexes too.</li><li>In a <code>JOIN</code>, only the first table (after <code>FROM</code>) uses an index.</li><li>When an index would find more than a quarter of the table (for example <code>status = &#39;active&#39;</code> on most rows), reading the whole table is faster, and KDB does that.</li><li>The result is always the same, with or without an index. Only the speed changes.</li></ul>
+<h2 id="step-5-unique-indexes">Step 5: UNIQUE indexes</h2>
+<p>A <code>UNIQUE</code> index makes sure no two rows have the same values. Use it for email addresses, user names, or &quot;one row per company per quarter&quot;.</p>
+<p>06-unique.sql:</p>
+<pre><code class="language-sql">-- One account per email address.
+CREATE TABLE users (id LONG PRIMARY KEY, email STRING NOT NULL, name STRING);
+CREATE UNIQUE INDEX users_email ON users (email);
+INSERT INTO users VALUES (1, &#39;ram@example.com&#39;, &#39;Ram&#39;), (2, &#39;sita@example.com&#39;, &#39;Sita&#39;);
+INSERT INTO users VALUES (3, &#39;ram@example.com&#39;, &#39;Another Ram&#39;);</code></pre>
+<pre><code class="language-text">table &#39;users&#39; created
+
+index &#39;users_email&#39; created on table &#39;users&#39; (0 rows)
+
+2 row(s) inserted
+error: duplicate value violates unique index &#39;users_email&#39; on table &#39;users&#39;: a row with email=&#39;ram@example.com&#39; already exists
+[exit code 1]</code></pre>
+<ul><li>The error names the index and the value. Your app can look for the word <code>unique</code> in the message and show &quot;this email is already used&quot;.</li><li>The check covers every way of writing: <code>INSERT</code>, <code>INSERT OR REPLACE</code>, <code>UPDATE</code>, <code>InsertRows</code>, transactions. Nothing is written when the check fails.</li><li>Two rows may swap their values in one <code>UPDATE</code>.</li><li><code>NULL</code> values never clash: many rows may have a NULL email.</li><li><code>CREATE UNIQUE INDEX</code> on a table that already has two equal values fails, and names the value. Fix the rows first.</li><li>A <code>UNIQUE</code> index can have several columns: <code>CREATE UNIQUE INDEX votes_one_per_user ON votes (user_id, post_id)</code> (chapter 18 uses this).</li></ul>
+<h2 id="step-6-news-and-full-text-search">Step 6: news and full-text search</h2>
+<p><code>LIKE &#39;%bank%&#39;</code> reads every row and checks every letter. For thousands of news articles that is slow. A <strong>FULLTEXT index</strong> keeps a list of words: for each word, the articles that have it.</p>
+<p>07-news-schema.sql:</p>
+<pre><code class="language-sql">CREATE TABLE news (
+  id LONG PRIMARY KEY,
+  symbol STRING,
+  published_at TIMESTAMP NOT NULL,
+  title STRING NOT NULL,
+  body STRING
+);
+
+-- Search in the title and the body together.
+CREATE FULLTEXT INDEX news_text ON news (title, body);
+-- The newest news of a company.
+CREATE INDEX news_symbol_time ON news (symbol, published_at);
+
+INSERT INTO news VALUES
+  (1, &#39;CITY&#39;, &#39;2026-08-01T11:00:00+05:45&#39;, &#39;City Bank profit rises 18%&#39;,
+      &#39;City Bank reported a net profit of 3.27 billion dollars. The bank will pay a 12.5% dividend.&#39;),
+  (2, &#39;CITY&#39;, &#39;2026-08-01T11:30:00+05:45&#39;, &#39;सिटी बैंकको नाफा बढ्यो&#39;,
+      &#39;सिटी बैंकले चौथो त्रैमासिकमा ३ अर्ब २७ करोड नाफा कमाएको छ। लाभांश १२.५ प्रतिशत।&#39;),
+  (3, &#39;VOLT&#39;, &#39;2026-08-15T10:00:00+05:45&#39;, &#39;Hydropower company plans IPO&#39;,
+      &#39;Volt River Hydropower will sell new shares. The IPO opens next month.&#39;),
+  (4, NULL,    &#39;2026-09-01T08:00:00+05:45&#39;, &#39;Market index closes at 2,840&#39;,
+      &#39;Banks and hydropower shares moved up. City Bank led the gainers.&#39;),
+  (5, &#39;COAST&#39;,  &#39;2026-09-02T09:00:00+05:45&#39;, &#39;Coastal bank merger talks&#39;,
+      &#39;Coastal Bank is in talks about a merger. No loan changes are planned.&#39;);</code></pre>
+<pre><code class="language-text">table &#39;news&#39; created
+
+index &#39;news_text&#39; created on table &#39;news&#39; (0 rows)
+
+index &#39;news_symbol_time&#39; created on table &#39;news&#39; (0 rows)
+
+5 row(s) inserted</code></pre>
+<p>A FULLTEXT index works on STRING (and SYMBOL, JSON) columns. With several columns, they are searched together as one text.</p>
+<h3 id="how-text-is-cut-into-words">How text is cut into words</h3>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Example</th></tr></thead><tbody><tr><td>Letters and digits of any language make words</td><td><code>सिटी बैंकको नाफा</code> is 3 words</td></tr><tr><td>English letters: case does not matter</td><td><code>Bank</code> = <code>bank</code> = <code>BANK</code></td></tr><tr><td>Punctuation separates words, also <code>।</code> and <code>॥</code></td><td><code>छ।</code> is the word <code>छ</code></td></tr><tr><td>A number keeps its dot; a comma inside a number is dropped</td><td><code>12.5</code> is one word; <code>1,234.5</code> is <code>1234.5</code></td></tr><tr><td>Devanagari digits are the same as 0-9</td><td><code>१२.५</code> = <code>12.5</code></td></tr><tr><td>Words must be the same; there is no stemming</td><td><code>bank</code> does not find <code>banks</code>; <code>बैंक</code> does not find <code>बैंकले</code> (use <code>बैंक*</code>)</td></tr></tbody></table></div>
+<h3 id="searching">Searching</h3>
+<p>08-search.sql:</p>
+<pre><code class="language-sql">-- Every word must be there (English letters: any case).
+SELECT id, title FROM news WHERE MATCH(title, body, &#39;city bank&#39;) ORDER BY id;
+
+-- The best matches first.
+SELECT id, title, round(search_rank(title, body, &#39;bank&#39;), 3) AS rank
+FROM news
+WHERE MATCH(title, body, &#39;bank&#39;)
+ORDER BY rank DESC
+LIMIT 3;
+
+-- Nepali words; a number with a dot is one word (१२.५ is the same as 12.5).
+SELECT id, title FROM news WHERE MATCH(title, body, &#39;नाफा&#39;) ORDER BY id;
+SELECT id FROM news WHERE MATCH(title, body, &#39;12.5&#39;) ORDER BY id;
+
+-- An exact phrase, a prefix, and a word that must not be there.
+SELECT id FROM news WHERE MATCH(title, body, &#39;&quot;net profit&quot;&#39;);
+SELECT id FROM news WHERE MATCH(title, body, &#39;hydro*&#39;) ORDER BY id;
+SELECT id FROM news WHERE MATCH(title, body, &#39;bank -merger&#39;) ORDER BY id;
+
+-- Full-text search together with other conditions.
+SELECT id, title FROM news WHERE MATCH(title, body, &#39;bank&#39;) AND published_at &gt;= &#39;2026-09-01&#39; ORDER BY id;</code></pre>
+<pre><code class="language-text">id | title
+---+-----------------------------
+ 1 | City Bank profit rises 18%
+ 4 | Market index closes at 2,840
+(2 rows, 0.4 ms)
+
+id | title                        | rank
+---+------------------------------+------
+ 1 | City Bank profit rises 18%   | 0.806
+ 5 | Coastal bank merger talks    | 0.751
+ 4 | Market index closes at 2,840 | 0.562
+(3 rows, 0.1 ms)
+
+id | title
+---+-----------------------
+ 2 | सिटी बैंकको नाफा बढ्यो
+(1 row, 0.0 ms)
+
+id
+--
+ 1
+ 2
+(2 rows, 0.0 ms)
+
+id
+--
+ 1
+(1 row, 0.0 ms)
+
+id
+--
+ 3
+ 4
+(2 rows, 0.0 ms)
+
+id
+--
+ 1
+ 4
+(2 rows, 0.0 ms)
+
+id | title
+---+-----------------------------
+ 4 | Market index closes at 2,840
+ 5 | Coastal bank merger talks
+(2 rows, 0.0 ms)</code></pre>
+<p>The search text:</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>It finds rows that</th></tr></thead><tbody><tr><td><code>city bank</code></td><td>have both words, anywhere</td></tr><tr><td><code>&quot;net profit&quot;</code></td><td>have these words next to each other, in this order (not across title and body). The index keeps the place of every word, so a phrase is found in the index too.</td></tr><tr><td><code>hydro*</code></td><td>have a word that starts with <code>hydro</code> (<code>hydropower</code>)</td></tr><tr><td><code>bank -merger</code></td><td>have <code>bank</code> but not <code>merger</code></td></tr></tbody></table></div>
+<p>A search needs at least one word without <code>-</code>.</p>
+<p><strong><code>search_rank(columns..., &#39;words&#39;)</code></strong> says how well a row matches: higher is better, 0 when the row does not match. It uses the BM25 formula: a word that is rare in the table counts more than a common word, a word that is there many times counts more, and a long text counts a little less. Use the same columns and words as in <code>MATCH</code>.</p>
+<p><code>ORDER BY search_rank(...) DESC LIMIT 20</code> together with <code>MATCH(...)</code> is the fastest form: KDB takes the 20 best rows straight from the index and reads only those rows.</p>
+<p><code>MATCH</code> and <code>search_rank</code> also work <strong>without</strong> a FULLTEXT index. Then KDB reads every row.</p>
+<h3 id="highlight-the-words">Highlight the words</h3>
+<p><code>highlight(columns..., &#39;words&#39;)</code> returns the text with the found words inside <code>&lt;b&gt;</code> and <code>&lt;/b&gt;</code>, for a search result page.</p>
+<p>09-highlight.sql:</p>
+<pre><code class="language-sql">SELECT id, highlight(title, &#39;bank&#39;) AS title FROM news WHERE MATCH(title, body, &#39;bank&#39;) ORDER BY id;</code></pre>
+<pre><code class="language-text">id,title
+1,City &lt;b&gt;Bank&lt;/b&gt; profit rises 18%
+4,&quot;Market index closes at 2,840&quot;
+5,Coastal &lt;b&gt;bank&lt;/b&gt; merger talks</code></pre>
+<p>Row 4 matched because its <strong>body</strong> has <code>Bank</code>; the highlighted column here is only the title.</p>
+<p><code>highlight</code> does not change any other character. If users can type <code>&lt;</code> or <code>&amp;</code> (in a forum they can), do not put the result into a web page as it is: escape the text in your app first.</p>
+<h3 id="changes">Changes</h3>
+<p>10-news-changes.sql:</p>
+<pre><code class="language-sql">UPDATE news SET body = &#39;Coastal Bank and Harbor Bank signed the merger.&#39; WHERE id = 5;
+SELECT id FROM news WHERE MATCH(title, body, &#39;harbor&#39;);
+DELETE FROM news WHERE id = 4;
+SELECT id FROM news WHERE MATCH(title, body, &#39;gainers&#39;);</code></pre>
+<pre><code class="language-text">1 row(s) updated
+
+id
+--
+ 5
+(1 row, 0.2 ms)
+
+1 row(s) deleted
+
+id
+--
+(0 rows, 0.0 ms)</code></pre>
+<p>11-news-explain.sql:</p>
+<pre><code class="language-sql">EXPLAIN SELECT id FROM news WHERE MATCH(title, body, &#39;bank&#39;) ORDER BY search_rank(title, body, &#39;bank&#39;) DESC LIMIT 20;
+EXPLAIN SELECT id, title FROM news WHERE symbol = &#39;CITY&#39; ORDER BY published_at DESC LIMIT 10;</code></pre>
+<pre><code class="language-text">plan
+&quot;scan table news (1 of 1 partitions, about 4 rows)&quot;
+&quot;use index news_text (full-text search, best 20 row(s) by search_rank)&quot;
+&quot;build 3 of 5 stored column(s) per row: id, title, body&quot;
+filter while scanning: 1 condition(s)
+sort by 1 key(s)
+limit 20
+plan
+&quot;scan table news (1 of 1 partitions, about 4 rows)&quot;
+&quot;use index news_symbol_time (symbol = value, rows in ORDER BY order, stops after 10 row(s))&quot;
+&quot;build 4 of 5 stored column(s) per row: id, symbol, published_at, title&quot;
+filter while scanning: 1 condition(s)
+sort by 1 key(s)
+limit 10</code></pre>
+<h2 id="step-7-see-and-remove-indexes">Step 7: see and remove indexes</h2>
+<p>12-show-indexes.sql:</p>
+<pre><code class="language-sql">-- kdb sql opens the database again, so no index is in memory yet. The first query builds one.
+SHOW INDEXES FROM posts;
+SELECT count(*) AS posts FROM posts WHERE thread_id = 1;
+SHOW INDEXES FROM posts;
+SHOW CREATE TABLE users;</code></pre>
+<pre><code class="language-text">name,table,kind,columns,built,rows,memory_bytes,create_sql,building
+posts_thread_time,posts,INDEX,&quot;thread_id, created_at, id&quot;,false,,,&quot;CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id)&quot;,false
+posts_parent,posts,INDEX,parent_id,false,,,CREATE INDEX posts_parent ON posts (parent_id),false
+posts_author,posts,INDEX,author,false,,,CREATE INDEX posts_author ON posts (author),false
+posts
+6
+name,table,kind,columns,built,rows,memory_bytes,create_sql,building
+posts_thread_time,posts,INDEX,&quot;thread_id, created_at, id&quot;,true,8,400,&quot;CREATE INDEX posts_thread_time ON posts (thread_id, created_at, id)&quot;,false
+posts_parent,posts,INDEX,parent_id,false,,,CREATE INDEX posts_parent ON posts (parent_id),false
+posts_author,posts,INDEX,author,false,,,CREATE INDEX posts_author ON posts (author),false
+create_sql
+&quot;CREATE TABLE users (
+  id LONG PRIMARY KEY,
+  email STRING NOT NULL,
+  name STRING
+)&quot;
+CREATE UNIQUE INDEX users_email ON users (email)</code></pre>
+<ul><li><code>built</code> is <code>true</code> when the index is in memory now; <code>rows</code> and <code>memory_bytes</code> show its size.</li><li><code>building</code> is <code>true</code> while the server&#39;s background thread builds it right after the database opened. <code>kdb sql</code> never builds at open, so here it is always <code>false</code>.</li><li><code>SHOW CREATE TABLE</code> gives the table and then one <code>CREATE INDEX</code> line per index. Run them in this order to make the same table again.</li></ul>
+<p>13-drop-index.sql:</p>
+<pre><code class="language-sql">DROP INDEX posts_author;
+DROP INDEX IF EXISTS posts_author;
+ALTER TABLE posts DROP COLUMN parent_id;</code></pre>
+<pre><code class="language-text">index &#39;posts_author&#39; dropped
+
+index &#39;posts_author&#39; does not exist
+error: cannot drop column &#39;parent_id&#39; from table &#39;posts&#39;: index &#39;posts_parent&#39; uses it; DROP INDEX posts_parent first
+[exit code 1]</code></pre>
+<ul><li>A column that an index uses cannot be dropped. <code>RENAME COLUMN</code> and <code>RENAME TABLE</code> keep the index working.</li><li><code>DROP TABLE</code> also drops the table&#39;s indexes.</li><li><code>CREATE INDEX</code> and <code>DROP INDEX</code> cannot run inside <code>BEGIN ... COMMIT</code>.</li></ul>
+<h2 id="how-fast">How fast</h2>
+<p>Measured with <code>kdb_bench_indexes</code> (bench/bench_indexes.cpp) on the test PC (Windows, 16 threads for KDB, release build). Query times are the middle value of many runs and include parsing the SQL.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>Rows</th><th>Time</th></tr></thead><tbody><tr><td><code>CREATE INDEX posts_thread ON posts (thread_id, created_at, id)</code></td><td>1,000,000 posts</td><td>170 ms</td></tr><tr><td>Build of that index when the database opens (<code>kdb sql</code>: by the first query)</td><td>1,000,000 posts</td><td>150-320 ms, once</td></tr><tr><td><code>SELECT * FROM posts WHERE author = &#39;user123&#39;</code> (10 rows)</td><td>1,000,000 posts</td><td>0.03-0.04 ms</td></tr><tr><td>Forum page: <code>WHERE thread_id = x ORDER BY created_at DESC LIMIT 20</code></td><td>1,000,000 posts</td><td>0.05-0.06 ms</td></tr><tr><td>Keyset page: <code>... AND (created_at, id) &lt; (?, ?) ORDER BY created_at DESC, id DESC LIMIT 20</code></td><td>1,000,000 posts</td><td>0.06-0.07 ms</td></tr><tr><td><code>INSERT</code> of one post (two indexes kept up to date, log saved to disk)</td><td>1,000,000 posts</td><td>0.3-1.8 ms (mostly the disk)</td></tr><tr><td><code>CREATE FULLTEXT INDEX news_text ON news (title, body)</code></td><td>200,000 articles, 216 MB of text</td><td>1.0-1.1 s</td></tr><tr><td>Build of that index when the database opens (<code>kdb sql</code>: by the first search)</td><td>200,000 articles</td><td>1.6 s, once</td></tr><tr><td>Top 20 by <code>search_rank</code> for common words</td><td>200,000 articles (23,000 to 199,000 matches)</td><td>6-15 ms</td></tr><tr><td><code>UPDATE</code> of one article (full-text index kept up to date)</td><td>200,000 articles</td><td>0.4-2 ms</td></tr><tr><td>Memory: <code>posts_thread</code> / <code>posts_author</code> / <code>news_text</code></td><td></td><td>50 MB / 35 MB / 102 MB</td></tr></tbody></table></div>
+<p>Run it yourself: <code>.\build\bin\kdb_bench_indexes.exe 1000000 200000</code>.</p>
+<h2 id="tips">Tips</h2>
+<ul><li>An index on <code>(a, b)</code> also serves queries on <code>a</code> alone. You do not need a second index on <code>(a)</code>.</li><li>Put the column you compare with <code>=</code> first, and the column you sort or compare with <code>&lt;</code> / <code>&gt;</code> next.</li><li>For &quot;latest N rows of X&quot; add the time column after X: <code>(symbol, published_at)</code>, <code>(thread_id, created_at, id)</code>.</li><li>Time-series tables already sort by <code>SORT BY</code>. Indexes help them for other columns, like <code>broker</code> in a trade log table.</li><li>Every index costs memory (about the size of its column values plus 20-30 bytes per row) and makes writes a little slower. Big line-protocol imports into a table with indexes are slower; create the indexes after a big first import.</li><li>The limits are listed in <a href="known-limitations.html">known limitations</a>.</li></ul>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li>An index is a sorted list of columns that points to rows. It lives in memory. <code>kdb serve</code> builds it from the rows right after the database opens; <code>kdb sql</code> builds it when first needed.</li><li><code>CREATE INDEX</code> makes <code>=</code>, <code>IN</code>, ranges and <code>ORDER BY ... LIMIT</code> fast. <code>EXPLAIN</code> shows <code>use index</code>.</li><li>Keyset pagination with a row comparison <code>(created_at, id) &lt; (?, ?)</code> keeps every page fast.</li><li><code>CREATE UNIQUE INDEX</code> refuses duplicates.</li><li><code>CREATE FULLTEXT INDEX</code> with <code>MATCH</code>, <code>search_rank</code> and <code>highlight</code> searches text in English, Nepali and other languages.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/17-indexes-and-search.md">This page as markdown</a>.</footer>
+</body>
+</html>

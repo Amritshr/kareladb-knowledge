@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keep data page (how long tables keep their rows) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="See every table of a database with how long it keeps its rows, and set &quot;keep only the last N months or years&quot;: the older days, months or years are dropped, the newest stay.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/console-keep-data.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-keep-data.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="keep-data-page-how-long-tables-keep-their-rows">Keep data page (how long tables keep their rows)</h1>
+<blockquote><p>See every table of a database with how long it keeps its rows, and set &quot;keep only the last N months or years&quot;: the older days, months or years are dropped, the newest stay.</p></blockquote>
+<ul><li>Category: Web console</li><li>Keywords: keep data, retention, Save disk, /api/disk, disk usage, older copies, trash, keep the last, keep only, old data, drop old data, TTL, months, years, drop partition older than, disk space, save disk, free space, purge</li><li>See also: <a href="web-console.html">Web console</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="timers.html">Timers</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a>, <a href="databases.html">Databases and the data folder</a>, <a href="console-data-page.html">View data page (browse and edit rows)</a></li></ul>
+<p>The <strong>Keep data</strong> page of the <a href="web-console.html">web console</a> (Home menu) lists every table of the chosen database and lets you say how long each keeps its rows. Nothing is dropped from the start of the table: it keeps the <strong>newest</strong> data and lets the oldest go.</p>
+<h2 id="screen">The screen</h2>
+<pre><code class="language-text">+------------------------------------------------------------------------------------------+
+| Keep data   database nchart006                                                [Refresh]  |
+| [x] all   For the 3 ticked: keep the last [6] [months v]  [Keep] [Keep everything] [Drop older now] |
+|                                                                                          |
+|   | table         | kind              | rows   | on disk | data from / to           | keeps           |                              |
+| [x]| Daily_Filter  | time-series, DAY  | 11.5M  | 890 MB  | 2022-01-25 to 2026-09-11 | the last 6 months | [6][months v] [Keep] [Drop older now] [Everything] |
+| [ ]| floorsheet_v1 | time-series, DAY  | 69.3M  | 5.3 GB  | 2022-01-25 to 2026-09-11 | everything        | [6][months v] [Keep] [Drop older now]              |
+| [ ]| bg_config     | relational        | 2      | 4 KB    | no partitions            | everything (no partitions to drop)                                    |
++------------------------------------------------------------------------------------------+</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>What it is</th></tr></thead><tbody><tr><td>rows, on disk</td><td>the table&#39;s row count and the bytes its files take</td></tr><tr><td>data from / to</td><td>the oldest and newest time in the table (read from the block statistics, so it costs nothing)</td></tr><tr><td>keeps</td><td><code>everything</code>, or <code>the last 6 months</code>: the table&#39;s <a href="alter-table.html#set-ttl">TTL</a></td></tr><tr><td><strong>Keep</strong></td><td>sets the TTL: <code>ALTER TABLE t SET TTL 6 MONTHS</code>. From then on KDB drops, every minute and by itself, every partition whose last moment is older than that</td></tr><tr><td><strong>Everything</strong></td><td>takes the TTL off: <code>ALTER TABLE t SET TTL NONE</code></td></tr><tr><td><strong>Drop older now</strong></td><td>one drop, now: <code>ALTER TABLE t DROP PARTITION OLDER THAN 6 MONTHS</code>. It shows the statement and asks first</td></tr><tr><td>the top bar</td><td>the same three for every ticked table at once (<strong>Keep everything</strong> takes the TTL off them)</td></tr><tr><td><strong>Refresh</strong></td><td>reads the tables and the disk box again</td></tr></tbody></table></div>
+<p>The period is a number and a unit: <code>days</code>, <code>weeks</code>, <code>months</code> or <code>years</code>.</p>
+<ul><li>Only time-series tables with <code>PARTITION BY DAY</code>, <code>MONTH</code> or <code>YEAR</code> can keep &quot;the last N&quot;: everything else has no partitions to drop, is listed greyed, and keeps everything. Use <a href="update-delete.html#delete">DELETE</a> there.</li><li>A partition goes when its <strong>last</strong> moment is older than the period, so &quot;the last 6 months&quot; always holds at least 6 full months. Months and years follow the calendar.</li><li>Whole partitions go, never single rows, and a dropped partition cannot be brought back. Every drop is written to the audit log.</li><li>A <code>read</code> user sees the page; the buttons need <code>write</code>.</li></ul>
+<h2 id="disk">Disk space</h2>
+<p>The box at the top says what the database takes on disk, part by part. It reads <a href="http-server-info.html#api-disk">GET /api/disk</a>, which walks the trash folder, so it is asked for on this page only. Hover a part to see how many files it holds.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>What it is</th><th>Field of <code>/api/disk</code></th></tr></thead><tbody><tr><td>On disk</td><td>everything below together</td><td><code>total_bytes</code></td></tr><tr><td>data</td><td>the current version of every data file: the rows. Of those, <a href="partitions-and-dedup.html#tail-files">tail files</a> are rows appended after a partition&#39;s file, folded back into it later, and <a href="partitions-and-dedup.html#delta-files">delta files</a> the rows of a partition replaced or deleted</td><td><code>data_bytes</code>, <code>data_files</code>; tails <code>tail_bytes</code>, <code>tail_files</code>; deltas <code>delta_bytes</code>, <code>delta_files</code></td></tr><tr><td>older copies</td><td>older versions of the data files, kept so a damaged file can be repaired from one of them (2 per file unless <code>keep_versions</code> says otherwise; a version whose old log is gone can repair nothing and goes by itself)</td><td><code>previous_bytes</code>, <code>previous_files</code></td></tr><tr><td>trash</td><td>replaced files nothing needs any more; the server removes them by itself once they are older than <code>trash_keep_hours</code> (1 hour unless set), or when the trash is over <code>trash_max_mb</code> (a quarter of the data, at least 256 MB, unless set)</td><td><code>trash_bytes</code>, <code>trash_folders</code></td></tr><tr><td>log</td><td>the current log, and old log kept for repairs and backups (<a href="console-settings.html#wal-archive">wal_archive</a>)</td><td><code>wal_bytes</code> + <code>wal_archive_bytes</code></td></tr></tbody></table></div>
+<p><strong>Save disk</strong> (admin) runs <a href="databases.html#purge-versions">PURGE VERSIONS KEEP 1</a>, which leaves one older copy per file, then <a href="databases.html#purge-trash">PURGE TRASH</a>, and shows the space that came back. Dropping partitions frees their files the same way: they go to the trash first, and the trash goes on its own.</p>
+<p><strong>Example: What the Keep button runs</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL, qty LONG) TIMESERIES(time) PARTITION BY MONTH;</code></pre>
+<pre><code class="language-sql">ALTER TABLE trades SET TTL 6 MONTHS;
+SHOW CREATE TABLE trades;</code></pre>
+<p>Result:</p>
+<p><code>ALTER TABLE trades SET TTL 6 MONTHS</code></p>
+<pre><code class="language-text">table &#39;trades&#39; drops partitions older than 6 MONTHS</code></pre>
+<p><code>SHOW CREATE TABLE trades</code></p>
+<div class="table-wrap"><table><thead><tr><th>create_sql (STRING)</th></tr></thead><tbody><tr><td>CREATE TABLE trades (   time TIMESTAMP,   symbol SYMBOL,   qty LONG ) TIMESERIES(time) PARTITION BY MONTH SORT BY (symbol, time) TTL 6 MONTHS</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-keep-data.md">This page as markdown</a>.</footer>
+</body>
+</html>

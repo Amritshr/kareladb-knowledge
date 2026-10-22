@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kdb info, check, repair, dump-file - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Look inside a database, find damage, repair it, and check one file.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/cli-maintenance.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-maintenance.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="kdb-info-check-repair-dump-file">kdb info, check, repair, dump-file</h1>
+<blockquote><p>Look inside a database, find damage, repair it, and check one file.</p></blockquote>
+<ul><li>Category: Command line</li><li>Keywords: damage, damaged, corruption, checksum, failed its checksum, repair ladder, scrub, manifest, manifest keys, stale keys, LSN, log position, last shutdown, not clean, --accept-log-loss, log loss, torn tail, DAMAGED, PROBLEM, NEEDS REPAIR, maintenance</li><li>See also: <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="backup-and-safety.html#after-damage">Backup, check, repair and restore (after-damage)</a>, <a href="data-formats.html">How KDB stores data</a>, <a href="cli-overview.html#exit-codes">The kdb program (exit-codes)</a></li></ul>
+<p>These commands look after a database folder. <code>kdb info</code>, <code>kdb check</code> and <code>kdb dump-file</code> only read. <code>kdb repair</code> changes the database.</p>
+<p>All of them need the database <strong>closed</strong>: stop <code>kdb serve</code>, <code>kdb shell</code> and other programs that use it first. While a server runs, use its console (<strong>Check now</strong>) or <code>POST /api/check</code> instead.</p>
+<p>What to do after damage, step by step: <a href="backup-and-safety.html#after-damage">after damage</a>. How the files look: <a href="data-formats.html">data formats</a>.</p>
+<h2 id="kdb-info">kdb info</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb info &lt;db&gt; [--data-dir &lt;folder&gt;]</code></pre>
+<p>Shows what the <strong>manifest</strong> (the list of current files) says: the files, their versions, sizes and log positions.
+It does <strong>not</strong> read the files themselves. To find new damage, use <a href="#kdb-check">kdb check</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Line or column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>database</code></td><td>The folder that was opened</td></tr><tr><td><code>manifest</code></td><td><code>copy a</code> or <code>copy b</code>: which of the two manifest copies is newest, and its <code>sequence</code> (how often it was saved). A <code>note:</code> line under it says when one copy could not be used.</td></tr><tr><td><code>last shutdown</code></td><td><code>clean</code>, or <code>not clean (running now, crashed or killed)</code></td></tr><tr><td><code>log position N (saved in files up to M)</code></td><td>N = number (LSN) of the last change in the log. M = every change up to M is in the data files.</td></tr><tr><td><code>newest change</code></td><td>Time of the last change, in the <strong>local time</strong> of this computer</td></tr><tr><td><code>features</code></td><td>The stored-format features the database uses, or <code>no list yet</code> for a database of an older KDB (<a href="versions.html">versions</a>)</td></tr><tr><td><code>manifest keys</code></td><td>How many extra entries the manifest holds (partition summaries and row counts of files). <code>(N of files that are gone: ...)</code> counts stale ones, left by a <code>DROP TABLE</code> of an older build; they are removed the next time the database is opened for writing. Harmless.</td></tr><tr><td><code>FILE</code></td><td><code>catalog</code> = the list of tables. <code>t/4/2026-09</code> = table number 4, partition <code>2026-09</code>. <code>all</code> = a table without partitions.</td></tr><tr><td><code>VERSION</code></td><td>Version of the file. A change writes a new version.</td></tr><tr><td><code>LSN</code></td><td>The file holds every change up to this log position</td></tr><tr><td><code>STATUS</code></td><td><code>ok</code>, or <code>DAMAGED: &lt;reason&gt;</code> when KDB marked the file as damaged</td></tr><tr><td>last line</td><td><code>N files, &lt;size&gt;, M marked damaged</code></td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code>; <code>2</code> when a file is marked damaged; <code>1</code> when the folder has no manifest (not a database).</li><li><strong>LSN</strong> = log sequence number: every change in the log gets the next number.</li><li><code>last shutdown: not clean (running now, ...)</code> is normal while a program has the database open.</li></ul>
+<p><strong>Command line</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb info market</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">database        market
+manifest        copy a, sequence 9
+last shutdown   clean
+log position    30 (saved in files up to 30)
+newest change   2026-10-22 11:28:27
+features        batched_log_sync, block_stats, compressed_log, partition_format_2
+manifest keys   26
+
+FILE                                      VERSION       SIZE          LSN  STATUS
+catalog                                         6     2.1 KB           30  ok
+t/1/all                                         7      777 B           30  ok
+t/2/all                                         8      556 B           30  ok
+t/3/2025                                        9     1.7 KB           30  ok
+t/3/2026                                       10     3.6 KB           30  ok
+t/4/2026-09                                    11    57.0 KB           30  ok
+t/5/2026-09-09                                 12     1.4 KB           30  ok
+t/5/2026-09-10                                 13     2.4 KB           30  ok
+t/6/2026-09-10                                 14     2.7 KB           30  ok
+
+9 files, 72.1 KB, 0 marked damaged
+(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)</code></pre>
+<p><strong>Command line: A folder that is not a database</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb info not-a-database</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: Not found: no manifest</code></pre>
+<p>exit code 1</p>
+<h2 id="kdb-check">kdb check</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb check &lt;db&gt; [--data-dir &lt;folder&gt;] [--no-audit-chain]</code></pre>
+<p>Reads <strong>every block</strong> of every data file and <strong>every record</strong> of the log, and checks each checksum. It reports damage and <strong>changes nothing</strong> (it opens the database read-only).</p>
+<ul><li><strong>Exit code:</strong> <code>0</code> = no damage. <code>2</code> = damage found. <code>3</code> = the database was written by a newer KDB: not damage, do not repair it (<a href="versions.html#needs-newer">versions</a>). <code>1</code> = it could not run (the folder does not exist, or the database is open in another program).</li><li><strong>Output lines:</strong> <code>OK: no damage found</code>, or one line per problem: <code>DAMAGED:</code> (a file that could not be loaded), <code>NEEDS REPAIR:</code> (a problem <code>kdb repair</code> can fix), <code>PROBLEM:</code> (a bad block, a bad log record).</li><li><strong>Audit chain:</strong> when the files are sound and the database has an <a href="audit-log.html#hash-chain">audit log</a>, it then checks the hash chain of <code>_audit_log</code>: <code>audit chain: N row(s) checked ...</code>, or <code>TAMPERED:</code> for a row that was changed or removed outside KDB (exit code <code>2</code>). This opens the database read-only and replays its log in memory; <code>--no-audit-chain</code> skips it.</li><li>Run it every day, right after the backup. It is also the SQL <a href="backup-and-safety.html#check-table">CHECK TABLE</a> and the shell&#39;s <code>.check</code>.</li><li>Time: it reads everything, so a big database takes a while (about as long as copying it).</li></ul>
+<p><strong>Command line: A healthy database</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb check market</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">checked 14 files (76.1 KB) and 1 log segments
+OK: no damage found</code></pre>
+<p><strong>Command line: A folder that does not exist</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb check markett</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: &#39;markett&#39; is not a KDB database (it has no _manifest.a or _manifest.b). Check the name or path.</code></pre>
+<p>exit code 1</p>
+<p>A damaged database (real output from <a href="../tutorial/09-backup-and-safety.html">chapter 9</a>, where 64 zero bytes were written into a data file of a copy):</p>
+<pre><code class="language-text">checked 12 files (73.8 KB) and 1 log segments
+DAMAGED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-57697) failed its checksum (no good previous version or backup copy)
+PROBLEM: t/4/2026-09: marked DAMAGED: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-57697) failed its checksum
+PROBLEM: t/4/2026-09 v11 (current): 1 damaged block(s): 0
+
+Damage found. Fix it with: kdb repair market-test --backups &lt;backups-dir&gt;</code></pre>
+<p>The exit code was <code>2</code>. Queries on other tables still worked. A query on the damaged part gave an error, never wrong numbers:</p>
+<pre><code class="language-text">error: table &#39;ochl_minutes&#39; partition 2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-57697) failed its checksum. Run: kdb repair &lt;data-dir&gt; --backups &lt;dir&gt;</code></pre>
+<pre><code class="language-powershell"># A script that checks every night (not run here)
+kdb check D:\kdb\market | Out-File -Append check-log.txt
+if ($LASTEXITCODE -eq 2) { Write-Output &quot;DAMAGE FOUND: stop the server and run kdb repair&quot; }</code></pre>
+<h2 id="kdb-repair">kdb repair</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb repair &lt;db&gt; [--backups &lt;dir&gt;] [--accept-log-loss] [--data-dir &lt;folder&gt;]</code></pre>
+<p>Opens the database and fixes damaged files with the <strong>repair ladder</strong>. Then it reads everything again and says what is still damaged.</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>--backups &lt;dir&gt;</code></td><td>Backups to take good copies of files and log records from. For a database <strong>name</strong> in the data folder, KDB looks in <code>&lt;dir&gt;/&lt;name&gt;</code>.</td><td>only old versions on disk</td></tr><tr><td><code>--accept-log-loss</code></td><td>Last choice: when needed log records are damaged, cut the log there and open anyway. The changes in the damaged part are <strong>lost</strong>.</td><td>refuse to open</td></tr><tr><td><code>--data-dir &lt;folder&gt;</code></td><td>The data folder</td><td><code>KDB_DATA_DIR</code></td></tr></tbody></table></div>
+<p><strong>The repair ladder</strong> for one damaged data file. KDB tries each rung, top to bottom:</p>
+<div class="table-wrap"><table><thead><tr><th>Rung</th><th>KDB tries</th><th>Then</th></tr></thead><tbody><tr><td>1</td><td>The <strong>previous version</strong> of the file (KDB keeps 2)</td><td>Replays the log from that version, so no change is lost</td></tr><tr><td>2</td><td>The same file from a <strong>backup</strong> (<code>--backups</code>), newest backup first</td><td>Copies it back and replays the log from the backup&#39;s position, so changes made after the backup come back too</td></tr><tr><td>3</td><td>Nothing worked</td><td>Marks only this file as <code>DAMAGED</code>. The rest of the database still works.</td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code> = <code>Repaired.</code> or <code>Nothing to repair.</code> <code>2</code> = <code>Some damage could not be repaired.</code> <code>3</code> = the database needs a newer KDB; nothing was repaired or changed. <code>1</code> = it could not run (for example the database is open in another program).</li><li><strong>Before a repair, copy the whole damaged folder to a safe place.</strong> Then nothing you try can make it worse.</li><li>Only backups of the <strong>same</strong> database are used. A backup of another database, or of a history that a restore left behind, is never used.</li><li>A log that is only damaged at the very end (a write that a crash cut in half) needs no repair: it is cut away when the database opens, and the output says <code>dropped an unfinished write at the end of the log</code>.</li><li><strong>Damaged log records that are still needed:</strong> KDB refuses to open and names the log file. Try, in this order: <code>kdb repair &lt;db&gt; --backups &lt;dir&gt;</code> (copies the good bytes from a backup), then <a href="backup-and-safety.html#kdb-restore">kdb restore</a> with <code>--logs-from</code>, and only then <code>--accept-log-loss</code>.</li><li><strong>Notes:</strong> <code>kdb repair</code> on a folder that does not exist makes a new, empty database there and says <code>Nothing to repair.</code> Check the path.</li></ul>
+<p><strong>Command line: A healthy database: nothing to repair</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb repair market --backups backups</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">manifest copy: a, last shutdown: clean
+replayed 0 transactions after LSN 30, last LSN 30
+
+Nothing to repair.</code></pre>
+<p>Repairing the damaged copy from <code>kdb check</code> above (real output from <a href="../tutorial/09-backup-and-safety.html">chapter 9</a>). First without backups: the file had no previous version, so rung 1 cannot help:</p>
+<pre><code class="language-text">manifest copy: a, last shutdown: clean
+replayed 0 transactions after LSN 34, last LSN 34
+DAMAGED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-57697) failed its checksum (no good previous version or backup copy)
+still damaged: t/4/2026-09: marked DAMAGED: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-57697) failed its checksum
+still damaged: t/4/2026-09 v11 (current): 1 damaged block(s): 0
+
+Some damage could not be repaired. Restore a backup with: kdb restore</code></pre>
+<p>(exit code <code>2</code>). Then with <code>kdb repair market-test --backups backups</code>:</p>
+<pre><code class="language-text">manifest copy: a, last shutdown: clean
+replayed 2 transactions after LSN 30, last LSN 34
+REPAIRED: t/4/2026-09: market-test/files/t/4/2026-09.v11.kdb: block 0 (bytes 0-57697) failed its checksum -&gt; restored from backup backups/20260911-142715-556 (v11) and replaying the log from LSN 30
+
+Repaired.</code></pre>
+<p>(exit code <code>0</code>). The 2 transactions after the backup were replayed, so nothing was lost. When a previous version exists, the line says <code>using previous version v10 and replaying the log from LSN ...</code> instead.</p>
+<p>A damaged end of the log (real output from chapter 9):</p>
+<pre><code class="language-text">manifest copy: a, last shutdown: clean
+replayed 0 transactions after LSN 34, last LSN 34
+dropped an unfinished write at the end of the log (178 bytes)
+
+Nothing to repair.</code></pre>
+<p><strong>Command line: --accept-log-loss on a healthy database changes nothing</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb repair market --accept-log-loss</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">manifest copy: a, last shutdown: clean
+replayed 0 transactions after LSN 30, last LSN 30
+
+Nothing to repair.</code></pre>
+<h2 id="kdb-dump-file">kdb dump-file</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb dump-file &lt;file.kdb&gt;</code></pre>
+<p>Shows the 64-byte <strong>header</strong> of one KDB file and checks the <strong>checksum</strong> of every block. For experts: use it to look at one file that <code>kdb check</code> named.</p>
+<div class="table-wrap"><table><thead><tr><th>Line</th><th>Meaning</th></tr></thead><tbody><tr><td><code>type</code></td><td><code>data file</code>, <code>manifest</code>, <code>backup manifest</code> or <code>WAL segment</code> (a log file)</td></tr><tr><td><code>version</code></td><td>File format version (<code>1</code>)</td></tr><tr><td><code>data</code></td><td>Size of the data in the file</td></tr><tr><td><code>block size</code></td><td>The data is cut into blocks of this size (65536 bytes); each block has a CRC32C checksum</td></tr><tr><td><code>LSN</code></td><td>The file holds every change up to this log position</td></tr><tr><td><code>id</code></td><td>For a data file: the table number. For a manifest: its sequence number.</td></tr><tr><td><code>created</code></td><td>When the file was written (local time)</td></tr><tr><td><code>blocks</code>, <code>digest</code></td><td>Number of blocks, and one checksum over the header and all block checksums</td></tr><tr><td>last line</td><td><code>OK: all blocks match their checksums</code>, or <code>DAMAGED block N</code> for each bad block</td></tr></tbody></table></div>
+<ul><li><strong>Exit code:</strong> <code>0</code> = all blocks are good. <code>2</code> = a damaged block, or a header that is not a KDB header. <code>1</code> = the file cannot be opened.</li><li>For a log file (<code>wal/*.log</code>) it shows only the header.</li><li>Data files are in <code>files/t/&lt;table number&gt;/&lt;partition&gt;.v&lt;version&gt;.kdb</code>. <a href="#kdb-info">kdb info</a> lists them.</li></ul>
+<p><strong>Command line: The manifest of the sample database</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb dump-file market/_manifest.a</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">file         market/_manifest.a
+type         manifest
+version      1
+data         2.3 KB
+block size   65536
+LSN          30
+id           9
+created      2026-10-22 11:28:27
+blocks       1
+digest       35a9d31d
+OK: all blocks match their checksums</code></pre>
+<p><strong>Command line: A data file: table 1 (securities), version 7</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb info market
+kdb dump-file market/files/t/1/all.v7.kdb</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb info market</code></p>
+<pre><code class="language-text">database        market
+manifest        copy a, sequence 9
+last shutdown   clean
+log position    30 (saved in files up to 30)
+newest change   2026-10-22 11:28:27
+features        batched_log_sync, block_stats, compressed_log, partition_format_2
+manifest keys   26
+
+FILE                                      VERSION       SIZE          LSN  STATUS
+catalog                                         6     2.1 KB           30  ok
+t/1/all                                         7      777 B           30  ok
+t/2/all                                         8      556 B           30  ok
+t/3/2025                                        9     1.7 KB           30  ok
+t/3/2026                                       10     3.6 KB           30  ok
+t/4/2026-09                                    11    57.0 KB           30  ok
+t/5/2026-09-09                                 12     1.4 KB           30  ok
+t/5/2026-09-10                                 13     2.4 KB           30  ok
+t/6/2026-09-10                                 14     2.7 KB           30  ok
+
+9 files, 72.1 KB, 0 marked damaged
+(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)</code></pre>
+<p><code>&gt; kdb dump-file market/files/t/1/all.v7.kdb</code></p>
+<pre><code class="language-text">file         market/files/t/1/all.v7.kdb
+type         data file
+version      1
+data         693 B
+block size   65536
+LSN          30
+id           1
+created      2026-10-22 11:28:27
+blocks       1
+digest       1d198644
+OK: all blocks match their checksums</code></pre>
+<p><strong>Command line: A file that is not a KDB file</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb dump-file market/kdb.lock</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: Corruption: market/kdb.lock: file is 0 bytes, too short for a header</code></pre>
+<p>exit code 2</p>
+<p>A damaged data file (real output from chapter 9):</p>
+<pre><code class="language-text">file         story/files/t/3/2026.v15.kdb
+type         data file
+version      1
+data         3.1 KB
+block size   65536
+LSN          1092
+id           3
+created      2026-09-11 13:45:11
+blocks       1
+digest       bb8fefdd
+DAMAGED block 0</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-maintenance.md">This page as markdown</a>.</footer>
+</body>
+</html>

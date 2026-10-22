@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Change stream and live subscriptions: changes(&#39;t&#39;), GET /api/changes, GET /api/subscribe - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Every committed INSERT, UPDATE and DELETE of a table as an ordered stream you can resume from its LSN, in SQL or over HTTP, and queries that push their changed rows.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/change-stream.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/change-stream.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="change-stream-and-live-subscriptions-changes-t-get-api-changes-get-api-subscribe">Change stream and live subscriptions: changes(&#39;t&#39;), GET /api/changes, GET /api/subscribe</h1>
+<blockquote><p>Every committed INSERT, UPDATE and DELETE of a table as an ordered stream you can resume from its LSN, in SQL or over HTTP, and queries that push their changed rows.</p></blockquote>
+<ul><li>Category: HTTP API</li><li>Keywords: change stream, changes, cdc, change data capture, GET /api/changes, api/changes, GET /api/subscribe, api/subscribe, subscribe, SUBSCRIBE, live query, push, server-sent events, sse, EventSource, Last-Event-ID, lsn, resume, exactly once, wal_archive</li><li>See also: <a href="revisions.html">Change revisions: GET /api/rev and kdb_rev()</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="databases.html">Databases and the data folder</a></li></ul>
+<p>Every committed change of a table is already in KDB&#39;s log, in commit order, numbered by a <strong>log sequence number</strong> (LSN). The change stream reads it back:</p>
+<ul><li>in SQL: <code>SELECT * FROM changes(&#39;t&#39;)</code></li><li>over HTTP: <code>GET /api/changes?table=t&amp;from=&lt;lsn&gt;</code>, as server-sent events or JSON</li></ul>
+<p>A reader keeps the LSN it read last and asks for what came after it. It gets <strong>every change exactly once, in commit order</strong>, also after a restart or a crash of the server, because the stream only shows commits that are safe on disk and the log is what the server itself replays.</p>
+<p>Nothing extra is written for this: a commit costs what it cost before.</p>
+<h2 id="changes">changes(&#39;t&#39;)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT * FROM changes(&#39;&lt;table&gt;&#39; [, after_lsn [, max_rows]])</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>lsn</code></td><td>the transaction&#39;s commit LSN. All rows of one transaction share it</td></tr><tr><td><code>seq</code></td><td>the row&#39;s place inside its transaction (0, 1, 2, ...)</td></tr><tr><td><code>committed_at</code></td><td>when the transaction committed</td></tr><tr><td><code>op</code></td><td><code>upsert</code>, <code>delete</code> or <code>ddl</code></td></tr><tr><td><code>key</code></td><td><code>delete</code>: the row&#39;s partition and key (hex); <code>ddl</code>: the statement; otherwise NULL</td></tr><tr><td>the table&#39;s columns</td><td><code>upsert</code>: the row as it is after the change; NULL for <code>delete</code> and <code>ddl</code></td></tr></tbody></table></div>
+<p>A table column named like one of the first five (a column <code>lsn</code>) is shown as <code>row_lsn</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>op</th><th>Made by</th></tr></thead><tbody><tr><td><code>upsert</code></td><td><code>INSERT</code>, <code>UPDATE</code>, <code>POST /write</code>, <code>POST /imp</code>, <code>COPY</code>, a trigger. The log keeps the row after the change, so an INSERT and an UPDATE look the same</td></tr><tr><td><code>delete</code></td><td><code>DELETE</code>, and the old row of an UPDATE that moved it to another key. The log keeps the key, not the old row</td></tr><tr><td><code>ddl</code></td><td>a schema change that names the table: <code>TRUNCATE</code>, <code>ALTER TABLE</code>, <code>DROP PARTITION</code>, <code>CREATE TABLE</code>; also a <code>DELETE</code> that removed whole partitions (<a href="update-delete.html#delete">DELETE</a>), as <code>ALTER TABLE ... DROP PARTITION</code></td></tr></tbody></table></div>
+<p>Arguments:</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Meaning</th></tr></thead><tbody><tr><td><code>after_lsn</code></td><td>only changes committed after this LSN. <code>0</code> or none: from the oldest change the kept log still holds</td></tr><tr><td><code>max_rows</code></td><td>stop after about this many rows. It stops <strong>between transactions</strong>, never inside one, so reading on from the last <code>lsn</code> never skips a row. A transaction bigger than <code>max_rows</code> comes whole on its own</td></tr></tbody></table></div>
+<p>Without <code>max_rows</code>, a read of more than 100,000 rows is an error: read in parts. <code>WHERE lsn &gt; x</code> and a plain <code>LIMIT n</code> are passed down, so they read only what they need:</p>
+<p><strong>Example: Every change of a table, in order</strong></p>
+<pre><code class="language-sql">CREATE TABLE acct (id INT PRIMARY KEY, name STRING, bal DOUBLE);
+INSERT INTO acct VALUES (1, &#39;Asha&#39;, 10), (2, &#39;Bikash&#39;, 20);
+UPDATE acct SET bal = 15 WHERE id = 1;
+DELETE FROM acct WHERE id = 2;
+SELECT seq, op, id, name, bal FROM changes(&#39;acct&#39;) WHERE op &lt;&gt; &#39;ddl&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE acct (</code></p>
+<pre><code class="language-text">table &#39;acct&#39; created</code></pre>
+<p><code>INSERT INTO acct VALUES (1, &#39;Asha&#39;, 10), (2, &#39;Bikash&#39;, 20)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>UPDATE acct SET bal = 15 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>DELETE FROM acct WHERE id = 2</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>SELECT seq, op, id, name, bal FROM changes(&#39;acct&#39;) WHERE op != &#39;ddl&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>seq (INT)</th><th>op (STRING)</th><th>id (INT)</th><th>name (STRING)</th><th>bal (DOUBLE)</th></tr></thead><tbody><tr><td>0</td><td>upsert</td><td>1</td><td>Asha</td><td>10</td></tr><tr><td>1</td><td>upsert</td><td>2</td><td>Bikash</td><td>20</td></tr><tr><td>0</td><td>upsert</td><td>1</td><td>Asha</td><td>15</td></tr><tr><td>0</td><td>delete</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p>To read on, remember the largest <code>lsn</code> you have <strong>fully</strong> read and ask for <code>changes(&#39;acct&#39;, that_lsn)</code> or <code>WHERE lsn &gt; that_lsn</code>. Be careful with a SQL <code>LIMIT</code>: it cuts exactly, maybe inside a transaction. The <code>max_rows</code> argument and <code>GET /api/changes</code> never do.</p>
+<h2 id="api-changes">GET /api/changes</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /api/changes?table=&lt;name&gt;[&amp;from=&lt;lsn&gt;][&amp;limit=&lt;n&gt;][&amp;wait=&lt;ms&gt;][&amp;format=sse|json][&amp;db=&lt;name&gt;]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code></td><td>the table (required)</td></tr><tr><td><code>from</code></td><td>read after this LSN (<code>0</code> or none: from the oldest kept). Without it the <code>Last-Event-ID</code> header is used, which a browser&#39;s <code>EventSource</code> sends when it asks again</td></tr><tr><td><code>limit</code></td><td>about this many rows at most (default 1000); whole transactions only</td></tr><tr><td><code>wait</code></td><td>with nothing new, wait up to this many ms for a commit (default 25000 for events, 0 for JSON; at most 55000)</td></tr><tr><td><code>format</code></td><td><code>sse</code> (default): server-sent events. <code>json</code>: one JSON object</td></tr></tbody></table></div>
+<p>As <strong>server-sent events</strong>, each change is an event <code>change</code> whose data is <code>{&quot;lsn&quot;, &quot;seq&quot;, &quot;committed_at&quot;, &quot;op&quot;, &quot;key&quot;, &quot;row&quot;}</code>. The last change of each transaction carries <code>id: &lt;lsn&gt;</code>. The answer ends with an event <code>position</code> whose id is where to read on. A browser needs nothing more than:</p>
+<pre><code class="language-js">const es = new EventSource(&#39;/api/changes?table=trades&#39;);
+es.addEventListener(&#39;change&#39;, (e) =&gt; apply(JSON.parse(e.data)));
+// EventSource asks again by itself, sending the last id it saw:
+// nothing is missed and nothing comes twice.</code></pre>
+<p>Each request waits for a commit, answers, and ends; the client then asks again (<code>retry: 1000</code>). A change arrives within milliseconds of its commit. At most a quarter of the server&#39;s HTTP threads (<code>--threads</code>) wait at once; the others answer at once with what there is, so waiting readers never take the threads <code>/exec</code> needs.</p>
+<p>As <strong>JSON</strong> (<code>format=json</code>): <code>{&quot;table&quot;, &quot;changes&quot;: [...], &quot;next&quot;, &quot;more&quot;, &quot;durable_lsn&quot;, &quot;oldest_lsn&quot;}</code>. Read on with <code>from=&lt;next&gt;</code>; <code>more: true</code> means more is ready now.</p>
+<p><strong>HTTP: The changes of a table as JSON</strong></p>
+<p>Setup:</p>
+<pre><code class="language-text">CREATE TABLE acct (id INT PRIMARY KEY, name STRING, bal DOUBLE);
+INSERT INTO acct VALUES (1, &#39;Asha&#39;, 10);</code></pre>
+<pre><code class="language-http">GET /api/changes?table=acct&amp;format=json</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;table&quot;: &quot;acct&quot;,
+  &quot;changes&quot;: [
+    {
+      &quot;lsn&quot;: 2,
+      &quot;seq&quot;: 0,
+      &quot;committed_at&quot;: &quot;2026-10-22T05:43:31.573Z&quot;,
+      &quot;op&quot;: &quot;ddl&quot;,
+      &quot;key&quot;: &quot;CREATE TABLE acct (\n  id INT PRIMARY KEY,\n  name STRING,\n  bal DOUBLE\n)&quot;,
+      &quot;row&quot;: null
+    },
+    {
+      &quot;lsn&quot;: 4,
+      &quot;seq&quot;: 0,
+      &quot;committed_at&quot;: &quot;2026-10-22T05:43:31.577Z&quot;,
+      &quot;op&quot;: &quot;upsert&quot;,
+      &quot;key&quot;: null,
+      &quot;row&quot;: {&quot;id&quot;: 1, &quot;name&quot;: &quot;Asha&quot;, &quot;bal&quot;: 10}
+    }
+  ],
+  &quot;next&quot;: 4,
+  &quot;more&quot;: false,
+  &quot;durable_lsn&quot;: 4,
+  &quot;oldest_lsn&quot;: 1
+}</code></pre>
+<p>It needs read rights on the table: role <code>read</code> on the database, or <code>GRANT SELECT</code> on the table. An unknown table is a 404.</p>
+<h2 id="retention">How long changes are kept</h2>
+<p>The stream reads the log, and the log is kept as long as the database&#39;s <code>wal_archive</code> setting allows: <code>ALTER DATABASE ... SET WAL_ARCHIVE = &#39;2GB&#39;</code>, the server default <code>KDB_WAL_ARCHIVE_MB</code> / <code>wal_archive_mb</code> in <code>kdb.conf</code> (1 GB unless set). A reader that falls further behind than that is <strong>never</strong> given a stream with a hole: <code>changes()</code> fails and <code>GET /api/changes</code> answers <strong>410 Gone</strong>, with <code>gone_before</code>, the first LSN still kept. Such a reader starts again from a fresh copy of the table (<code>SELECT *</code>) and then reads on from <code>oldest_lsn</code>.</p>
+<p>A slow or lost reader cannot fill the disk: it keeps no log for itself. While one read runs (milliseconds), only the log after its position stays where it is; older log and replaced data files are cleaned up as usual. Readers never slow down writers: a poll does not list the log folders.</p>
+<h2 id="api-subscribe">GET /api/subscribe</h2>
+<p>A <strong>live query</strong>: the answer of one <code>SELECT</code>, and afterwards only the rows a commit changed.</p>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /api/subscribe?query=SUBSCRIBE SELECT ...[&amp;wait=&lt;ms&gt;][&amp;db=&lt;name&gt;]</code></pre>
+<ol><li>The first request answers at once with an event <code>snapshot</code>: <code>{&quot;table&quot;, &quot;symbol&quot;, &quot;columns&quot;, &quot;rows&quot;}</code> and an id: <code>&lt;subscription&gt;.&lt;version&gt;</code>, naming the subscription and the answer the client has.</li><li>Asked again with that id (<code>Last-Event-ID</code>, or <code>&amp;id=</code>), the request waits until a commit changes the table, runs the query again, and sends an event <code>rows</code>: <code>{&quot;columns&quot;, &quot;rows&quot;, &quot;removed&quot;}</code> with the rows that are <strong>new or changed</strong>, and how many rows left the answer. A candle query over <code>date_trunc</code> buckets gets the one bucket a trade changed, as its new version.</li><li>With nothing changed before <code>wait</code> ends, the answer has no <code>rows</code> event, only the id to ask again with.</li></ol>
+<p>An answer lost on the way (a dropped connection, a proxy timeout) is not lost for the client: it asks again with the id it really has, and gets the same change again. An id with a version the server no longer keeps gets a fresh <code>snapshot</code>, which replaces everything the client has. A client that reconnects while its old request still waits takes over: the old request ends and the new one answers, so an <code>EventSource</code> never gets an error and stops.</p>
+<p>When the <code>WHERE</code> picks one value of the table&#39;s <a href="revisions.html#rev-column">revision column</a> (<code>WHERE symbol = &#39;NABIL&#39;</code>), only a commit of that symbol wakes the subscriber: a NEPSE trade does not. Otherwise any commit of the table does.</p>
+<pre><code class="language-js">const q = encodeURIComponent(`SUBSCRIBE SELECT date_trunc(&#39;minute&#39;, time) AS m, first(price) AS open,
+  max(price) AS high, min(price) AS low, last(price) AS close
+  FROM trades WHERE symbol = &#39;NABIL&#39; GROUP BY m ORDER BY m`);
+const es = new EventSource(&#39;/api/subscribe?query=&#39; + q);
+es.addEventListener(&#39;snapshot&#39;, (e) =&gt; drawAll(JSON.parse(e.data).rows));
+es.addEventListener(&#39;rows&#39;, (e) =&gt; JSON.parse(e.data).rows.forEach(upsertCandle));</code></pre>
+<p>Limits: one table (no joins, subqueries in <code>FROM</code>, <code>UNION</code> or <code>WITH</code>); at most 10,000 rows in the answer; 10,000 subscriptions per server (when that is reached, the one asked for longest ago makes room, and its client gets a fresh <code>snapshot</code> when it asks again); a subscription nobody asked for in 2 minutes is dropped, and asking with an unknown id gives a fresh <code>snapshot</code>. The query runs with the caller&#39;s rights, like <code>/exec</code>.</p>
+<p><code>SUBSCRIBE</code> sent to <code>/exec</code> or the PostgreSQL port is an error that points here: those answer once and cannot push.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/change-stream.md">This page as markdown</a>.</footer>
+</body>
+</html>

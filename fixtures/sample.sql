@@ -1,0 +1,7 @@
+-- The tutorial's sample market data (made-up prices):
+--   securities, brokers        relational tables
+--   ochl_day, ochl_minutes     daily and one-minute candles (CITY, COAST, VOLT, TELCO, ACME)
+--   trade_log, live_data       trades and live prices
+-- Use it in an example with: ```kdb-example fixture=sample
+-- @include ../../tutorial/examples/setup/schema.sql
+-- @include ../../tutorial/examples/setup/sample-data.sql

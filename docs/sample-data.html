@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sample data - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="The small made-up stock market dataset that most help examples use, with a few rows of each.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/sample-data.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sample-data.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="sample-data">Sample data</h1>
+<blockquote><p>The small made-up stock market dataset that most help examples use, with a few rows of each.</p></blockquote>
+<ul><li>Category: Getting started</li><li>Keywords: sample, fixture, demo data, example data, stock market, tutorial data, schema.sql, sample-data.sql, securities, brokers, ochl_day, ochl_minutes, trade_log, live_data, candles, trades</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="latest-on.html">LATEST ON</a>, <a href="joins.html">Joins</a></li></ul>
+<p>Most examples in this help use a small <strong>made-up</strong> stock market dataset: companies, brokers, price candles, trades and live prices. The names and prices only look real. It is just one example of what KDB stores; the same SQL works for sensor readings, logs and metrics, accounting, users and logins, or any app&#39;s data. The examples call it the fixture <code>sample</code>. Every example starts with a fresh copy, so an example that changes rows does not change the next one.</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>Kind</th><th>Rows</th><th>What it holds</th></tr></thead><tbody><tr><td><code>securities</code></td><td>relational</td><td>5</td><td>companies: CITY, COAST, VOLT, TELCO, ACME</td></tr><tr><td><code>brokers</code></td><td>relational</td><td>5</td><td>broker numbers and names</td></tr><tr><td><code>ochl_day</code></td><td>time-series, <code>PARTITION BY YEAR</code></td><td>57</td><td>daily candles of CITY, COAST, VOLT: 4 days of 2025-12 and 15 days of 2026-08 and 2026-09</td></tr><tr><td><code>ochl_minutes</code></td><td>time-series, <code>PARTITION BY MONTH</code></td><td>956</td><td>one-minute candles of CITY and COAST on 2026-09-09 and 2026-09-10</td></tr><tr><td><code>trade_log</code></td><td>time-series, <code>PARTITION BY DAY</code></td><td>32</td><td>trades on 2026-09-09 and 2026-09-10</td></tr><tr><td><code>live_data</code></td><td>time-series, <code>PARTITION BY DAY</code></td><td>12</td><td>live prices of CITY, COAST, VOLT, TELCO at three times on 2026-09-10</td></tr></tbody></table></div>
+<p>To load the same data into your own database, see <a href="quick-start.html#sample-data">quick start</a>. The files are <code>docs/tutorial/examples/setup/schema.sql</code> and <code>sample-data.sql</code>.</p>
+<p><strong>Example: All tables and their row counts</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SHOW TABLES;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>brokers</td><td>relational</td><td>NONE</td><td>2</td><td>5</td></tr><tr><td>live_data</td><td>timeseries</td><td>DAY</td><td>12</td><td>12</td></tr><tr><td>ochl_day</td><td>timeseries</td><td>YEAR</td><td>7</td><td>57</td></tr><tr><td>ochl_minutes</td><td>timeseries</td><td>MONTH</td><td>7</td><td>956</td></tr><tr><td>securities</td><td>relational</td><td>NONE</td><td>3</td><td>5</td></tr><tr><td>trade_log</td><td>timeseries</td><td>DAY</td><td>8</td><td>32</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="securities">securities</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE securities (
+  symbol SYMBOL PRIMARY KEY,
+  name   STRING NOT NULL,
+  sector STRING
+);</code></pre>
+<p>One row per listed company. <code>symbol</code> is the key.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>symbol</code></td><td><code>SYMBOL</code></td><td>stock symbol, like <code>CITY</code></td></tr><tr><td><code>name</code></td><td><code>STRING</code></td><td>company name</td></tr><tr><td><code>sector</code></td><td><code>STRING</code></td><td>business sector, like <code>Banking</code></td></tr></tbody></table></div>
+<p><strong>Example: All companies</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name, sector FROM securities ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Acme Investment Company</td><td>Investment</td></tr><tr><td>CITY</td><td>City Bank Limited</td><td>Banking</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td><td>Banking</td></tr><tr><td>TELCO</td><td>Northwind Telecom Limited</td><td>Telecom</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>Energy</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Last daily close with the company name (a join)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, s.name, d.close
+FROM ochl_day d JOIN securities s ON s.symbol = d.symbol
+WHERE d.time IN &#39;2026-09-10&#39;
+ORDER BY s.symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td><td>504.9</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td><td>376.1</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="brokers">brokers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (
+  id   INT PRIMARY KEY,
+  name STRING NOT NULL
+);</code></pre>
+<p>One row per broker. <code>trade_log.buyer</code> and <code>trade_log.seller</code> point to <code>brokers(id)</code> with <code>REFERENCES</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td><code>INT</code></td><td>broker number</td></tr><tr><td><code>name</code></td><td><code>STRING</code></td><td>broker name</td></tr></tbody></table></div>
+<p><strong>Example: All brokers</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT id, name FROM brokers ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Keystone Securities</td></tr><tr><td>34</td><td>Vision Securities</td></tr><tr><td>45</td><td>Imperial Securities</td></tr><tr><td>49</td><td>Online Securities</td></tr><tr><td>58</td><td>Northgate Securities</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="ochl-day">ochl_day</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (
+  time   TIMESTAMP ROUND 1d,
+  symbol SYMBOL,
+  open   DOUBLE,
+  high   DOUBLE,
+  low    DOUBLE,
+  close  DOUBLE,
+  volume DOUBLE
+) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);</code></pre>
+<p>Daily candles (open, high, low, close and volume). <code>time</code> is the trading date at 00:00 UTC. <code>ROUND 1d</code> cuts every time down to the day, and <code>DEDUP KEY (symbol, time)</code> allows one row per symbol per day.</p>
+<ul><li><strong>Notes:</strong> the data has two parts: 2025-12-28 to 2025-12-31, and 2026-08-23 to 2026-09-10 (trading days of a Sunday-to-Thursday trading week, as on some exchanges). So there are two partitions: <code>2025</code> and <code>2026</code>.</li></ul>
+<p><strong>Example: Daily candles of one day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, open, high, low, close, volume FROM ochl_day WHERE time IN &#39;2026-09-10&#39; ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.6</td><td>507</td><td>500.7</td><td>504.9</td><td>183040</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>COAST</td><td>380.1</td><td>382</td><td>373.2</td><td>376.1</td><td>186200</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>VOLT</td><td>185.6</td><td>192.1</td><td>184.2</td><td>191.2</td><td>41470</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: How many days per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS days, min(time) AS first_day, max(time) AS last_day FROM ochl_day GROUP BY symbol ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>first_day (TIMESTAMP)</th><th>last_day (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>19</td><td>2025-12-28T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td></tr><tr><td>COAST</td><td>19</td><td>2025-12-28T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td></tr><tr><td>VOLT</td><td>19</td><td>2025-12-28T00:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="ochl-minutes">ochl_minutes</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_minutes (
+  time   TIMESTAMP ROUND 1m,
+  symbol SYMBOL,
+  open   DOUBLE,
+  high   DOUBLE,
+  low    DOUBLE,
+  close  DOUBLE,
+  volume DOUBLE
+) TIMESERIES(time) PARTITION BY MONTH DEDUP KEY (symbol, time);</code></pre>
+<p>One-minute candles. The market is open 11:00 to 15:00 local time (+05:45, Nepal time), which is 05:15 to 09:15 UTC, so a full day has 240 minutes.</p>
+<ul><li><strong>Notes:</strong> only CITY (480 rows) and COAST (476 rows) have minute candles, on 2026-09-09 and 2026-09-10.</li></ul>
+<p><strong>Example: The first 5 minutes of CITY on 2026-09-10 (11:00 Nepal time)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, open, high, low, close, volume
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-10T11:00:00+05:45&#39;
+ORDER BY time
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>504.6</td><td>504.6</td><td>504.4</td><td>504.4</td><td>960</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>CITY</td><td>504.4</td><td>504.7</td><td>504.3</td><td>504.6</td><td>700</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>CITY</td><td>504.6</td><td>504.9</td><td>504</td><td>504.2</td><td>150</td></tr><tr><td>2026-09-10T05:18:00.000Z</td><td>CITY</td><td>504.2</td><td>504.6</td><td>504.1</td><td>504.4</td><td>1050</td></tr><tr><td>2026-09-10T05:19:00.000Z</td><td>CITY</td><td>504.4</td><td>504.8</td><td>504.1</td><td>504.5</td><td>450</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Minute candles turned into hourly candles</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-09&#39;
+SAMPLE BY 1h;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T05:00:00.000Z</td><td>398</td><td>398.8</td><td>392.2</td><td>392.9</td><td>33000</td></tr><tr><td>2026-09-09T06:00:00.000Z</td><td>392.9</td><td>393.6</td><td>387.4</td><td>387.7</td><td>43470</td></tr><tr><td>2026-09-09T07:00:00.000Z</td><td>387.7</td><td>389.2</td><td>381.6</td><td>382.3</td><td>49820</td></tr><tr><td>2026-09-09T08:00:00.000Z</td><td>382.3</td><td>384.2</td><td>379.2</td><td>380</td><td>49500</td></tr><tr><td>2026-09-09T09:00:00.000Z</td><td>380</td><td>380.9</td><td>379.4</td><td>380.1</td><td>10540</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="trade-log">trade_log</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (
+  date           TIMESTAMP ROUND 1d,
+  transaction_id LONG,
+  symbol         SYMBOL,
+  buyer          INT REFERENCES brokers(id),
+  seller         INT REFERENCES brokers(id),
+  quantity       LONG,
+  rate           DOUBLE,
+  amount         DOUBLE AS (quantity * rate)
+) TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, transaction_id);</code></pre>
+<p>Every trade of the day: who bought, who sold, how many shares and at what rate. <code>amount</code> is a <strong>computed column</strong>: it is not stored, KDB works it out from <code>quantity * rate</code> when you read it.</p>
+<ul><li><strong>Notes:</strong> a broker that trades point to cannot be deleted from <code>brokers</code>.</li></ul>
+<p><strong>Example: The first trades of 2026-09-10 with broker names</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.transaction_id, f.symbol, b.name AS buyer, s.name AS seller, f.quantity, f.rate, f.amount
+FROM trade_log f
+JOIN brokers b ON b.id = f.buyer
+JOIN brokers s ON s.id = f.seller
+WHERE f.date IN &#39;2026-09-10&#39;
+ORDER BY f.transaction_id
+LIMIT 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (STRING)</th><th>seller (STRING)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th></tr></thead><tbody><tr><td>100009</td><td>COAST</td><td>Vision Securities</td><td>Imperial Securities</td><td>50</td><td>400</td><td>20000</td></tr><tr><td>100010</td><td>CITY</td><td>Keystone Securities</td><td>Imperial Securities</td><td>50</td><td>517</td><td>25850</td></tr><tr><td>100011</td><td>VOLT</td><td>Keystone Securities</td><td>Northgate Securities</td><td>50</td><td>184</td><td>9200</td></tr><tr><td>100012</td><td>VOLT</td><td>Northgate Securities</td><td>Imperial Securities</td><td>200</td><td>184</td><td>36800</td></tr><tr><td>100013</td><td>COAST</td><td>Northgate Securities</td><td>Keystone Securities</td><td>50</td><td>398</td><td>19900</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Turnover per symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS trades, sum(quantity) AS shares, sum(amount) AS turnover
+FROM trade_log
+GROUP BY symbol
+ORDER BY turnover DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th><th>shares (LONG)</th><th>turnover (DOUBLE)</th></tr></thead><tbody><tr><td>TELCO</td><td>6</td><td>2770</td><td>2438260</td></tr><tr><td>CITY</td><td>11</td><td>2420</td><td>1247230</td></tr><tr><td>COAST</td><td>11</td><td>3070</td><td>1227510</td></tr><tr><td>VOLT</td><td>4</td><td>400</td><td>73950</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="live-data">live_data</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE live_data (
+  timestamp        TIMESTAMP,
+  symbol           SYMBOL,
+  ltp              DOUBLE,
+  ltv              LONG,
+  point_change     DOUBLE,
+  pct_change       DOUBLE,
+  open             DOUBLE,
+  high             DOUBLE,
+  low              DOUBLE,
+  avg_traded_price DOUBLE,
+  prev_close       DOUBLE,
+  volume           LONG
+) TIMESERIES(timestamp) PARTITION BY DAY DEDUP KEY (timestamp, symbol);</code></pre>
+<p>Snapshots of live market prices: last traded price (<code>ltp</code>), last traded volume (<code>ltv</code>), change from the previous close, and the day&#39;s open, high, low and volume so far.</p>
+<ul><li><strong>Notes:</strong> the snapshots are at 11:05, 13:00 and 14:59 Nepal time on 2026-09-10. The time column is called <code>timestamp</code>; that word is not reserved.</li></ul>
+<p><strong>Example: The latest price of every symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT timestamp, symbol, ltp, pct_change, volume
+FROM live_data
+LATEST ON timestamp PARTITION BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th><th>volume (LONG)</th></tr></thead><tbody><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>527.1</td><td>2.71</td><td>75490</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>COAST</td><td>401.9</td><td>0.7</td><td>35210</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>TELCO</td><td>897.7</td><td>1.9</td><td>69340</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>VOLT</td><td>184</td><td>-0.86</td><td>55940</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: All snapshots of TELCO</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT timestamp, ltp, point_change, pct_change FROM live_data WHERE symbol = &#39;TELCO&#39; ORDER BY timestamp;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>ltp (DOUBLE)</th><th>point_change (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>860.5</td><td>-20.5</td><td>-2.33</td></tr><tr><td>2026-09-10T07:15:00.000Z</td><td>869</td><td>-12</td><td>-1.36</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>897.7</td><td>16.7</td><td>1.9</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sample-data.md">This page as markdown</a>.</footer>
+</body>
+</html>

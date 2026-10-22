@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>View data page (browse and edit rows) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Look at the rows of a table in the console and change them with forms - add, edit and delete - without writing SQL.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/console-data-page.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-data-page.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="view-data-page-browse-and-edit-rows">View data page (browse and edit rows)</h1>
+<blockquote><p>Look at the rows of a table in the console and change them with forms - add, edit and delete - without writing SQL.</p></blockquote>
+<ul><li>Category: Web console</li><li>Keywords: data page, View data, browse, browser, table browser, edit row, change row, add row, insert row, delete row, new table, phpMyAdmin, WHERE filter, paging, per page, sort column, primary key, read-only, time-series, no primary key, Open in SQL</li><li>See also: <a href="web-console.html">Web console</a>, <a href="console-settings.html">Settings page (data folder, old log, capacity, program files and users)</a>, <a href="console-monitor.html">Monitor panel (memory, processor, caches)</a>, <a href="insert.html">INSERT</a>, <a href="update-delete.html">UPDATE and DELETE</a>, <a href="constraints.html">Constraints</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="table-rights.html">Table rights - GRANT ON TABLE</a></li></ul>
+<p>The <strong>View data</strong> page of the <a href="web-console.html">web console</a> (Home menu) shows the tables of the chosen database and the rows inside them. You can add, change and delete rows with a form instead of writing <a href="insert.html">INSERT</a>, <a href="update-delete.html">UPDATE and DELETE</a> by hand.</p>
+<p>Everything it does goes through <code>/exec</code>, so a user may only do what their <a href="users-and-roles.html">role</a> allows: a <code>read</code> user sees the rows and no buttons, a <code>write</code> user may change them, and an <code>admin</code> may also make tables.</p>
+<h2 id="screen">The screen</h2>
+<pre><code class="language-text">+--------------------+------------------------------------------------------------------------+
+| TABLES             | trades  timeseries - by DAY          [Add row] [Open in SQL] [Refresh]  |
+| [Find a table   ]  | WHERE [ qty &gt; 10                          ] [Apply] [Filter columns...] |
+|  trades    69.3M   |      | date       | symbol   | broker   | qty  | rate   |               |
+|  items         5   |      | [(all)  v] | [CITY v] | [(all) v]| LONG | DOUBLE |               |
+|                    |      | 2026-09-11 | CITY     | 58       |  100 | 512.40 |               |
+|                    |      | 2026-09-11 | CITY     | 12       |   50 | 512.00 |               |
+| [New table]        | Rows 1-50 of 4,112   &lt; 1 2 3 ... 83 &gt; Last     Per page [50 v]         |
++--------------------+------------------------------------------------------------------------+</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>What it is</th></tr></thead><tbody><tr><td>Left list</td><td>every table of the database, with its row count. Type in the box to find one.</td></tr><tr><td><strong>New table</strong></td><td>a small form for <code>CREATE TABLE</code>; it shows the statement it will run before it runs it (admins only)</td></tr><tr><td><strong>WHERE</strong> box</td><td>an extra condition, exactly as you would write it in SQL. Press Enter or <strong>Apply</strong>.</td></tr><tr><td><strong>Filter columns...</strong></td><td>tick the columns that get a list of their values in the heading (symbol, date, broker ...). Pick a value from a list to see only its rows; several lists combine. The list holds each different value once, newest first for a time column, at most 500.</td></tr><tr><td>Column heads</td><td>click one to sort the <strong>whole table</strong> by it (not only the page); click again for the other direction. A time-series table opens newest first.</td></tr><tr><td><strong>Edit</strong> / <strong>Delete</strong></td><td>change or remove that one row</td></tr><tr><td><strong>Add row</strong></td><td>a form with one box per column</td></tr><tr><td><strong>Open in SQL</strong></td><td>puts the <code>SELECT</code> this page is showing into the Home page (<a href="web-console.html#editor">SQL editor</a>), to change it by hand</td></tr><tr><td>Pager</td><td>page numbers, <code>&lt;</code> <code>&gt;</code> and <strong>Last</strong>; 25 to 500 rows a page; how many rows the filters found</td></tr></tbody></table></div>
+<p>The page remembers the table you were looking at, the rows-per-page and each table&#39;s filter columns, so coming back opens where you left off. A value list is one <code>SELECT DISTINCT</code> per column, read once per table (and again on <strong>Refresh</strong>): on a table of many million rows it takes a moment, and the rows show first.</p>
+<h2 id="editable">Which tables can be edited</h2>
+<p>To change or delete <strong>one</strong> row, KDB has to be able to name that row on its own. That is what a <a href="constraints.html#primary-key"><code>PRIMARY KEY</code></a> is for.</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>Browse</th><th>Add a row</th><th>Edit or delete one row</th></tr></thead><tbody><tr><td>relational, with <code>PRIMARY KEY</code></td><td>yes</td><td>yes</td><td><strong>yes</strong></td></tr><tr><td>relational, without a key</td><td>yes</td><td>yes</td><td>no</td></tr><tr><td>time-series (<code>TIMESERIES(...)</code>)</td><td>yes</td><td>yes</td><td>no</td></tr></tbody></table></div>
+<p>A <a href="create-table.html">time-series table</a> has a <code>DEDUP KEY</code>, not a primary key, and the same key may appear more than once. A form that edited &quot;the row&quot; could quietly change several, so the page does not offer it and says why instead. Use the SQL editor on Home with a <code>WHERE</code> you have checked, and run the matching <code>SELECT</code> first to see what it will hit.</p>
+<ul><li>The primary key column itself cannot be changed in the edit form: it is the name the row is found by. Delete the row and add a new one to change a key.</li><li>A <code>PRIMARY KEY AUTO</code> column is left out of the add form; the server hands the value out.</li><li>Computed columns are left out too: the engine works them out.</li></ul>
+<h2 id="sql">What it sends</h2>
+<p>Nothing is hidden. Each button sends one ordinary statement:</p>
+<div class="table-wrap"><table><thead><tr><th>Button</th><th>Statement</th></tr></thead><tbody><tr><td><strong>Add row</strong></td><td><code>INSERT INTO items (name, qty) VALUES (&#39;bolt&#39;, 12)</code></td></tr><tr><td><strong>Save</strong> (edit)</td><td><code>UPDATE items SET qty = 137 WHERE id = 2</code></td></tr><tr><td><strong>Delete</strong></td><td><code>DELETE FROM items WHERE id = 2</code></td></tr><tr><td><strong>New table</strong></td><td>the <code>CREATE TABLE</code> shown in the form</td></tr></tbody></table></div>
+<ul><li>Only the boxes you actually changed go into the <code>SET</code> list.</li><li>An empty box means <code>NULL</code>.</li><li>Text is quoted and <code>&#39;</code> inside it is doubled. A number box that does not hold a number is refused before anything is sent, with a message that says which column.</li><li>Anything the server refuses (a <code>NOT NULL</code> column left empty, a <code>CHECK</code> that fails, a missing <code>REFERENCES</code> row, a role that is too weak) is shown as it came back, so the reason is the server&#39;s own.</li></ul>
+<p><strong>Example: A table the View data page can fully edit</strong></p>
+<pre><code class="language-sql">CREATE TABLE items (
+  id     INT PRIMARY KEY AUTO,
+  name   STRING NOT NULL,
+  qty    INT,
+  price  DOUBLE
+);
+INSERT INTO items (name, qty, price) VALUES (&#39;bolt&#39;, 12, 0.45), (&#39;nut&#39;, 40, 0.12);
+SELECT * FROM items;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE items (</code></p>
+<pre><code class="language-text">table &#39;items&#39; created</code></pre>
+<p><code>INSERT INTO items (name, qty, price) VALUES (&#39;bolt&#39;, 12, 0.45), (&#39;nut&#39;, 40, 0.12)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT * FROM items</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th><th>qty (INT)</th><th>price (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>bolt</td><td>12</td><td>0.45</td></tr><tr><td>2</td><td>nut</td><td>40</td><td>0.12</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="notes">Notes</h2>
+<ul><li>The row count under the pager is a real <code>SELECT count(*)</code> with the same filter, so it is the true number, not an estimate.</li><li>Big values are cut off in the grid; the full text is in the cell&#39;s tooltip. For the whole value use the SQL editor on Home.</li><li>The page reads at most one page of rows at a time, so opening a table with millions of rows costs the same as opening a small one.</li><li>Rights per table (<a href="table-rights.html">table rights</a>) apply here as everywhere else: a table you may not read is not listed.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/console-data-page.md">This page as markdown</a>.</footer>
+</body>
+</html>

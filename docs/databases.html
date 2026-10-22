@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Databases and the data folder - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Where KDB keeps databases, how to name them, and CREATE DATABASE, DROP DATABASE, SHOW DATABASES and USE.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/databases.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/databases.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="databases-and-the-data-folder">Databases and the data folder</h1>
+<blockquote><p>Where KDB keeps databases, how to name them, and CREATE DATABASE, DROP DATABASE, SHOW DATABASES and USE.</p></blockquote>
+<ul><li>Category: Databases &amp; folders</li><li>Keywords: database, data folder, PURGE TRASH, PURGE TRASH ALL, data directory, --data-dir, KDB_DATA_DIR, default database, _trash, trash, database name, folder path, CREATE DATABASE, IF NOT EXISTS, DROP DATABASE, IF EXISTS, SHOW DATABASES, USE, switch database, many databases, kdb.lock, wal_archive, WAL_ARCHIVE, old log, log archive, KDB_WAL_ARCHIVE_MB, RESULT_CACHE, result cache per database, MEMORY_LIMIT, MEMORY_RESERVED, memory per database, database_memory, per-column loads, partial_loads, BRANCH OF, branch, clone database</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="show-tables.html">SHOW TABLES, COLUMNS, CREATE TABLE</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-serve.html">kdb serve</a>, <a href="cross-database-queries.html">Queries across databases</a>, <a href="as-of-and-branches.html">Time travel and branches: SELECT ... AS OF, CREATE DATABASE ... BRANCH OF</a></li></ul>
+<p>A <strong>database</strong> is one folder with its own tables, views, triggers and procedures. KDB keeps many databases in one <strong>data folder</strong>: one sub-folder per database. <code>kdb serve</code> without a database name serves all of them.</p>
+<p>A real setup: one database for market prices, one for the accounting app, one for the forum.</p>
+<p><strong>Example: Three databases for three apps</strong></p>
+<pre><code class="language-sql">CREATE DATABASE market;
+CREATE DATABASE accounts;
+CREATE DATABASE forum;
+SHOW DATABASES;</code></pre>
+<p>Result:</p>
+<p><code>CREATE DATABASE market</code></p>
+<pre><code class="language-text">database &#39;market&#39; created</code></pre>
+<p><code>CREATE DATABASE accounts</code></p>
+<pre><code class="language-text">database &#39;accounts&#39; created</code></pre>
+<p><code>CREATE DATABASE forum</code></p>
+<pre><code class="language-text">database &#39;forum&#39; created</code></pre>
+<p><code>SHOW DATABASES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>tables (LONG)</th><th>bytes (LONG)</th><th>current (BOOL)</th></tr></thead><tbody><tr><td>accounts</td><td>0</td><td>0</td><td>false</td></tr><tr><td>demo</td><td>0</td><td>0</td><td>true</td></tr><tr><td>forum</td><td>0</td><td>0</td><td>false</td></tr><tr><td>market</td><td>0</td><td>0</td><td>false</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="data-folder">The data folder</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb &lt;command&gt; --data-dir &lt;folder&gt; ...
+KDB_DATA_DIR=&lt;folder&gt;
+&lt;folder of kdb.exe&gt;\data</code></pre>
+<p>KDB looks for the data folder in this order. The first one that is set wins:</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Where</th><th>Example</th></tr></thead><tbody><tr><td>1</td><td>the option <code>--data-dir &lt;folder&gt;</code></td><td><code>kdb serve --data-dir E:\kdb-data</code></td></tr><tr><td>2</td><td>the environment variable <code>KDB_DATA_DIR</code></td><td><code>$env:KDB_DATA_DIR = &quot;E:\kdb-data&quot;</code></td></tr><tr><td>3</td><td>the folder <code>data</code> next to the <code>kdb</code> program</td><td><code>D:\KDB\build\bin\data</code></td></tr></tbody></table></div>
+<p>KDB creates the folder when it is missing.</p>
+<pre><code class="language-text">E:\kdb-data\              &lt;- the data folder
+E:\kdb-data\default\      &lt;- the database &quot;default&quot; (kdb shell without a name uses it)
+E:\kdb-data\market\        &lt;- the database &quot;market&quot;
+E:\kdb-data\_trash\       &lt;- dropped databases (kept until PURGE TRASH ALL)</code></pre>
+<ul><li><strong>Notes:</strong> use <code>KDB_DATA_DIR</code> when the data must be on another disk, or when <code>kdb.exe</code> is in a folder where you cannot write (like <code>C:\Program Files</code>). To set it for good on Windows: <code>[Environment]::SetEnvironmentVariable(&quot;KDB_DATA_DIR&quot;, &quot;E:\kdb-data&quot;, &quot;User&quot;)</code>, then open a new PowerShell window.</li><li><strong>Notes:</strong> never change files inside a database folder by hand. Only one program can open a database at a time (the file <code>kdb.lock</code> shows this).</li></ul>
+<p><strong>Command line: A shell on a data folder: make a database and list them</strong></p>
+<pre><code class="language-bash">kdb shell --data-dir my-data
+&gt; CREATE DATABASE market;
+&gt; SHOW DATABASES;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on default (data folder my-data)
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; database &#39;market&#39; created
+kdb&gt; name    | tables | bytes | current
+--------+--------+-------+--------
+default |      0 |     0 | true   
+market  |      0 |     0 | false  
+(2 rows, 0.5 ms)
+kdb&gt;</code></pre>
+<h2 id="names">Database names and folder paths</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">name        letters, digits, _ and -   (1 to 64 characters)
+.\folder    a path: always that folder</code></pre>
+<p>A database name has only letters <code>a-z A-Z</code>, digits, <code>_</code> and <code>-</code>, and is 1 to 64 characters long. Upper and lower case do not matter: <code>Market</code> and <code>market</code> are the same database. The folder keeps the spelling you used first.</p>
+<div class="table-wrap"><table><thead><tr><th>Not allowed</th><th>Why</th></tr></thead><tbody><tr><td><code>my shop</code>, <code>my.shop</code>, <code>नेपाल</code></td><td>only letters a-z, digits, <code>_</code> and <code>-</code></td></tr><tr><td><code>_trash</code></td><td>the folder for dropped databases</td></tr><tr><td><code>_system</code></td><td>the folder where KDB keeps its users</td></tr><tr><td><code>CON</code>, <code>PRN</code>, <code>AUX</code>, <code>NUL</code>, <code>COM0</code>-<code>COM9</code>, <code>LPT0</code>-<code>LPT9</code></td><td>device names on Windows</td></tr></tbody></table></div>
+<p>Commands like <code>kdb sql</code> and <code>kdb shell</code> take a <strong>name</strong> or a <strong>path</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>KDB uses</th></tr></thead><tbody><tr><td>a name, and the data folder has that database</td><td>that database</td></tr><tr><td>a name, and the data folder does not have it</td><td>the folder with that name in the <strong>current</strong> folder (made when missing)</td></tr><tr><td>a path with <code>\</code>, <code>/</code>, <code>:</code> or <code>.</code> (<code>.\market</code>, <code>D:\kdb\market</code>)</td><td>always that folder</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> a command that opened a database by its <strong>path</strong> cannot create or drop databases. SQL names in quotes do not help: <code>CREATE DATABASE &quot;my shop&quot;</code> is still refused.</li></ul>
+<p><strong>Example: A name with a dot</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE DATABASE my.shop;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 19: unexpected &#39;.&#39; after CREATE DATABASE</code></p>
+<p><strong>Example: A reserved folder name</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE DATABASE _trash;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 17: bad database name &#39;_trash&#39;: &#39;_trash&#39; is where dropped databases are kept</code></p>
+<p><strong>Command line: A name that is not in the data folder means a folder here</strong></p>
+<pre><code class="language-bash">kdb sql shop &quot;CREATE TABLE products (id INT PRIMARY KEY, name STRING)&quot;
+kdb sql .\shop &quot;SHOW TABLES&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql shop &quot;CREATE TABLE products (id INT PRIMARY KEY, name STRING)&quot;</code></p>
+<pre><code class="language-text">table &#39;products&#39; created</code></pre>
+<p><code>&gt; kdb sql .\shop &quot;SHOW TABLES&quot;</code></p>
+<pre><code class="language-text">name     | kind       | partition | columns | rows
+---------+------------+-----------+---------+-----
+products | relational | NONE      |       2 |    0
+(1 row, 0.1 ms)</code></pre>
+<h2 id="create-database">CREATE DATABASE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE DATABASE [IF NOT EXISTS] name [WITH (pg_compat = on | off, encryption = on | off)]</code></pre>
+<p>Makes a new, empty database folder in the data folder. With <code>IF NOT EXISTS</code>, a database that is already there is not an error.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>database name</td><td>see <a href="#names">names</a></td></tr><tr><td><code>pg_compat</code></td><td>on / off</td><td>PostgreSQL 14&#39;s answers in this database (<a href="postgres-protocol.html">PostgreSQL protocol</a>)</td></tr><tr><td><code>encryption</code></td><td>on / off</td><td>every file of the database is encrypted; needs the server&#39;s master key (<a href="encryption.html">encryption at rest</a>). Default <code>off</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the message <code>database &#39;name&#39; created</code> (<code>... created encrypted</code> with <code>encryption = on</code>), or <code>database &#39;name&#39; already exists</code> with <code>IF NOT EXISTS</code>.</li><li><strong>Notes:</strong> <code>IF NOT EXISTS</code> never changes a database that is there: a plain one stays plain. Encryption is chosen only here; <code>ALTER DATABASE</code> cannot switch it.</li><li><strong>Notes:</strong> needs a data folder: it works in <code>kdb shell</code>, in <code>kdb sql</code> with a database name, and in <code>kdb serve</code> started without a folder path. With users, only a user with <code>ROLE admin</code> may run it (<a href="users-and-roles.html">users and roles</a>).</li><li><strong>Notes:</strong> an empty folder with that name becomes the database. A folder with other files in it is refused.</li><li><strong>Notes:</strong> <code>CREATE DATABASE test BRANCH OF live [AS OF ...]</code> makes a full, writable copy of another database in a moment, sharing its files (<a href="as-of-and-branches.html#branch">branches</a>).</li></ul>
+<p><strong>Example: Safe to run again with IF NOT EXISTS</strong></p>
+<pre><code class="language-sql">CREATE DATABASE IF NOT EXISTS accounts;
+CREATE DATABASE IF NOT EXISTS accounts;
+SHOW DATABASES;</code></pre>
+<p>Result:</p>
+<p><code>CREATE DATABASE IF NOT EXISTS accounts</code></p>
+<pre><code class="language-text">database &#39;accounts&#39; created</code></pre>
+<p><code>CREATE DATABASE IF NOT EXISTS accounts</code></p>
+<pre><code class="language-text">database &#39;accounts&#39; already exists</code></pre>
+<p><code>SHOW DATABASES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>tables (LONG)</th><th>bytes (LONG)</th><th>current (BOOL)</th></tr></thead><tbody><tr><td>accounts</td><td>0</td><td>0</td><td>false</td></tr><tr><td>demo</td><td>0</td><td>0</td><td>true</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Upper and lower case are the same database</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE DATABASE Forum;
+CREATE DATABASE forum;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">database &#39;Forum&#39; created</code></pre>
+<p>Error: <code>database &#39;Forum&#39; already exists</code></p>
+<h2 id="drop-database">DROP DATABASE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP DATABASE [IF EXISTS] name</code></pre>
+<p>Closes the database and <strong>moves</strong> its folder to <code>&lt;data folder&gt;/_trash/&lt;time in ms&gt;-&lt;name&gt;</code>. KDB never deletes the files. With <code>IF EXISTS</code>, a database that is not there is not an error.</p>
+<ul><li><strong>Returns:</strong> <code>database &#39;name&#39; dropped; its folder was moved to ...</code>.</li><li><strong>Notes:</strong> refused while another request or shell uses the database, or while another program has it open. To get it back: stop the server and move the folder back from <code>_trash</code>. When you are sure you do not need it, <a href="#purge-trash">PURGE TRASH ALL</a> frees the space.</li><li><strong>Notes:</strong> dropping the database you are using leaves you with <strong>no</strong> database: the next statement needs <code>USE</code> first.</li><li><strong>Notes:</strong> with users, the grants on that database are removed too, so a new database with the same name does not give old rights back.</li><li><strong>Notes:</strong> the database&#39;s <a href="timers.html">timers</a> are deleted too, so they never run in a new database of the same name.</li></ul>
+<p><strong>Example: Drop an old test database; the second DROP is not an error</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE test_2025;</code></pre>
+<pre><code class="language-sql">DROP DATABASE test_2025;
+DROP DATABASE IF EXISTS test_2025;
+SHOW DATABASES;</code></pre>
+<p>Result:</p>
+<p><code>DROP DATABASE test_2025</code></p>
+<pre><code class="language-text">database &#39;test_2025&#39; dropped; its folder was moved to kdb-data/_trash/1792647819765-test_2025</code></pre>
+<p><code>DROP DATABASE IF EXISTS test_2025</code></p>
+<pre><code class="language-text">database &#39;test_2025&#39; does not exist</code></pre>
+<p><code>SHOW DATABASES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>tables (LONG)</th><th>bytes (LONG)</th><th>current (BOOL)</th></tr></thead><tbody><tr><td>demo</td><td>0</td><td>0</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Drop the database you are using</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE notes (id INT);</code></pre>
+<pre><code class="language-sql">DROP DATABASE demo;
+SHOW TABLES;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">database &#39;demo&#39; dropped; its folder was moved to kdb-data/_trash/1792647819773-demo; no database is selected now (USE &lt;name&gt;)</code></pre>
+<p>Error: <code>no database is selected; choose one with USE &lt;name&gt;</code></p>
+<p><strong>Example: A database that is not there</strong> (shows an error)</p>
+<pre><code class="language-sql">DROP DATABASE nothing;</code></pre>
+<p>Result:</p>
+<p>Error: <code>database &#39;nothing&#39; does not exist</code></p>
+<h2 id="purge-trash">PURGE TRASH</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">PURGE TRASH
+PURGE TRASH ALL</code></pre>
+<p>Frees disk space. KDB never deletes data on its own at once: it moves it to a <code>_trash</code> folder first. <code>PURGE TRASH</code> removes, for good, what is in the <code>_trash</code> folder of the <strong>current database</strong>. <code>PURGE TRASH ALL</code> does it for every <code>_trash</code> folder of the data folder, dropped databases too:</p>
+<div class="table-wrap"><table><thead><tr><th>Folder</th><th>What is in it</th><th>Emptied by</th><th>Without a purge</th></tr></thead><tbody><tr><td><code>&lt;database&gt;/_trash</code></td><td>old copies of files after <code>TRUNCATE</code>, <code>DROP PARTITION</code>, <code>UPDATE</code>, checkpoints</td><td><code>PURGE TRASH</code> in that database, or <code>PURGE TRASH ALL</code></td><td>removed by itself after <code>trash_keep_hours</code> (1 hour): while the server runs, and when the database opens</td></tr><tr><td><code>&lt;data folder&gt;/_trash</code></td><td>dropped databases</td><td><code>PURGE TRASH ALL</code> only</td><td>kept forever</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>removed N folder(s) from the trash, freed 27.0 GB</code>.</li><li><strong>Notes:</strong> <code>PURGE TRASH</code> needs <code>ROLE admin</code> on the database. <code>PURGE TRASH ALL</code> needs the user&#39;s own <code>ROLE admin</code> (it acts on the whole server). Before 2026-09-25 plain <code>PURGE TRASH</code> emptied the whole server&#39;s trash.</li><li><strong>Notes:</strong> with no database selected (after dropping the one you used), <code>PURGE TRASH</code> is an error that points to <code>PURGE TRASH ALL</code>.</li><li><strong>Notes:</strong> tables and rows in use are not touched. Dropped <strong>tables</strong> stay: <code>UNDROP TABLE</code> still brings them back (<a href="trash.html">the trash</a>). <code>PURGE TRASH ALL</code> does not open databases that are not open. A folder that is still in use is skipped and named in the message.</li><li><strong>Notes:</strong> a dropped database cannot be moved back from <code>_trash</code> after <code>PURGE TRASH ALL</code>.</li><li><strong>Notes:</strong> removing many gigabytes takes a while: minutes for a large trash, longer when the data folder is a Docker folder share on Windows. Only one <code>PURGE TRASH ALL</code> runs at a time; a second one meanwhile is refused with <code>PURGE TRASH is already running</code>.</li><li><strong>Notes:</strong> in the console: the <strong>Tools</strong> panel on the right, <strong>Purge trash</strong>, runs <code>PURGE TRASH ALL</code>. The dialog shows how long the purge has been running; it can be closed, and the result appears in the panel. <strong>Save disk</strong> on the Keep data page runs <code>PURGE TRASH</code> for one database.</li><li><strong>Notes:</strong> a database&#39;s own <code>_trash</code> (replaced files) also empties <strong>by itself</strong> while the server runs: every minute the database removes every folder older than <code>trash_keep_hours</code> (1 hour unless <code>kdb.conf</code> or <code>KDB_TRASH_KEEP_HOURS</code> says otherwise), also while writes never stop. Beyond <code>trash_max_mb</code> (a quarter of the database&#39;s data, at least 256 MB, unless set; 0 = no limit) the oldest folders also go, whatever their age, until the trash fits. <code>PURGE TRASH</code> is for having the space back now.</li></ul>
+<p><strong>Example: Free this database&#39;s trash now</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-09-24T10:00:00Z&#39;, 1.5);</code></pre>
+<pre><code class="language-sql">TRUNCATE TABLE ticks;
+PURGE TRASH;</code></pre>
+<p>Result:</p>
+<p><code>TRUNCATE TABLE ticks</code></p>
+<pre><code class="language-text">1 table(s) truncated (1 row(s) removed)</code></pre>
+<p><code>PURGE TRASH</code></p>
+<pre><code class="language-text">removed 1 folder(s) from the trash, freed 388 bytes</code></pre>
+<p><strong>Example: Drop a test database, then free its space</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE old_test;</code></pre>
+<pre><code class="language-sql">DROP DATABASE old_test;
+PURGE TRASH ALL;</code></pre>
+<p>Result:</p>
+<p><code>DROP DATABASE old_test</code></p>
+<pre><code class="language-text">database &#39;old_test&#39; dropped; its folder was moved to kdb-data/_trash/1792647819902-old_test</code></pre>
+<p><code>PURGE TRASH ALL</code></p>
+<pre><code class="language-text">removed 1 folder(s) from the trash, freed 604 bytes</code></pre>
+<h2 id="purge-versions">PURGE VERSIONS</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">PURGE VERSIONS [KEEP n]</code></pre>
+<p>Frees disk space in the current database by removing the <strong>older versions</strong> of its data files. Every checkpoint writes a data file anew and keeps the older versions (2 per file unless <code>keep_versions</code> in <code>kdb.conf</code> or <code>KDB_KEEP_VERSIONS</code> says otherwise), so that a file found damaged can be repaired from one of them plus the log. On a table that is rewritten often they add up to more than the data itself. <code>PURGE VERSIONS</code> keeps <code>n</code> older versions per file (1 without <code>KEEP</code>, 0 to 10), moves the rest to the trash, and empties that trash at once.</p>
+<ul><li><strong>Returns:</strong> <code>N older file version(s) removed (3.9 GB), 1 kept per file; freed 3.9 GB from the trash</code>.</li><li><strong>Notes:</strong> needs <code>ROLE admin</code> on the database. The rows are untouched and the database stays consistent: the list of files is saved before anything moves. With <code>KEEP 0</code> a damaged file can only be repaired from a backup, so keep 1 unless space is short.</li><li><strong>Notes:</strong> in the console: the <strong>Keep data</strong> page, <strong>Save disk</strong> (runs <code>PURGE VERSIONS KEEP 1</code> and <code>PURGE TRASH</code>).</li></ul>
+<p><strong>Example: Keep one older copy of each file, free the rest</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-09-10T10:00:00Z&#39;, 1.5);</code></pre>
+<pre><code class="language-sql">PURGE VERSIONS KEEP 1;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">0 older file version(s) removed (0 bytes), 1 kept per file; freed 0 bytes from the trash</code></pre>
+<h2 id="truncate-all-tables">TRUNCATE ALL TABLES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">TRUNCATE ALL TABLES</code></pre>
+<p>Empties every table of the current database in one <code>TRUNCATE ... CASCADE</code>, then removes what that took out of use from the database&#39;s <code>_trash</code> at once, so the space is free right away. Meant for test databases.</p>
+<ul><li><strong>Returns:</strong> <code>N table(s) truncated (M row(s) removed); freed 1.2 GB from the trash</code>.</li><li><strong>Notes:</strong> needs <code>ROLE admin</code> on the database. The tables, columns, indexes, views, triggers and procedures stay. Materialized views are emptied with their tables. Dropped tables and <code>_audit_log</code> keep their rows. No row triggers run, as with <code>TRUNCATE</code>.</li><li><strong>Notes:</strong> it cannot be undone: the old rows are not kept in the trash. Make a backup first if you may need them.</li><li><strong>Notes:</strong> on a big database it takes as long as <code>TRUNCATE</code> of every table, and other writers wait meanwhile. In the console: <strong>Tools</strong>, <strong>Delete all data</strong>.</li></ul>
+<p><strong>Example: Empty a test database but keep its tables</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE customers (id INT PRIMARY KEY, name STRING);
+CREATE TABLE orders (id INT, customer INT REFERENCES customers(id), total DOUBLE);
+INSERT INTO customers VALUES (1, &#39;Asha&#39;), (2, &#39;Bikash&#39;);
+INSERT INTO orders VALUES (10, 1, 99.5), (11, 2, 12.0);</code></pre>
+<pre><code class="language-sql">TRUNCATE ALL TABLES;
+SELECT count(*) FROM orders;</code></pre>
+<p>Result:</p>
+<p><code>TRUNCATE ALL TABLES</code></p>
+<pre><code class="language-text">2 table(s) truncated (4 row(s) removed); freed 962 bytes from the trash</code></pre>
+<p><code>SELECT count(*) FROM orders</code></p>
+<div class="table-wrap"><table><thead><tr><th>count(*) (LONG)</th></tr></thead><tbody><tr><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="show-databases">SHOW DATABASES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW DATABASES</code></pre>
+<p>Lists the databases of the data folder.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td><code>STRING</code></td><td>database name</td></tr><tr><td><code>tables</code></td><td><code>LONG</code></td><td>number of tables</td></tr><tr><td><code>bytes</code></td><td><code>LONG</code></td><td>size of the data files</td></tr><tr><td><code>current</code></td><td><code>BOOL</code></td><td><code>true</code> for the database your statements use now</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> with users, a user who is not an admin sees only the databases they may read. The web console has a <strong>Database</strong> list with the same data.</li></ul>
+<p><strong>Example: The size of each database</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">USE demo;
+CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;), (45, &#39;Imperial Securities&#39;);
+CREATE DATABASE forum;</code></pre>
+<pre><code class="language-sql">SHOW DATABASES;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>tables (LONG)</th><th>bytes (LONG)</th><th>current (BOOL)</th></tr></thead><tbody><tr><td>demo</td><td>1</td><td>674</td><td>true</td></tr><tr><td>forum</td><td>NULL</td><td>0</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="use">USE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">USE name</code></pre>
+<p>The statements after <code>USE</code> run in that database.</p>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>How long <code>USE</code> lasts</th></tr></thead><tbody><tr><td><code>kdb shell</code></td><td>until the next <code>USE</code></td></tr><tr><td><code>kdb sql</code></td><td>until the end of the text you sent</td></tr><tr><td>HTTP <code>/exec</code></td><td>until the end of that request; choose the database of a request with <code>db=&lt;name&gt;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>using database &#39;name&#39;</code>.</li><li><strong>Notes:</strong> <code>USE</code> of a database that does not exist is an error; <code>USE</code> does not create it. PostgreSQL has no <code>USE</code> (you connect to the other database); MySQL has the same statement.</li><li><strong>Notes:</strong> <code>USE</code> does not end an open <code>BEGIN ... COMMIT</code>. The transaction stays open in the first database until you go back there and <code>COMMIT</code> or <code>ROLLBACK</code>.</li></ul>
+<p><strong>Example: Make a table in another database</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE forum;</code></pre>
+<pre><code class="language-sql">USE forum;
+CREATE TABLE posts (id LONG PRIMARY KEY AUTO, author STRING NOT NULL, body STRING NOT NULL);
+SHOW DATABASES;
+USE demo;
+SHOW TABLES;</code></pre>
+<p>Result:</p>
+<p><code>USE forum</code></p>
+<pre><code class="language-text">using database &#39;forum&#39;</code></pre>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>SHOW DATABASES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>tables (LONG)</th><th>bytes (LONG)</th><th>current (BOOL)</th></tr></thead><tbody><tr><td>demo</td><td>0</td><td>0</td><td>false</td></tr><tr><td>forum</td><td>1</td><td>270</td><td>true</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>USE demo</code></p>
+<pre><code class="language-text">using database &#39;demo&#39;</code></pre>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><strong>Example: USE does not create a database</strong> (shows an error)</p>
+<pre><code class="language-sql">USE shop;</code></pre>
+<p>Result:</p>
+<p>Error: <code>database &#39;shop&#39; does not exist; create it with CREATE DATABASE shop</code></p>
+<h2 id="dialect">ALTER DATABASE ... SET DIALECT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER DATABASE &lt;name&gt; SET DIALECT = &#39;questdb&#39;
+ALTER DATABASE &lt;name&gt; SET DIALECT = &#39;postgres&#39;</code></pre>
+<p>Says which SQL family this database should behave like when the two differ. The default is <code>&#39;postgres&#39;</code>. <code>&#39;postgresql&#39;</code>, <code>&#39;kdb&#39;</code> and <code>&#39;default&#39;</code> mean <code>&#39;postgres&#39;</code> too.</p>
+<div class="table-wrap"><table><thead><tr><th>Value</th><th>What changes</th></tr></thead><tbody><tr><td><code>&#39;postgres&#39;</code> (default)</td><td><code>CAST(time AS LONG)</code> gives <strong>milliseconds</strong>; a plain <code>INSERT</code> of a row that is already there (by <code>DEDUP KEY</code>) is an error</td></tr><tr><td><code>&#39;questdb&#39;</code></td><td><code>CAST(time AS LONG)</code> gives <strong>microseconds</strong>, as QuestDB does; a plain <code>INSERT</code> into a table with a <code>DEDUP KEY</code> <strong>replaces</strong> the old row, as QuestDB does</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>database &#39;x&#39; now reads SQL as ...</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs a server admin. The setting is kept in the data folder (<code>_system</code>) and holds after a restart, so an app does not have to send it again.</li><li>It is <strong>per database</strong>, so a QuestDB app and a PostgreSQL app can share one server.</li><li>Set it before you move a QuestDB app over, so its <code>INSERT</code>s and its time maths keep the meaning they had.</li><li>A database that has this setting needs a KDB that knows the <code>dialects</code> feature; an older KDB refuses to open it (see <a href="versions.html">versions</a>).</li></ul></li></ul>
+<p><strong>Example: A QuestDB app: INSERT replaces a row with the same key</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE questdb_app;
+USE questdb_app;
+CREATE TABLE live_ticks (time TIMESTAMP, symbol SYMBOL, ltp DOUBLE)
+  TIMESERIES(time) PARTITION BY DAY DEDUP KEY (time, symbol);</code></pre>
+<pre><code class="language-sql">ALTER DATABASE questdb_app SET DIALECT = &#39;questdb&#39;;
+USE questdb_app;
+INSERT INTO live_ticks VALUES (&#39;2026-09-10T11:00:00Z&#39;, &#39;CITY&#39;, 512.5);
+INSERT INTO live_ticks VALUES (&#39;2026-09-10T11:00:00Z&#39;, &#39;CITY&#39;, 514.0);
+SELECT * FROM live_ticks;</code></pre>
+<p>Result:</p>
+<p><code>ALTER DATABASE questdb_app SET dialect = &#39;questdb&#39;</code></p>
+<pre><code class="language-text">database &#39;questdb_app&#39; now reads SQL as QuestDB does (plain INSERT replaces rows of a DEDUP KEY; CAST(time AS LONG) is microseconds)</code></pre>
+<p><code>USE questdb_app</code></p>
+<pre><code class="language-text">using database &#39;questdb_app&#39;</code></pre>
+<p><code>INSERT INTO live_ticks VALUES (&#39;2026-09-10T11:00:00Z&#39;, &#39;CITY&#39;, 512.5)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO live_ticks VALUES (&#39;2026-09-10T11:00:00Z&#39;, &#39;CITY&#39;, 514.0)</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT * FROM live_ticks</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T11:00:00.000Z</td><td>CITY</td><td>514</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Back to the PostgreSQL way</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE questdb_app;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE questdb_app SET DIALECT = &#39;questdb&#39;;
+ALTER DATABASE questdb_app SET DIALECT = &#39;postgres&#39;;</code></pre>
+<p>Result:</p>
+<p><code>ALTER DATABASE questdb_app SET dialect = &#39;questdb&#39;</code></p>
+<pre><code class="language-text">database &#39;questdb_app&#39; now reads SQL as QuestDB does (plain INSERT replaces rows of a DEDUP KEY; CAST(time AS LONG) is microseconds)</code></pre>
+<p><code>ALTER DATABASE questdb_app SET dialect = &#39;postgres&#39;</code></p>
+<pre><code class="language-text">database &#39;questdb_app&#39; now reads SQL as PostgreSQL does</code></pre>
+<p><strong>Example: Only those two names</strong> (shows an error)</p>
+<pre><code class="language-sql">ALTER DATABASE demo SET DIALECT = &#39;mysql&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 35: SET dialect needs &#39;questdb&#39; or &#39;postgres&#39;</code></p>
+<h2 id="wal-archive">ALTER DATABASE ... SET WAL_ARCHIVE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER DATABASE &lt;name&gt; SET WAL_ARCHIVE = &#39;&lt;size&gt;&#39;
+ALTER DATABASE &lt;name&gt; SET WAL_ARCHIVE = OFF
+ALTER DATABASE &lt;name&gt; SET WAL_ARCHIVE = DEFAULT</code></pre>
+<p>Says how much <strong>old log</strong> a database keeps in its <code>wal_archive</code> folder. Old log is only used to repair a damaged file and by backups. Your tables do not need it: the data is in the data files and the current log.</p>
+<div class="table-wrap"><table><thead><tr><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&#39;100MB&#39;</code>, <code>&#39;1GB&#39;</code>, <code>&#39;512 MB&#39;</code>, <code>&#39;1.5 GB&#39;</code></td><td>keep up to this much; the oldest files are removed beyond it</td></tr><tr><td><code>250</code> (a number without a unit)</td><td>megabytes</td></tr><tr><td><code>OFF</code></td><td>keep no old log</td></tr><tr><td><code>DEFAULT</code></td><td>follow the server default again</td></tr></tbody></table></div>
+<p>The server default is 1 GB. Change it on the console&#39;s <a href="console-settings.html#wal-archive">Settings page</a>, or with <code>wal_archive_mb</code> in <code>kdb.conf</code> or <code>KDB_WAL_ARCHIVE_MB</code>.</p>
+<ul><li><strong>Returns:</strong> <code>database &#39;x&#39; keeps at most 100 MB of old log in wal_archive</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs a server admin. The setting is kept in the data folder (<code>_system</code>) and holds after a restart.</li><li>It works at once. A smaller size removes the oldest files now, not at the next checkpoint. Log that the current data files still need is never removed.</li><li>With <code>OFF</code>, a damaged data file can only be repaired from a <strong>backup</strong>. Keep it on if you have no backups.</li><li>A log file is 64 MB, so a size under 64 MB keeps few or no files.</li><li>In the console: the <strong>Databases</strong> panel, <strong>Old log</strong>. <code>/api/databases</code> shows each database&#39;s limit (<code>wal_archive_max_bytes</code>), where it comes from (<code>wal_archive_source</code>: <code>database</code> or <code>server</code>) and the size on disk now (<code>wal_archive_bytes</code>).</li></ul></li></ul>
+<p><strong>Example: Keep only 100 MB of old log</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE prices;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE prices SET WAL_ARCHIVE = &#39;100MB&#39;;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">database &#39;prices&#39; keeps at most 100 MB of old log in wal_archive</code></pre>
+<p><strong>Example: No old log, then back to the server default</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE scratch;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE scratch SET WAL_ARCHIVE = OFF;
+ALTER DATABASE scratch SET WAL_ARCHIVE = DEFAULT;</code></pre>
+<p>Result:</p>
+<p><code>ALTER DATABASE scratch SET WAL_ARCHIVE = OFF</code></p>
+<pre><code class="language-text">database &#39;scratch&#39; keeps no old log in wal_archive; a damaged file can now only be repaired from a backup</code></pre>
+<p><code>ALTER DATABASE scratch SET WAL_ARCHIVE = DEFAULT</code></p>
+<pre><code class="language-text">database &#39;scratch&#39; keeps at most 1 GB of old log in wal_archive (the server default)</code></pre>
+<p><strong>Example: A size needs a unit KDB knows</strong> (shows an error)</p>
+<pre><code class="language-sql">ALTER DATABASE demo SET WAL_ARCHIVE = &#39;100 XB&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 39: SET WAL_ARCHIVE: unknown unit &#39;XB&#39;; use KB, MB, GB or TB</code></p>
+<h2 id="result-cache">ALTER DATABASE ... SET RESULT_CACHE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER DATABASE &lt;name&gt; SET RESULT_CACHE = &#39;&lt;size&gt;&#39;
+ALTER DATABASE &lt;name&gt; SET RESULT_CACHE = OFF
+ALTER DATABASE &lt;name&gt; SET RESULT_CACHE = DEFAULT</code></pre>
+<p>Gives a database a <a href="performance-tips.html#result-cache">result cache</a> space of its <strong>own</strong>. Without it, all databases share the server&#39;s cache (<code>--cache-mb</code>, <code>cache_mb</code> in kdb.conf, 256 MB by default), and a busy database&#39;s results can push out another&#39;s. Use it for the database behind a dashboard that must stay fast while other apps load data.</p>
+<div class="table-wrap"><table><thead><tr><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&#39;512MB&#39;</code>, <code>&#39;1GB&#39;</code>, <code>&#39;1.5 GB&#39;</code></td><td>keep up to this much of this database&#39;s results, apart from the others</td></tr><tr><td><code>128</code> (a number without a unit)</td><td>megabytes</td></tr><tr><td><code>OFF</code></td><td>keep no results of this database: every <code>SELECT</code> runs</td></tr><tr><td><code>DEFAULT</code></td><td>share the server&#39;s cache again</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>database &#39;x&#39; keeps up to 512 MB of query results in a space of its own; one result may use a quarter of it, a pinned one three quarters</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs a server admin. The setting is kept in the data folder (<code>_system</code>) and holds after a restart.</li><li>It works at once. A smaller size drops the oldest results now.</li><li><code>/api/databases</code> shows each database&#39;s size (<code>result_cache_bytes</code>) and where it comes from (<code>result_cache_source</code>: <code>database</code> or <code>server</code>). <code>/api/stats</code> shows <code>cache_own</code>.</li></ul></li></ul>
+<p><strong>Example: A dashboard database with 512 MB of its own</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE board;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE board SET RESULT_CACHE = &#39;512MB&#39;;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">database &#39;board&#39; keeps up to 512 MB of query results in a space of its own; one result may use a quarter of it, a pinned one three quarters</code></pre>
+<p><strong>Example: No cached results, then back to the shared cache</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE loader;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE loader SET RESULT_CACHE = OFF;
+ALTER DATABASE loader SET RESULT_CACHE = DEFAULT;</code></pre>
+<p>Result:</p>
+<p><code>ALTER DATABASE loader SET RESULT_CACHE = OFF</code></p>
+<pre><code class="language-text">database &#39;loader&#39; keeps no query results: every SELECT runs</code></pre>
+<p><code>ALTER DATABASE loader SET RESULT_CACHE = DEFAULT</code></p>
+<pre><code class="language-text">database &#39;loader&#39; shares the server&#39;s result cache again (64 MB for all databases together)</code></pre>
+<h2 id="memory">ALTER DATABASE ... SET MEMORY_LIMIT and MEMORY_RESERVED</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER DATABASE &lt;name&gt; SET MEMORY_LIMIT = &#39;&lt;size&gt;&#39; | OFF | DEFAULT
+ALTER DATABASE &lt;name&gt; SET MEMORY_RESERVED = &#39;&lt;size&gt;&#39; | OFF | DEFAULT</code></pre>
+<p>Gives a database its own part of the server&#39;s memory for table data (<a href="performance-tips.html#memory"><code>--memory</code></a>). Without them, all databases share it, and a big scan in one database can unload the tables another one reads all the time.</p>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Meaning</th></tr></thead><tbody><tr><td><code>MEMORY_LIMIT</code></td><td>the most loaded data this database holds. Over it, its <strong>own</strong> partitions are unloaded first, even when <code>--memory</code> has room.</td></tr><tr><td><code>MEMORY_RESERVED</code></td><td>loaded data of this database that nothing else can unload: not another database, not the <a href="cli-serve.html#memory-limit">process memory limit</a>. Its own trims still keep to its <code>MEMORY_LIMIT</code>.</td></tr><tr><td><code>OFF</code></td><td>none for this database, whatever kdb.conf says</td></tr><tr><td><code>DEFAULT</code></td><td>the value in kdb.conf <code>database_memory</code>, or none</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>database &#39;x&#39; holds at most 512 MB of loaded partitions; over it, its own partitions are unloaded first</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs a server admin. The settings are kept in the data folder (<code>_system</code>) and hold after a restart. They work at once.</li><li>A reservation cannot be more than the database&#39;s limit, and all reservations together at most three quarters of <code>--memory</code>.</li><li>kdb.conf can set start values per database: <code>&quot;database_memory&quot;: {&quot;sales&quot;: {&quot;limit_mb&quot;: 512, &quot;reserved_mb&quot;: 128}}</code>.</li><li><code>GET /api/stats</code> shows <code>used_bytes</code>, <code>limit_bytes</code>, <code>reserved_bytes</code> and <code>resident_bytes</code> in each database&#39;s <code>memory</code>.</li><li>To keep one table loaded whatever happens, use <a href="alter-table.html#resident"><code>ALTER TABLE t SET (resident = on)</code></a>.</li></ul></li></ul>
+<p><strong>Example: A dashboard database keeps its data loaded while a loader scans</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE dash;
+CREATE DATABASE loader;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE dash SET MEMORY_RESERVED = &#39;32MB&#39;;
+ALTER DATABASE loader SET MEMORY_LIMIT = &#39;256MB&#39;;</code></pre>
+<p>Result:</p>
+<p><code>ALTER DATABASE dash SET MEMORY_RESERVED = &#39;32 MB&#39;</code></p>
+<pre><code class="language-text">database &#39;dash&#39; keeps 32 MB of its loaded partitions whatever other databases need</code></pre>
+<p><code>ALTER DATABASE loader SET MEMORY_LIMIT = &#39;256 MB&#39;</code></p>
+<pre><code class="language-text">database &#39;loader&#39; holds at most 256 MB of loaded partitions; over it, its own partitions are unloaded first</code></pre>
+<p><strong>Example: Back to the shared budget</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE scratch;
+ALTER DATABASE scratch SET MEMORY_LIMIT = &#39;64MB&#39;;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE scratch SET MEMORY_LIMIT = DEFAULT;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">database &#39;scratch&#39; has no memory limit of its own (kdb.conf): it shares the server&#39;s budget</code></pre>
+<h3 id="per-column-loads">Per-column loads</h3>
+<p>A column-engine query (sums, counts, <code>GROUP BY</code> and the like) on a partition that is not in memory reads <strong>only the columns it names</strong> from the file, plus the time column and the key columns. A sum of one column of a 20-column table reads and keeps about a tenth of the bytes, so the same memory holds many more partitions and a repeated query does not read its files again.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>What happens</th></tr></thead><tbody><tr><td>a later query names more columns</td><td>those columns are read and added</td></tr><tr><td>a write, a checkpoint or a row read (<code>SELECT *</code>)</td><td>the whole partition is read first, and replaces the columns read apart</td></tr><tr><td>a partition with changes not yet in its file</td><td>read whole, as before</td></tr><tr><td>memory runs short</td><td>the columns read apart are unloaded like any loaded partition</td></tr></tbody></table></div>
+<p><code>GET /api/stats</code> counts these reads in <code>partial_loads</code> (part of <code>partition_loads</code>). Nothing to set: it is always on.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/databases.md">This page as markdown</a>.</footer>
+</body>
+</html>

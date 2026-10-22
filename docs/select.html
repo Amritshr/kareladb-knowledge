@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SELECT - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Choose the columns and values that a query gives back, and the table they come from.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/select.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/select.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="select">SELECT</h1>
+<blockquote><p>Choose the columns and values that a query gives back, and the table they come from.</p></blockquote>
+<ul><li>Category: Querying</li><li>Keywords: query, read rows, columns, <em>, table.</em>, AS, alias, column name, FROM, DISTINCT, unique rows, SELECT without FROM, calculator, missing comma, select, from, distinct</li><li>See also: <a href="where.html">WHERE</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="group-by.html">GROUP BY and HAVING</a>, <a href="joins.html">Joins</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="views.html">Views</a></li></ul>
+<p><code>SELECT</code> reads data. You say which values you want (the <strong>select list</strong>), and from which table (<code>FROM</code>).
+Every other part (<code>WHERE</code>, <code>GROUP BY</code>, <code>ORDER BY</code>, ...) is optional and has its own help page.</p>
+<p>A select item can be a column, a calculation, a function or a constant. Give it a name with <code>AS</code>.</p>
+<p><strong>Example: Today&#39;s change of every symbol, like a market summary</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, open, close,
+       round(close - open, 2) AS change,
+       round((close - open) / open * 100, 2) AS change_pct
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;
+ORDER BY change_pct DESC;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>change (DOUBLE)</th><th>change_pct (DOUBLE)</th></tr></thead><tbody><tr><td>VOLT</td><td>185.6</td><td>191.2</td><td>5.6</td><td>3.02</td></tr><tr><td>CITY</td><td>504.6</td><td>504.9</td><td>0.3</td><td>0.06</td></tr><tr><td>COAST</td><td>380.1</td><td>376.1</td><td>-4</td><td>-1.05</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="select-list">SELECT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT [DISTINCT] item [[AS] alias], ...
+[FROM source [JOIN ...]]
+[WHERE condition]
+[LATEST ON time PARTITION BY column, ...]
+[SAMPLE BY interval ...]
+[GROUP BY expression, ...]
+[HAVING condition]
+[UNION ALL SELECT ...]
+[ORDER BY expression [ASC | DESC], ...]
+[LIMIT n [OFFSET m]]</code></pre>
+<p>The parts must be written in this order. KDB does the work in another order:</p>
+<div class="table-wrap"><table><thead><tr><th>Step</th><th>Part</th><th>What happens</th></tr></thead><tbody><tr><td>1</td><td><code>FROM</code>, <code>JOIN</code></td><td>read the tables</td></tr><tr><td>2</td><td><code>WHERE</code></td><td>keep only the rows that match</td></tr><tr><td>3</td><td><code>LATEST ON</code></td><td>keep the newest row of each group</td></tr><tr><td>4</td><td><code>SAMPLE BY</code>, <code>GROUP BY</code></td><td>make groups and compute <code>sum</code>, <code>max</code>, ...</td></tr><tr><td>5</td><td><code>HAVING</code></td><td>keep only the groups that match</td></tr><tr><td>6</td><td>window functions</td><td><code>lag</code>, <code>sma</code>, <code>row_number</code>, ...</td></tr><tr><td>7</td><td>select list, <code>DISTINCT</code></td><td>compute the output columns</td></tr><tr><td>8</td><td><code>UNION ALL</code></td><td>add the rows of the next query</td></tr><tr><td>9</td><td><code>ORDER BY</code>, <code>LIMIT</code>, <code>OFFSET</code></td><td>sort and cut</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Item</th><th>Example</th></tr></thead><tbody><tr><td>a column</td><td><code>close</code></td></tr><tr><td>a column of one table (with joins)</td><td><code>f.symbol</code></td></tr><tr><td>a calculation</td><td><code>high - low</code></td></tr><tr><td>a function</td><td><code>round(close, 1)</code>, <code>upper(name)</code></td></tr><tr><td>an aggregate</td><td><code>count(*)</code>, <code>max(high)</code> (see <a href="group-by.html">GROUP BY</a>)</td></tr><tr><td>a constant</td><td><code>&#39;hello&#39;</code>, <code>100</code>, <code>TRUE</code>, <code>NULL</code></td></tr><tr><td>all columns</td><td><code>*</code>, <code>f.*</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a table of rows. The column names come from the aliases, else from the items.</li><li><strong>Notes:</strong> names of tables, columns and functions do not care about case (<code>CLOSE</code> is <code>close</code>). Text values do: <code>&#39;CITY&#39;</code> is not <code>&#39;city&#39;</code>.</li></ul>
+<p><strong>Example: Trade log: the value of each trade on 2026-09-09</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol, quantity, rate, quantity * rate AS value
+FROM trade_log
+WHERE date IN &#39;2026-09-09&#39;
+ORDER BY value DESC
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>value (DOUBLE)</th></tr></thead><tbody><tr><td>100001</td><td>TELCO</td><td>1000</td><td>881</td><td>881000</td></tr><tr><td>100007</td><td>TELCO</td><td>1000</td><td>879</td><td>879000</td></tr><tr><td>100005</td><td>CITY</td><td>500</td><td>517</td><td>258500</td></tr><tr><td>100004</td><td>CITY</td><td>500</td><td>514.5</td><td>257250</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: App users: name, email and plan</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT username, lower(email) AS email, upper(plan) AS plan
+FROM app_users
+WHERE id &lt;= 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>username (STRING)</th><th>email (STRING)</th><th>plan (STRING)</th></tr></thead><tbody><tr><td>ram</td><td>ram.sharma@gmail.com</td><td>PRO</td></tr><tr><td>sita</td><td>sita.k@yahoo.com</td><td>FREE</td></tr><tr><td>hari_99</td><td>hari99@gmail.com</td><td>FREE</td></tr><tr><td>gita</td><td>gita.rai@gmail.com</td><td>PRO</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Accounting: the amount of each journal line, debit or credit</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT line_id, entry_id, account, coalesce(debit, 0) - coalesce(credit, 0) AS amount, memo
+FROM ledger
+WHERE entry_id IN (2, 8);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>line_id (INT)</th><th>entry_id (INT)</th><th>account (INT)</th><th>amount (DECIMAL(2))</th><th>memo (STRING)</th></tr></thead><tbody><tr><td>3</td><td>2</td><td>1200</td><td>257500.00</td><td>Buy 500 CITY at 515</td></tr><tr><td>4</td><td>2</td><td>2000</td><td>-257500.00</td><td>Buy 500 CITY at 515</td></tr><tr><td>15</td><td>8</td><td>1100</td><td>12600.00</td><td>Sell 20 CITY at 630</td></tr><tr><td>16</td><td>8</td><td>1200</td><td>-10300.00</td><td>Sell 20 CITY at 630</td></tr><tr><td>17</td><td>8</td><td>4100</td><td>-2300.00</td><td>Sell 20 CITY at 630</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="star"><em>, table.</em></h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT * FROM table
+SELECT alias.*, other_item, ... FROM table alias JOIN ...</code></pre>
+<p><code>*</code> means every column of every table in <code>FROM</code>, in table order. <code>alias.*</code> means every column of one table.</p>
+<ul><li><strong>Returns:</strong> the stored columns and the computed columns (<code>AS (...)</code>) of the table.</li><li><strong>Notes:</strong> <code>*</code> cannot be used together with aggregates or <code>SAMPLE BY</code>. In programs, list the columns you need: KDB then takes only those columns out of each stored row, which is faster on wide tables (<code>EXPLAIN</code> shows <code>build 3 of 7 stored column(s) per row</code>), and a new column in the table does not change your result.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT * FROM brokers;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>1</td><td>Keystone Securities</td></tr><tr><td>34</td><td>Vision Securities</td></tr><tr><td>45</td><td>Imperial Securities</td></tr><tr><td>49</td><td>Online Securities</td></tr><tr><td>58</td><td>Northgate Securities</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: All columns of the trade, plus the buyer&#39;s name</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT f.*, b.name AS buyer_name
+FROM trade_log f
+JOIN brokers b ON b.id = f.buyer
+WHERE f.transaction_id = 100017;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>date (TIMESTAMP)</th><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>buyer (INT)</th><th>seller (INT)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th><th>amount (DOUBLE)</th><th>buyer_name (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>100017</td><td>TELCO</td><td>49</td><td>34</td><td>500</td><td>881</td><td>440500</td><td>Online Securities</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: * and count(*) do not mix</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT *, count(*) FROM brokers;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: * cannot be combined with aggregates or SAMPLE BY</code></p>
+<h2 id="alias">AS: column names</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">item AS alias
+item alias
+item AS &quot;any name&quot;</code></pre>
+<p><code>AS</code> gives an output column a name. The word <code>AS</code> is optional.</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Column name</th></tr></thead><tbody><tr><td><code>close</code></td><td><code>close</code></td></tr><tr><td><code>close AS last_price</code></td><td><code>last_price</code></td></tr><tr><td><code>close * 2</code> (no alias)</td><td><code>close * 2</code></td></tr><tr><td><code>count(*)</code> (no alias)</td><td><code>count(*)</code></td></tr><tr><td><code>close AS &quot;Close Price&quot;</code></td><td><code>Close Price</code> (double quotes keep spaces and case)</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> a <strong>missing comma</strong> is not an error: <code>SELECT symbol close</code> gives one column named <code>close</code> that holds the symbol. Check your commas.</li><li>A reserved word (like <code>order</code>, <code>select</code>, <code>from</code>) needs double quotes: <code>AS &quot;order&quot;</code>.</li><li>The words <code>ASOF</code>, <code>CROSS</code>, <code>FULL</code>, <code>HAVING</code>, <code>INNER</code>, <code>LATEST</code>, <code>LEFT</code>, <code>LT</code>, <code>OVER</code>, <code>REFRESH</code>, <code>RIGHT</code>, <code>SAMPLE</code>, <code>SPLICE</code>, <code>UNION</code> and <code>USING</code> need <code>AS</code> to be an alias: <code>close AS left</code> works, <code>close left</code> does not.</li><li>An alias can be used in <code>ORDER BY</code>, but not in <code>WHERE</code>, <code>GROUP BY</code> or <code>HAVING</code> (write the expression again there). See <a href="order-by-limit.html#order-by">ORDER BY</a> and <a href="group-by.html#group-by">GROUP BY</a>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, close AS last_price, close last, close * 2, round(close) AS &quot;Close (whole dollars)&quot;
+FROM ochl_day
+WHERE time IN &#39;2026-09-10&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>last_price (DOUBLE)</th><th>last (DOUBLE)</th><th>close * 2 (DOUBLE)</th><th>Close (whole dollars) (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>504.9</td><td>504.9</td><td>1009.8</td><td>505</td></tr><tr><td>COAST</td><td>376.1</td><td>376.1</td><td>752.2</td><td>376</td></tr><tr><td>VOLT</td><td>191.2</td><td>191.2</td><td>382.4</td><td>191</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Aggregates without an alias get their text as the name</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*), max(high) AS highest
+FROM ochl_day
+GROUP BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>count(*) (LONG)</th><th>highest (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>19</td><td>546.2</td></tr><tr><td>COAST</td><td>19</td><td>429.9</td></tr><tr><td>VOLT</td><td>19</td><td>199.7</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A missing comma quietly renames the column</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol close FROM securities LIMIT 2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>close (SYMBOL)</th></tr></thead><tbody><tr><td>ACME</td></tr><tr><td>CITY</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A reserved word as a name needs double quotes</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT symbol AS order FROM securities;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 18: expected an alias after AS but found the reserved word &#39;order&#39; (write it in double quotes, &quot;order&quot;, to use it as a name)</code></p>
+<p><strong>Example: The fix</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol AS &quot;order&quot; FROM securities LIMIT 2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>order (SYMBOL)</th></tr></thead><tbody><tr><td>ACME</td></tr><tr><td>CITY</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="select-without-from">SELECT without FROM</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT expression [[AS] alias], ...</code></pre>
+<p>Without <code>FROM</code>, KDB computes the values once and gives one row. Use it like a calculator, or to test a function.</p>
+<ul><li><strong>Returns:</strong> one row.</li><li><strong>Notes:</strong> <code>WHERE</code> still works (a false condition gives 0 rows). <code>*</code> needs a <code>FROM</code> table.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT 1 + 1 AS two, round(100000 * 1.08, 2) AS with_interest, upper(&#39;city&#39;) AS symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>two (LONG)</th><th>with_interest (DOUBLE)</th><th>symbol (STRING)</th></tr></thead><tbody><tr><td>2</td><td>108000</td><td>CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: What is 11:00 Nepal time in UTC?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) AS market_open_utc;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>market_open_utc (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: * needs a table</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT *;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: * needs a FROM table</code></p>
+<h2 id="from">FROM</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM table [[AS] alias]
+FROM database.table [[AS] alias]
+FROM view [[AS] alias]
+FROM (SELECT ...) [AS] alias</code></pre>
+<p><code>FROM</code> names the table the rows come from. It can also be a <a href="views.html">view</a> or a <a href="union-subqueries.html#from-subquery">subquery</a> in <code>( )</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code></td><td>a relational or time-series table of the current database</td></tr><tr><td><code>database.table</code></td><td>a table of another database on the same server (see <a href="cross-database-queries.html">queries across databases</a>)</td></tr><tr><td><code>alias</code></td><td>a short name for the table, used as <code>alias.column</code> (see <a href="joins.html#aliases">table aliases</a>)</td></tr><tr><td><code>(SELECT ...) alias</code></td><td>the rows of another query; the alias is required</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> without <code>ORDER BY</code>, a time-series table gives rows partition by partition, sorted by its <code>SORT BY</code> columns (usually symbol, then time). A relational table gives rows in key order. Do not depend on this: add <code>ORDER BY</code> when the order matters.</li><li>Names with capital letters or spaces can be written in double quotes: <code>FROM &quot;Ochl_Day&quot;</code> is the same table as <code>FROM ochl_day</code>.</li></ul>
+<p><strong>Example: A table with a short name</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT s.symbol, s.sector FROM securities AS s WHERE s.sector = &#39;Banking&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Banking</td></tr><tr><td>COAST</td><td>Banking</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Rows of a subquery: trades per symbol, only the busy ones</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT t.symbol, t.trades
+FROM (SELECT symbol, count(*) AS trades FROM trade_log GROUP BY symbol) t
+WHERE t.trades &gt; 5;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>11</td></tr><tr><td>COAST</td><td>11</td></tr><tr><td>TELCO</td><td>6</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A wrong table name</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT * FROM ochl_days;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 15: table or view &#39;ochl_days&#39; does not exist</code></p>
+<h2 id="distinct">DISTINCT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT DISTINCT item, ... FROM ...</code></pre>
+<p><code>DISTINCT</code> removes repeated rows from the result. Two rows are the same when <strong>all</strong> their output columns are equal.</p>
+<ul><li><strong>Returns:</strong> each different row once.</li><li><strong>NULL:</strong> <code>NULL</code> values count as equal, so many <code>NULL</code> rows become one.</li><li><strong>Notes:</strong> to count different values, use <code>count(DISTINCT x)</code> (see <a href="functions-aggregate.html">aggregate functions</a>). <code>DISTINCT</code> works on the output columns, after <code>GROUP BY</code>.</li><li><code>SELECT DISTINCT day</code> on a table with one partition per day is answered from the list of partitions, without reading rows (see <a href="explain.html#saved-stats">answers without reading rows</a>).</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT DISTINCT sector FROM securities ORDER BY sector;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sector (STRING)</th></tr></thead><tbody><tr><td>Banking</td></tr><tr><td>Energy</td></tr><tr><td>Investment</td></tr><tr><td>Telecom</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Which broker bought which symbol on 2026-09-09</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT DISTINCT buyer, symbol
+FROM trade_log
+WHERE date IN &#39;2026-09-09&#39;
+ORDER BY buyer, symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>buyer (INT)</th><th>symbol (SYMBOL)</th></tr></thead><tbody><tr><td>1</td><td>CITY</td></tr><tr><td>34</td><td>CITY</td></tr><tr><td>34</td><td>COAST</td></tr><tr><td>45</td><td>CITY</td></tr><tr><td>49</td><td>TELCO</td></tr><tr><td>58</td><td>COAST</td></tr><tr><td>58</td><td>TELCO</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<p><strong>Example: Cities of app users (NULL appears once)</strong> (sample data: query-app)</p>
+<pre><code class="language-sql">SELECT DISTINCT city FROM app_users ORDER BY city;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>city (STRING)</th></tr></thead><tbody><tr><td>Dharan</td></tr><tr><td>Kathmandu</td></tr><tr><td>Lalitpur</td></tr><tr><td>Pokhara</td></tr><tr><td>NULL</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<p><strong>Example: Count different values instead</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(DISTINCT symbol) AS symbols_traded, count(*) AS trades FROM trade_log;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbols_traded (LONG)</th><th>trades (LONG)</th></tr></thead><tbody><tr><td>4</td><td>32</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/select.md">This page as markdown</a>.</footer>
+</body>
+</html>

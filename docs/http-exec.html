@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run SQL over HTTP (/exec, /exp) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Run SQL with GET or POST /exec and get JSON, or download the rows of a SELECT as CSV with /exp.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-exec.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-exec.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="run-sql-over-http-exec-exp">Run SQL over HTTP (/exec, /exp)</h1>
+<blockquote><p>Run SQL with GET or POST /exec and get JSON, or download the rows of a SELECT as CSV with /exp.</p></blockquote>
+<ul><li>Category: HTTP API</li><li>Keywords: exec, /exec, exp, /exp, query, limit, compat, compat, cache, result cache, benchmark, SET result_cache, cache_now_ms, result_cache_now_ms, truncated, dataset, columns, count, timings, rows_affected, QuestDB, CSV export, download CSV, filename, Content-Disposition, form field, many statements, results array, error line column, --data-binary, --data-urlencode, NaN, nan, Infinity, timestamp as text, epoch milliseconds, statement failed, partial success, atomic, atomic, X-KDB-Atomic, all or nothing, rolled_back, saved, sqlstate, constraint, error code</li><li>See also: <a href="http-overview.html">HTTP API overview</a>, <a href="http-sessions-and-cursors.html">Sessions and cursors over HTTP</a>, <a href="http-databases.html">Databases over HTTP (/api/databases)</a>, <a href="select.html">SELECT</a>, <a href="transactions.html">Transactions</a>, <a href="data-formats.html">How KDB stores data</a></li></ul>
+<p><code>/exec</code> runs SQL and answers with <strong>JSON</strong>. <code>/exp</code> runs a SELECT and answers with a <strong>CSV file</strong> (text with one row per line and commas between the values, which Excel opens).</p>
+<ul><li><code>GET</code> only runs SQL that reads. <code>POST</code> runs any SQL.</li><li>Each request uses one database: <code>db=&lt;name&gt;</code> or the header <code>X-KDB-Database</code> (<a href="http-overview.html#database">choosing the database</a>).</li><li>The answer looks like QuestDB&#39;s <code>/exec</code>, so QuestDB clients keep working (<a href="../tutorial/10-migrating-from-questdb.html">moving from QuestDB</a>).</li></ul>
+<p><strong>HTTP: Close prices of CITY</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exec?compat=0&amp;query=SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time LIMIT 3</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time LIMIT 3&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time LIMIT 3&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2025-12-28T00:00:00.000Z&quot;, 542.2],
+        [&quot;2025-12-29T00:00:00.000Z&quot;, 539.7],
+        [&quot;2025-12-30T00:00:00.000Z&quot;, 539.3]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 29, &quot;execute_us&quot;: 199}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 29, &quot;execute_us&quot;: 199}
+}</code></pre>
+<h2 id="get-exec">GET /exec</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /exec?query=&lt;SQL&gt;[&amp;db=&lt;name&gt;][&amp;limit=N][&amp;compat=0][&amp;cache=0][&amp;format=rows|columns][&amp;nan=null|string][&amp;session=&lt;id&gt;]</code></pre>
+<p>Runs SQL that only <strong>reads</strong> (<code>SELECT</code>, <code>SHOW ...</code>, <code>EXPLAIN</code>, <code>CHECK TABLE</code>, <code>USE</code>) and answers with JSON. SQL that changes data gets <strong>405</strong>: use <a href="http-exec.html#post-exec">POST /exec</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>query</code></td><td>URL</td><td>The SQL. One or more statements, split by <code>;</code>. Encode spaces and <code>&#39;</code> in the URL (<code>curl -G --data-urlencode</code> does it).</td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database. The header <code>X-KDB-Database: &lt;name&gt;</code> does the same.</td><td>the default database</td></tr><tr><td><code>limit</code></td><td>URL</td><td>Most rows each statement gives back. <code>0</code> or less means 1,000,000. QuestDB style <code>limit=10,500</code> uses the second number.</td><td>10,000</td></tr><tr><td><code>compat</code></td><td>URL</td><td><code>compat=0</code> (or <code>false</code>) leaves out the copy of the last result at the top level.</td><td><code>1</code></td></tr><tr><td><code>cache</code></td><td>URL</td><td><code>cache=0</code> (or <code>off</code>, <code>false</code>) runs a SELECT fresh: it is not taken from the <a href="performance-tips.html#result-cache">result cache</a> and not kept there. Use it to time the engine in a benchmark. For a whole session: <code>SET result_cache = off</code>. A SELECT that must always be ready can be <a href="pinned-queries.html">pinned</a>.</td><td><code>1</code></td></tr><tr><td><code>cache_now_ms</code></td><td>URL</td><td>A SELECT with <code>now()</code> (or <code>current_date</code>) may be answered by a kept result up to this old, like <code>500</code> or <code>2s</code>. Without it such a SELECT is never kept. For a whole session: <code>SET result_cache_now_ms = 500</code>.</td><td><code>0</code></td></tr><tr><td><code>format</code></td><td>URL</td><td><code>columns</code>: every <code>dataset</code> as one array per column (<a href="#format">format=columns</a>)</td><td><code>rows</code></td></tr><tr><td><code>nan</code></td><td>URL</td><td><code>string</code>: NaN, Infinity and -Infinity as the JSON strings <code>&quot;NaN&quot;</code>, <code>&quot;Infinity&quot;</code>, <code>&quot;-Infinity&quot;</code> instead of <code>null</code> (<a href="#nan">nan=string</a>)</td><td><code>null</code></td></tr><tr><td><code>session</code></td><td>URL</td><td>A session id from <a href="http-sessions-and-cursors.html#post-session">POST /session</a>. The header <code>X-KDB-Session: &lt;id&gt;</code> does the same.</td><td>none</td></tr><tr><td><code>If-None-Match</code></td><td>header</td><td>The <code>ETag</code> of an earlier answer: a <strong>304</strong> with no body while the rows are the same (<a href="#etag">ETag</a>)</td><td>none</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>query</code></td><td>The SQL you sent (only the first 4,096 bytes of a very long text)</td></tr><tr><td><code>results[]</code></td><td>One object for each statement, in order</td></tr><tr><td><code>results[].statement</code></td><td>The statement, as KDB wrote it back</td></tr><tr><td><code>results[].columns[]</code></td><td><code>name</code> and <code>type</code> of each column (<code>LONG</code>, <code>DOUBLE</code>, <code>TIMESTAMP</code>, ...)</td></tr><tr><td><code>results[].dataset</code></td><td>The rows. Each row is a list of values in column order.</td></tr><tr><td><code>results[].count</code></td><td>Number of rows in <code>dataset</code></td></tr><tr><td><code>results[].truncated</code></td><td><code>true</code> when there were more rows than <code>limit</code></td></tr><tr><td><code>results[].rows_affected</code></td><td>Rows changed by <code>INSERT</code>, <code>UPDATE</code> or <code>DELETE</code></td></tr><tr><td><code>results[].message</code></td><td>A short message, like <code>1 row(s) inserted</code></td></tr><tr><td><code>results[].timings</code></td><td><code>parse_us</code> and <code>execute_us</code>: microseconds (millionths of a second) to read and to run the statement</td></tr><tr><td><code>columns</code>, <code>dataset</code>, <code>count</code></td><td>A copy of the <strong>last</strong> result at the top level, as QuestDB answers. Not there with <code>compat=0</code>.</td></tr><tr><td><code>timings</code></td><td>The sum of the timings of all statements</td></tr></tbody></table></div>
+<p>How values look in <code>dataset</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>KDB type</th><th>JSON value</th></tr></thead><tbody><tr><td><code>INT</code>, <code>LONG</code>, <code>DOUBLE</code>, ...</td><td>a number: <code>512.4</code></td></tr><tr><td>a whole number bigger than 9,007,199,254,740,992 (2^53)</td><td>text: <code>&quot;9007199254740993&quot;</code>, so JavaScript does not lose digits</td></tr><tr><td><code>DECIMAL(s)</code></td><td>text with exactly <code>s</code> places: <code>&quot;1500.25&quot;</code> (it stays exact)</td></tr><tr><td><code>TIMESTAMP</code></td><td>UTC text: <code>&quot;2026-09-10T05:15:00.000Z&quot;</code></td></tr><tr><td><code>DATE</code></td><td>text: <code>&quot;2026-09-10&quot;</code></td></tr><tr><td><code>BOOL</code></td><td><code>true</code> or <code>false</code></td></tr><tr><td><code>SYMBOL</code>, <code>STRING</code></td><td>text</td></tr><tr><td><code>JSON</code></td><td>the JSON itself (an object or a list), not a text</td></tr><tr><td>NULL, and a number that is not real (like <code>sqrt(-1)</code>)</td><td><code>null</code></td></tr><tr><td>a <code>DOUBLE</code> that is NaN, Infinity or -Infinity</td><td><code>null</code>, as QuestDB writes it; <code>&quot;NaN&quot;</code>, <code>&quot;Infinity&quot;</code>, <code>&quot;-Infinity&quot;</code> with <a href="#nan">nan=string</a></td></tr></tbody></table></div>
+<ul><li><strong>Times are text, not numbers:</strong> every <code>TIMESTAMP</code>, also <code>min(time)</code> and <code>max(time)</code>, comes as text like <code>&quot;2026-09-10T05:15:00.000Z&quot;</code>. In JavaScript <code>Number(value)</code> gives <code>NaN</code>; use <code>Date.parse(value)</code> (milliseconds). Or ask SQL for a number: <code>CAST(time AS LONG)</code> gives milliseconds since 1970-01-01 UTC, <code>date_part(&#39;epoch&#39;, time)</code> gives seconds.</li><li><strong>Status codes:</strong> 200 OK; 304 the <code>If-None-Match</code> tag still fits; 400 bad SQL, no <code>query</code>, or a <code>format</code> that is not <code>rows</code> or <code>columns</code>; 401/403 <a href="http-login.html">login or role</a>; 404 unknown database or session; 405 SQL that changes data; 408 the statement ran past the statement timeout; 500 server trouble (damaged file); 503 the database is busy with another transaction, or the server is stopping.</li><li><strong>Notes:</strong> GET must only read because a link or picture on another web page can make your browser send a GET. <code>limit</code> cuts each statement&#39;s rows, so <code>&quot;truncated&quot;: true</code> tells you more rows exist: use a bigger <code>limit</code>, <a href="http-exec.html#get-exp">GET /exp</a> or a <a href="http-sessions-and-cursors.html#post-cursor">cursor</a>.</li><li><strong>10,000 rows:</strong> without <code>limit</code>, <code>/exec</code> gives back at most 10,000 rows per statement, so a forgotten <code>WHERE</code> cannot send millions of rows to a browser. Ask for more with <code>limit=</code> (up to 1,000,000).</li></ul>
+<p><strong>HTTP: The QuestDB shape: the last result also at the top level</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exec?query=SELECT symbol, sector FROM securities ORDER BY symbol LIMIT 2</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT symbol, sector FROM securities ORDER BY symbol LIMIT 2&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT symbol, sector FROM securities ORDER BY symbol LIMIT 2&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;sector&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;ACME&quot;, &quot;Investment&quot;],
+        [&quot;CITY&quot;, &quot;Banking&quot;]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 158}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;sector&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;ACME&quot;, &quot;Investment&quot;],
+    [&quot;CITY&quot;, &quot;Banking&quot;]
+  ],
+  &quot;count&quot;: 2,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 158}
+}</code></pre>
+<p><strong>HTTP: limit=2 and truncated</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exec?compat=0&amp;limit=2&amp;query=SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39; ORDER BY time</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39; ORDER BY time&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39; ORDER BY time&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-09T05:15:00.000Z&quot;, 512.1],
+        [&quot;2026-09-09T05:16:00.000Z&quot;, 511.9]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: true,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 400}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 400}
+}</code></pre>
+<p><strong>HTTP: cache=0: computed now, not taken from the result cache</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exec?compat=0&amp;cache=0&amp;query=SELECT symbol, count(*) FROM ochl_day GROUP BY symbol ORDER BY symbol LIMIT 3</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT symbol, count(*) FROM ochl_day GROUP BY symbol ORDER BY symbol LIMIT 3&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT symbol, count(*) FROM ochl_day GROUP BY symbol ORDER BY symbol LIMIT 3&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;count(*)&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;CITY&quot;, 19],
+        [&quot;COAST&quot;, 19],
+        [&quot;VOLT&quot;, 19]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 511}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 511}
+}</code></pre>
+<p><strong>HTTP: How each type looks in JSON</strong></p>
+<pre><code class="language-http">GET /exec?compat=0&amp;query=SELECT CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP) AS ts, CAST(&#39;2026-09-10&#39; AS DATE) AS day, CAST(1500.25 AS DECIMAL(2)) AS price, 9007199254740993 AS big, true AS ok, NULL AS nothing, &#39;नेपाल&#39; AS text, sqrt(-1) AS not_real</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP) AS ts, CAST(&#39;2026-09-10&#39; AS DATE) AS day, CAST(1500.25 AS DECIMAL(2)) AS price, 9007199254740993 AS big, true AS ok, NULL AS nothing, &#39;नेपाल&#39; AS text, sqrt(-1) AS not_real&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP) AS ts, CAST(&#39;2026-09-10&#39; AS DATE) AS day, CAST(1500.25 AS DECIMAL(2)) AS price, 9007199254740993 AS big, TRUE AS ok, NULL AS nothing, &#39;नेपाल&#39; AS text, sqrt(-1) AS not_real&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;ts&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;day&quot;, &quot;type&quot;: &quot;DATE&quot;},
+        {&quot;name&quot;: &quot;price&quot;, &quot;type&quot;: &quot;DECIMAL(2)&quot;},
+        {&quot;name&quot;: &quot;big&quot;, &quot;type&quot;: &quot;LONG&quot;},
+        {&quot;name&quot;: &quot;ok&quot;, &quot;type&quot;: &quot;BOOL&quot;},
+        {&quot;name&quot;: &quot;nothing&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;text&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;not_real&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-10T05:15:00.000Z&quot;, &quot;2026-09-10&quot;, &quot;1500.25&quot;, &quot;9007199254740993&quot;, true, null, &quot;नेपाल&quot;, null]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 75}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 75}
+}</code></pre>
+<p><strong>HTTP: The first time as text and as numbers</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exec?compat=0&amp;query=SELECT min(time) AS first, CAST(min(time) AS LONG) AS first_ms, date_part(&#39;epoch&#39;, min(time)) AS first_seconds FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT min(time) AS first, CAST(min(time) AS LONG) AS first_ms, date_part(&#39;epoch&#39;, min(time)) AS first_seconds FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT min(time) AS first, CAST(min(time) AS LONG) AS first_ms, date_part(&#39;epoch&#39;, min(time)) AS first_seconds FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;first&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;first_ms&quot;, &quot;type&quot;: &quot;LONG&quot;},
+        {&quot;name&quot;: &quot;first_seconds&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2025-12-28T00:00:00.000Z&quot;, 1766880000000, 1766880000]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 410}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 410}
+}</code></pre>
+<p><strong>HTTP: SQL that changes data needs POST</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exec?query=UPDATE ochl_day SET close = 0 WHERE symbol = &#39;CITY&#39;</code></pre>
+<p>Response:</p>
+<p>HTTP 405 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;this SQL changes data, so it must be sent with POST /exec (GET /exec only reads)&quot;}</code></pre>
+<p><strong>HTTP: No query</strong></p>
+<pre><code class="language-http">GET /exec</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;missing query: use /exec?query=&lt;SQL&gt; or POST the SQL as the body&quot;}</code></pre>
+<p>With <code>curl</code>, let it encode the SQL (<code>-G</code> puts the data into the URL):</p>
+<pre><code class="language-bash">curl -s -G &quot;http://127.0.0.1:9900/exec&quot; --data-urlencode &quot;query=SELECT symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; LIMIT 2&quot; --data-urlencode &quot;compat=0&quot;</code></pre>
+<pre><code class="language-powershell">$q = [uri]::EscapeDataString(&quot;SELECT symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; LIMIT 2&quot;)
+$r = Invoke-RestMethod &quot;http://127.0.0.1:9900/exec?compat=0&amp;query=$q&quot;
+$r.results[0].dataset | ForEach-Object { $_ -join &quot; | &quot; }</code></pre>
+<h2 id="post-exec">POST /exec</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /exec[?db=&lt;name&gt;][&amp;limit=N][&amp;compat=0][&amp;cache=0][&amp;format=rows|columns][&amp;nan=null|string][&amp;session=&lt;id&gt;][&amp;atomic=1]
+body: the SQL text
+   or a form (Content-Type: application/x-www-form-urlencoded) with the field query=&lt;SQL&gt;</code></pre>
+<p>Runs <strong>any</strong> SQL: <code>INSERT</code>, <code>UPDATE</code>, <code>CREATE TABLE</code>, <code>CALL</code>, <code>BEGIN</code>, many statements at once. The answer has the same fields as <a href="http-exec.html#get-exec">GET /exec</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td>body</td><td>body</td><td>The SQL. Send it as plain text (<code>Content-Type: text/plain; charset=utf-8</code>), in UTF-8.</td><td>required</td></tr><tr><td><code>query</code></td><td>form field</td><td>The SQL, when the body is a form. Without a <code>query=</code> field the whole body is the SQL.</td><td>-</td></tr><tr><td><code>db</code></td><td>URL or form field</td><td>The database. Or the header <code>X-KDB-Database</code>.</td><td>the default database</td></tr><tr><td><code>limit</code></td><td>URL or form field</td><td>Most rows per statement (as for GET)</td><td>10,000</td></tr><tr><td><code>compat</code></td><td>URL or form field</td><td><code>compat=0</code> leaves out the top-level copy</td><td><code>1</code></td></tr><tr><td><code>cache</code></td><td>URL</td><td><code>cache=0</code> skips the result cache (as for GET)</td><td><code>1</code></td></tr><tr><td><code>format</code></td><td>URL or form field</td><td><code>columns</code>: one array per column (as for GET)</td><td><code>rows</code></td></tr><tr><td><code>nan</code></td><td>URL</td><td><code>string</code>: NaN and the infinities as JSON strings (as for GET)</td><td><code>null</code></td></tr><tr><td><code>session</code></td><td>URL, form field or header <code>X-KDB-Session</code></td><td>Run inside a <a href="http-sessions-and-cursors.html#post-session">session</a>: <code>BEGIN</code> in one request, <code>COMMIT</code> in a later one</td><td>none</td></tr><tr><td><code>atomic</code></td><td>URL, form field or header <code>X-KDB-Atomic</code></td><td><code>1</code>: the whole body is <strong>one transaction</strong>, all or nothing (see <a href="#atomic">atomic=1</a>)</td><td><code>0</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>query</code>, <code>results[]</code>, <code>columns</code>, <code>dataset</code>, <code>count</code>, <code>timings</code></td><td>as in <a href="http-exec.html#get-exec">GET /exec</a></td></tr><tr><td><code>error</code></td><td>(only on an error) what went wrong</td></tr><tr><td><code>sqlstate</code></td><td>(only on an error) the same five-character code the <a href="postgres-protocol.html#errors">PostgreSQL port</a> sends: <code>23505</code> duplicate key, <code>23503</code> foreign key, <code>42P01</code> unknown table, the code of a trigger&#39;s <code>RAISE ... USING ERRCODE</code>, ...</td></tr><tr><td><code>table</code>, <code>constraint</code>, <code>column_name</code></td><td>(only on a <code>23505</code> or <code>23503</code> error) the table and constraint it was about, like <code>users</code> and <code>users_email_key</code>, and the column when the constraint has one</td></tr><tr><td><code>line</code>, <code>column</code></td><td>(only on an error, when KDB knows it) where in the text you sent. Counted in characters, from 1.</td></tr><tr><td><code>saved</code></td><td>(only on an error) how many entries of <code>results</code>, from the first, are <strong>saved</strong>. The same with or without <code>compat=0</code>.</td></tr><tr><td><code>rolled_back</code></td><td>(only on an error) <code>true</code> when a transaction was rolled back by the error: the entries after <code>saved</code> ran but are <strong>not</strong> saved</td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200 OK; 304 (as for GET); 400 bad SQL (syntax, unknown column, duplicate key, ...) or a damaged compressed body; 401/403 <a href="http-login.html">login or role</a>; 404 unknown database or session; 408 statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble; 503 database busy, the server is stopping, or the system was short of memory for a moment (<a href="backup-and-safety.html#out-of-memory">send it again</a>; a 500 that says <code>applied in memory</code> must not be sent again); <strong>507 the disk is full</strong> (the write was not saved; it works again once space is freed).</li><li><strong>Compressed body:</strong> a body sent with <code>Content-Encoding: gzip</code> or <code>deflate</code> is unpacked before it is read. Handy for a long <code>INSERT</code> script.</li><li><strong>Many statements:</strong> they run one after the other. Each one is saved when it is done (unless you opened a transaction with <code>BEGIN</code>). When one statement fails:</li></ul>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>Value</th></tr></thead><tbody><tr><td>HTTP status</td><td><strong>not 200</strong>: 400 for bad SQL, a table that already exists, a duplicate key, ...; the other codes above for other trouble</td></tr><tr><td><code>error</code></td><td>at the top level of the answer: what went wrong (with <code>line</code> and <code>column</code> when KDB knows them)</td></tr><tr><td><code>results</code></td><td>only the statements that ran <strong>before</strong> the failed one. The failed statement is <strong>not</strong> in <code>results</code>.</td></tr><tr><td><code>saved</code></td><td>how many of <code>results</code> are saved. Without <code>BEGIN</code> in the body: all of them.</td></tr><tr><td><code>rolled_back</code></td><td><code>true</code> when the body had a <code>BEGIN</code> without <code>COMMIT</code> before the error (or <code>atomic=1</code>, or a session&#39;s open transaction): those statements were undone</td></tr><tr><td>statements after it</td><td>did <strong>not</strong> run</td></tr></tbody></table></div>
+<ul><li><strong>Check the status code or <code>error</code> first.</strong> A client that only reads <code>results</code> sees the statements that worked and can think a failed <code>CREATE TABLE</code> worked too.</li><li>Read <code>saved</code>, not the length of <code>results</code>, to know what is really in the database.</li><li><strong>A syntax error</strong> in any statement is found <strong>before</strong> anything runs: status 400, <code>results</code> is empty, and nothing is saved, not even the statements before it.</li><li><strong>Notes:</strong> <code>curl --data</code> sends the body labelled as a form; that still works, because a form without a <code>query=</code> field is taken as the SQL. Use <code>--data-binary</code> so curl does not change line breaks. To send a <code>.sql</code> file with text in any language (Nepali, Chinese, ...), send the file&#39;s bytes. A body can be up to 64 MB (a big batch of INSERTs); for fast loading also see the <a href="line-protocol.html">line protocol</a>.</li></ul>
+<p><strong>HTTP: Two statements: an INSERT and a SELECT</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /exec?compat=0
+Content-Type: text/plain; charset=utf-8
+
+INSERT INTO brokers VALUES (99, &#39;Himalayan Securities&#39;);
+SELECT id, name FROM brokers WHERE id &gt;= 58 ORDER BY id</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO brokers VALUES (99, &#39;Himalayan Securities&#39;);\nSELECT id, name FROM brokers WHERE id &gt;= 58 ORDER BY id&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (99, &#39;Himalayan Securities&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 521}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT id, name FROM brokers WHERE id &gt;= 58 ORDER BY id&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [58, &quot;Northgate Securities&quot;],
+        [99, &quot;Himalayan Securities&quot;]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 259}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 780}
+}</code></pre>
+<p><strong>HTTP: The second INSERT fails: the first one ran and is kept</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-http">POST /exec?compat=0
+
+INSERT INTO brokers VALUES (98, &#39;Everest Capital&#39;);
+INSERT INTO brokers VALUES (98, &#39;Everest Capital again&#39;);
+SELECT count(*) FROM brokers
+###
+GET /exec?compat=0&amp;query=SELECT id, name FROM brokers WHERE id = 98</code></pre>
+<p>Response:</p>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO brokers VALUES (98, &#39;Everest Capital&#39;);\nINSERT INTO brokers VALUES (98, &#39;Everest Capital again&#39;);\nSELECT count(*) FROM brokers&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (98, &#39;Everest Capital&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 501}
+    }
+  ],
+  &quot;saved&quot;: 1,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;a row with id=&#39;98&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it&quot;,
+  &quot;sqlstate&quot;: &quot;23505&quot;,
+  &quot;table&quot;: &quot;brokers&quot;,
+  &quot;constraint&quot;: &quot;brokers_pkey&quot;,
+  &quot;column_name&quot;: &quot;id&quot;
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT id, name FROM brokers WHERE id = 98</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id, name FROM brokers WHERE id = 98&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id, name FROM brokers WHERE id = 98&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [98, &quot;Everest Capital&quot;]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 62}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 62}
+}</code></pre>
+<p><strong>HTTP: A failed CREATE TABLE: status 400, the first two statements are kept, the last did not run</strong></p>
+<pre><code class="language-http">POST /exec?compat=0
+
+CREATE TABLE notes (id LONG PRIMARY KEY, body STRING);
+INSERT INTO notes VALUES (1, &#39;first&#39;);
+CREATE TABLE notes (id LONG);
+INSERT INTO notes VALUES (2, &#39;second&#39;)</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;CREATE TABLE notes (id LONG PRIMARY KEY, body STRING);\nINSERT INTO notes VALUES (1, &#39;first&#39;);\nCREATE TABLE notes (id LONG);\nINSERT INTO notes VALUES (2, &#39;second&#39;)&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;CREATE TABLE notes (\n  id LONG PRIMARY KEY,\n  body STRING\n)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;table &#39;notes&#39; created&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 23337}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO notes VALUES (1, &#39;first&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 3187}
+    }
+  ],
+  &quot;saved&quot;: 2,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;table &#39;notes&#39; already exists; expected a new table name, or CREATE TABLE IF NOT EXISTS&quot;,
+  &quot;sqlstate&quot;: &quot;42P07&quot;
+}</code></pre>
+<p><strong>HTTP: A syntax error in the second statement: nothing runs, not even the first</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-http">POST /exec?compat=0
+
+INSERT INTO brokers VALUES (97, &#39;Test Securities&#39;);
+SELEC count(*) FROM brokers
+###
+GET /exec?compat=0&amp;query=SELECT count(*) AS rows_with_id_97 FROM brokers WHERE id = 97</code></pre>
+<p>Response:</p>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO brokers VALUES (97, &#39;Test Securities&#39;);\nSELEC count(*) FROM brokers&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;line 2, column 1: expected a statement (CREATE, DROP, RENAME, ALTER, SHOW, INSERT, UPDATE, DELETE, BACKUP, CHECK, SELECT, EXPLAIN, CALL, BEGIN, COMMIT, ROLLBACK, SAVEPOINT, DECLARE, FETCH or CLOSE) but found &#39;SELEC&#39;&quot;,
+  &quot;sqlstate&quot;: &quot;42601&quot;,
+  &quot;line&quot;: 2,
+  &quot;column&quot;: 1
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS rows_with_id_97 FROM brokers WHERE id = 97</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) AS rows_with_id_97 FROM brokers WHERE id = 97&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS rows_with_id_97 FROM brokers WHERE id = 97&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;rows_with_id_97&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [0]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 127}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 127}
+}</code></pre>
+<p><strong>HTTP: BEGIN in the body: the error rolls back what came after it</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-http">POST /exec?compat=0
+
+INSERT INTO brokers VALUES (95, &#39;Peak Securities&#39;);
+BEGIN;
+INSERT INTO brokers VALUES (94, &#39;Valley Capital&#39;);
+INSERT INTO brokers VALUES (94, &#39;Valley Capital again&#39;)
+###
+GET /exec?compat=0&amp;query=SELECT id FROM brokers WHERE id IN (94, 95)</code></pre>
+<p>Response:</p>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO brokers VALUES (95, &#39;Peak Securities&#39;);\nBEGIN;\nINSERT INTO brokers VALUES (94, &#39;Valley Capital&#39;);\nINSERT INTO brokers VALUES (94, &#39;Valley Capital again&#39;)&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (95, &#39;Peak Securities&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 708}
+    },
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 5}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (94, &#39;Valley Capital&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 35}
+    }
+  ],
+  &quot;saved&quot;: 1,
+  &quot;rolled_back&quot;: true,
+  &quot;error&quot;: &quot;a row with id=&#39;94&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it (the transaction was rolled back)&quot;,
+  &quot;sqlstate&quot;: &quot;23505&quot;,
+  &quot;table&quot;: &quot;brokers&quot;,
+  &quot;constraint&quot;: &quot;brokers_pkey&quot;,
+  &quot;column_name&quot;: &quot;id&quot;
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT id FROM brokers WHERE id IN (94, 95)</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT id FROM brokers WHERE id IN (94, 95)&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT id FROM brokers WHERE id IN (94, 95)&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [95]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 75}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 75}
+}</code></pre>
+<h3 id="format">One array per column: format=columns</h3>
+<p><code>?format=columns</code> writes every <code>dataset</code> as an object with one array per column instead of an array of rows:</p>
+<p><strong>HTTP: format=columns: one array per column</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exec?compat=0&amp;format=columns&amp;query=SELECT symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time LIMIT 3</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time LIMIT 3&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time LIMIT 3&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: {
+        &quot;symbol&quot;: [&quot;CITY&quot;, &quot;CITY&quot;, &quot;CITY&quot;],
+        &quot;close&quot;: [542.2, 539.7, 539.3]
+      },
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 230}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 230}
+}</code></pre>
+<ul><li>A chart, a spreadsheet or a columnar file gets the shape it stores, with no reshaping on the client.</li><li>The cells are the same as in the row form: times as ISO strings, JSON columns as JSON, <code>null</code> for NULL.</li><li>Two result columns with one name: the later one wins (an object holds one of each name). Give them aliases.</li><li><code>format=rows</code> is the default. Anything else is a 400.</li></ul>
+<h3 id="nan">NaN and Infinity: nan=string</h3>
+<p>JSON has no numbers for NaN, Infinity and -Infinity. By default <code>/exec</code> writes them as <code>null</code>, as QuestDB&#39;s <code>/exec</code> does, so an old client reads them as it always did. A <code>null</code> there cannot be told from a real <code>NULL</code>, though: with <code>?nan=string</code> they come as the strings <code>&quot;NaN&quot;</code>, <code>&quot;Infinity&quot;</code> and <code>&quot;-Infinity&quot;</code> (the spelling PostgreSQL and JavaScript use; <code>Number(&quot;NaN&quot;)</code> is <code>NaN</code>).</p>
+<p><strong>HTTP: The same row, both ways</strong></p>
+<pre><code class="language-http">GET /exec?compat=0&amp;query=SELECT &#39;NaN&#39;::float8 AS nan, &#39;Infinity&#39;::float8 AS inf, NULL::float8 AS nothing, 1.5::float8 AS number
+###
+GET /exec?compat=0&amp;nan=string&amp;query=SELECT &#39;NaN&#39;::float8 AS nan, &#39;Infinity&#39;::float8 AS inf, NULL::float8 AS nothing, 1.5::float8 AS number</code></pre>
+<p>Response:</p>
+<p><code>GET /exec?compat=0&amp;query=SELECT &#39;NaN&#39;::float8 AS nan, &#39;Infinity&#39;::float8 AS inf, NULL::float8 AS nothing, 1.5::float8 AS number</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT &#39;NaN&#39;::float8 AS nan, &#39;Infinity&#39;::float8 AS inf, NULL::float8 AS nothing, 1.5::float8 AS number&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT CAST(&#39;NaN&#39; AS DOUBLE) AS nan, CAST(&#39;Infinity&#39; AS DOUBLE) AS inf, CAST(NULL AS DOUBLE) AS nothing, CAST(1.5 AS DOUBLE) AS number&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;nan&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;inf&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;nothing&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;number&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [null, null, null, 1.5]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 40}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 40}
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;nan=string&amp;query=SELECT &#39;NaN&#39;::float8 AS nan, &#39;Infinity&#39;::float8 AS inf, NULL::float8 AS nothing, 1.5::float8 AS number</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT &#39;NaN&#39;::float8 AS nan, &#39;Infinity&#39;::float8 AS inf, NULL::float8 AS nothing, 1.5::float8 AS number&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT CAST(&#39;NaN&#39; AS DOUBLE) AS nan, CAST(&#39;Infinity&#39; AS DOUBLE) AS inf, CAST(NULL AS DOUBLE) AS nothing, CAST(1.5 AS DOUBLE) AS number&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;nan&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;inf&quot;, &quot;type&quot;: &quot;DOUBLE&quot;},
+        {&quot;name&quot;: &quot;nothing&quot;, &quot;type&quot;: &quot;STRING&quot;},
+        {&quot;name&quot;: &quot;number&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;NaN&quot;, &quot;Infinity&quot;, null, 1.5]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 42}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 42}
+}</code></pre>
+<ul><li>Only <code>DOUBLE</code> and <code>FLOAT</code> values change; <code>NULL</code> stays <code>null</code>.</li><li><code>nan=null</code> is the default. Anything else is a 400.</li><li>The PostgreSQL port always sends <code>NaN</code>, <code>Infinity</code> and <code>-Infinity</code>.</li></ul>
+<h3 id="etag">Nothing to send: ETag and If-None-Match</h3>
+<p>Every <code>/exec</code> reply that carries a dataset names it in an <code>ETag</code> header - a checksum of the dataset&#39;s bytes, its size and its shape. A client that keeps the last answer sends the tag back:</p>
+<pre><code class="language-text">POST /exec?compat=0
+If-None-Match: &quot;102625ff-1bcr&quot;
+
+SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time
+
+HTTP/1.1 304 Not Modified</code></pre>
+<ul><li>While the data is the same the answer is a <strong>304 with no body</strong>: a page that refreshes every few seconds costs the query, not the bytes.</li><li>The query still runs (or comes from the result cache); only the sending is saved.</li><li>The tag changes as soon as any row the query reads changes, because it is made from the answer itself; with the result cache on, a repeated query with the same tag is answered from memory.</li><li>The row and column shapes have different tags.</li></ul>
+<h3 id="atomic">All or nothing: atomic=1</h3>
+<p>With <code>atomic=1</code> (or the header <code>X-KDB-Atomic: 1</code>) the whole body runs as <strong>one transaction</strong>. When any statement fails, <strong>every</strong> statement of the body is rolled back.</p>
+<div class="table-wrap"><table><thead><tr><th>Case</th><th>Answer</th></tr></thead><tbody><tr><td>all statements work</td><td>200, the normal answer. Everything is saved together.</td></tr><tr><td>a statement fails</td><td>not 200, <code>error</code>, <code>&quot;saved&quot;: 0</code>, <code>&quot;rolled_back&quot;: true</code>. Nothing is saved.</td></tr><tr><td>the body has a statement that cannot run in a transaction</td><td>400 <strong>before anything runs</strong>, <code>&quot;results&quot;: []</code></td></tr></tbody></table></div>
+<ul><li><strong>Allowed:</strong> <code>SELECT</code>, <code>SHOW</code>, <code>EXPLAIN</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CALL</code>, cursors, <code>CHECK TABLE</code>.</li><li><strong>Refused:</strong> <code>CREATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>RENAME</code>, <code>REFRESH VIEW</code>, <code>BACKUP DATABASE</code>, <code>USE</code>, <code>SET</code>, users and grants (KDB cannot roll these back), and <code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code> (the body is already a transaction). The message is <code>atomic=1: CREATE TABLE cannot run inside a transaction ...</code>.</li><li><code>atomic=1</code> cannot be used with a session (<code>X-KDB-Session</code>): there, send <code>BEGIN</code> ... <code>COMMIT</code> yourself.</li><li><code>line</code> and <code>column</code> of an error still count in the text you sent.</li><li>Other writers wait until the body is done, as with <code>BEGIN</code> ... <code>COMMIT</code>. Keep atomic bodies short.</li></ul>
+<p><strong>HTTP: atomic=1: the second INSERT fails, so the first one is rolled back too</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-http">POST /exec?compat=0&amp;atomic=1
+
+INSERT INTO brokers VALUES (96, &#39;Summit Capital&#39;);
+INSERT INTO brokers VALUES (96, &#39;Summit Capital again&#39;)
+###
+GET /exec?compat=0&amp;query=SELECT count(*) AS rows_with_id_96 FROM brokers WHERE id = 96</code></pre>
+<p>Response:</p>
+<p><code>POST /exec?compat=0&amp;atomic=1</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO brokers VALUES (96, &#39;Summit Capital&#39;);\nINSERT INTO brokers VALUES (96, &#39;Summit Capital again&#39;)&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (96, &#39;Summit Capital&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 2, &quot;execute_us&quot;: 112}
+    }
+  ],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: true,
+  &quot;error&quot;: &quot;a row with id=&#39;96&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it (the transaction was rolled back)&quot;,
+  &quot;sqlstate&quot;: &quot;23505&quot;,
+  &quot;table&quot;: &quot;brokers&quot;,
+  &quot;constraint&quot;: &quot;brokers_pkey&quot;,
+  &quot;column_name&quot;: &quot;id&quot;
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS rows_with_id_96 FROM brokers WHERE id = 96</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) AS rows_with_id_96 FROM brokers WHERE id = 96&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS rows_with_id_96 FROM brokers WHERE id = 96&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;rows_with_id_96&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [0]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 68}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 68}
+}</code></pre>
+<p><strong>HTTP: atomic=1 with statements that all work</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /exec?compat=0&amp;atomic=1
+
+INSERT INTO brokers VALUES (93, &#39;Delta Securities&#39;);
+UPDATE brokers SET name = &#39;Delta Securities Ltd&#39; WHERE id = 93;
+SELECT id, name FROM brokers WHERE id = 93</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;INSERT INTO brokers VALUES (93, &#39;Delta Securities&#39;);\nUPDATE brokers SET name = &#39;Delta Securities Ltd&#39; WHERE id = 93;\nSELECT id, name FROM brokers WHERE id = 93&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (93, &#39;Delta Securities&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 126}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE brokers SET name = &#39;Delta Securities Ltd&#39; WHERE id = 93&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 51}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT id, name FROM brokers WHERE id = 93&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+        {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [93, &quot;Delta Securities Ltd&quot;]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 38}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 215}
+}</code></pre>
+<p><strong>HTTP: atomic=1 refuses CREATE TABLE before anything runs</strong></p>
+<pre><code class="language-http">POST /exec?compat=0&amp;atomic=1
+
+CREATE TABLE notes (id LONG PRIMARY KEY);
+INSERT INTO notes VALUES (1)</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;CREATE TABLE notes (id LONG PRIMARY KEY);\nINSERT INTO notes VALUES (1)&quot;,
+  &quot;results&quot;: [],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: false,
+  &quot;error&quot;: &quot;atomic=1: CREATE TABLE cannot run inside a transaction (a rollback cannot undo it), so nothing was run; send it in a request without atomic=1&quot;,
+  &quot;sqlstate&quot;: &quot;XX000&quot;
+}</code></pre>
+<p><strong>HTTP: A form field query= (what an HTML form or curl --data-urlencode sends)</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /exec
+Content-Type: application/x-www-form-urlencoded
+
+compat=0&amp;limit=3&amp;query=SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY symbol</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY symbol&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT symbol, ltp FROM live_data LATEST ON timestamp PARTITION BY symbol ORDER BY symbol&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;ltp&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;CITY&quot;, 527.1],
+        [&quot;COAST&quot;, 401.9],
+        [&quot;TELCO&quot;, 897.7]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: true,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 33, &quot;execute_us&quot;: 259}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 33, &quot;execute_us&quot;: 259}
+}</code></pre>
+<p><strong>HTTP: Create a table and write rows in one request</strong></p>
+<pre><code class="language-http">POST /exec?compat=0
+
+CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO ticks VALUES (&#39;2026-09-10T05:15:00Z&#39;, &#39;CITY&#39;, 512.4), (&#39;2026-09-10T05:15:01Z&#39;, &#39;COAST&#39;, 380.1);
+SELECT * FROM ticks</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;\nINSERT INTO ticks VALUES (&#39;2026-09-10T05:15:00Z&#39;, &#39;CITY&#39;, 512.4), (&#39;2026-09-10T05:15:01Z&#39;, &#39;COAST&#39;, 380.1);\nSELECT * FROM ticks&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;CREATE TABLE ticks (\n  time TIMESTAMP,\n  symbol SYMBOL,\n  price DOUBLE\n) TIMESERIES(time) PARTITION BY DAY&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;table &#39;ticks&#39; created&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 16474}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO ticks VALUES (&#39;2026-09-10T05:15:00Z&#39;, &#39;CITY&#39;, 512.4), (&#39;2026-09-10T05:15:01Z&#39;, &#39;COAST&#39;, 380.1)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 2,
+      &quot;message&quot;: &quot;2 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 1930}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT * FROM ticks&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+        {&quot;name&quot;: &quot;price&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-10T05:15:00.000Z&quot;, &quot;CITY&quot;, 512.4],
+        [&quot;2026-09-10T05:15:01.000Z&quot;, &quot;COAST&quot;, 380.1]
+      ],
+      &quot;count&quot;: 2,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 78}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 45, &quot;execute_us&quot;: 18482}
+}</code></pre>
+<p>Clients (not run by the help build; <a href="../tutorial/08-http-api.html">chapter 8</a> has tested ones with real output):</p>
+<pre><code class="language-bash">curl -s &quot;http://127.0.0.1:9900/exec?compat=0&quot; --data-binary &quot;INSERT INTO brokers VALUES (99, &#39;Himalayan Securities&#39;)&quot;
+curl -s &quot;http://127.0.0.1:9900/exec?compat=0&quot; -H &quot;Content-Type: text/plain; charset=utf-8&quot; --data-binary @load.sql</code></pre>
+<pre><code class="language-powershell">$body = [System.IO.File]::ReadAllBytes((Resolve-Path load.sql))   # the bytes: no encoding is lost
+$r = Invoke-RestMethod -Method Post -Uri &quot;http://127.0.0.1:9900/exec?compat=0&quot; -Body $body -ContentType &quot;text/plain; charset=utf-8&quot;
+$r.results | ForEach-Object { $_.message }</code></pre>
+<pre><code class="language-python">import requests
+
+def kdb(sql, db=None, limit=10000):
+    params = {&quot;compat&quot;: 0, &quot;limit&quot;: limit}
+    if db:
+        params[&quot;db&quot;] = db
+    r = requests.post(&quot;http://127.0.0.1:9900/exec&quot;, params=params, data=sql.encode(&quot;utf-8&quot;),
+                      headers={&quot;Content-Type&quot;: &quot;text/plain; charset=utf-8&quot;})
+    body = r.json()
+    if r.status_code != 200:
+        raise RuntimeError(f&quot;KDB error (HTTP {r.status_code}): {body[&#39;error&#39;]}&quot;)
+    return body[&quot;results&quot;]
+
+res = kdb(&quot;SELECT symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; LIMIT 3&quot;)[0]
+names = [c[&quot;name&quot;] for c in res[&quot;columns&quot;]]
+for row in res[&quot;dataset&quot;]:
+    print(dict(zip(names, row)))</code></pre>
+<pre><code class="language-js">async function kdb(sql, db) {
+  const url = `http://127.0.0.1:9900/exec?compat=0${db ? `&amp;db=${encodeURIComponent(db)}` : &quot;&quot;}`;
+  const res = await fetch(url, { method: &quot;POST&quot;, headers: { &quot;Content-Type&quot;: &quot;text/plain; charset=utf-8&quot; }, body: sql });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`KDB error (HTTP ${res.status}): ${body.error}`);
+  return body.results;
+}
+const [res] = await kdb(&quot;SELECT symbol, close FROM ochl_day LIMIT 3&quot;);
+console.log(res.dataset);</code></pre>
+<pre><code class="language-csharp">static readonly HttpClient Http = new HttpClient { BaseAddress = new Uri(&quot;http://127.0.0.1:9900&quot;) };
+
+static async Task&lt;JsonElement&gt; Kdb(string sql)
+{
+    var content = new StringContent(sql, Encoding.UTF8, &quot;text/plain&quot;);
+    using var res = await Http.PostAsync(&quot;/exec?compat=0&quot;, content);
+    var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement.Clone();
+    if (!res.IsSuccessStatusCode)
+        throw new Exception($&quot;KDB error (HTTP {(int)res.StatusCode}): {json.GetProperty(&quot;error&quot;).GetString()}&quot;);
+    return json.GetProperty(&quot;results&quot;);
+}</code></pre>
+<h2 id="get-exp">GET /exp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /exp?query=&lt;SQL&gt;[&amp;db=&lt;name&gt;][&amp;limit=N][&amp;filename=&lt;name.csv&gt;]</code></pre>
+<p>Runs SQL that reads and answers with the rows of the <strong>last</strong> statement as a CSV file. A browser downloads it.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>query</code></td><td>URL</td><td><code>SELECT</code>, <code>SHOW</code> or <code>EXPLAIN</code></td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>)</td><td>the default database</td></tr><tr><td><code>limit</code></td><td>URL</td><td>Most rows: any number, also above a million (<code>limit=50000000</code> for a whole big table). <code>0</code> or less means 1,000,000.</td><td>1,000,000</td></tr><tr><td><code>filename</code></td><td>URL</td><td>The name of the downloaded file. Only letters, digits, <code>-</code>, <code>_</code> and <code>.</code> are kept; at most 100 characters.</td><td><code>kdb-export.csv</code></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer</th><th>Meaning</th></tr></thead><tbody><tr><td><code>Content-Type: text/csv; charset=utf-8</code></td><td>a CSV file in UTF-8</td></tr><tr><td><code>Content-Disposition: attachment; filename=&quot;...&quot;</code></td><td>tells a browser to save it with that name</td></tr><tr><td><code>X-KDB-Rows</code></td><td>the rows in the file</td></tr><tr><td><code>X-KDB-Truncated</code></td><td><code>true</code> when <code>limit</code> (or the default of 1,000,000) cut rows off: more rows exist. <code>false</code> when the file holds every row</td></tr><tr><td>first line</td><td>the column names</td></tr><tr><td>next lines</td><td>one row each; lines end with CR LF (<code>\r\n</code>, as Windows and Excel expect)</td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200 OK; 400 no <code>query</code>, bad SQL, or SQL that is not a <code>SELECT</code>, <code>SHOW</code> or <code>EXPLAIN</code>; 401/403 <a href="http-login.html">login or role</a>; 404 unknown database.</li><li><strong>Big exports are streamed.</strong> One <code>SELECT</code> of the columns of one table (with a <code>WHERE</code>, no <code>ORDER BY</code>, <code>GROUP BY</code> or join) is sent while it is read, so the server never holds the whole file: millions of rows go out at a few million rows a second, beyond <code>max_result_memory</code>. Once the file passes about 16 MB the answer is sent with <code>Transfer-Encoding: chunked</code>, and <code>X-KDB-Rows</code> and <code>X-KDB-Truncated</code> come at its end as trailer fields (<code>Trailer: X-KDB-Rows, X-KDB-Truncated</code>; <code>curl -D -</code> shows them after the body). A smaller file has them as headers. Other queries (<code>ORDER BY</code>, <code>GROUP BY</code>, joins, several statements) are made whole first, within the memory limits.</li><li><strong>An error part way</strong> through a streamed export (the client left, the server stops) ends the connection without the last chunk, so the client sees a cut-off download, never a short file that looks whole.</li><li><strong>Time:</strong> a streamed export is one statement until its last row is sent, so the statement timeout (<code>kdb serve --statement-timeout</code>, 60 s by default) counts the sending too. For a very big table over a slow link, raise it or export by time ranges.</li><li><strong>Notes:</strong> NULL is an empty field. Text with a comma, a quote, a line break, or a space at the start or end is put in <code>&quot;...&quot;</code> (a <code>&quot;</code> inside becomes <code>&quot;&quot;</code>). Times are UTC like <code>2026-09-10T00:00:00.000Z</code>. Errors are JSON (<code>query</code>, <code>error</code>, <code>line</code>, <code>column</code>), not CSV. <code>/exp</code> accepts only reading SQL even with POST, and does not use sessions.</li></ul>
+<p><strong>HTTP: Daily closes as CSV, with a file name</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exp?filename=closes-2026-09-10.csv&amp;query=SELECT time, symbol, close FROM ochl_day WHERE time IN &#39;2026-09-10&#39; ORDER BY symbol</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (text/csv)</p>
+<pre><code class="language-text">time,symbol,close
+2026-09-10T00:00:00.000Z,CITY,504.9
+2026-09-10T00:00:00.000Z,COAST,376.1
+2026-09-10T00:00:00.000Z,VOLT,191.2</code></pre>
+<p><strong>HTTP: Text with commas and quotes, and NULL</strong></p>
+<pre><code class="language-http">GET /exp?query=SELECT &#39;City Bank, Kathmandu&#39; AS name, &#39;the &quot;best&quot; bank&#39; AS note, NULL AS empty, 512.4 AS price</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (text/csv)</p>
+<pre><code class="language-text">name,note,empty,price
+&quot;City Bank, Kathmandu&quot;,&quot;the &quot;&quot;best&quot;&quot; bank&quot;,,512.4</code></pre>
+<p><strong>HTTP: Only SQL that reads can be exported</strong> (sample data: sample)</p>
+<pre><code class="language-http">GET /exp?query=DELETE FROM brokers</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;CSV export needs a SELECT, SHOW or EXPLAIN statement&quot;}</code></pre>
+<pre><code class="language-bash">curl -s -G &quot;http://127.0.0.1:9900/exp&quot; --data-urlencode &quot;query=SELECT * FROM ochl_day WHERE symbol = &#39;COAST&#39; ORDER BY time&quot; -o coast.csv</code></pre>
+<pre><code class="language-powershell">$q = [uri]::EscapeDataString(&quot;SELECT * FROM ochl_day WHERE symbol = &#39;COAST&#39; ORDER BY time&quot;)
+Invoke-WebRequest &quot;http://127.0.0.1:9900/exp?query=$q&quot; -OutFile coast.csv
+Import-Csv coast.csv | Select-Object -First 3</code></pre>
+<pre><code class="language-python">import requests
+
+r = requests.get(&quot;http://127.0.0.1:9900/exp&quot;,
+                 params={&quot;query&quot;: &quot;SELECT * FROM ochl_day WHERE symbol = &#39;COAST&#39; ORDER BY time&quot;})
+r.raise_for_status()
+open(&quot;coast.csv&quot;, &quot;wb&quot;).write(r.content)</code></pre>
+<h2 id="post-exp">POST /exp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /exp[?db=&lt;name&gt;][&amp;limit=N][&amp;filename=&lt;name.csv&gt;]
+body: the SQL text, or a form with the field query=&lt;SQL&gt;</code></pre>
+<p>The same as <a href="http-exec.html#get-exp">GET /exp</a>, with the SQL in the body. Use it when the query is too long for a URL.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td>body</td><td>body</td><td><code>SELECT</code>, <code>SHOW</code> or <code>EXPLAIN</code> (or a form field <code>query=</code>)</td><td>required</td></tr><tr><td><code>db</code>, <code>limit</code>, <code>filename</code></td><td>URL or form field</td><td>as for GET /exp</td><td>as for GET /exp</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer</th><th>Meaning</th></tr></thead><tbody><tr><td>CSV file</td><td>as for <a href="http-exec.html#get-exp">GET /exp</a></td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200 OK; 400 no SQL, bad SQL, or SQL that changes data; 401/403 login or role; 404 unknown database.</li><li><strong>Notes:</strong> POST does not allow changes here: <code>/exp</code> only exports.</li></ul>
+<p><strong>HTTP: A long SELECT in the body</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /exp?filename=volume.csv
+
+SELECT symbol, sum(quantity) AS shares, round(sum(amount), 2) AS amount
+FROM trade_log
+GROUP BY symbol
+ORDER BY shares DESC</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (text/csv)</p>
+<pre><code class="language-text">symbol,shares,amount
+COAST,3070,1227510
+TELCO,2770,2438260
+CITY,2420,1247230
+VOLT,400,73950</code></pre>
+<pre><code class="language-js">// Node 18+: save a CSV export.
+import fs from &quot;node:fs&quot;;
+const res = await fetch(&quot;http://127.0.0.1:9900/exp?filename=volume.csv&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;text/plain; charset=utf-8&quot; },
+  body: &quot;SELECT symbol, sum(quantity) AS shares FROM trade_log GROUP BY symbol&quot;,
+});
+if (!res.ok) throw new Error((await res.json()).error);
+fs.writeFileSync(&quot;volume.csv&quot;, Buffer.from(await res.arrayBuffer()));</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-exec.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rules - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Name a check, the trading hours or the dedup choice of a table once, and KDB applies it to every row written - saying which rule refused a row and why.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/rules.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/rules.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="rules">Rules</h1>
+<blockquote><p>Name a check, the trading hours or the dedup choice of a table once, and KDB applies it to every row written - saying which rule refused a row and why.</p></blockquote>
+<ul><li>Category: Tables</li><li>Keywords: rule, rules, CREATE RULE, ALTER RULE, DROP RULE, SHOW RULES, kdb_rules, price guard, value range, session hours, trading hours, ON FAIL SKIP, ON FAIL REJECT, dedup_keep, keep first, check rule</li><li>See also: <a href="create-table.html">CREATE TABLE</a>, <a href="calendars.html">Trading calendars</a>, <a href="partitions-and-dedup.html">Partitions, SORT BY and DEDUP KEY</a>, <a href="time-and-time-zones.html">Time and time zones</a></li></ul>
+<p>A <strong>rule</strong> is a named check or setting of one table. It applies to every row written to the table - <code>INSERT</code>, <code>UPDATE</code>, <code>COPY</code>, <code>/imp</code>, <code>/write</code> and line protocol - and a row it refuses says <strong>which rule and why</strong>. Rules are listed by <code>SHOW RULES</code>, switched off and on by <code>ALTER RULE</code>, and saved with the table.</p>
+<div class="table-wrap"><table><thead><tr><th>Kind</th><th>Example</th><th>What it does</th></tr></thead><tbody><tr><td>check</td><td><code>CHECK (close &gt; 0)</code></td><td>every new or changed row must not make the condition false</td></tr><tr><td>session</td><td><code>SESSION &#39;11:00&#39; TO &#39;15:00&#39; TIME ZONE &#39;Asia/Kathmandu&#39; CALENDAR nepse</code></td><td>the row&#39;s time must be inside the hours, on a trading day of the calendar</td></tr><tr><td>setting</td><td><code>SET dedup_keep = &#39;first&#39;</code></td><td>which of two rows with the same DEDUP KEY stays</td></tr></tbody></table></div>
+<h2 id="create-rule">CREATE RULE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE RULE [IF NOT EXISTS] name ON table
+    CHECK (condition)
+  | SESSION &#39;HH:MM&#39; TO &#39;HH:MM&#39; [TIME ZONE &#39;zone&#39;] [CALENDAR calendar]
+  | SET dedup_keep = &#39;first&#39; | &#39;last&#39;
+  [ON FAIL REJECT | SKIP] [MESSAGE &#39;text&#39;]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>CHECK (condition)</code></td><td>a condition on the values of one row, as a <code>CHECK</code> constraint. A condition that is <code>NULL</code> passes (standard SQL): write <code>close IS NOT NULL AND close &gt; 0</code> to refuse a missing price</td></tr><tr><td><code>SESSION ... TO ...</code></td><td>the row&#39;s time, on the clock of <code>TIME ZONE</code> (UTC when not given), from the first time to the second (both included). With <code>CALENDAR</code>, only on its trading days (<a href="calendars.html">calendars</a>). The table needs a time column</td></tr><tr><td><code>ON FAIL REJECT</code></td><td>the default: the statement fails, and nothing of it is written (PostgreSQL code <code>23514</code>)</td></tr><tr><td><code>ON FAIL SKIP</code></td><td>the row is left out and the statement goes on: the answer says <code>..., 1 left out by rules (ON FAIL SKIP)</code>. An <code>UPDATE</code> that would break the rule is refused instead (a row already there is never left out)</td></tr><tr><td><code>MESSAGE &#39;text&#39;</code></td><td>your words in the refusal, before the reason</td></tr><tr><td><code>SET dedup_keep = &#39;first&#39;</code></td><td>a row whose DEDUP KEY the table holds already is left out, whatever the write asked (also <code>INSERT OR REPLACE</code> and <code>/write</code>). <code>&#39;last&#39;</code> is the default: the new row replaces the old one. The table needs a <code>DEDUP KEY</code></td></tr></tbody></table></div>
+<ul><li><strong>Rows already there:</strong> a new rule checks rows written from then on. Find older rows that break it with <code>SELECT ... WHERE NOT (condition)</code>.</li><li><strong>Names:</strong> a rule name is unique in the database. <code>DROP TABLE</code> drops the table&#39;s rules with it.</li><li><strong>Role:</strong> <code>ddl</code>, like <code>CREATE TABLE</code>.</li><li><strong>Not yet:</strong> <code>SET null_compare</code> (comparisons with <code>NULL</code> as QuestDB does them) is refused with that reason; comparisons follow standard SQL.</li></ul>
+<p><strong>Example: A price guard: the refused row names its rule</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ohlc (time TIMESTAMP, symbol SYMBOL, open DOUBLE, close DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+CREATE RULE price_guard ON ohlc CHECK (open &gt; 0 AND close &gt; 0) MESSAGE &#39;prices must be above 0&#39;;</code></pre>
+<pre><code class="language-sql">INSERT INTO ohlc VALUES (&#39;2026-10-01T05:30:00Z&#39;, &#39;NABIL&#39;, 500, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>rule &#39;price_guard&#39; of table &#39;ohlc&#39; refused the row: prices must be above 0 (open &gt; 0 AND close &gt; 0 is false for the row open=&#39;500&#39;, close=&#39;0&#39;)</code></p>
+<p><strong>Example: ON FAIL SKIP leaves the bad row out and keeps the others</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ticks (time TIMESTAMP, symbol SYMBOL, price DOUBLE, qty DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+CREATE RULE no_negative_qty ON ticks CHECK (qty &gt;= 0) ON FAIL SKIP;</code></pre>
+<pre><code class="language-sql">INSERT INTO ticks VALUES (&#39;2026-10-01T05:30:00Z&#39;, &#39;NABIL&#39;, 500, 10), (&#39;2026-10-01T05:31:00Z&#39;, &#39;NABIL&#39;, 501, -3),
+  (&#39;2026-10-01T05:32:00Z&#39;, &#39;NABIL&#39;, 502, 7);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">2 row(s) inserted, 1 left out by rules (ON FAIL SKIP)</code></pre>
+<p><strong>Example: Trading hours of NEPSE: 11:00 to 15:00 in Kathmandu, on its trading days</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE CALENDAR nepse_days (TIME ZONE &#39;Asia/Kathmandu&#39;, ERA FROM &#39;2022-01-01&#39; DAYS sun-thu);
+CREATE TABLE trades (time TIMESTAMP, symbol SYMBOL, price DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+CREATE RULE nepse_hours ON trades SESSION &#39;11:00&#39; TO &#39;15:00&#39; TIME ZONE &#39;Asia/Kathmandu&#39; CALENDAR nepse_days;</code></pre>
+<pre><code class="language-sql">INSERT INTO trades VALUES (&#39;2026-10-01T10:30:00Z&#39;, &#39;NABIL&#39;, 500);</code></pre>
+<p>Result:</p>
+<p>Error: <code>rule &#39;nepse_hours&#39; of table &#39;trades&#39; refused the row: its time 2026-10-01T16:15:00 Asia/Kathmandu is outside the session 11:00 to 15:00</code></p>
+<h2 id="alter-rule">ALTER RULE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER RULE [IF EXISTS] name ENABLE | DISABLE | RENAME TO new_name</code></pre>
+<p>A disabled rule stays, and checks nothing until <code>ENABLE</code>.</p>
+<h2 id="drop-rule">DROP RULE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP RULE [IF EXISTS] name [, name ...]</code></pre>
+<h2 id="show-rules">See the rules: SHOW RULES</h2>
+<p><code>SHOW RULES</code> is <code>SELECT * FROM kdb_rules</code>: one row per rule.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>rule</code>, <code>table_name</code></td><td>the rule and its table</td></tr><tr><td><code>kind</code></td><td><code>check</code>, <code>session</code> or <code>set</code></td></tr><tr><td><code>definition</code></td><td>what follows <code>ON table</code> in its <code>CREATE RULE</code></td></tr><tr><td><code>on_fail</code></td><td><code>reject</code> or <code>skip</code> (empty for a setting)</td></tr><tr><td><code>message</code>, <code>enabled</code></td><td>its message, and whether it is on</td></tr></tbody></table></div>
+<p><strong>Example: All rules of the database</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE quotes (time TIMESTAMP, symbol SYMBOL, bid DOUBLE, ask DOUBLE) TIMESERIES(time) PARTITION BY DAY;
+CREATE RULE spread_ok ON quotes CHECK (ask &gt;= bid) MESSAGE &#39;ask below bid&#39;;</code></pre>
+<pre><code class="language-sql">SHOW RULES;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rule (STRING)</th><th>table_name (STRING)</th><th>kind (STRING)</th><th>definition (STRING)</th><th>on_fail (STRING)</th><th>message (STRING)</th><th>enabled (BOOL)</th></tr></thead><tbody><tr><td>spread_ok</td><td>quotes</td><td>check</td><td>CHECK (ask &gt;= bid)</td><td>reject</td><td>ask below bid</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/rules.md">This page as markdown</a>.</footer>
+</body>
+</html>

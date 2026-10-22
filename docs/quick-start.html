@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick start - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Get kdb, make a database, create a table, add rows, query them and open the web console.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/quick-start.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/quick-start.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="quick-start">Quick start</h1>
+<blockquote><p>Get kdb, make a database, create a table, add rows, query them and open the web console.</p></blockquote>
+<ul><li>Category: Getting started</li><li>Keywords: install, build, first steps, getting started, hello world, kdb version, kdb sql, kdb shell, kdb serve, console, sample data, tutorial</li><li>See also: <a href="install-packages.html">Install packages and the Claude skill</a>, <a href="sql-basics.html">SQL basics</a>, <a href="sample-data.html">Sample data</a>, <a href="databases.html">Databases and the data folder</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="insert.html">INSERT</a>, <a href="web-console.html">Web console</a>, <a href="cli-serve.html">kdb serve</a>, <a href="whats-new.html">What&#39;s new</a></li></ul>
+<p>KDB is one program: <code>kdb</code> (<code>kdb.exe</code> on Windows), with three folders of plain files next to it: <code>web/</code> (the web console), <code>help/</code> (these pages) and <code>skill/</code> (the Claude skill). It keeps each <strong>database</strong> in a folder. You talk to it with <strong>SQL</strong> (the language of databases). This page takes about 10 minutes.</p>
+<p>KDB is a general-purpose database: market and time-series data, sensor readings, logs and metrics, accounting, users and logins, app backends. A small example: a table of daily stock prices, three rows, and a query.</p>
+<p><strong>Example: Your first table, rows and query</strong></p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (
+  time TIMESTAMP, symbol SYMBOL,
+  open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume DOUBLE
+) TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);
+
+INSERT INTO ochl_day VALUES
+  (&#39;2026-09-09&#39;, &#39;CITY&#39;, 512, 512.4, 504, 504.6, 182390),
+  (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507, 500.7, 504.9, 183040),
+  (&#39;2026-09-10&#39;, &#39;COAST&#39;, 380.5, 382, 375.2, 376.1, 186200);
+
+SELECT time, symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ochl_day (</code></p>
+<pre><code class="language-text">table &#39;ochl_day&#39; created</code></pre>
+<p><code>INSERT INTO ochl_day VALUES (&#39;2026-09-09&#39;, &#39;CITY&#39;, 512, 512.4, 504, 504.6, 182390), (&#39;2026-09-10&#39;, &#39;</code></p>
+<pre><code class="language-text">3 row(s) inserted</code></pre>
+<p><code>SELECT time, symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="get-kdb">Get kdb</h2>
+<p>There are three ways. Pick one.</p>
+<div class="table-wrap"><table><thead><tr><th>Way</th><th>You run</th><th>Then</th></tr></thead><tbody><tr><td>An install package</td><td>unpack <code>kdb-&lt;version&gt;-windows-x64.zip</code> (or the Linux <code>.tar.gz</code>) and run <code>install.ps1</code> (or <code>install.sh</code>)</td><td><code>kdb</code> is on your PATH, with its <code>web</code>, <code>help</code> and <code>skill</code> folders</td></tr><tr><td>Docker</td><td><code>docker run</code> with the image <code>kdb</code> (below)</td><td>the server runs on port 9900, the PostgreSQL port on 8832</td></tr><tr><td>Build from the source</td><td><code>cmake</code> (below)</td><td>the program is in <code>build\bin\kdb.exe</code></td></tr></tbody></table></div>
+<p><a href="install-packages.html">Install packages</a> explains the packages and the Docker image in full.</p>
+<h3 id="docker">Docker</h3>
+<p>Syntax:</p>
+<pre><code class="language-sql">docker run -d --name kdb -p 9900:9900 -p 8832:8832 -e KDB_TOKEN=&lt;secret&gt; -v &lt;data&gt;:/data kdb</code></pre>
+<p>The image holds the program and its three folders. Make it once from the source folder with <code>docker build -t kdb -f docker/Dockerfile .</code>. The data stays in the volume, so a new container keeps it.</p>
+<ul><li><strong>Notes:</strong> the server does not start without <code>KDB_TOKEN</code>. Paste the token into the console&#39;s token box, or send it as <code>Authorization: Bearer &lt;token&gt;</code>. Add <code>--restart unless-stopped --stop-timeout 60</code> so it comes back after a restart and stops cleanly. See <a href="install-packages.html#docker">Docker</a>.</li></ul>
+<pre><code class="language-bash">docker run -d --name kdb --restart unless-stopped --stop-timeout 60 \
+  -p 9900:9900 -p 8832:8832 -e KDB_TOKEN=my-secret -v kdb-data:/data kdb
+curl http://127.0.0.1:9900/health</code></pre>
+<p>Then open <a href="http://127.0.0.1:9900" target="_blank" rel="noopener">http://127.0.0.1:9900</a> and go on at <a href="#console">Open the web console</a>: the console and the HTTP API do everything the <code>kdb sql</code> steps below do.</p>
+<h3 id="build">Build from the source</h3>
+<p>Syntax:</p>
+<pre><code class="language-sql">cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target kdb</code></pre>
+<p>Build the program from the KDB source folder. You need CMake, Ninja and a C++17 compiler (on Windows: MSYS2 UCRT64). KDB needs no other libraries.</p>
+<ul><li><strong>Returns:</strong> the program <code>build\bin\kdb.exe</code> (Linux and macOS: <code>build/bin/kdb</code>).</li><li><strong>Notes:</strong> a <code>kdb</code> run from <code>build\bin</code> finds the console, the help and the skill in the source folder by itself (<code>web/console</code>, <code>docs/help/site</code>, <code>.claude/skills/kdb</code>). To copy it to another PC, copy <code>kdb.exe</code> together with the folders <code>web</code>, <code>help</code> and <code>skill</code>, or make a package. Without <code>web/</code> the HTTP API still works, but <code>http://127.0.0.1:9900/</code> says the console is not installed. See <a href="install-packages.html#folders">where kdb finds them</a>. <a href="../tutorial/01-install.html">Chapter 1</a> explains every step.</li></ul>
+<pre><code class="language-powershell">cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target kdb
+$env:Path = &quot;$PWD\build\bin;&quot; + $env:Path</code></pre>
+<p>Check that it works:</p>
+<p><strong>Command line: Show the version</strong></p>
+<pre><code class="language-bash">kdb version</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">kdb 0.2.0-dev (crc32c hardware: yes)
+tls: OpenSSL 3.6.3 9 Jun 2026
+
+Stored-format features this build reads (51):
+  views                0.2.0-dev (2026-09-10)   CREATE VIEW: the &quot;views&quot; file
+  partition_format_2   0.2.0-dev (2026-09-11)   table partition files in format 2 (one raw block per column)
+  block_stats          0.2.0-dev (2026-09-11)   column stats section in partition files (count, min, max, sum per column)
+  runs                 0.2.0-dev (2026-09-11)   log record &#39;C&#39;: rows of a bulk upsert kept as columns
+  auto_meta            0.2.0-dev (2026-09-11)   AUTO id counters in the manifest (auto.&lt;table id&gt;)
+  json                 0.2.0-dev (2026-09-11)   JSON columns (type code 12)
+  bytes                0.2.0-dev (2026-09-11)   BYTES columns (type code 13)
+  check                0.2.0-dev (2026-09-11)   CHECK constraints (catalog format 2, part &#39;C&#39;)
+  indexes              0.2.0-dev (2026-09-11)   CREATE INDEX, UNIQUE and FULLTEXT indexes (catalog part &#39;I&#39;)
+  routines             0.2.0-dev (2026-09-11)   functions, procedures and triggers: the &quot;routines&quot; file
+  users                0.2.0-dev (2026-09-11)   server users and roles (_system.users)
+  audit                0.2.0-dev (2026-09-12)   SET AUDIT ON: catalog part &#39;A&#39;, log record &#39;P&#39;, the _audit_log table
+  table_grants         0.2.0-dev (2026-09-12)   GRANT ... ON TABLE (_system.users.table_grants)
+  totp                 0.2.0-dev (2026-09-12)   two-factor logins (_system.users.totp)
+  trash                0.2.0-dev (2026-09-12)   dropped tables kept as _dropped_&lt;ms&gt;_&lt;name&gt; for UNDROP TABLE
+  database_settings    0.2.0-dev (2026-09-12)   ALTER DATABASE ... SET READ ONLY (_system.database_settings)
+  dialects             0.2.0-dev (2026-09-12)   ALTER DATABASE ... SET dialect (_system.database_dialects)
+  pg_catalog_parts     0.2.0-dev (2026-09-12)   PostgreSQL column types, multi-column keys, foreign keys, expression and partial indexes (catalog parts &#39;T&#39;, &#39;K&#39;, &#39;F&#39;, &#39;X&#39;)
+  sequences            0.2.0-dev (2026-09-12)   CREATE SEQUENCE: the &quot;sequences&quot; file and its log records
+  batched_log_sync     0.2.0-dev (2026-09-11)   log segments in the batched format (header flag 1, 16-byte commit records): group commit and --sync-commits batch
+  dedup_change         0.2.0-dev (2026-09-12)   ALTER TABLE ... DEDUP ENABLE / DISABLE: the DEDUP KEY of a table that already holds rows
+  plpgsql_triggers     0.2.0-dev (2026-09-12)   PostgreSQL plpgsql trigger functions and FOR EACH ROW triggers in the &quot;routines&quot; file
+  cached_views         0.2.0-dev (2026-09-13)   CREATE CACHED VIEW: which views are cached, and REFRESH ON COMMIT, in the &quot;views&quot; file
+  deferred_triggers    0.2.0-dev (2026-09-13)   CREATE TRIGGER ... DEFERRED: job records in the log, and the &quot;trigger_queue&quot; and &quot;q/&lt;job&gt;&quot; files of queued jobs
+  materialized_views   0.2.0-dev (2026-09-13)   CREATE MATERIALIZED VIEW: catalog part &#39;M&#39;, REFRESH MATERIALIZED VIEW log records, mv_dirty.&lt;id&gt; in the manifest
+  table_ttl            0.2.0-dev (2026-09-13)   TTL n DAYS on a table: catalog part &#39;L&#39;
+  read_only_procedures 0.2.0-dev (2026-09-24)   CREATE PROCEDURE ... READ ONLY in the &quot;routines&quot; file
+  dedup_insert         0.2.0-dev (2026-09-24)   WITH (dedup_insert = &#39;upsert&#39;) on a table: catalog part &#39;U&#39;
+  decimal128           0.2.0-dev (2026-09-25)   NUMERIC(p, s) columns with more than 18 digits: 128-bit DECIMAL (type code 14) in the catalog, partition files and log
+  dedup_generated_key  0.2.0-dev (2026-09-25)   a stored generated column in a DEDUP KEY, like the minute of the time (an older build refuses such a catalog)
+  symbol_partitions    0.2.0-dev (2026-09-25)   PARTITION BY &lt;time&gt;, SYMBOL(col): catalog part &#39;P&#39; (one partition file per time bucket and symbol, t/&lt;id&gt;/&lt;time&gt;/s-...)
+  round_time_zone      0.2.0-dev (2026-09-25)   TIMESTAMP ROUND ... TIME ZONE &#39;zone&#39; columns: catalog part &#39;R&#39;
+  enum_types           0.2.0-dev (2026-09-25)   CREATE TYPE ... AS ENUM: the ENUM types after the tables of the catalog (catalog format 3)
+  row_ttl              0.2.0-dev (2026-09-25)   CREATE TABLE ... WITH (ttl_column = c): rows expire one by one, catalog part &#39;E&#39;
+  column_compression   0.2.0-dev (2026-09-25)   ALTER TABLE ... SET (compression = on): catalog part &#39;Z&#39; and packed partition files (header flag 2)
+  calendars            0.2.0-dev (2026-09-25)   CREATE CALENDAR: trading calendars (eras, holidays, extra trading days) after the ENUM types of the catalog (catalog format 4)
+  materialized_view_sample_by 0.2.0-dev (2026-09-26)   CREATE MATERIALIZED VIEW ... AS (SELECT ... SAMPLE BY ...): a SAMPLE BY query in catalog part &#39;M&#39;, refreshed bucket by bucket
+  comments             0.2.0-dev (2026-09-26)   COMMENT ON TABLE / COLUMN: the comments of a table and its columns, catalog part &#39;N&#39;
+  cache_tables         0.2.0-dev (2026-10-02)   WITH (max_bytes, evict, durability): cache tables with a memory cap and eviction, catalog part &#39;Y&#39;
+  resident_tables      0.2.0-dev (2026-10-02)   WITH / SET (resident = on): a table never unloaded to make room, catalog part &#39;H&#39;
+  partition_tails      0.2.0-dev (2026-10-02)   tail files: rows appended to a partition saved in extra files t/&lt;id&gt;/&lt;partition&gt;.tail&lt;k&gt;.b&lt;version&gt; (tail_files)
+  uuid                 0.2.0-dev (2026-10-02)   UUID columns: 16 bytes per value (type code 15) in the catalog, partition files and log
+  search_analyzer      0.2.0-dev (2026-10-02)   CREATE FULLTEXT INDEX ... WITH (language = &#39;english&#39;): the word analyzer of a full-text index, catalog part &#39;S&#39;
+  column_grants        0.2.0-dev (2026-10-02)   GRANT / REVOKE on single columns (_system.users.column_grants)
+  row_policies         0.2.0-dev (2026-10-02)   row-level security: CREATE POLICY and ALTER TABLE ... ENABLE ROW LEVEL SECURITY (_system.row_policies)
+  partition_deltas     0.2.0-dev (2026-10-02)   delta files: a few rows of a partition replaced or deleted, saved in t/&lt;id&gt;/&lt;partition&gt;.delta.b&lt;version&gt;
+  fulltext_segments    0.2.0-dev (2026-10-02)   full-text and JSON index segments in fts/*.kfs (the words of each partition&#39;s rows; never recorded: an older build ignores them)
+  compressed_log       0.2.0-dev (2026-10-02)   packed log records (type 3): the data records of a big commit written compressed (KDB_WAL_COMPRESS)
+  endpoints            0.2.0-dev (2026-10-03)   CREATE ENDPOINT: saved queries served at GET /v/&lt;name&gt;, kind &#39;E&#39; in the routines file
+  rules                0.2.0-dev (2026-10-03)   CREATE RULE: named checks, session hours and settings of a table (catalog part &#39;Q&#39;)
+  sync_commit_tables   0.2.0-dev (2026-10-03)   WITH (synchronous_commit = on | off) of a table: catalog part &#39;G&#39;
+
+A database that uses a feature not in this list needs a newer KDB (kdb check exits with 3).</code></pre>
+<h2 id="first-database">Your first database</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb sql database &quot;SQL&quot;</code></pre>
+<p><code>kdb sql</code> opens a database, runs the SQL, prints the result and closes the database. When the database does not exist yet, KDB makes a new empty one.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>database</code></td><td>name or folder</td><td>a database name like <code>shop</code>, or a folder path like <code>D:\kdb\shop</code></td></tr><tr><td><code>&quot;SQL&quot;</code></td><td>text</td><td>one or more statements, separated by <code>;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the result of each statement. Exit code <code>0</code> means OK, <code>1</code> means an error.</li><li><strong>Notes:</strong> a name without <code>\</code>, <code>/</code>, <code>:</code> or <code>.</code> means a database in the data folder, if one with that name is there; else a folder with that name in the current folder. See <a href="databases.html">databases</a>.</li></ul>
+<p><strong>Command line: Make a table in a new database, add a row, read it</strong></p>
+<pre><code class="language-bash">kdb sql shop &quot;CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)&quot;
+kdb sql shop &quot;INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;), (45, &#39;Imperial Securities&#39;)&quot;
+kdb sql shop &quot;SELECT id, name FROM brokers ORDER BY id&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql shop &quot;CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)&quot;</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; created</code></pre>
+<p><code>&gt; kdb sql shop &quot;INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;), (45, &#39;Imperial Securities&#39;)&quot;</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>&gt; kdb sql shop &quot;SELECT id, name FROM brokers ORDER BY id&quot;</code></p>
+<pre><code class="language-text">id | name                
+---+---------------------
+45 | Imperial Securities 
+58 | Northgate Securities
+(2 rows, 0.3 ms)</code></pre>
+<p>A mistake gives a clear message and exit code 1:</p>
+<p><strong>Command line: A typing mistake in a table name</strong> (shows an error)</p>
+<pre><code class="language-bash">kdb sql shop &quot;CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)&quot;
+kdb sql shop &quot;SELECT * FROM brokerz&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql shop &quot;CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL)&quot;</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; created</code></pre>
+<p><code>&gt; kdb sql shop &quot;SELECT * FROM brokerz&quot;</code></p>
+<pre><code class="language-text">error: line 1, column 15: table or view &#39;brokerz&#39; does not exist</code></pre>
+<p>exit code 1</p>
+<h2 id="first-sql">CREATE TABLE, INSERT and SELECT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE TABLE name (column TYPE [rules], ...) [TIMESERIES(time_column) ...]
+INSERT INTO name VALUES (value, ...), (value, ...)
+SELECT columns FROM name [WHERE condition]</code></pre>
+<p>The three statements you use most. <code>CREATE TABLE</code> makes a table. <code>INSERT</code> adds rows. <code>SELECT</code> reads rows.</p>
+<ul><li>There are two kinds of tables: <strong>relational</strong> (lists of things, like users) and <strong>time-series</strong> (rows with a time, like prices). See <a href="create-table.html">CREATE TABLE</a>.</li><li>Text and times go in single quotes: <code>&#39;CITY&#39;</code>, <code>&#39;2026-09-10&#39;</code>.</li><li>KDB shows times in UTC (the <code>Z</code> at the end). Write a local time with its zone offset, for example <code>+05:45</code> (Nepal) or <code>-04:00</code> (New York).</li></ul>
+<p><strong>Example: App users: a relational table</strong></p>
+<pre><code class="language-sql">CREATE TABLE users (
+  id    LONG PRIMARY KEY AUTO,
+  email STRING NOT NULL UNIQUE,
+  name  STRING
+);
+INSERT INTO users (email, name) VALUES (&#39;ram@example.com&#39;, &#39;Ram&#39;), (&#39;sita@example.com&#39;, &#39;Sita&#39;);
+SELECT id, email, name FROM users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE users (</code></p>
+<pre><code class="language-text">table &#39;users&#39; created</code></pre>
+<p><code>INSERT INTO users (email, name) VALUES (&#39;ram@example.com&#39;, &#39;Ram&#39;), (&#39;sita@example.com&#39;, &#39;Sita&#39;)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, email, name FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>Ram</td></tr><tr><td>2</td><td>sita@example.com</td><td>Sita</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A local time goes in with its offset (+05:45) and comes out in UTC</strong></p>
+<pre><code class="language-sql">CREATE TABLE live_prices (time TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(time);
+INSERT INTO live_prices VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 513.0);
+SELECT time, symbol, ltp FROM live_prices;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE live_prices (</code></p>
+<pre><code class="language-text">table &#39;live_prices&#39; created</code></pre>
+<p><code>INSERT INTO live_prices VALUES (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;CITY&#39;, 513.0)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT time, symbol, ltp FROM live_prices</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>CITY</td><td>513</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="shell">kdb shell</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb shell [database]</code></pre>
+<p>A prompt where you type SQL. End each statement with <code>;</code>. A statement can use many lines. Commands that start with a dot (<code>.tables</code>, <code>.help</code>, <code>.exit</code>) need no <code>;</code>.</p>
+<ul><li><strong>Notes:</strong> without a database name, the shell opens the database <code>default</code> in the data folder. There you can also use <code>CREATE DATABASE</code> and <code>USE</code>.</li></ul>
+<p><strong>Command line: Type SQL in the shell</strong></p>
+<pre><code class="language-bash">kdb shell shop
+&gt; CREATE TABLE posts (id LONG PRIMARY KEY AUTO, author STRING, body STRING);
+&gt; INSERT INTO posts (author, body) VALUES (&#39;ram&#39;, &#39;CITY dividend looks good.&#39;);
+&gt; .tables
+&gt; SELECT id, author, body FROM posts;
+&gt; .exit</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on shop
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; table &#39;posts&#39; created
+kdb&gt; 1 row(s) inserted
+kdb&gt; name  | kind       | partition | columns | rows
+------+------------+-----------+---------+-----
+posts | relational | NONE      |       3 |    1
+(1 row, 0.0 ms)
+kdb&gt; id | author | body                     
+---+--------+--------------------------
+ 1 | ram    | CITY dividend looks good.
+(1 row, 0.2 ms)
+kdb&gt;</code></pre>
+<h2 id="sample-data">Load the sample data</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">Get-Content file.sql -Raw | kdb sql database -</code></pre>
+<p>The tutorial has a small made-up stock market dataset: securities, brokers, daily and minute candles, a trade log and live prices. It is just one example of what KDB stores. The <code>-</code> means &quot;read the SQL from the pipe&quot;. Run the two files once, in this order.</p>
+<ul><li><strong>Notes:</strong> the help examples with <code>fixture=sample</code> use this data. <a href="sample-data.html">Sample data</a> shows every table.</li></ul>
+<pre><code class="language-powershell"># from the KDB source folder
+$examples = &quot;docs\tutorial\examples&quot;
+Get-Content &quot;$examples\setup\schema.sql&quot; -Raw | kdb sql market -
+Get-Content &quot;$examples\setup\sample-data.sql&quot; -Raw | kdb sql market -</code></pre>
+<p><strong>Command line: The tables of the sample data</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb sql market &quot;SHOW TABLES&quot;</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">name         | kind       | partition | columns | rows
+-------------+------------+-----------+---------+-----
+brokers      | relational | NONE      |       2 |    5
+live_data    | timeseries | DAY       |      12 |   12
+ochl_day     | timeseries | YEAR      |       7 |   57
+ochl_minutes | timeseries | MONTH     |       7 |  956
+securities   | relational | NONE      |       3 |    5
+trade_log    | timeseries | DAY       |       8 |   32
+(6 rows, 0.0 ms)</code></pre>
+<p><strong>Example: The last 3 daily closes of CITY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>CITY</td><td>504.9</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>504.6</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>CITY</td><td>497.5</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="console">Open the web console (kdb serve)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve [database] [--port 9900]</code></pre>
+<p>Starts the server. Open <a href="http://127.0.0.1:9900" target="_blank" rel="noopener">http://127.0.0.1:9900</a> in a browser. Type SQL, press <strong>Ctrl+Enter</strong>, and see a grid or a chart. Press <strong>Ctrl+C</strong> to stop the server.</p>
+<ul><li><strong>Notes:</strong> while the server runs, other <code>kdb</code> commands cannot open the same database. Use the console or the HTTP API then. Without a database name, the server serves every database in the data folder. The same server answers PostgreSQL tools on port 8832 and serves these help pages at <a href="http://127.0.0.1:9900/help/" target="_blank" rel="noopener">http://127.0.0.1:9900/help/</a>. See <a href="cli-serve.html">kdb serve</a> and <a href="web-console.html">web console</a>.</li><li><strong>In Docker</strong> the server is already running: open <a href="http://127.0.0.1:9900" target="_blank" rel="noopener">http://127.0.0.1:9900</a> and paste your <code>KDB_TOKEN</code> into the token box.</li></ul>
+<p><strong>Command line: Start the server on the sample data</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb serve market</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">KDB 0.2.0-dev
+  console   http://127.0.0.1:9900
+  data      market
+  backups   ./_backups/market (from default)
+  access    no token
+  capacity  32 HTTP threads (default), 500 PostgreSQL connections (default), lock wait 5 s (default)
+  lanes     reads using 100 ms of CPU (three times in a row) wait for one of 16 heavy slots, at most 16 HTTP in line (--lanes on)
+  reads     32 reads run at once (the CPUs, at least 2; follows the CPU limit), the rest wait in line (--read-slots)
+  commits   synced to disk before they are confirmed (--sync-commits always)
+  time zone Asia/Katmandu (the computer&#39;s); also timers and backup schedules
+  readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
+  memory    26.95 GB for the whole process (85% of the machine&#39;s memory); table data 512.0 MB of it (--memory)
+  cpu       32 CPUs (the machine&#39;s); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
+  limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
+  safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
+  logs      slow queries &gt;= 1000 ms to market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
+  recovery  manifest copy: a, last shutdown: clean
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 1 ms (0 transactions), clean-up 0 ms
+
+Press Ctrl+C to stop.</code></pre>
+<h2 id="next">Next steps</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SQL basics  -&gt;  tables  -&gt;  writing data  -&gt;  queries</code></pre>
+<p>Read the topics in this order:</p>
+<ol><li><a href="sql-basics.html">SQL basics</a>: names, text, numbers, NULL and comments.</li><li><a href="databases.html">Databases</a> and <a href="create-table.html">CREATE TABLE</a>.</li><li><a href="insert.html">INSERT</a>, <a href="update-delete.html">UPDATE and DELETE</a>.</li><li><a href="select.html">SELECT</a> and <a href="sample-by.html">SAMPLE BY</a> for candles.</li></ol>
+<p>Or follow the <a href="../tutorial/02-first-database.html">tutorial</a> chapter by chapter. <a href="whats-new.html">What&#39;s new</a> lists what was added lately.</p>
+<p><strong>Example: A taste of time-series SQL: hourly candles of CITY</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;
+SAMPLE BY 1h;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:00:00.000Z</td><td>504.6</td><td>507</td><td>503.8</td><td>506.4</td><td>36170</td></tr><tr><td>2026-09-10T06:00:00.000Z</td><td>506.4</td><td>506.6</td><td>500.7</td><td>501.2</td><td>41280</td></tr><tr><td>2026-09-10T07:00:00.000Z</td><td>501.2</td><td>504.1</td><td>500.7</td><td>502.6</td><td>46160</td></tr><tr><td>2026-09-10T08:00:00.000Z</td><td>502.6</td><td>507</td><td>501.9</td><td>505</td><td>47560</td></tr><tr><td>2026-09-10T09:00:00.000Z</td><td>505</td><td>506.1</td><td>504.3</td><td>504.9</td><td>11870</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/quick-start.md">This page as markdown</a>.</footer>
+</body>
+</html>

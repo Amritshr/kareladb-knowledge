@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>20. Charts and dashboards - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/20-charts-and-dashboards.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/20-charts-and-dashboards.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="20-charts-and-dashboards">20. Charts and dashboards</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h3 id="what-you-will-learn">What you will learn</h3>
+<ul><li>How to see any query result as a chart: candles, lines, bars, pie, treemap, heatmaps, numbers and more.</li><li>How KDB picks a chart for you, and how to change it with one click.</li><li>How to add indicators (SMA, EMA, Bollinger, RSI, MACD, stochastic) to candles.</li><li>How to zoom, pan and read values with the mouse, a touch screen or the keyboard.</li><li>How to build <strong>dashboards</strong>: many charts on one page, with pickers like <code>$symbol</code>, auto refresh, save, share and import.</li></ul>
+<p>Everything runs in the web console (chapter 6). No internet is needed. The charts are drawn by KDB&#39;s own code: plain JavaScript files in the console folder (<code>web/charts</code> next to <code>kdb</code>, <code>web/console/charts</code> in the source). No chart library is loaded from the internet.</p>
+<h3 id="before-you-start">Before you start</h3>
+<p>Load the sample data (see the quick start) and start the server:</p>
+<pre><code class="language-powershell">kdb serve demo</code></pre>
+<p>Open <a href="http://127.0.0.1:9900" target="_blank" rel="noopener">http://127.0.0.1:9900</a>. The examples in this chapter use the tables <code>ochl_day</code>, <code>ochl_minutes</code>, <code>live_data</code> and <code>securities</code> of the sample data.</p>
+<p>At the top left of the console is the <strong>Home</strong> menu. <strong>Home</strong> is the SQL page you know from chapter 6. <strong>Dashboard</strong> is new. The button shows where you are, for example <code>Home / Dashboard</code>. The console remembers which page you used last.</p>
+<h2 id="part-1-charts-from-a-query">Part 1: Charts from a query</h2>
+<h3 id="your-first-chart">Your first chart</h3>
+<ol><li><p>Choose <strong>Home</strong> in the <strong>Home</strong> menu at the top left.</p></li><li><p>Type this query and press <strong>Ctrl+Enter</strong>:</p>
+<pre><code class="language-sql">SELECT time, open, high, low, close, volume FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time;</code></pre></li><li><p>Click <strong>Chart</strong> above the result.</p></li></ol>
+<blockquote><p><strong>Picture:</strong> a dark chart area. Green and red candles go from left to right. Under them is a smaller area with green and red volume bars. Prices are on the right side, dates at the bottom. At the top left a line shows the date, O, H, L, C, the change in % and the volume of the last candle.</p></blockquote>
+<ol start="4"><li>Move the mouse over the candles. A dashed crosshair follows the mouse. The top line shows the candle under the mouse. The price and the date are marked on the axes.</li><li>Turn the mouse wheel to zoom. Drag to move left and right. Double-click to go back.</li></ol>
+<p>Above the chart there is a <strong>toolbar</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>What it does</th></tr></thead><tbody><tr><td>Chart type list</td><td>Shows the chart type (here <strong>Candlestick</strong>). Choose another type here.</td></tr><tr><td><strong>Columns</strong></td><td>Choose which columns the chart uses.</td></tr><tr><td>Symbol list</td><td>Only when the result has several symbols: the chart shows one symbol at a time.</td></tr><tr><td><strong>Indicators</strong></td><td>Add SMA, EMA, Bollinger bands, RSI, MACD or stochastic.</td></tr><tr><td><strong>Log</strong></td><td>Logarithmic price scale. Good for long periods with big moves.</td></tr><tr><td><strong>No gaps</strong></td><td>Leave out time without rows (nights, Friday and Saturday, holidays). Every candle gets the same width.</td></tr><tr><td>Legend</td><td>Names and colors of the lines. Click a name to hide or show that line.</td></tr><tr><td><strong>Reset</strong></td><td>Back to the first view (like double-click).</td></tr><tr><td><strong>PNG</strong></td><td>Save the chart as a picture.</td></tr><tr><td><strong>CSV</strong></td><td>Save the rows of the chart as a CSV file (no new query).</td></tr><tr><td><strong>Full screen</strong></td><td>Show only the chart. Press <strong>Escape</strong> to go back.</td></tr><tr><td><strong>Add to dashboard</strong></td><td>Put this query and this chart on a dashboard (Part 2).</td></tr></tbody></table></div>
+<p>The console remembers the chart type and the columns for each query. Run the same query again and you get the same chart.</p>
+<h3 id="how-kdb-picks-the-chart">How KDB picks the chart</h3>
+<p>KDB looks at the columns of the result and picks a chart. You can always change it.</p>
+<div class="table-wrap"><table><thead><tr><th>The result has</th><th>KDB shows</th><th>Example query</th></tr></thead><tbody><tr><td>a time column and <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td><strong>Candlestick</strong> (volume bars when there is a <code>volume</code> column)</td><td><code>SELECT time, open, high, low, close, volume FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></td></tr><tr><td>a time column and numbers</td><td><strong>Line</strong></td><td><code>SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></td></tr><tr><td>a time column, a symbol column (up to 8 symbols) and a number</td><td><strong>Line</strong>, one line per symbol</td><td><code>SELECT time, symbol, close FROM ochl_day</code></td></tr><tr><td>a time column, many symbols (more than 8) and one number</td><td><strong>Matrix heatmap</strong> (symbols down, days across)</td><td><code>SELECT time, symbol, pct_change FROM ...</code></td></tr><tr><td>a text column and a number</td><td><strong>Bar</strong> (horizontal bars when the names are long or many)</td><td><code>SELECT symbol, sum(volume) AS volume FROM ochl_day GROUP BY symbol</code></td></tr><tr><td>a text column and a share that adds up to 100 (or 1)</td><td><strong>Donut</strong></td><td><code>SELECT symbol, weight FROM my_portfolio</code></td></tr><tr><td>two text columns like sector and symbol, and numbers</td><td><strong>Treemap</strong></td><td>see <a href="#treemap">Treemap</a></td></tr><tr><td>two label columns and a number, like a correlation table</td><td><strong>Matrix heatmap</strong></td><td>see <a href="#matrix-heatmap">Matrix heatmap</a></td></tr><tr><td>the same text many times and a number</td><td><strong>Box plot</strong> (one box per text)</td><td><code>SELECT symbol, (close - open) / open * 100 AS change_pct FROM ochl_day</code></td></tr><tr><td>one number column</td><td><strong>Histogram</strong></td><td><code>SELECT (close - open) / open * 100 AS change_pct FROM ochl_day</code></td></tr><tr><td>two number columns</td><td><strong>Scatter</strong></td><td><code>SELECT close, volume FROM ochl_day</code></td></tr><tr><td>three number columns</td><td><strong>Bubble</strong> (the third number is the size)</td><td></td></tr><tr><td>one row of numbers</td><td><strong>KPI number</strong></td><td><code>SELECT count(*) AS trades, sum(amount) AS amount FROM trade_log</code></td></tr><tr><td>no number column</td><td>no chart: the <strong>Chart</strong> button is off</td><td><code>SELECT symbol, name FROM securities</code></td></tr></tbody></table></div>
+<h3 id="all-chart-types">All chart types</h3>
+<p>Open the chart type list to see them all. Types that do not fit the result are grey, with a short note of what they need (for example <code>Candlestick (needs a time column and open, high, low, close)</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Group</th><th>Types</th></tr></thead><tbody><tr><td>Price</td><td>Candlestick, OHLC bars</td></tr><tr><td>Time</td><td>Line, Step line, Area, Stacked area</td></tr><tr><td>Compare</td><td>Bar (vertical), Bar (horizontal), Grouped bar, Stacked bar</td></tr><tr><td>Spread</td><td>Histogram, Box plot, Scatter, Bubble</td></tr><tr><td>Share</td><td>Pie, Donut, Treemap</td></tr><tr><td>Heatmap</td><td>Calendar heatmap, Matrix heatmap</td></tr><tr><td>Number</td><td>KPI number, Gauge</td></tr><tr><td>Table</td><td>Table (green and red change columns, color scales, sparklines)</td></tr></tbody></table></div>
+<p>Colors: green and red always mean up and down. Lines and bars use eight other colors (blue, orange, violet, pink, yellow, cyan, brown, purple) that people with color blindness can also tell apart. The charts follow the <strong>Light / Dark</strong> button of the console.</p>
+<h3 id="choose-the-columns">Choose the columns</h3>
+<p>Click <strong>Columns</strong>. A small box opens. What you can choose depends on the chart type:</p>
+<div class="table-wrap"><table><thead><tr><th>Chart type</th><th>Choices</th></tr></thead><tbody><tr><td>Candlestick, OHLC</td><td>Time, Open, High, Low, Close, Volume, One chart per (for example <code>symbol</code>)</td></tr><tr><td>Line, Step, Area, Stacked area</td><td>Time (X), Values (Y, several), Series (group), One chart per</td></tr><tr><td>Bars</td><td>Category, Values (several), Series (group), Colors (one color per series, or green above 0 and red below)</td></tr><tr><td>Histogram</td><td>Value, Bins (how many bars; empty = chosen for you)</td></tr><tr><td>Box plot</td><td>Group, Value</td></tr><tr><td>Scatter, Bubble</td><td>X, Y, Size, Color, Label</td></tr><tr><td>Pie, Donut</td><td>Category, Value</td></tr><tr><td>Treemap</td><td>Group, Label, Size, Color (change)</td></tr><tr><td>Calendar heatmap</td><td>Date, Value, One chart per</td></tr><tr><td>Matrix heatmap</td><td>Columns (X), Rows (Y), Value; or Value columns (wide table)</td></tr><tr><td>KPI number</td><td>Numbers, Change column, Order by time, Minimum, Maximum</td></tr><tr><td>Gauge</td><td>Value, Order by time, Minimum, Maximum</td></tr><tr><td>Table</td><td>Green/red columns, Color scale columns, Sparkline: one row per, time, value</td></tr></tbody></table></div>
+<p>Press <strong>Escape</strong> or <strong>Close</strong> to close the box.</p>
+<h3 id="candles-volume-and-indicators">Candles, volume and indicators</h3>
+<h4 id="indicators-from-the-menu">Indicators from the menu</h4>
+<ol><li>Run the candle query from <a href="#your-first-chart">Your first chart</a> and click <strong>Chart</strong>.</li><li>Click <strong>Indicators</strong>.</li><li>Choose <strong>RSI</strong> in the list and click <strong>Add</strong>. A new area opens under the volume bars. It shows the RSI line with lines at 30 and 70.</li><li>Choose <strong>MACD</strong> and click <strong>Add</strong>. Another area shows the MACD line, the signal line and green/red histogram bars.</li><li>Choose <strong>SMA</strong> and click <strong>Add</strong>. A line is drawn over the candles.</li><li>Change the numbers in the box, for example <code>period 50</code> for SMA. The chart changes at once.</li><li>Click <strong>Remove</strong> to take an indicator away.</li></ol>
+<div class="table-wrap"><table><thead><tr><th>Indicator</th><th>Where</th><th>Settings</th></tr></thead><tbody><tr><td>SMA, EMA</td><td>over the candles</td><td>period (20)</td></tr><tr><td>Bollinger bands</td><td>over the candles, with a light band</td><td>period (20), mult (2)</td></tr><tr><td>RSI</td><td>own area, 0 to 100, lines at 30 and 70</td><td>period (14)</td></tr><tr><td>MACD</td><td>own area: MACD, signal, histogram</td><td>fast (12), slow (26), signal (9)</td></tr><tr><td>Stochastic</td><td>own area, 0 to 100, lines at 20 and 80</td><td>period (14), smooth (3), signal (3)</td></tr></tbody></table></div>
+<p>The indicators are computed in the browser from the close prices of the rows. They also work on a line chart with one line.</p>
+<p>At the top left of each area, a small line shows the values under the mouse, for example <code>RSI  RSI 14 56.21</code>.</p>
+<h4 id="indicators-from-sql">Indicators from SQL</h4>
+<p>Chapter 19 has many indicator functions. When your query returns them as columns, the chart puts them in the right place by their name:</p>
+<pre><code class="language-sql">SELECT time, open, high, low, close, volume,
+       sma(close, 5)  AS sma_5,
+       rsi(close, 5)  AS rsi_5
+FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time;</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Column name contains</th><th>Drawn</th></tr></thead><tbody><tr><td><code>sma</code>, <code>ema</code>, <code>wma</code>, <code>vwap</code>, <code>bb_upper</code>, <code>bb_middle</code>, <code>bb_lower</code>, <code>upper</code>, <code>lower</code></td><td>a line over the candles</td></tr><tr><td><code>rsi</code></td><td>the RSI area (0 to 100)</td></tr><tr><td><code>macd</code>, <code>signal</code>, <code>hist</code></td><td>the MACD area; a name with <code>hist</code> is drawn as bars</td></tr><tr><td><code>stoch</code>, <code>_k</code>, <code>_d</code></td><td>the stochastic area</td></tr><tr><td><code>atr</code>, <code>adx</code>, <code>cci</code>, <code>obv</code>, <code>mfi</code>, <code>roc</code>, <code>willr</code></td><td>an own area with that name</td></tr><tr><td>any other number</td><td>over the candles when its values are near the prices, else an own area</td></tr></tbody></table></div>
+<p>A name without <code>AS</code> works too, for example the column <code>sma(close, 20)</code>.</p>
+<h4 id="big-data-100-000-candles">Big data: 100,000 candles</h4>
+<p>The chart stays fast with many rows. When you zoom out so far that several candles fall on one pixel, KDB joins them: one candle then stands for 2, 4, 8, ... rows (first open, highest high, lowest low, last close, total volume). The top line then shows the time range, for example <code>2026-01-04 - 2026-02-11  O 505  H 530  L 498  C 521</code>. Zoom in and you see every candle again.</p>
+<p>For more than 100,000 rows, raise <strong>Rows</strong> at the top of the editor. The most is 1,000,000 rows per query.</p>
+<h3 id="zoom-pan-and-read-values">Zoom, pan and read values</h3>
+<div class="table-wrap"><table><thead><tr><th>Mouse or touch</th><th>What it does</th></tr></thead><tbody><tr><td>Wheel</td><td>Zoom in and out around the mouse</td></tr><tr><td>Drag</td><td>Move left and right (scatter: in every direction)</td></tr><tr><td>Two fingers (phone, tablet)</td><td>Pinch to zoom, move to pan</td></tr><tr><td>Tap (phone)</td><td>Show the values at that place</td></tr><tr><td>Double-click</td><td>Reset</td></tr><tr><td>Move the mouse</td><td>Crosshair and values (candles and lines: top line; other charts: a small box next to the mouse)</td></tr></tbody></table></div>
+<p>The chart can be used with the keyboard. Press <strong>Tab</strong> until the chart has a blue frame:</p>
+<div class="table-wrap"><table><thead><tr><th>Keys</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Left</strong> / <strong>Right</strong> (or <strong>Up</strong> / <strong>Down</strong>)</td><td>Move a cursor from row to row, bar to bar, slice to slice. The values are shown and read out by screen readers.</td></tr><tr><td><strong>Shift</strong> + arrow</td><td>Move the view</td></tr><tr><td><strong>+** / **-</strong></td><td>Zoom in / out</td></tr><tr><td><strong>Home</strong> or <strong>0</strong></td><td>Reset</td></tr><tr><td><strong>F</strong></td><td>Full screen</td></tr><tr><td><strong>Escape</strong></td><td>Hide the cursor, or leave full screen</td></tr></tbody></table></div>
+<h4 id="log-scale">Log scale</h4>
+<p>Tick <strong>Log</strong> for a logarithmic price scale. The same percent move then has the same height at a low price and at a high price. Log works when all visible values are above 0. It is not offered for bars.</p>
+<h4 id="no-gaps-trading-day-time-axis">No gaps (trading-day time axis)</h4>
+<p>A stock market is open only some hours of some days (for example 11:00 to 15:00, Sunday to Thursday, as on some exchanges). With real time, a minute chart has big empty spaces for nights and weekends. With <strong>No gaps</strong>, those spaces are left out and each row gets the same width. The date labels are then placed on the first row of a new day, month or year.</p>
+<ul><li>Candles and OHLC use <strong>No gaps</strong> from the start.</li><li>Lines use it when the rows have big holes. Untick <strong>No gaps</strong> to see real time.</li></ul>
+<h3 id="tables-with-colors-and-sparklines">Tables with colors and sparklines</h3>
+<p>Choose <strong>Table</strong> in the chart type list.</p>
+<ul><li>Columns whose names mean a change (<code>change</code>, <code>pct_change</code>, <code>diff</code>, <code>gain</code>, <code>return</code>, ...) and columns with plus and minus values are <strong>green</strong> with ▲ when above 0 and <strong>red</strong> with ▼ when below. The arrows help people who cannot see colors well.</li><li>In <strong>Columns</strong>, pick <strong>Color scale columns</strong> to color the cells from low (light) to high (dark). With plus and minus values the scale goes red - grey - green.</li><li>Click a column name to sort.</li></ul>
+<p><strong>Sparklines:</strong> when the result has a symbol, a time and a price, the table shows one row per symbol with the last price, the change in % and a small price line:</p>
+<pre><code class="language-sql">SELECT symbol, time, close FROM ochl_day ORDER BY time;</code></pre>
+<blockquote><p><strong>Picture:</strong> a table with the columns <code>symbol</code>, <code>close</code>, <code>change %</code> and <code>trend</code>. Each row has a small line in the <code>trend</code> column. The line is green when the price went up, red when it went down.</p></blockquote>
+<p>A cell with a JSON list of numbers, like <code>[505.2, 507.1, 503.9]</code>, also becomes a sparkline.</p>
+<p>The table shows at most 2,000 rows. The <strong>Grid</strong> view shows all rows.</p>
+<h3 id="examples-for-each-chart-type">Examples for each chart type</h3>
+<p>All examples use the sample data. Run the query, click <strong>Chart</strong>, and choose the type when KDB picks another one.</p>
+<h4 id="line-step-line-area">Line, step line, area</h4>
+<pre><code class="language-sql">SELECT time, symbol, close FROM ochl_day ORDER BY time;</code></pre>
+<p>One line per symbol, with a legend. Choose <strong>Step line</strong> for prices that jump, or <strong>Area</strong> for one line with a light fill.</p>
+<h4 id="stacked-area">Stacked area</h4>
+<pre><code class="language-sql">SELECT o.time, o.symbol, o.close * h.qty AS value
+FROM ochl_day o
+JOIN (SELECT &#39;CITY&#39; AS symbol, 100 AS qty UNION ALL SELECT &#39;COAST&#39;, 150) h ON h.symbol = o.symbol
+ORDER BY o.time;</code></pre>
+<p>Choose <strong>Stacked area</strong>. The layers add up to the total value of the two holdings.</p>
+<h4 id="bars">Bars</h4>
+<pre><code class="language-sql">SELECT symbol, sum(volume) AS volume FROM ochl_day GROUP BY symbol ORDER BY volume DESC;</code></pre>
+<blockquote><p><strong>Picture:</strong> three blue bars with rounded tops, one per symbol, with the value on top of each bar.</p></blockquote>
+<p>For long names KDB turns the bars sideways:</p>
+<pre><code class="language-sql">SELECT s.name, sum(o.volume) AS volume FROM ochl_day o JOIN securities s ON s.symbol = o.symbol GROUP BY s.name;</code></pre>
+<h4 id="grouped-and-stacked-bars">Grouped and stacked bars</h4>
+<pre><code class="language-sql">SELECT time, symbol, volume FROM ochl_day WHERE time &gt;= &#39;2026-08-23&#39; ORDER BY time;</code></pre>
+<p>Choose <strong>Stacked bar</strong>: one bar per day, one colored part per symbol. Choose <strong>Grouped bar</strong> to put the symbols side by side. In <strong>Columns</strong>, <strong>Category</strong> is <code>time</code>, <strong>Values</strong> is <code>volume</code> and <strong>Series</strong> is <code>symbol</code>.</p>
+<p>Bars with plus and minus values: open <strong>Columns</strong> and choose <strong>Colors: Green above 0, red below</strong>.</p>
+<h4 id="histogram">Histogram</h4>
+<pre><code class="language-sql">SELECT (close - open) / open * 100 AS change_pct FROM ochl_day;</code></pre>
+<p>How many days moved by how much. Hover over a bar to see the range and the number of days. Set <strong>Bins</strong> in <strong>Columns</strong> for more or fewer bars.</p>
+<h4 id="box-plot">Box plot</h4>
+<pre><code class="language-sql">SELECT symbol, (close - open) / open * 100 AS change_pct FROM ochl_day;</code></pre>
+<p>One box per symbol. The box goes from the 25% value to the 75% value; the thick line is the middle value (median). The thin lines reach the lowest and the highest normal values. Dots are unusual values (outliers). Hover over a box to see all numbers.</p>
+<h4 id="scatter-and-bubble">Scatter and bubble</h4>
+<pre><code class="language-sql">SELECT close, volume FROM ochl_day;</code></pre>
+<p>One dot per row. Hover over a dot to see its values. For a bubble chart, return three numbers and choose <strong>Bubble</strong>; the third number is the size of the bubble. A text column in <strong>Color</strong> gives each group its own color and a legend.</p>
+<h4 id="pie-and-donut">Pie and donut</h4>
+<pre><code class="language-sql">SELECT s.sector, sum(l.ltp * l.volume) AS turnover
+FROM (SELECT symbol, ltp, volume FROM live_data LATEST ON timestamp PARTITION BY symbol) l
+JOIN securities s ON s.symbol = l.symbol
+GROUP BY s.sector;</code></pre>
+<p>Choose <strong>Donut</strong>. The middle shows the total. The legend shows the share of each sector in %. More than 8 parts are joined into <strong>Other</strong>.</p>
+<h4 id="treemap">Treemap</h4>
+<pre><code class="language-sql">SELECT s.sector, l.symbol, l.ltp * l.volume AS turnover, l.pct_change
+FROM (SELECT symbol, ltp, volume, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol) l
+JOIN securities s ON s.symbol = l.symbol;</code></pre>
+<blockquote><p><strong>Picture:</strong> big rectangles, one per sector, with the sector name on top. Inside, one box per symbol. A bigger box means more turnover. Green boxes went up, red boxes went down; the stronger the color, the bigger the move. Each box shows the symbol and the change, for example <code>CITY +2.71%</code>.</p></blockquote>
+<h4 id="calendar-heatmap">Calendar heatmap</h4>
+<pre><code class="language-sql">SELECT time, (close - open) / open * 100 AS change_pct FROM ochl_day WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Choose <strong>Calendar heatmap</strong>. One small square per day, in columns of weeks (a week starts on Sunday) and rows of weekdays. Green days went up, red days went down. When the days span less than about a year, the calendar shows only those weeks; otherwise one row per year.</p>
+<h4 id="matrix-heatmap">Matrix heatmap</h4>
+<p>Daily moves of every symbol:</p>
+<pre><code class="language-sql">SELECT time, symbol, (close - open) / open * 100 AS change_pct FROM ochl_day ORDER BY time;</code></pre>
+<p>Choose <strong>Matrix heatmap</strong>. Symbols go down, days go across.</p>
+<p>A correlation matrix (with the <code>corr</code> function of chapter 19):</p>
+<pre><code class="language-sql">SELECT a.symbol AS a, b.symbol AS b, corr(a.close, b.close) AS corr
+FROM ochl_day a JOIN ochl_day b ON a.time = b.time
+GROUP BY a.symbol, b.symbol;</code></pre>
+<p>KDB picks the matrix by itself. Values from -1 to 1 get red (-1), grey (0) and green (1), and each cell shows its number when there is room.</p>
+<h4 id="kpi-number-and-gauge">KPI number and gauge</h4>
+<pre><code class="language-sql">SELECT count(*) AS trades, sum(amount) AS amount FROM trade_log;</code></pre>
+<blockquote><p><strong>Picture:</strong> two big numbers side by side, with the column names above them.</p></blockquote>
+<p>With several rows in time order, the KPI shows the last value, the change from the row before with ▲ or ▼, and a small line of all values:</p>
+<pre><code class="language-sql">SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time;</code></pre>
+<p>Choose <strong>KPI number</strong>. For a <strong>Gauge</strong> (a half circle that fills up), set <strong>Minimum</strong> and <strong>Maximum</strong> in <strong>Columns</strong>. Without them the gauge uses 0 to a round number above the value (0 to 100 for names with <code>pct</code>, <code>rsi</code> or <code>share</code>).</p>
+<h2 id="part-2-dashboards">Part 2: Dashboards</h2>
+<p>A dashboard is a page with many charts. Each chart is a <strong>panel</strong>. A panel has a title, one SQL query and chart settings. Dashboards are saved <strong>in the database</strong> (table <code>_dashboards</code>), so they are in every backup.</p>
+<h3 id="open-the-example-dashboards">Open the example dashboards</h3>
+<p>Choose <strong>Dashboard</strong> in the <strong>Home</strong> menu at the top left. The first time, the list at the top left has three examples:</p>
+<div class="table-wrap"><table><thead><tr><th>Example</th><th>Panels</th></tr></thead><tbody><tr><td><strong>Market overview</strong></td><td>Market turnover (KPI), advancers and decliners (KPI), market average close (area), top gainers and top losers (tables with green and red), sectors (treemap), turnover by symbol (bars). Refreshes every 5 seconds.</td></tr><tr><td><strong>Stock view</strong></td><td>Candles with volume, SMA 20, RSI 14 and MACD; last close (KPI); daily move % (calendar); size of daily moves (histogram). Pickers for symbol, from and to.</td></tr><tr><td><strong>Portfolio</strong></td><td>Portfolio value (area), allocation (donut), value by symbol (stacked area), holdings with trend (table with sparklines), a note.</td></tr></tbody></table></div>
+<blockquote><p><strong>Picture (Market overview):</strong> a row of three boxes at the top: a big number <code>126,481,156</code> for turnover, the numbers <code>3</code> and <code>1</code> for advancers and decliners, and a small area chart. Below are two tables with green ▲ and red ▼ values, then a treemap of sectors and horizontal bars of turnover.</p></blockquote>
+<p>The examples use the tables of the sample data. On your own database, open one and change the SQL of the panels (see <a href="#edit-a-panel">Edit a panel</a>). Click <strong>Save</strong> to keep your own copy; the example itself does not change.</p>
+<h3 id="make-your-own-dashboard">Make your own dashboard</h3>
+<ol><li><p>Open <strong>Dashboard</strong> in the <strong>Home</strong> menu, then <strong>More</strong> &gt; <strong>New dashboard</strong>.</p></li><li><p>Type a title, for example <code>My watchlist</code>, and click <strong>Create</strong>. The empty dashboard opens in edit mode.</p></li><li><p>Click <strong>Variables</strong>, then <strong>Add variable</strong>. Fill in:</p>
+<ul><li>name: <code>symbol</code></li><li>label: <code>Symbol</code></li><li>type: <strong>Values from SQL</strong></li><li>default value: <code>CITY</code></li><li>SQL for the values: <code>SELECT DISTINCT symbol FROM ochl_day ORDER BY symbol</code></li></ul>
+<p>Click <strong>OK</strong>. A <strong>Symbol</strong> list appears under the title bar.</p></li><li><p>Click <strong>Add panel</strong>. Fill in:</p>
+<ul><li><p>Title: <code>Candles</code></p></li><li><p>SQL:</p>
+<pre><code class="language-sql">SELECT time, open, high, low, close, volume FROM ochl_day
+WHERE symbol = $symbol ORDER BY time</code></pre></li></ul>
+<p>Click <strong>Run preview</strong> (or press <strong>Ctrl+Enter</strong> in the SQL box). The chart appears on the right. Change the chart type or the columns there, if you want. Click <strong>Add</strong>.</p></li><li><p>Click <strong>Add panel</strong> again:</p>
+<ul><li>Title: <code>Volume share</code></li><li>SQL: <code>SELECT symbol, sum(volume) AS volume FROM ochl_day GROUP BY symbol</code></li><li><strong>Run preview</strong>, choose <strong>Donut</strong> in the chart type list, click <strong>Add</strong>.</li></ul></li><li><p>Click <strong>Save</strong>. The message says <code>Saved &quot;My watchlist&quot; in the table _dashboards of database demo.</code></p></li><li><p>Click <strong>Done</strong> to leave edit mode.</p></li><li><p>Choose another symbol in the <strong>Symbol</strong> list. Every panel that uses <code>$symbol</code> runs again.</p></li></ol>
+<p>Reload the page: the Dashboards page and your dashboard open again.</p>
+<h3 id="add-a-chart-from-the-sql-page">Add a chart from the SQL page</h3>
+<ol><li>Run a query on the <strong>Home</strong> page and click <strong>Chart</strong>.</li><li>Pick the chart type and the columns.</li><li>Click <strong>Add to dashboard</strong> in the chart toolbar.</li><li>Choose the dashboard (or <strong>A new dashboard</strong>) and a panel title. Click <strong>Add</strong>.</li><li>The dashboard opens with the new panel. Click <strong>Save</strong>.</li></ol>
+<h3 id="edit-a-panel">Edit a panel</h3>
+<p>Each panel has a <strong>...</strong> button at its top right:</p>
+<div class="table-wrap"><table><thead><tr><th>Menu item</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Edit</strong></td><td>Change the title, the SQL, the number of rows, the chart type and the columns</td></tr><tr><td><strong>Refresh</strong></td><td>Run this panel again</td></tr><tr><td><strong>Open SQL in editor</strong></td><td>Put the SQL (with the variable values filled in) into the SQL page</td></tr><tr><td><strong>Save PNG</strong>, <strong>Save CSV</strong></td><td>Save the chart as a picture, or its rows as CSV</td></tr><tr><td><strong>Full screen</strong></td><td>Show only this chart</td></tr><tr><td><strong>Reset zoom</strong></td><td>Back to the first view</td></tr><tr><td><strong>Duplicate</strong></td><td>A copy of the panel</td></tr><tr><td><strong>Remove</strong></td><td>Delete the panel (edit mode only)</td></tr></tbody></table></div>
+<p>In the panel editor, <strong>Kind</strong> can also be <strong>Text note</strong>: a panel with plain text, for example how to use the dashboard.</p>
+<p>A panel runs <strong>one</strong> statement that <strong>reads</strong>: <code>SELECT</code> (also <code>WITH</code>, <code>SHOW</code>, <code>EXPLAIN</code>). The console sends it with <code>GET /exec</code>, and the server refuses SQL that changes data there (chapter 8). So a dashboard can never change or delete data, even when someone sends you a bad dashboard file.</p>
+<p>On a dashboard, the mouse wheel scrolls the page. To zoom a chart, hold <strong>Ctrl</strong> and turn the wheel, or click the chart first.</p>
+<h3 id="move-and-resize-panels">Move and resize panels</h3>
+<p>Click <strong>Edit</strong>. The panels get a grip (three lines) at the top left and a corner at the bottom right.</p>
+<ul><li><strong>Move:</strong> drag the top bar of a panel. A dashed box shows where it will go. Other panels move down to make room.</li><li><strong>Resize:</strong> drag the corner at the bottom right.</li><li><strong>With the keyboard:</strong> press <strong>Tab</strong> until the grip of a panel is selected. The <strong>arrow keys</strong> move the panel; <strong>Shift + arrow keys</strong> make it wider, narrower, taller or shorter.</li></ul>
+<p>The page has 12 columns. Panels move up when there is space above them, so there are no holes.</p>
+<p>On a phone (narrow screen), the panels are shown one under the other, in the order top to bottom and left to right.</p>
+<h3 id="variables">Variables</h3>
+<p>A variable is a picker at the top of the dashboard. Write <code>$name</code> (or <code>${name}</code>) in the SQL of a panel.</p>
+<div class="table-wrap"><table><thead><tr><th>Type</th><th>Picker</th><th>Put into SQL as</th><th>Example</th></tr></thead><tbody><tr><td><strong>Text</strong></td><td>a text box</td><td>a quoted text: <code>&#39;CITY&#39;</code></td><td><code>WHERE symbol = $symbol</code></td></tr><tr><td><strong>List of values</strong></td><td>a list with the values you typed (<code>CITY, COAST, VOLT</code>)</td><td><code>&#39;COAST&#39;</code></td><td><code>WHERE symbol = $symbol</code></td></tr><tr><td><strong>Values from SQL</strong></td><td>a list with the first column of a query</td><td><code>&#39;COAST&#39;</code></td><td><code>SELECT DISTINCT symbol FROM ochl_day ORDER BY symbol</code></td></tr><tr><td><strong>Number</strong></td><td>a number box</td><td><code>25</code> (only a number is allowed)</td><td><code>LIMIT $top</code></td></tr><tr><td><strong>Date</strong></td><td>a date box</td><td><code>&#39;2026-09-11&#39;</code></td><td><code>WHERE time BETWEEN $from AND $to</code></td></tr><tr><td><strong>Table or column name</strong></td><td>a text box</td><td>the name, only letters, digits and <code>_</code></td><td><code>SELECT * FROM $table</code></td></tr><tr><td><strong>Interval</strong></td><td>a text box</td><td><code>1d</code>, <code>15m</code>, <code>1M</code></td><td><code>SAMPLE BY $step</code></td></tr></tbody></table></div>
+<ul><li><strong>Many values:</strong> tick <strong>many values</strong> for a list. Then write <code>IN ($symbols)</code>: <code>WHERE symbol IN ($symbols)</code> becomes <code>WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;)</code>.</li><li><strong>Dates relative to today:</strong> a default of <code>today</code>, <code>today-30d</code>, <code>today-1w</code>, <code>today-3M</code> or <code>today-1y</code> is turned into a date when the dashboard opens. <code>now-2h</code> gives a time.</li><li>A <code>$name</code> inside quotes (<code>&#39;$symbol&#39;</code>) or in a comment is not changed.</li><li>The values you pick are remembered in your browser for each dashboard.</li></ul>
+<p><strong>Why this is safe:</strong> text values are always written as SQL text with quotes, and a quote inside the value is doubled (<code>O&#39;Brien</code> becomes <code>&#39;O&#39;&#39;Brien&#39;</code>). A number must be a number, a date must look like a date, and a name may only have letters, digits and <code>_</code>. A wrong value shows an error in the panel and nothing runs. So a value like <code>CITY&#39;; DROP TABLE x; --</code> stays harmless text.</p>
+<h3 id="auto-refresh">Auto refresh</h3>
+<p>The <strong>Auto refresh</strong> list has <strong>Off</strong>, <strong>5 s</strong>, <strong>10 s</strong>, <strong>30 s</strong>, <strong>1 min</strong>, <strong>5 min</strong> and <strong>15 min</strong>. With 5 s, every panel runs again every 5 seconds, for example for live prices from <code>live_data</code>.</p>
+<ul><li>Auto refresh pauses while the browser tab is hidden and while a dialog is open.</li><li>When you zoomed a chart, the zoom stays after a refresh. When the view showed the newest rows, it follows the new rows.</li><li>The refresh interval is saved with the dashboard. <strong>Refresh</strong> runs all panels at once.</li><li>The server keeps a result cache (<code>kdb serve --cache-mb</code>, default 64 MB). A panel that asks the same question again, while the tables did not change, gets its answer from memory. So auto refresh is cheap.</li></ul>
+<h3 id="save-share-export-and-import">Save, share, export and import</h3>
+<p><strong>Save</strong> writes the dashboard into the table <code>_dashboards</code> of the chosen database. The console makes the table the first time:</p>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS _dashboards (id STRING PRIMARY KEY, title STRING NOT NULL, body STRING NOT NULL, updated TIMESTAMP, updated_by STRING);</code></pre>
+<p>You can look at it on the SQL page:</p>
+<pre><code class="language-sql">SELECT id, title, updated, updated_by FROM _dashboards;</code></pre>
+<pre><code class="language-text">id            | title        | updated                  | updated_by
+--------------+--------------+--------------------------+-----------
+my-watchlist  | My watchlist | 2026-09-11T08:15:02.113Z | null</code></pre>
+<p>(<code>updated_by</code> is the user name when the server has users.)</p>
+<p>Each database has its own dashboards. Choose another database at the top and the list changes. <code>BACKUP DATABASE</code> and <strong>Backup now</strong> save the dashboards too.</p>
+<p>The <strong>More</strong> menu:</p>
+<div class="table-wrap"><table><thead><tr><th>Item</th><th>What it does</th></tr></thead><tbody><tr><td><strong>New dashboard</strong></td><td>An empty dashboard</td></tr><tr><td><strong>Duplicate</strong></td><td>A copy of this dashboard (Save to keep it)</td></tr><tr><td><strong>Export JSON file</strong></td><td>Download the dashboard as a <code>.json</code> file</td></tr><tr><td><strong>Copy JSON</strong></td><td>Copy the same text to the clipboard, to paste in a chat or email</td></tr><tr><td><strong>Import JSON</strong></td><td>Paste JSON or choose a <code>.json</code> file. The dashboard opens; click <strong>Save</strong> to keep it. An import never replaces a saved dashboard.</td></tr><tr><td><strong>Delete</strong></td><td>Delete the saved dashboard from the database</td></tr></tbody></table></div>
+<p>A dashboard file looks like this (shortened):</p>
+<pre><code class="language-json">{
+  &quot;kdb_dashboard&quot;: 1,
+  &quot;id&quot;: &quot;my-watchlist&quot;,
+  &quot;title&quot;: &quot;My watchlist&quot;,
+  &quot;description&quot;: &quot;&quot;,
+  &quot;refresh&quot;: 0,
+  &quot;variables&quot;: [
+    { &quot;name&quot;: &quot;symbol&quot;, &quot;label&quot;: &quot;Symbol&quot;, &quot;type&quot;: &quot;query&quot;, &quot;default&quot;: &quot;CITY&quot;,
+      &quot;sql&quot;: &quot;SELECT DISTINCT symbol FROM ochl_day ORDER BY symbol&quot; }
+  ],
+  &quot;panels&quot;: [
+    { &quot;id&quot;: &quot;candles&quot;, &quot;kind&quot;: &quot;chart&quot;, &quot;title&quot;: &quot;Candles&quot;, &quot;x&quot;: 0, &quot;y&quot;: 0, &quot;w&quot;: 6, &quot;h&quot;: 5,
+      &quot;sql&quot;: &quot;SELECT time, open, high, low, close, volume FROM ochl_day\nWHERE symbol = $symbol ORDER BY time&quot;,
+      &quot;chart&quot;: { &quot;type&quot;: &quot;candle&quot;, &quot;indicators&quot;: [{ &quot;kind&quot;: &quot;rsi&quot;, &quot;period&quot;: 14 }] },
+      &quot;limit&quot;: 10000 }
+  ]
+}</code></pre>
+<ul><li><code>x</code>, <code>y</code>, <code>w</code>, <code>h</code>: place and size in grid units (12 columns; one row is 60 pixels).</li><li><code>chart</code>: the chart type and the columns, like in the <strong>Columns</strong> box.</li><li>When a file is imported, KDB checks it: unknown fields are dropped, wrong values are fixed, and panels never overlap.</li></ul>
+<h3 id="who-can-do-what">Who can do what</h3>
+<p>When the server has users (chapter 16), the role decides:</p>
+<div class="table-wrap"><table><thead><tr><th>Role on the database</th><th>Look at dashboards</th><th>Change them on the page</th><th>Save</th><th>Delete</th></tr></thead><tbody><tr><td><code>read</code></td><td>yes</td><td>yes (not saved; use <strong>Export JSON file</strong>)</td><td>no, the <strong>Save</strong> button is off</td><td>no</td></tr><tr><td><code>write</code></td><td>yes</td><td>yes</td><td>yes, when the table <code>_dashboards</code> exists</td><td>yes</td></tr><tr><td><code>admin</code></td><td>yes</td><td>yes</td><td>yes; the first save creates <code>_dashboards</code></td><td>yes</td></tr></tbody></table></div>
+<p>The first dashboard in a database creates the table <code>_dashboards</code>. Creating a table needs the <code>admin</code> role. If a <code>write</code> user saves first, the message says: <code>The first dashboard in a database creates the table _dashboards. That needs the admin role; ...</code> Ask an admin to save one dashboard, or to run the <code>CREATE TABLE</code> above.</p>
+<p>Panels run with the role of the person who looks at the dashboard. A <code>read</code> user sees only data that <code>read</code> may see.</p>
+<h3 id="limits">Limits</h3>
+<ul><li>A panel shows at most the rows set in <strong>Rows at most</strong> (up to 100,000). The SQL page can show up to 1,000,000 rows.</li><li>Up to 60 panels and 20 variables per dashboard.</li><li>A <strong>Table</strong> chart shows 2,000 rows (the Grid view shows all).</li><li>Pie and donut show 8 parts at most; the rest is <strong>Other</strong>. Scatter colors: 8 groups at most.</li><li>Indicators from the <strong>Indicators</strong> menu need one series (no <strong>Series</strong> column).</li><li>Log scale is for line, candle, area and scatter charts, not for bars.</li><li>Dashboards are shared with everyone who can open the database. There are no private dashboards; use a separate database for that.</li><li>There is no &quot;undo&quot; in the dashboard editor. Leave without saving to go back (the console asks first).</li></ul>
+<h3 id="try-it-yourself">Try it yourself</h3>
+<ol><li>Show the daily moves of CITY as a calendar heatmap. Which day had the biggest drop?</li><li>Make a chart of the CITY minute candles for 15 minutes, with Bollinger bands and a stochastic area.</li><li>Make a dashboard <strong>Two stocks</strong> with two variables <code>$a</code> and <code>$b</code> (lists of symbols) and a line panel that shows both closes.</li><li>A friend sends you a dashboard file. How do you open it without replacing your own dashboards?</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li>Run
+<pre><code class="language-sql">SELECT time, (close - open) / open * 100 AS change_pct FROM ochl_day WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Click <strong>Chart</strong>, choose <strong>Calendar heatmap</strong>, and move the mouse over the reddest square. The box next to the mouse shows the date and the value.</p></li><li>Run
+<pre><code class="language-sql">SELECT time, first(open) AS open, max(high) AS high, min(low) AS low, last(close) AS close, sum(volume) AS volume
+FROM ochl_minutes WHERE symbol = &#39;CITY&#39; SAMPLE BY 15m;</code></pre>
+<p>Click <strong>Chart</strong>, then <strong>Indicators</strong>: add <strong>Bollinger bands</strong> and <strong>Stochastic</strong>.</p></li><li><strong>More</strong> &gt; <strong>New dashboard</strong>, title <code>Two stocks</code>. <strong>Variables</strong>: add <code>a</code> and <code>b</code>, type <strong>List of values</strong>, values <code>CITY, COAST, VOLT</code>, defaults <code>CITY</code> and <code>COAST</code>. <strong>Add panel</strong> with
+<pre><code class="language-sql">SELECT time, symbol, close FROM ochl_day WHERE symbol IN ($a, $b) ORDER BY time</code></pre>
+<p>KDB draws one line per symbol. <strong>Save</strong>.</p></li><li><strong>More</strong> &gt; <strong>Import JSON</strong>, choose the file, <strong>Open</strong>. Check the SQL of the panels, then <strong>Save</strong>. An import always gets a new id, so it never replaces a saved dashboard.</li></ol>
+</details>
+<hr>
+<p>Back to the tutorial overview</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/20-charts-and-dashboards.md">This page as markdown</a>.</footer>
+</body>
+</html>

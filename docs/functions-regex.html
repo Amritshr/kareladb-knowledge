@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regular expressions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Find, count, cut out and replace text with patterns like \d+ (one or more digits).">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-regex.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-regex.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="regular-expressions">Regular expressions</h1>
+<blockquote><p>Find, count, cut out and replace text with patterns like \d+ (one or more digits).</p></blockquote>
+<ul><li>Category: Functions — text</li><li>Keywords: regex, regexp, regular expression, pattern, pattern matching, flags, capture group, groups, back reference, look-ahead, lazy, greedy, ~, RLIKE, REGEXP, regexp_match, regexp_matches, regexp_split_to_array, regexp_split_to_table, split with a pattern, regexp_instr, validate email, Nepali digits</li><li>See also: <a href="functions-text.html">Text functions</a>, <a href="where.html">WHERE</a>, <a href="full-text-search.html">Full-text search</a></li></ul>
+<p>A <strong>regular expression</strong> (regex) is a small pattern that describes text. <code>\d+</code> means &quot;one or more digits&quot;. <code>^[A-Z]{2,8}$</code> means &quot;only 2 to 8 capital letters&quot;. Use them to check what a user typed, to find numbers in a news article, or to clean text.</p>
+<ul><li>A <code>NULL</code> argument gives <code>NULL</code>.</li><li>Upper and lower case must match, unless you give the flag <code>&#39;i&#39;</code>.</li><li>The pattern is found <strong>anywhere</strong> in the text. Put <code>^</code> at the start and <code>$</code> at the end to check the whole text.</li><li>KDB never backtracks (tries the same text again and again). So no pattern can hang the server. A very big job stops with an error.</li><li>Simple searches are easier with <a href="where.html">LIKE and ILIKE</a>. For searching words in many rows (a forum, news), use <a href="full-text-search.html">full-text search</a>. A regular expression reads every row.</li><li><code>x ~ &#39;pattern&#39;</code> is the same as <code>regexp_like(x, &#39;pattern&#39;)</code> (<code>~*</code> ignores case). <a href="where.html#similar-to">SIMILAR TO</a> is a whole-text match written with <code>%</code> and <code>_</code>.</li></ul>
+<p><strong>Example: Percent numbers people wrote in forum posts</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE forum_posts (id LONG PRIMARY KEY AUTO, body STRING NOT NULL);
+INSERT INTO forum_posts (body) VALUES
+  (&#39;Profit is up 18%. I think the price will go up.&#39;),
+  (&#39;But NPL is still 2.6%. Wait for the next quarter.&#39;),
+  (&#39;नाफा राम्रो छ, तर मूल्य पहिले नै बढिसकेको छ।&#39;),
+  (&#39;NPL went down from 2.91% to 2.6%. That is good news.&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id,
+       regexp_substr(body, &#39;\d+(\.\d+)?%&#39;) AS first_percent,
+       regexp_count(body, &#39;\d+(\.\d+)?%&#39;) AS percents
+FROM forum_posts
+WHERE regexp_like(body, &#39;\d%&#39;)
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>first_percent (STRING)</th><th>percents (LONG)</th></tr></thead><tbody><tr><td>1</td><td>18%</td><td>1</td></tr><tr><td>2</td><td>2.6%</td><td>1</td></tr><tr><td>4</td><td>2.91%</td><td>2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="regexp-like">regexp_like</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_like(text, pattern)
+regexp_like(text, pattern, flags)</code></pre>
+<p><code>true</code> when the pattern is found somewhere in the text.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text to search in</td></tr><tr><td><code>pattern</code></td><td>STRING</td><td>the <a href="functions-regex.html#syntax">regular expression</a></td></tr><tr><td><code>flags</code></td><td>STRING</td><td><code>&#39;i&#39;</code> ignore upper and lower case of English letters; <code>&#39;c&#39;</code> case must match (the default)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> a wrong pattern is an error, not <code>false</code>. The flag <code>&#39;g&#39;</code> is not allowed here. For a simple &quot;contains&quot; check, <code>LIKE &#39;%text%&#39;</code> is enough.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;CITY&#39;, &#39;^[A-Z]{2,8}$&#39;) AS a, regexp_like(&#39;city&#39;, &#39;^[A-Z]{2,8}$&#39;) AS b, regexp_like(&#39;city&#39;, &#39;^[A-Z]{2,8}$&#39;, &#39;i&#39;) AS ignore_case, regexp_like(&#39;CITY&#39;, &#39;IT&#39;) AS anywhere;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th><th>ignore_case (BOOL)</th><th>anywhere (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Check an email and a mobile number (Nepal format) when a user registers</strong></p>
+<pre><code class="language-sql">SELECT email, phone,
+       regexp_like(email, &#39;^[\w.+-]+@[\w-]+(\.[\w-]+)+$&#39;) AS email_ok,
+       regexp_like(phone, &#39;^9[78]\d{8}$&#39;) AS phone_ok
+FROM (SELECT &#39;ram.sharma@example.com&#39; AS email, &#39;9841234567&#39; AS phone
+      UNION ALL SELECT &#39;sita@@mail&#39;, &#39;98412345&#39;
+      UNION ALL SELECT &#39;hari@northwind.example.com&#39;, &#39;9761234567&#39;) AS signups;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>email (STRING)</th><th>phone (STRING)</th><th>email_ok (BOOL)</th><th>phone_ok (BOOL)</th></tr></thead><tbody><tr><td>ram.sharma@example.com</td><td>9841234567</td><td>true</td><td>true</td></tr><tr><td>sita@@mail</td><td>98412345</td><td>false</td><td>false</td></tr><tr><td>hari@northwind.example.com</td><td>9761234567</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Forum posts written in Nepali (Devanagari letters)</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE forum_posts (id LONG PRIMARY KEY AUTO, body STRING NOT NULL);
+INSERT INTO forum_posts (body) VALUES (&#39;Profit is up 18%.&#39;), (&#39;नाफा राम्रो छ।&#39;), (&#39;CITY को मूल्य बढ्यो&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, body FROM forum_posts WHERE regexp_like(body, &#39;[ऀ-ॿ]&#39;) ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>2</td><td>नाफा राम्रो छ।</td></tr><tr><td>3</td><td>CITY को मूल्य बढ्यो</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Look-ahead is not supported</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;CITY&#39;, &#39;CI(?=TY)&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: regexp_like: regular expression &#39;CI(?=TY)&#39;: (?...) forms other than (?:...) are not supported</code></p>
+<h2 id="regexp-substr">regexp_substr</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_substr(text, pattern)
+regexp_substr(text, pattern, flags)</code></pre>
+<p>The first part of the text that matches the pattern. <code>NULL</code> when nothing matches.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text to search in</td></tr><tr><td><code>pattern</code></td><td>STRING</td><td>the <a href="functions-regex.html#syntax">regular expression</a></td></tr><tr><td><code>flags</code></td><td>STRING</td><td><code>&#39;i&#39;</code> ignore case; <code>&#39;c&#39;</code> case must match (the default)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>, or <code>NULL</code> when there is no match.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> it always gives the whole match; there is no argument for a group. To get only group 1, use <code>regexp_replace(text, &#39;^.*?(pattern).*$&#39;, &#39;\1&#39;)</code> (see the example below). The flag <code>&#39;g&#39;</code> is not allowed. Oracle and MySQL have more arguments (position, occurrence); KDB does not.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_substr(&#39;EPS 12.50, BVPS 245.3&#39;, &#39;\d+\.\d+&#39;) AS first_number, regexp_substr(&#39;no digits&#39;, &#39;\d+&#39;) AS none, regexp_substr(&#39;City city&#39;, &#39;CITY&#39;, &#39;i&#39;) AS ignore_case;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_number (STRING)</th><th>none (STRING)</th><th>ignore_case (STRING)</th></tr></thead><tbody><tr><td>12.50</td><td>NULL</td><td>City</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Find the email address in news articles</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE news (id LONG PRIMARY KEY AUTO, title STRING NOT NULL, body STRING NOT NULL);
+INSERT INTO news (title, body) VALUES
+  (&#39;City Bank profit rises 18%&#39;, &#39;City Bank reported a net profit of $3.27 billion for Q4 of 2082/83.&#39;),
+  (&#39;Volt River sells record energy&#39;, &#39;The plant produced 2105 GWh this year. Contact: info@voltriver.example.com&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, regexp_substr(body, &#39;[\w.]+@[\w.]+\w&#39;) AS email
+FROM news
+WHERE regexp_like(body, &#39;\w+@\w+&#39;);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th></tr></thead><tbody><tr><td>2</td><td>info@voltriver.example.com</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Only the number, without the % sign (a group)</strong></p>
+<pre><code class="language-sql">SELECT regexp_substr(&#39;Profit is up 18.5% this year&#39;, &#39;\d+(\.\d+)?%&#39;) AS with_sign,
+       regexp_replace(&#39;Profit is up 18.5% this year&#39;, &#39;^.*?(\d+(\.\d+)?)%.*$&#39;, &#39;\1&#39;) AS group_1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>with_sign (STRING)</th><th>group_1 (STRING)</th></tr></thead><tbody><tr><td>18.5%</td><td>18.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regexp-count">regexp_count</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_count(text, pattern)
+regexp_count(text, pattern, flags)</code></pre>
+<p>How many times the pattern is found in the text. The matches do not overlap: after a match, the search goes on after its end.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text to search in</td></tr><tr><td><code>pattern</code></td><td>STRING</td><td>the <a href="functions-regex.html#syntax">regular expression</a></td></tr><tr><td><code>flags</code></td><td>STRING</td><td><code>&#39;i&#39;</code> ignore case; <code>&#39;c&#39;</code> case must match (the default)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>. <code>0</code> when nothing matches.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> a pattern that can match empty text also counts the empty places: <code>regexp_count(&#39;abc&#39;, &#39;&#39;)</code> is <code>4</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_count(&#39;a1b22c333&#39;, &#39;\d+&#39;) AS numbers, regexp_count(&#39;a1b22c333&#39;, &#39;\d&#39;) AS digits, regexp_count(&#39;CITY city&#39;, &#39;city&#39;, &#39;i&#39;) AS ignore_case, regexp_count(&#39;abc&#39;, &#39;&#39;) AS empty_pattern;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>numbers (LONG)</th><th>digits (LONG)</th><th>ignore_case (LONG)</th><th>empty_pattern (LONG)</th></tr></thead><tbody><tr><td>3</td><td>6</td><td>2</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Words in English and Nepali posts</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE forum_posts (id LONG PRIMARY KEY AUTO, body STRING NOT NULL);
+INSERT INTO forum_posts (body) VALUES (&#39;Profit is up 18%. I think the price will go up.&#39;), (&#39;सिटी बैंकको नाफा १८ प्रतिशतले बढ्यो।&#39;);</code></pre>
+<pre><code class="language-sql">SELECT id, regexp_count(body, &#39;\w+&#39;) AS words, length(body) AS letters FROM forum_posts ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>words (LONG)</th><th>letters (LONG)</th></tr></thead><tbody><tr><td>1</td><td>11</td><td>47</td></tr><tr><td>2</td><td>6</td><td>36</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Hashtags in a post</strong></p>
+<pre><code class="language-sql">SELECT regexp_count(&#39;Buy #CITY and #VOLT now #market&#39;, &#39;#\w+&#39;) AS tags,
+       regexp_substr(&#39;Buy #CITY and #VOLT now #market&#39;, &#39;#\w+&#39;) AS first_tag;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>tags (LONG)</th><th>first_tag (STRING)</th></tr></thead><tbody><tr><td>3</td><td>#CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regexp-replace">regexp_replace</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_replace(text, pattern, replacement)
+regexp_replace(text, pattern, replacement, flags)</code></pre>
+<p>Replaces the <strong>first</strong> match of the pattern with <code>replacement</code>. With the flag <code>&#39;g&#39;</code> (global), it replaces <strong>every</strong> match.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING (a number is turned into text)</td><td>the text to change</td></tr><tr><td><code>pattern</code></td><td>STRING</td><td>the <a href="functions-regex.html#syntax">regular expression</a></td></tr><tr><td><code>replacement</code></td><td>STRING</td><td>the new text. <code>\1</code> to <code>\9</code> = the text of group 1 to 9; <code>\0</code> or <code>\&amp;</code> = the whole match; a backslash written two times = one backslash</td></tr><tr><td><code>flags</code></td><td>STRING</td><td>any mix of <code>&#39;g&#39;</code> every match, <code>&#39;i&#39;</code> ignore case, <code>&#39;c&#39;</code> case must match. Example: <code>&#39;gi&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>. The text is unchanged when nothing matches.</li><li><strong>NULL:</strong> <code>NULL</code> when any argument is <code>NULL</code>.</li><li><strong>Notes:</strong> without <code>&#39;g&#39;</code> only the first match changes (like PostgreSQL; in MySQL every match changes). A group that took no part (or does not exist, like <code>\9</code> in a pattern with 1 group) puts in empty text. A group is a part of the pattern in <code>( )</code>; groups are numbered by their <code>(</code> from left to right. When <code>&#39;i&#39;</code> and <code>&#39;c&#39;</code> are both given, the last one wins.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_replace(&#39;a1b2c3&#39;, &#39;\d&#39;, &#39;#&#39;) AS first_only, regexp_replace(&#39;a1b2c3&#39;, &#39;\d&#39;, &#39;#&#39;, &#39;g&#39;) AS every, regexp_replace(&#39;City CITY&#39;, &#39;city&#39;, &#39;X&#39;, &#39;gi&#39;) AS ignore_case, regexp_replace(&#39;CITY&#39;, &#39;x&#39;, &#39;y&#39;) AS no_match;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>first_only (STRING)</th><th>every (STRING)</th><th>ignore_case (STRING)</th><th>no_match (STRING)</th></tr></thead><tbody><tr><td>a#b2c3</td><td>a#b#c#</td><td>X X</td><td>CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Clean spaces in text a user typed</strong></p>
+<pre><code class="language-sql">SELECT &#39;[&#39; || regexp_replace(trim(&#39;  City    Bank   Limited &#39;), &#39;\s+&#39;, &#39; &#39;, &#39;g&#39;) || &#39;]&#39; AS cleaned;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>cleaned (STRING)</th></tr></thead><tbody><tr><td>[City Bank Limited]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Groups: turn 2082/83 into 2082-2083</strong></p>
+<pre><code class="language-sql">SELECT regexp_replace(&#39;FY 2082/83&#39;, &#39;(\d{2})(\d{2})/(\d{2})&#39;, &#39;\1\2-\1\3&#39;) AS fiscal_year,
+       regexp_replace(&#39;CITY&#39;, &#39;.&#39;, &#39;[\&amp;]&#39;, &#39;g&#39;) AS whole_match;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>fiscal_year (STRING)</th><th>whole_match (STRING)</th></tr></thead><tbody><tr><td>FY 2082-2083</td><td>[C][I][T][Y]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A URL part (slug) from a news title, and text without HTML tags</strong></p>
+<pre><code class="language-sql">SELECT lower(trim(regexp_replace(&#39;City Bank: Q4 Results!&#39;, &#39;[^a-z0-9]+&#39;, &#39;-&#39;, &#39;gi&#39;), &#39;-&#39;)) AS slug,
+       regexp_replace(&#39;&lt;p&gt;Index &lt;b&gt;closes&lt;/b&gt; at 2,840&lt;/p&gt;&#39;, &#39;&lt;[^&gt;]*&gt;&#39;, &#39;&#39;, &#39;g&#39;) AS plain_text,
+       CAST(regexp_replace(&#39;$1,234,567&#39;, &#39;[^0-9]&#39;, &#39;&#39;, &#39;g&#39;) AS LONG) AS amount;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>slug (STRING)</th><th>plain_text (STRING)</th><th>amount (LONG)</th></tr></thead><tbody><tr><td>city-bank-q4-results</td><td>Index closes at 2,840</td><td>1234567</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Unknown flag</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT regexp_replace(&#39;a1b2&#39;, &#39;\d&#39;, &#39;#&#39;, &#39;x&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: regexp_replace: unknown flag &#39;x&#39;; use &#39;i&#39; to ignore case and &#39;g&#39; to replace every match</code></p>
+<h2 id="flags">Flags</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_like(text, pattern, &#39;i&#39;)
+regexp_replace(text, pattern, replacement, &#39;gi&#39;)</code></pre>
+<p>The last argument of the regexp functions is a text of flags. Each letter is one flag.</p>
+<div class="table-wrap"><table><thead><tr><th>Flag</th><th>Meaning</th><th>Allowed in</th></tr></thead><tbody><tr><td><code>i</code></td><td>ignore upper and lower case (English letters A-Z only)</td><td>all four functions</td></tr><tr><td><code>c</code></td><td>case must match (this is the default)</td><td>all four functions</td></tr><tr><td><code>g</code></td><td>replace every match, not only the first</td><td>only <code>regexp_replace</code></td></tr></tbody></table></div>
+<ul><li><strong>NULL:</strong> a <code>NULL</code> flags text gives <code>NULL</code>.</li><li><strong>Notes:</strong> an empty text <code>&#39;&#39;</code> means no flags. Any other letter is an error. PostgreSQL flags like <code>n</code>, <code>s</code>, <code>x</code> or <code>m</code> are not supported here; <code>regexp_match</code> and friends take <a href="#pg-flags">PostgreSQL flags</a>. There are no flags inside the pattern: <code>(?i)</code> is an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;market&#39;, &#39;MARKET&#39;) AS default_case, regexp_like(&#39;market&#39;, &#39;MARKET&#39;, &#39;i&#39;) AS i_flag, regexp_like(&#39;market&#39;, &#39;MARKET&#39;, &#39;ic&#39;) AS last_wins, regexp_replace(&#39;a-b-c&#39;, &#39;-&#39;, &#39;+&#39;, &#39;g&#39;) AS g_flag;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>default_case (BOOL)</th><th>i_flag (BOOL)</th><th>last_wins (BOOL)</th><th>g_flag (STRING)</th></tr></thead><tbody><tr><td>false</td><td>true</td><td>false</td><td>a+b+c</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The flag g only works in regexp_replace</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;CITY&#39;, &#39;T&#39;, &#39;g&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: regexp_like: unknown flag &#39;g&#39;; use &#39;i&#39; to ignore case</code></p>
+<h2 id="regexp-match">regexp_match</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_match(text, pattern)
+regexp_match(text, pattern, flags)</code></pre>
+<p>The first match, as PostgreSQL gives it: an array of what each <code>(...)</code> group caught, or of the whole match when the pattern has no groups. <code>NULL</code> when nothing matches.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td>STRING</td><td>the text to search</td></tr><tr><td><code>pattern</code></td><td>STRING</td><td>the regular expression</td></tr><tr><td><code>flags</code></td><td>STRING</td><td>optional <a href="#pg-flags">PostgreSQL flags</a>; <code>g</code> is refused (use <code>regexp_matches</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> an array of <code>STRING</code> (a <code>JSON</code> list; <code>{a,b}</code> on the Postgres port). A group that took no part is <code>NULL</code>.</li><li><strong>Notes:</strong> take one part with <code>[n]</code>: <code>(regexp_match(&#39;abc123&#39;, &#39;(\d+)&#39;))[1]</code> is <code>123</code>. A pattern written in the query is compiled once for all rows.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_match(&#39;abc123&#39;, &#39;(\d+)&#39;) AS groups,
+       (regexp_match(&#39;abc123&#39;, &#39;(\d+)&#39;))[1] AS digits,
+       regexp_match(&#39;foobarbequebaz&#39;, &#39;bar.*que&#39;) AS whole,
+       regexp_match(&#39;abc&#39;, &#39;x&#39;) AS no_match;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>groups (TEXT[])</th><th>digits (STRING)</th><th>whole (TEXT[])</th><th>no_match (TEXT[])</th></tr></thead><tbody><tr><td>[&quot;123&quot;]</td><td>123</td><td>[&quot;barbeque&quot;]</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Split a log line into its parts</strong></p>
+<pre><code class="language-sql">SELECT m[1] AS method, m[2] AS path, m[3]::int AS status
+FROM (SELECT regexp_match(&#39;GET /api/quotes 200&#39;, &#39;^(\w+) (\S+) (\d+)$&#39;) AS m) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>method (STRING)</th><th>path (STRING)</th><th>status (INT)</th></tr></thead><tbody><tr><td>GET</td><td>/api/quotes</td><td>200</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regexp-matches">regexp_matches</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_matches(text, pattern)
+regexp_matches(text, pattern, flags)</code></pre>
+<p>Like <a href="#regexp-match">regexp_match</a>, but it gives <strong>rows</strong>: one row (an array) per match with the flag <code>g</code>, at most one without it, and no row when nothing matches.</p>
+<ul><li><strong>Returns:</strong> rows of arrays of <code>STRING</code>. In <code>FROM</code> the column is named after the function or the alias: <code>FROM regexp_matches(...) AS m</code>.</li><li><strong>Notes:</strong> in <code>FROM</code> the arguments must be constants; for a column write <code>SELECT id, regexp_matches(col, ...) FROM t</code>. An empty match moves on by one character, as in PostgreSQL.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT m[1] AS key, m[2] AS value
+FROM regexp_matches(&#39;k1=v1, k2=v2&#39;, &#39;(\w+)=(\w+)&#39;, &#39;g&#39;) AS m;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>key (STRING)</th><th>value (STRING)</th></tr></thead><tbody><tr><td>k1</td><td>v1</td></tr><tr><td>k2</td><td>v2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT count(*) AS digits FROM regexp_matches(&#39;a1b2c3&#39;, &#39;\d&#39;, &#39;g&#39;);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>digits (LONG)</th></tr></thead><tbody><tr><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="regexp-split">regexp_split_to_array, regexp_split_to_table</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">regexp_split_to_array(text, pattern [, flags])
+regexp_split_to_table(text, pattern [, flags])</code></pre>
+<p>Cuts the text wherever the pattern matches. <code>_to_array</code> gives one list, <code>_to_table</code> one row per piece.</p>
+<ul><li><strong>Returns:</strong> an array of <code>STRING</code>, or rows of <code>STRING</code>.</li><li><strong>Notes:</strong> an empty text gives one empty piece. As in PostgreSQL an empty match only cuts between characters: <code>regexp_split_to_array(&#39;hello world&#39;, &#39;\s*&#39;)</code> gives the 10 letters. The flag <code>g</code> is refused.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_split_to_array(&#39;a,b;c&#39;, &#39;[,;]&#39;) AS parts,
+       array_length(regexp_split_to_array(&#39;a,b;c&#39;, &#39;[,;]&#39;), 1) AS how_many;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>parts (TEXT[])</th><th>how_many (LONG)</th></tr></thead><tbody><tr><td>[&quot;a&quot;,&quot;b&quot;,&quot;c&quot;]</td><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT word FROM regexp_split_to_table(&#39;the quick  brown fox&#39;, &#39;\s+&#39;) AS t(word);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>word (STRING)</th></tr></thead><tbody><tr><td>the</td></tr><tr><td>quick</td></tr><tr><td>brown</td></tr><tr><td>fox</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="pg-flags">PostgreSQL flags</h2>
+<p><code>regexp_match</code>, <code>regexp_matches</code> and the split functions take PostgreSQL&#39;s flag letters:</p>
+<div class="table-wrap"><table><thead><tr><th>Flag</th><th>Meaning</th></tr></thead><tbody><tr><td><code>g</code></td><td>every match (<code>regexp_matches</code> only)</td></tr><tr><td><code>i</code> / <code>c</code></td><td>ignore case / case must match; the last one wins</td></tr><tr><td><code>q</code></td><td>the pattern is plain text: <code>.</code> is a dot</td></tr><tr><td><code>s</code>, <code>t</code></td><td>accepted: what KDB always does (<code>.</code> matches a line break, no spaces-ignored syntax)</td></tr></tbody></table></div>
+<ul><li><strong>Errors:</strong> PostgreSQL&#39;s flags <code>n</code>, <code>m</code>, <code>p</code>, <code>w</code>, <code>x</code>, <code>b</code> and <code>e</code> are refused (SQLSTATE 0A000), because they would change what matches. Any other letter: &quot;invalid regular expression option&quot; (22023). A wrong pattern: SQLSTATE 2201B.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT regexp_match(&#39;ABC&#39;, &#39;b&#39;, &#39;i&#39;) AS i_flag, regexp_match(&#39;a.c&#39;, &#39;.&#39;, &#39;q&#39;) AS q_flag;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>i_flag (TEXT[])</th><th>q_flag (TEXT[])</th></tr></thead><tbody><tr><td>[&quot;B&quot;]</td><td>[&quot;.&quot;]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="syntax">Regular expression syntax</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">.   [abc]   [^abc]   [a-z]   [[:alpha:]]   \d \w \s \D \W \S
+^   $   \b   \B
+(group)   (?:group)   a|b
+*   +   ?   {n}   {n,}   {n,m}   *?   +?   ??   {n,m}?
+\.  \(  \n  \t  \r  \f  \v  \uXXXX</code></pre>
+<p>What you can write in a pattern. One character is one letter, also a Nepali letter or sign.</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>It matches</th></tr></thead><tbody><tr><td><code>a</code>, <code>न</code></td><td>that character</td></tr><tr><td><code>.</code></td><td>any one character, also a line break</td></tr><tr><td><code>[abc]</code></td><td>one of a, b, c</td></tr><tr><td><code>[^abc]</code></td><td>one character that is <strong>not</strong> a, b or c</td></tr><tr><td><code>[a-z]</code>, <code>[०-९]</code>, <code>[ऀ-ॿ]</code></td><td>one character in the range (the last one is every Devanagari character)</td></tr><tr><td><code>[[:alpha:]]</code> <code>[[:digit:]]</code> <code>[[:alnum:]]</code> <code>[[:upper:]]</code> <code>[[:lower:]]</code> <code>[[:space:]]</code> <code>[[:punct:]]</code></td><td>English letters, digits 0-9, both, capitals, small letters, spaces, punctuation (only inside <code>[ ]</code>)</td></tr><tr><td><code>\d</code> / <code>\D</code></td><td>a digit 0-9 / not a digit</td></tr><tr><td><code>\w</code> / <code>\W</code></td><td>a word character: letters of any language (also Nepali letters, signs and digits ०-९), 0-9 and <code>_</code> / not one</td></tr><tr><td><code>\s</code> / <code>\S</code></td><td>a space, tab or line break / not one</td></tr><tr><td><code>^</code> / <code>$</code></td><td>the start / the end of the <strong>whole</strong> text</td></tr><tr><td><code>\b</code> / <code>\B</code></td><td>a word edge / not a word edge</td></tr><tr><td><code>(...)</code></td><td>a group with a number (for <code>\1</code> in <code>regexp_replace</code>)</td></tr><tr><td><code>(?:...)</code></td><td>a group without a number</td></tr><tr><td><code>a|b</code></td><td>a or b; the first one that matches wins (like Perl, Python and JavaScript)</td></tr><tr><td><code>*</code> <code>+</code> <code>?</code></td><td>0 or more, 1 or more, 0 or 1 times (as many as possible)</td></tr><tr><td><code>{n}</code> <code>{n,}</code> <code>{n,m}</code></td><td>exactly n, n or more, n to m times</td></tr><tr><td><code>*?</code> <code>+?</code> <code>??</code> <code>{n,m}?</code></td><td>the same, but as few as possible (lazy)</td></tr><tr><td><code>\.</code> <code>\(</code> <code>\[</code> <code>\$</code> ...</td><td>the punctuation character itself (a backslash written two times is one backslash)</td></tr><tr><td><code>\n</code> <code>\t</code> <code>\r</code> <code>\f</code> <code>\v</code></td><td>line break, tab, carriage return, form feed, vertical tab</td></tr><tr><td><code>\u</code> and 4 hex digits</td><td>the character with that Unicode number</td></tr></tbody></table></div>
+<p><strong>Not supported</strong> (you get a clear error):</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>Instead</th></tr></thead><tbody><tr><td>back references in the pattern: <code>(a)\1</code></td><td>not possible; <code>\1</code> works only in the replacement of <code>regexp_replace</code></td></tr><tr><td>look-ahead and look-behind: <code>(?=...)</code> <code>(?!...)</code> <code>(?&lt;=...)</code></td><td>match more text, then cut it with a group in <code>regexp_replace</code></td></tr><tr><td>named groups <code>(?P&lt;name&gt;...)</code>, flags in the pattern <code>(?i)</code></td><td>numbered groups; the flags argument</td></tr><tr><td><code>\p{L}</code> and other Unicode classes</td><td><code>\w</code>, or a range like <code>[ऀ-ॿ]</code></td></tr><tr><td><code>\A</code> <code>\z</code> <code>\Z</code></td><td><code>^</code> and <code>$</code> (they always mean the start and end of the whole text)</td></tr><tr><td><code>[[:word:]]</code>, <code>[[:xdigit:]]</code> and other classes not in the table</td><td><code>[\w]</code>, <code>[0-9a-fA-F]</code></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>\d</code> is only 0-9. For Nepali digits write <code>[०-९]</code>, or <code>[0-9०-९]</code> for both. <code>^</code> and <code>$</code> do not match at line breaks inside the text. A <code>{</code> that does not start a count like <code>{2}</code> is a normal character. <code>[[:alpha:]]</code>, <code>[[:upper:]]</code> and <code>[[:lower:]]</code> are English letters only; <code>\w</code> also has Nepali letters.</li><li><strong>Limits:</strong> a pattern can be at most 4096 bytes, have at most 32 numbered groups and counts up to <code>{1000}</code>. A pattern that becomes too big, or needs too much work for a very long text, stops with an error.</li><li>In SQL text, a backslash is a normal character. Write <code>&#39;\d+&#39;</code> with one backslash. To put <code>&#39;</code> in the pattern, write it twice: <code>&#39;it&#39;&#39;s&#39;</code>.</li></ul>
+<p><strong>Example: Nepali and English digits</strong></p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;१८&#39;, &#39;\d&#39;) AS d_nepali, regexp_like(&#39;18&#39;, &#39;\d&#39;) AS d_english,
+       regexp_substr(&#39;नाफा १८ प्रतिशत&#39;, &#39;[०-९]+&#39;) AS nepali_number,
+       regexp_count(&#39;सिटी बैंकको नाफा १८ प्रतिशतले बढ्यो।&#39;, &#39;\w+&#39;) AS nepali_words;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>d_nepali (BOOL)</th><th>d_english (BOOL)</th><th>nepali_number (STRING)</th><th>nepali_words (LONG)</th></tr></thead><tbody><tr><td>false</td><td>true</td><td>१८</td><td>6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Greedy and lazy, and the first alternative wins</strong></p>
+<pre><code class="language-sql">SELECT regexp_substr(&#39;&lt;b&gt;CITY&lt;/b&gt; and &lt;b&gt;COAST&lt;/b&gt;&#39;, &#39;&lt;b&gt;.*&lt;/b&gt;&#39;) AS greedy,
+       regexp_substr(&#39;&lt;b&gt;CITY&lt;/b&gt; and &lt;b&gt;COAST&lt;/b&gt;&#39;, &#39;&lt;b&gt;.*?&lt;/b&gt;&#39;) AS lazy,
+       regexp_substr(&#39;CITY&#39;, &#39;CI|CITY&#39;) AS first_alternative,
+       regexp_like(&#39;CITY Bank&#39;, &#39;\bBank&#39;) AS word_edge,
+       regexp_like(&#39;CITY Bank&#39;, &#39;\bITY&#39;) AS no_word_edge;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>greedy (STRING)</th><th>lazy (STRING)</th><th>first_alternative (STRING)</th><th>word_edge (BOOL)</th><th>no_word_edge (BOOL)</th></tr></thead><tbody><tr><td><b>CITY</b> and <b>COAST</b></td><td><b>CITY</b></td><td>CI</td><td>true</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: ^ and $ are the start and end of the whole text</strong></p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;line one
+line two&#39;, &#39;^line two&#39;) AS start_of_line_2,
+       regexp_like(&#39;line one
+line two&#39;, &#39;one.line&#39;) AS dot_matches_line_break;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>start_of_line_2 (BOOL)</th><th>dot_matches_line_break (BOOL)</th></tr></thead><tbody><tr><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Back references are not supported</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;CITY CITY&#39;, &#39;(\w+) \1&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: regexp_like: regular expression &#39;(\w+) \1&#39;: back references like \1 are not supported in a pattern</code></p>
+<p><strong>Example: A broken pattern</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT regexp_substr(&#39;CITY&#39;, &#39;(CI&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: regexp_substr: regular expression &#39;(CI&#39;: &#39;(&#39; has no matching &#39;)&#39;</code></p>
+<p><strong>Example: Counts above 1000 are refused</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT regexp_like(&#39;CITY&#39;, &#39;A{2000}&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: regexp_like: regular expression &#39;A{2000}&#39;: a count in {n,m} is larger than 1000</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-regex.md">This page as markdown</a>.</footer>
+</body>
+</html>

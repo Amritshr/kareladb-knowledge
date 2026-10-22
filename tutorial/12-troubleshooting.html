@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12. Troubleshooting - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/12-troubleshooting.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/12-troubleshooting.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="12-troubleshooting">12. Troubleshooting</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>The common error messages, exactly as KDB prints them.</li><li>What each one means and how to fix it.</li><li>Answers to frequent questions.</li></ul>
+<p>All messages below are real output (<code>examples/12-troubleshooting/</code>). Use <code>Ctrl+F</code> and search for words from your error.</p>
+<h2 id="quick-table">Quick table</h2>
+<div class="table-wrap"><table><thead><tr><th>Message starts with</th><th>Section</th></tr></thead><tbody><tr><td><code>the database is open in another program</code></td><td><a href="#database-is-locked">Database is locked</a></td></tr><tr><td><code>a row with ... already exists</code></td><td><a href="#duplicate-key">Duplicate key</a></td></tr><tr><td><code>unknown column</code></td><td><a href="#unknown-column">Unknown column</a></td></tr><tr><td><code>table or view ... does not exist</code></td><td><a href="#unknown-table">Unknown table</a></td></tr><tr><td><code>expected ... but found ...</code></td><td><a href="#syntax-error">Syntax error</a></td></tr><tr><td><code>is not a time like</code> / <code>cannot compare TIMESTAMP</code></td><td><a href="#time-format">Time format</a></td></tr><tr><td><code>has more than 2 decimal places</code></td><td><a href="#decimal-places">Decimal places</a></td></tr><tr><td><code>has no matching row in</code></td><td><a href="#references-failure">REFERENCES failure</a></td></tr><tr><td><code>cannot remove ... still refers to it</code></td><td><a href="#cannot-delete-a-referenced-row">Cannot delete a referenced row</a></td></tr><tr><td><code>cannot be NULL</code> / <code>needs a value</code></td><td><a href="#missing-value">Missing value</a></td></tr><tr><td><code>is out of range</code></td><td><a href="#number-out-of-range">Number out of range</a></td></tr><tr><td><code>cannot compare STRING ... with LONG</code></td><td><a href="#type-mismatch">Type mismatch</a></td></tr><tr><td><code>port ... is already in use</code></td><td><a href="#port-in-use">Port in use</a></td></tr><tr><td><code>access token required</code> / <code>wrong access token</code> (HTTP 401)</td><td><a href="#token-401">Token 401</a></td></tr><tr><td><code>cross-site requests are not allowed</code> (HTTP 403)</td><td><a href="#403-cross-site-cross-origin-host-name">403 cross-site</a></td></tr><tr><td><code>this SQL changes data, so it must be sent with POST</code> (HTTP 405)</td><td><a href="#405-get-changes-data">405 GET changes data</a></td></tr><tr><td><code>????</code> or broken letters instead of non-English text</td><td><a href="#text-in-other-languages-looks-broken">Text in other languages looks broken</a></td></tr><tr><td><code>failed its checksum</code>, <code>DAMAGED</code></td><td><a href="#damage">Damage</a></td></tr></tbody></table></div>
+<h2 id="database-is-locked">Database is locked</h2>
+<pre><code class="language-text">error: Locked: the database is open in another program (for example kdb serve). Stop it, or query it through that server&#39;s console or HTTP API (kdb serve)
+exit code: 1
+error: the database is open in another program. Stop it first, or run BACKUP DATABASE in that server&#39;s console or API.
+exit code: 1</code></pre>
+<p>(The first line is from <code>kdb sql</code>, the second from <code>kdb backup</code>, while <code>kdb serve</code> had the database open.)</p>
+<p><strong>Why:</strong> only one program can open a database folder. <code>kdb serve</code>, <code>kdb shell</code> or another <code>kdb sql</code> has it open.</p>
+<p><strong>Fix:</strong></p>
+<ul><li>Use the running server: the console, <code>POST /exec</code>, <code>POST /api/backup</code>, <code>POST /api/check</code> (chapter 8).</li><li>Or stop the other program (Ctrl+C in its window), then run your command.</li><li>Look for a forgotten <code>kdb shell</code> in another window. In PowerShell: <code>Get-Process kdb</code>.</li><li>Do not delete <code>kdb.lock</code>. The lock is held by the running program, not by the file. When no program runs, the lock is free.</li></ul>
+<h2 id="duplicate-key">Duplicate key</h2>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.6, 507, 500.7, 504.9, 183040);</code></pre>
+<pre><code class="language-text">error: a row with symbol=&#39;CITY&#39;, time=&#39;2026-09-10T00:00:00.000Z&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
+<p><strong>Why:</strong> the table has a DEDUP KEY or PRIMARY KEY, and a row with these values is already there (or twice in your statement). <strong>Nothing</strong> from this INSERT was saved.</p>
+<p><strong>Fix:</strong> <code>INSERT OR REPLACE</code> (new data wins) or <code>INSERT OR IGNORE</code> (old data wins). If you did not expect a duplicate: check the time zone (<code>+05:45</code> missing?) and <code>ROUND</code> on the time column (chapter 3).</p>
+<h2 id="unknown-column">Unknown column</h2>
+<pre><code class="language-sql">SELECT time, symbol, clsoe
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<pre><code class="language-text">error: line 1, column 22: unknown column &#39;clsoe&#39; (table &#39;ochl_day&#39; has: time symbol open high low close volume)</code></pre>
+<p><strong>Why:</strong> a typing mistake, or the column is in another table.</p>
+<p><strong>Fix:</strong> look at the list in the message. With joins, write <code>table.column</code>. In the console, click the arrow next to a table to see its columns.</p>
+<p><code>line 1, column 22</code> is the place in the SQL you sent. In a file, it is the line of the file.</p>
+<h2 id="unknown-table">Unknown table</h2>
+<pre><code class="language-sql">SELECT * FROM ochl_days;</code></pre>
+<pre><code class="language-text">error: line 1, column 15: table or view &#39;ochl_days&#39; does not exist</code></pre>
+<p><strong>Fix:</strong> <code>SHOW TABLES</code> or <code>.tables</code> in the shell. Check that you opened the right database <strong>folder</strong>: <code>kdb sql</code> creates a new empty database when the folder does not exist, so a wrong folder name gives &quot;does not exist&quot; for every table.</p>
+<h2 id="syntax-error">Syntax error</h2>
+<pre><code class="language-sql">SELECT symbol close FROM ochl_day WHERE;</code></pre>
+<pre><code class="language-text">error: line 1, column 40: expected an expression (a value, column name, function call or &#39;(&#39;) but found &#39;;&#39;</code></pre>
+<p><strong>Why:</strong> the SQL does not follow the grammar. The message says what KDB expected at that place.</p>
+<p>Watch out: <code>SELECT symbol close</code> is <strong>not</strong> an error. It means &quot;column symbol, named close&quot;. A missing comma changes your column names quietly.</p>
+<p>An unclosed text:</p>
+<pre><code class="language-sql">SELECT * FROM brokers WHERE name = &#39;Northgate;</code></pre>
+<pre><code class="language-text">error: line 1, column 36: expected a closing &#39; to end the string that starts here but found the end of the input</code></pre>
+<p>A reserved word as a name: see chapter 11 (<code>&quot;order&quot;</code>).</p>
+<h2 id="time-format">Time format</h2>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;10/09/2026&#39;, &#39;CITY&#39;, 1, 1, 1, 1, 1);</code></pre>
+<pre><code class="language-text">error: column &#39;time&#39; (TIMESTAMP): &#39;10/09/2026&#39; is not a time like &#39;2026-09-11 11:00:00&#39; (UTC) or &#39;2026-09-11T11:00:00+05:45&#39;</code></pre>
+<pre><code class="language-sql">SELECT time, close FROM ochl_day WHERE time &gt;= &#39;2026-9-1&#39;;</code></pre>
+<pre><code class="language-text">error: line 1, column 45: cannot compare TIMESTAMP &#39;2025-12-28T00:00:00.000Z&#39; with STRING &#39;2026-9-1&#39;</code></pre>
+<p><strong>Fix:</strong> always <code>YYYY-MM-DD</code> with two digits for month and day: <code>&#39;2026-09-01&#39;</code>. Add <code>+05:45</code> for Nepal times. Convert other formats in your script before sending (for example in PowerShell: <code>([datetime]::ParseExact(&#39;10/09/2026&#39;, &#39;dd/MM/yyyy&#39;, $null)).ToString(&#39;yyyy-MM-dd&#39;)</code>).</p>
+<p><strong>Times are 5:45 hours wrong?</strong> You wrote Nepal time without <code>+05:45</code>. KDB read it as UTC. Fix the data with an UPDATE: <code>UPDATE t SET time = time - 20700000 WHERE ...</code> (this subtracts 5 h 45 min), but check the DEDUP KEY first.</p>
+<h2 id="decimal-places">Decimal places</h2>
+<pre><code class="language-sql">CREATE TABLE wallet (id INT PRIMARY KEY, balance DECIMAL(2));
+INSERT INTO wallet VALUES (1, 100.50);
+UPDATE wallet SET balance = balance * 1.015 WHERE id = 1;</code></pre>
+<pre><code class="language-text">table &#39;wallet&#39; created
+
+1 row(s) inserted
+error: column &#39;balance&#39; (DECIMAL(2)): 102.0075 has more than 2 decimal places</code></pre>
+<p><strong>Why:</strong> KDB never rounds money by itself.</p>
+<p><strong>Fix:</strong> round it yourself, the way your business rule says:</p>
+<pre><code class="language-sql">UPDATE wallet SET balance = round(balance * 1.015, 2) WHERE id = 1;
+SELECT id, balance FROM wallet;</code></pre>
+<pre><code class="language-text">1 row(s) updated
+
+id | balance
+---+--------
+ 1 |  102.01
+(1 row, 0.1 ms)</code></pre>
+<p>For amounts with more than about 15 digits, send the value as <strong>text</strong> (<code>&#39;123456789012345.67&#39;</code>). A number that big cannot be stored exactly as a DOUBLE, so KDB refuses it and tells you to write it as text.</p>
+<h2 id="references-failure">REFERENCES failure</h2>
+<pre><code class="language-sql">INSERT INTO trade_log (date, transaction_id, symbol, buyer, seller, quantity, rate)
+VALUES (&#39;2026-09-10&#39;, 200001, &#39;CITY&#39;, 77, 58, 10, 515);</code></pre>
+<pre><code class="language-text">error: column &#39;buyer&#39; = &#39;77&#39; has no matching row in brokers(id)</code></pre>
+<p><strong>Fix:</strong> insert the missing row first (<code>INSERT INTO brokers VALUES (77, &#39;...&#39;)</code>), or correct the value. For a big import, load the parent table (brokers) before the child table (trade_log).</p>
+<h2 id="cannot-delete-a-referenced-row">Cannot delete a referenced row</h2>
+<pre><code class="language-sql">DELETE FROM brokers WHERE id = 45;</code></pre>
+<pre><code class="language-text">error: cannot remove brokers(id) = &#39;45&#39;: table &#39;trade_log&#39; column &#39;buyer&#39; still refers to it (foreign key &#39;trade_log_buyer_fkey&#39;)</code></pre>
+<p><strong>Why:</strong> trades still point to this broker. A plain <code>REFERENCES</code> never deletes them for you. (A foreign key written with <code>ON DELETE CASCADE</code> or <code>ON DELETE SET NULL</code> would; chapter 22.)</p>
+<p><strong>Fix:</strong> delete or change the trades first, or keep the broker. Changing the broker&#39;s <code>id</code> with UPDATE is refused for the same reason. Dropping the whole table gives: <code>cannot drop table &#39;brokers&#39;: column &#39;buyer&#39; of table &#39;trade_log&#39; REFERENCES it; drop that column or table first</code>.</p>
+<h2 id="missing-value">Missing value</h2>
+<pre><code class="language-sql">INSERT INTO brokers (id) VALUES (99);</code></pre>
+<pre><code class="language-text">error: column &#39;name&#39; (STRING): cannot be NULL</code></pre>
+<pre><code class="language-sql">INSERT INTO ochl_day (symbol, close) VALUES (&#39;CITY&#39;, 505);</code></pre>
+<pre><code class="language-text">error: the time column &#39;time&#39; needs a value</code></pre>
+<p><strong>Fix:</strong> give a value for <code>NOT NULL</code> and PRIMARY KEY columns and for the time column of a time-series table.</p>
+<h2 id="number-out-of-range">Number out of range</h2>
+<pre><code class="language-sql">INSERT INTO brokers VALUES (3000000000, &#39;Too Big&#39;);</code></pre>
+<pre><code class="language-text">error: column &#39;id&#39; (INT): 3000000000 is out of range (-2147483647 to 2147483647)</code></pre>
+<p><strong>Fix:</strong> use a bigger type (LONG). For an existing table: <code>ALTER TABLE t ALTER COLUMN c TYPE LONG</code> (chapter 3). A column that is the time column or part of SORT BY or DEDUP KEY cannot change its type.</p>
+<h2 id="type-mismatch">Type mismatch</h2>
+<pre><code class="language-sql">SELECT * FROM brokers WHERE name = 58;</code></pre>
+<pre><code class="language-text">error: line 1, column 34: cannot compare STRING &#39;Keystone Securities&#39; with LONG &#39;58&#39;</code></pre>
+<pre><code class="language-sql">SELECT sum(symbol) FROM ochl_day;</code></pre>
+<pre><code class="language-text">error: line 1, column 8: sum needs numbers, got &#39;CITY&#39;</code></pre>
+<p><strong>Fix:</strong> compare text with <code>&#39;text&#39;</code> and numbers with numbers. Use <code>CAST</code> when needed.</p>
+<h2 id="other-query-errors">Other query errors</h2>
+<div class="table-wrap"><table><thead><tr><th>Message</th><th>Fix</th></tr></thead><tbody><tr><td><code>SAMPLE BY needs a table with a time column (a TIMESERIES table)</code></td><td>SAMPLE BY only works on time-series tables. Use GROUP BY.</td></tr><tr><td><code>column &#39;close&#39; is used by a window function in a query with aggregates, so it must be a key of the groups: add it to the SELECT list or to GROUP BY</code></td><td>With <code>GROUP BY</code> or <code>SAMPLE BY</code>, a window function reads the groups, not the rows. Give it an aggregate (<code>sma(last(close), 2)</code>) or a group key, or aggregate in a subquery and put the indicator outside (chapter 5).</td></tr><tr><td><code>&#39;sma&#39; works over a series of rows and can only be used in a SELECT list</code></td><td>Not in WHERE and not inside another series function. Use a subquery.</td></tr><tr><td><code>column &#39;amount&#39; is computed and cannot be set</code></td><td>Computed columns (<code>AS (...)</code>) are not stored. Change the columns it is computed from.</td></tr><tr><td><code>in subquery: ... unknown column &#39;s.symbol&#39;</code></td><td>The name is wrong, or <code>s</code> is not a table of the outer query. Correlated subqueries work (chapter 23).</td></tr><tr><td><code>subquery returned 3 rows; a value needs exactly one (add LIMIT 1?)</code></td><td>A <code>(SELECT ...)</code> used as a value must return one row.</td></tr><tr><td><code>time zone &#39;...&#39; is not supported</code></td><td>Use <code>&#39;Asia/Kathmandu&#39;</code> or <code>&#39;+05:45&#39;</code>.</td></tr><tr><td><code>offset &#39;00:15&#39; must look like &#39;+05:45&#39; or &#39;-03:00&#39;</code></td><td>Write <code>WITH OFFSET &#39;+00:15&#39;</code>.</td></tr><tr><td><code>DEDUP KEY must include the time column</code></td><td>Add the time column to the DEDUP KEY.</td></tr><tr><td><code>there is no unique key on (a, b) of table &#39;t&#39; for ON CONFLICT</code></td><td>Add <code>PRIMARY KEY</code>, <code>UNIQUE (a, b)</code> or a <code>UNIQUE INDEX</code> on exactly these columns (chapter 23).</td></tr><tr><td><code>ON CONFLICT DO UPDATE cannot change the same row twice in one statement</code></td><td>Two new rows have the same key. Remove the copy, or use <code>DO NOTHING</code>.</td></tr><tr><td><code>the query makes more than N groups (max_groups)</code></td><td>The <code>GROUP BY</code> makes more groups than <code>--max-groups</code> allows. Add a time filter or group by fewer columns. (A <code>GROUP BY</code> that only needs much memory does not fail: it uses temporary files and is slower.)</td></tr><tr><td><code>table &#39;x&#39; is busy: ...</code>, <code>database is busy: ...</code>, <code>deadlock: ...</code></td><td>Another transaction holds the table. Nothing of your statement was done. Wait a little and run the whole transaction again (chapter 15).</td></tr></tbody></table></div>
+<p>The outputs of these are in <code>examples/05-queries/</code>, <code>examples/10-migrating-from-questdb/</code>, <code>examples/11-sql-reference/</code> and <code>examples/03-tables/</code>.</p>
+<h2 id="port-in-use">Port in use</h2>
+<pre><code class="language-text">error: Already exists: port 9945 on 127.0.0.1 is already in use
+exit code: 1</code></pre>
+<p><strong>Why:</strong> another program (often another <code>kdb serve</code>) listens on that port.</p>
+<p><strong>Fix:</strong> use another port (<code>--port 9901</code>), or find the program:</p>
+<pre><code class="language-powershell">Get-NetTCPConnection -LocalPort 9900 -State Listen | Select-Object OwningProcess
+Get-Process -Id &lt;OwningProcess&gt;</code></pre>
+<h2 id="token-401">Token 401</h2>
+<pre><code class="language-text">{&quot;error&quot;:&quot;access token required&quot;}   (HTTP 401)
+{&quot;error&quot;:&quot;wrong access token&quot;}   (HTTP 401)</code></pre>
+<p><strong>Why:</strong> the server was started with <code>--token</code>.</p>
+<p><strong>Fix:</strong> send <code>Authorization: Bearer &lt;token&gt;</code>. In the console, enter the token in the dialog. If the console keeps asking, the saved token is wrong: clear the site data of <code>127.0.0.1:9900</code> in the browser, or open a private window. Check with <code>curl.exe -s http://127.0.0.1:9900/health</code>: <code>&quot;auth_required&quot;:true</code> means a token is needed.</p>
+<h2 id="403-cross-site-cross-origin-host-name">403 cross-site, cross-origin, host name</h2>
+<pre><code class="language-text">{&quot;error&quot;:&quot;cross-site requests are not allowed&quot;}   (HTTP 403)
+{&quot;error&quot;:&quot;cross-origin requests are not allowed&quot;}   (HTTP 403)
+{&quot;error&quot;:&quot;host name &#39;market.example.com&#39; is not allowed without an access token; use localhost or start the server with --token&quot;}   (HTTP 403)</code></pre>
+<p><strong>Why:</strong> protection against web pages that try to use your local KDB (chapter 8).</p>
+<p><strong>Fix:</strong></p>
+<ul><li>Call KDB from a program or your backend, not from JavaScript on another web site.</li><li>Open the console with <code>http://127.0.0.1:9900</code> or <code>http://localhost:9900</code>.</li><li>Behind a reverse proxy or with a host name: start the server with <code>--token</code>.</li></ul>
+<h2 id="405-get-changes-data">405 GET changes data</h2>
+<pre><code class="language-text">{&quot;error&quot;:&quot;this SQL changes data, so it must be sent with POST /exec (GET /exec only reads)&quot;}   (HTTP 405)
+{&quot;error&quot;:&quot;CSV export needs a SELECT, SHOW or EXPLAIN statement&quot;}   (HTTP 400)</code></pre>
+<p><strong>Why:</strong> <code>GET /exec</code> only runs reading statements, and <code>/exp</code> only exports reading statements. A web page could otherwise change your data with a simple link.</p>
+<p><strong>Fix:</strong> send INSERT, UPDATE, DELETE, CREATE, DROP, ALTER and BACKUP DATABASE with <strong>POST</strong>: <code>curl.exe http://127.0.0.1:9900/exec --data-binary &quot;INSERT ...&quot;</code>.</p>
+<h2 id="text-in-other-languages-looks-broken">Text in other languages looks broken</h2>
+<pre><code class="language-powershell">kdb sql market &quot;CREATE TABLE IF NOT EXISTS names_np (symbol SYMBOL PRIMARY KEY, name_np STRING)&quot;
+
+# Text in any language (here Nepali) works directly on the command line:
+kdb sql market &quot;INSERT OR REPLACE INTO names_np VALUES (&#39;VOLT&#39;, &#39;भोल्ट रिभर&#39;)&quot;
+kdb sql market &quot;SELECT symbol, name_np FROM names_np&quot;
+
+# It also works from a UTF-8 file (or over HTTP):
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+&quot;INSERT OR REPLACE INTO names_np VALUES (&#39;VOLT&#39;, &#39;भोल्ट रिभर&#39;);&quot; | Set-Content np.sql -Encoding UTF8
+Get-Content np.sql -Raw -Encoding UTF8 | kdb sql market -
+kdb sql market &quot;SELECT symbol, name_np FROM names_np&quot;</code></pre>
+<pre><code class="language-text">table &#39;names_np&#39; created
+1 row(s) inserted
+symbol | name_np   
+-------+-----------
+VOLT   | भोल्ट रिभर
+(1 row, 0.2 ms)
+0 row(s) inserted, 1 replaced
+symbol | name_np   
+-------+-----------
+VOLT   | भोल्ट रिभर
+(1 row, 0.2 ms)</code></pre>
+<p><strong>If you see <code>????</code>:</strong> Windows PowerShell 5.1 sends pipe text as ASCII unless <code>$OutputEncoding</code> is UTF-8. Set it (as above) before you pipe SQL into <code>kdb sql -</code> or <code>kdb shell</code>. Text in command-line arguments and over HTTP is fine.</p>
+<p>If the letters look broken only in the <strong>console window</strong>, the window font may not have Devanagari. Use Windows Terminal, or save the output as CSV and open it in an editor.</p>
+<h2 id="damage">Damage</h2>
+<p>Messages like <code>failed its checksum</code>, <code>DAMAGED</code>, <code>the end of the log is damaged</code>, exit code 2:</p>
+<ol><li>Stop the server and all programs that use the database.</li><li>Copy the whole database folder to a safe place.</li><li><code>kdb check &lt;db&gt;</code> to see the damage.</li><li><code>kdb repair &lt;db&gt; --backups &lt;backups&gt;</code>.</li><li>If it still fails: <code>kdb restore &lt;newest backup&gt; &lt;new folder&gt; --logs-from &lt;db&gt;</code>.</li></ol>
+<p>Chapter 9 shows a full real example.</p>
+<h2 id="the-server-stopped">The server stopped</h2>
+<p>If the server process ends without Ctrl+C (crash, closed window, killed), start it again. The banner then shows <code>last shutdown: not clean (crash or kill)</code> and KDB replays the log. Committed data is not lost.</p>
+<h2 id="faq">FAQ</h2>
+<p><strong>Where are my times? They look 5:45 hours early.</strong>
+KDB shows UTC. <code>05:15Z</code> is 11:00 in Nepal. The chart in the console shows your local time.</p>
+<p><strong>Can two programs write at the same time?</strong>
+Not to the same folder directly. Run one <code>kdb serve</code> and let all programs use its HTTP API or its PostgreSQL port. In the server, writers of <strong>different</strong> tables run at the same time. Writers of the <strong>same</strong> table take turns. A read waits for a long write of the same database unless the server runs with <code>--reader-yield on</code> (the Docker image does), then it runs between the writer&#39;s statements (chapter 15).</p>
+<p><strong>Is a statement saved when KDB says &quot;inserted&quot;?</strong>
+Yes, it is on the disk. A power cut after that does not lose it.</p>
+<p><strong>How do I undo a change?</strong>
+Inside <code>BEGIN</code> ... <code>COMMIT</code>, <code>ROLLBACK</code> undoes everything since <code>BEGIN</code> (chapter 13). A dropped table comes back with <code>UNDROP TABLE</code> for 7 days (chapter 21). After a committed change, restore a backup to the time before it (<code>kdb restore --until</code>, chapter 9). Make a backup before big changes.</p>
+<p><strong>How big can a table be?</strong>
+There is no fixed limit. Very old data can be removed quickly with <code>ALTER TABLE ... DROP PARTITION OLDER THAN 1 YEAR</code>, or by itself with a TTL (<code>ALTER TABLE ... SET TTL 90 DAYS</code>, chapter 3).</p>
+<p><strong>Why is my query slow?</strong>
+Add a time filter on the time-series table (<code>time IN &#39;2026-09&#39;</code>), select fewer columns, and check with <code>EXPLAIN</code> how many partitions are read (chapter 5).</p>
+<p><strong>Can I use DBeaver, psql or Excel to connect?</strong>
+DBeaver and <code>psql</code>: yes, through the PostgreSQL port 8832 (chapter 14). For Excel, export CSV (<code>kdb sql ... --format csv</code>, or the console&#39;s <strong>Export CSV</strong>).</p>
+<p><strong>Does KDB know stock exchange holidays?</strong>
+No. <code>is_trading_day()</code> only checks for a Sunday-to-Thursday week (as on some exchanges). Keep a holiday table if you need it.</p>
+<p><strong>Can I copy the database folder to another PC?</strong>
+Yes, when no program has it open. Better: <code>kdb backup</code>, copy the backup folder, <code>kdb restore</code> on the other PC. The restore checks every file.</p>
+<p><strong>Do Linux and Windows use the same files?</strong>
+The file format is the same on all systems (chapter 1, FORMAT.md).</p>
+<p><strong>Where is <code>kdb.conf</code>?</strong>
+Next to the <code>kdb</code> program (or the file named with <code>--config &lt;file&gt;</code>). It is a small JSON file that the console&#39;s <strong>Settings</strong> page writes. It holds <code>data_dir</code>, <code>wal_archive_mb</code>, <code>trash_keep_hours</code>, <code>keep_versions</code>, and the folders of the console, the help and the Claude skill (<code>web_dir</code>, <code>help_dir</code>, <code>skill_dir</code>). An option on the command line always wins over it. Everything else is a command-line option (<code>kdb</code> with no command lists them).</p>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>You get <code>error: line 3, column 5: unknown column &#39;volum&#39;</code>. What do you do?</li><li>A script prints <code>the database is open in another program</code>, but no server is running. What else can hold the database?</li><li>An INSERT of 5000 rows fails with a duplicate key. How many rows were saved?</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li>Look at line 3, column 5 of your SQL, and fix the name to <code>volume</code> (the message lists the real columns).</li><li>A <code>kdb shell</code> or <code>kdb sql</code> in another window, or a scheduled task (backup script) that is running. Check with <code>Get-Process kdb</code>.</li><li>None. One statement is all or nothing. Use <code>INSERT OR REPLACE</code> or <code>INSERT OR IGNORE</code>, or remove the duplicates.</li></ol>
+</details>
+<hr>
+<p>Next: <a href="13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a>. Back to the index. Also read the <a href="known-limitations.html">known limitations</a>.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/12-troubleshooting.md">This page as markdown</a>.</footer>
+</body>
+</html>

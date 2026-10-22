@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The kdb program - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="What the kdb program is, how it finds your databases, and what its exit codes mean.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/cli-overview.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-overview.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="the-kdb-program">The kdb program</h1>
+<blockquote><p>What the kdb program is, how it finds your databases, and what its exit codes mean.</p></blockquote>
+<ul><li>Category: Command line</li><li>Keywords: command line, CLI, kdb.exe, usage, exit code, $LASTEXITCODE, data folder, KDB_DATA_DIR, --data-dir, --config, kdb.conf, database name, folder path, --help, -h, --version, kdb help, kdb help tutorial</li><li>See also: <a href="cli-sql-and-shell.html">kdb sql and kdb shell</a>, <a href="cli-serve.html">kdb serve</a>, <a href="cli-maintenance.html">kdb info, check, repair, dump-file</a>, <a href="cli-users.html">kdb user</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="databases.html">Databases and the data folder</a></li></ul>
+<p><code>kdb</code> is the one program you need. It runs SQL, the interactive shell, the server, backups and repairs.
+It works in PowerShell, CMD, bash and zsh, on Windows, Linux and macOS.</p>
+<p>A <strong>database</strong> is a folder on the disk. Many databases can live in one <strong>data folder</strong> (one sub-folder per database).
+Most commands take a <code>&lt;db&gt;</code> argument: the <strong>name</strong> of a database in the data folder, or the <strong>path</strong> of a database folder.</p>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>What it does</th><th>Help</th></tr></thead><tbody><tr><td><code>kdb sql</code></td><td>Runs SQL once and prints the result</td><td><a href="cli-sql-and-shell.html#kdb-sql">kdb sql</a></td></tr><tr><td><code>kdb shell</code></td><td>A prompt where you type SQL</td><td><a href="cli-sql-and-shell.html#kdb-shell">kdb shell</a></td></tr><tr><td><code>kdb serve</code></td><td>The server: web console, HTTP API, PostgreSQL port</td><td><a href="cli-serve.html#kdb-serve">kdb serve</a></td></tr><tr><td><code>kdb info</code>, <code>kdb check</code>, <code>kdb repair</code>, <code>kdb dump-file</code></td><td>Look at a database, find and fix damage</td><td><a href="cli-maintenance.html">maintenance</a></td></tr><tr><td><code>kdb backup</code>, <code>kdb backups</code>, <code>kdb verify-backup</code>, <code>kdb restore</code></td><td>Backups</td><td><a href="backup-and-safety.html">backup and safety</a></td></tr><tr><td><code>kdb user ...</code></td><td>Users of the server</td><td><a href="cli-users.html">kdb user</a></td></tr><tr><td><code>kdb version</code>, <code>kdb help [&lt;topic&gt;]</code></td><td>Version; the list of commands and of every help topic, one topic, or a tutorial chapter, in the terminal</td><td>below</td></tr><tr><td><code>kdb upgrade</code></td><td>Make an older database ready for this KDB (backup, feature list, check)</td><td><a href="versions.html">versions and upgrades</a></td></tr><tr><td><code>kdb features</code></td><td>The stored-format features a database uses now, and what uses them</td><td><a href="versions.html#downgrade">going back</a></td></tr><tr><td><code>kdb downgrade</code></td><td>Let an older KDB open the data again, when it uses nothing newer (backup, feature list, check)</td><td><a href="versions.html#downgrade">going back</a></td></tr><tr><td><code>kdb skill</code>, <code>kdb skill install</code></td><td>Print, or install for Claude Code, the file that teaches an AI assistant how to use KDB</td><td><a href="install-packages.html#skill">the Claude skill</a></td></tr></tbody></table></div>
+<h2 id="help">kdb help</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb
+kdb help
+kdb --help
+kdb -h
+kdb help &lt;topic&gt;
+kdb help tutorial [&lt;chapter&gt;]</code></pre>
+<p>Prints the version and a short list of every command and option, then the list of help topics - the same pages a running server shows at <code>/help</code> - with their titles. <code>kdb help &lt;topic&gt;</code> prints one topic in the terminal (the Markdown source in a source checkout, the built page as text in a package); a word that is not a topic lists the topics whose name contains it. <code>kdb help tutorial</code> lists the tutorial chapters and <code>kdb help tutorial 17</code> prints one (the tutorial is part of the source checkout only).</p>
+<ul><li><strong>Exit code:</strong> <code>0</code> for <code>kdb help</code>, <code>--help</code> and <code>-h</code>. <code>1</code> for <code>kdb</code> with no command, for an unknown command, and for a topic that does not exist.</li><li><strong>Notes:</strong> an unknown command (for example a typing mistake like <code>kdb bakup</code>) also prints this list, with exit code <code>1</code>. The topics come from the help folder the program finds (<code>help_dir</code> in kdb.conf, <code>KDB_HELP_DIR</code>, next to the program, or the checkout&#39;s <code>docs/help/site</code>); without one, only the command list is printed.</li></ul>
+<p><strong>Command line: The list of commands</strong></p>
+<pre><code class="language-bash">kdb help</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">kdb 0.2.0-dev
+
+Usage:
+  kdb info    &lt;db&gt;                               show files, versions and log position
+  kdb check   &lt;db&gt; [--no-audit-chain]            read every block and log record, report damage;
+                                                 then check the hash chain of _audit_log
+  kdb repair  &lt;db&gt; [--backups &lt;dir&gt;] [--accept-log-loss]
+                                                 fix damaged files from old versions or backups
+  kdb backup  &lt;db&gt; &lt;backups-dir&gt; [--hard-links] [--keep-daily N] [--keep-weekly N]
+  kdb backups &lt;backups-dir&gt;                      list backups, newest first
+  kdb verify-backup &lt;backup-dir&gt;
+  kdb restore &lt;backup-dir&gt; &lt;new-data-dir&gt; [--logs-from &lt;old-data-dir&gt;] [--until &quot;YYYY-MM-DD HH:MM[:SS]&quot;]
+  kdb dump-file &lt;file.kdb&gt;                       header and block checksums of one file
+  kdb serve   [&lt;db&gt;] [--db &lt;name&gt;] [--port 9900] [--bind 127.0.0.1] [--backups &lt;dir&gt;] [--token &lt;t&gt;] [--memory &lt;MB&gt;]
+              [--sync-commits always|batch] [--threads N]  HTTP API, line protocol (POST /write) and web console
+              [--pg-port 8832] [--pg-timestamptz] PostgreSQL protocol for Postgres drivers and tools (0 = off)
+                                                 (Ctrl+C stops). Without &lt;db&gt;: every database in the data folder
+  kdb promote [--url http://localhost:9900] [--token &lt;t&gt;]  make the standby at --url a primary: it stops
+                                                 copying and takes changes (when the primary is lost)
+  kdb shell   [&lt;db&gt;] [--backups &lt;dir&gt;] [--memory &lt;MB&gt;]  interactive SQL prompt (end statements with ;)
+  kdb sql     &lt;db&gt; &quot;SQL&quot; [--format table|csv|json] [--max-rows N]
+                                                 run SQL and print results (use - to read SQL from stdin)
+  kdb user add &lt;name&gt; [--role admin|ddl|write|read]  add a server user; the password is asked for (or read
+                                                 from a pipe), never given on the command line
+  kdb user passwd &lt;name&gt;                         set a new password
+  kdb user role &lt;name&gt; admin|ddl|write|read|none change the role
+  kdb user list                                  users and roles (never passwords)
+  kdb user remove &lt;name&gt;
+  kdb user reset-2fa &lt;name&gt;                      turn two-factor login off (a lost phone)
+                                                 (kdb user works on the data folder while kdb serve is stopped;
+                                                 while it runs, use CREATE USER ... in its console)
+  kdb version [&lt;db&gt;]                             this build and the stored-format features it reads;
+                                                 with &lt;db&gt;: the features that database uses
+  kdb upgrade &lt;db&gt; [--backups &lt;dir&gt;]             verified backup, then save the database&#39;s feature list, then check
+  kdb features &lt;db&gt; | --data-dir &lt;folder&gt;        the stored-format features each database uses now, and what uses them
+  kdb downgrade &lt;db&gt; | --data-dir &lt;folder&gt; --to &lt;version&gt; [--backups &lt;dir&gt;] [--no-backup]
+                                                 let an older KDB open the data (--to 2026-09-13, or --known
+                                                 &lt;names&gt; from the older kdb version); refused, naming what uses
+                                                 each newer feature, when the data needs one
+  kdb key new                                    print a new random master key (64 hex characters) for
+                                                 encrypted databases: keep it in KDB_MASTER_KEY or a key file
+                                                 (KDB_MASTER_KEY_FILE) outside the data folder
+  kdb key rotate &lt;folder&gt;                        re-wrap the data key of an encrypted database folder, or of
+                                                 every backup in a folder of backups, with KDB_MASTER_KEY
+                                                 (the old key in KDB_MASTER_KEY_PREVIOUS); no data file changes
+  kdb help [&lt;topic&gt; | tutorial [&lt;chapter&gt;]]     the help topics (and, in a source checkout, the tutorial)
+                                                 in the terminal; without a topic: the list of topics
+  kdb skill [install] [--dir &lt;d&gt;] [--url &lt;u&gt;] [--token &lt;t&gt;] [--home &lt;checkout&gt;]
+                                                 print, or install into ~/.claude/skills/kdb, the file that
+                                                 teaches an AI assistant in another project how to use KDB
+
+&lt;db&gt;: a database name in the data folder (market), or the path of a database folder (D:\kdb\market, ./market).
+Data folder: --data-dir &lt;folder&gt;, else kdb.conf, else the KDB_DATA_DIR environment variable,
+  else &quot;data&quot; next to kdb.
+--config &lt;file&gt;: kdb.conf, the JSON file the console&#39;s Settings page and ALTER SYSTEM write
+  (default: kdb.conf next to kdb). A flag on the command line always wins over it, and it wins over
+  the environment. It may hold: data_dir, wal_dir, wal_archive_mb, cache_mb, keep_versions, trash_keep_hours,
+  trash_max_mb, slow_query_ms, http_threads, max_connections, lock_timeout_ms,
+  idle_in_transaction_timeout_ms, rate_limit_ip, rate_limit_user, timer_workers, timezone,
+  http_functions, http_timeout_ms, ilp_auto_create, step_up_actions, step_up_minutes, alert_webhook,
+  tls_cert, tls_key, the backup_*
+  settings, and &quot;system&quot; (what ALTER SYSTEM SET saved; SELECT pg_reload_conf() puts it in use).
+  A database folder served by its path (kdb serve D:\kdb\market) reads only the three folders below.
+  web_dir, help_dir and skill_dir name the folders of the console, the help and the Claude skill
+  (else KDB_WEB_DIR, KDB_HELP_DIR, KDB_SKILL_DIR, else web/, help/ and skill/ next to kdb).
+--memory &lt;MB&gt;: memory for table data kept loaded (default 512). More is faster on big tables.
+--memory-limit &lt;size&gt;: one limit for everything the server holds (table data, unsaved changes,
+  indexes, results, caches, what the allocator keeps), like 3GB or 3072 (MB). Near it, memory is
+  given back (the result cache too); at it, quick statements still run in a small reserve and
+  others get &#39;memory full&#39; (HTTP 503, PostgreSQL 53200); over it, the running statement that
+  holds the most is stopped with &#39;memory full&#39;. Default: 85% of a container&#39;s
+  memory limit, else of the machine&#39;s memory (env KDB_MEMORY_LIMIT; 0 or off = no limit).
+--threads &lt;N&gt;: threads for big queries and writes (default and most: half of the CPU threads).
+--cache-mb &lt;MB&gt;: memory for results of repeated queries, all databases together (default 256,
+  0 = off; else kdb.conf cache_mb, else env KDB_CACHE_MB). A result is used again only while no
+  table it read has changed; a quick one (under 1 ms) is kept when asked twice. Queries with
+  random() are never kept; with now() only for a caller that takes an older answer
+  (/exec?cache_now_ms=500, SET result_cache_now_ms = 500). One result may use a quarter of it,
+  a pinned one three quarters. ALTER DATABASE db SET RESULT_CACHE = &#39;256MB&#39; gives a database
+  a space of its own.
+--pg-compat on|off: PostgreSQL 14&#39;s answers for every database without its own ALTER DATABASE ...
+  SET pg_compat (default off; env KDB_PG_COMPAT): 7 / 2 = 3, 1.005 is an exact NUMERIC, a window
+  with ORDER BY counts ties together, text sorts like en_US. A session can choose with
+  SET kdb.pg_compat = on | off.
+--pg-int-division on|off: on the Postgres port, whole number / whole number gives a whole
+  number (7 / 2 = 3) as in PostgreSQL (default off; env KDB_PG_INT_DIVISION). A session can
+  still choose with SET int_division = integer | float.
+--reader-yield on|off: readers do not wait for a long trigger or CALL; they read the last
+  committed rows (default on; env KDB_READER_YIELD). Off: readers wait for the writer&#39;s statement.
+--per-table-reads on|off: a reader waits only for writers of the tables it reads, and not while
+  a checkpoint writes its files (default on; env KDB_PER_TABLE_READS). Off: it waits for every writer.
+--pin-threads auto|on|off: auto (default): on Linux, inside a CPU quota (docker --cpus, cgroup cpu.max)
+  smaller than the CPUs the process may run on, every thread is pinned to the quota&#39;s worth of CPUs,
+  one per core, and moved back when the quota goes (docker update --cpus); 32 connections on a 2-CPU
+  quota of a 32-CPU host no longer run on all 32 and stall when the time is spent. on: each HTTP
+  worker, PostgreSQL connection and query thread runs on one CPU of its own, taken in turn from as
+  many CPUs as KDB may use, out of the cpuset; background threads stay on those CPUs. off: nothing is
+  pinned (env KDB_PIN_THREADS). Ignored on Windows.
+--read-only-calls on|off: a CALL of a procedure that changes nothing runs like a SELECT: no table
+  locks, no transaction (default on; env KDB_READ_ONLY_CALLS).
+--scoped-ddl on|off: CREATE/ALTER/DROP TABLE, INDEX and TRIGGER, TRUNCATE, CREATE TABLE AS and
+  materialized views lock only the tables they touch; views, procedures and functions lock none
+  (default on; env KDB_SCOPED_DDL). Off: every schema change locks every table.
+--ddl-beside-writers on|off: with --scoped-ddl, CREATE TABLE, ALTER TABLE, RENAME TABLE and CREATE/DROP
+  INDEX run beside a writer of other tables that is inside one long statement (default on; env
+  KDB_DDL_BESIDE_WRITERS). Off: they wait until that writer pauses between two statements.
+--log-lock-waits on|off: a statement that waits for a table lock longer than --deadlock-timeout
+  writes one line to the log naming itself, the lock and who holds it (default off; env
+  KDB_LOG_LOCK_WAITS; a session: SET log_lock_waits = on).
+--deadlock-timeout 1s: when --log-lock-waits writes its line (default 1s; env KDB_DEADLOCK_TIMEOUT;
+  a session: SET deadlock_timeout). Deadlocks are found at once whatever it is.
+--skip-locked-beside on|off: SELECT ... FOR UPDATE SKIP LOCKED inside BEGIN reads beside other open
+  transactions that hold the table and returns the rows they did not touch (default off; env
+  KDB_SKIP_LOCKED_BESIDE). Its UPDATE of such a row waits for their COMMIT. Off: no rows there.
+--table-writers one|many: many: several users change one table at the same time when each of their
+  statements on it touches single rows by the primary key (one-row INSERT, UPDATE or DELETE ... WHERE
+  id = x, a CALL or trigger of such statements); the same row is waited for, as in PostgreSQL. Anything
+  else on the table waits for the whole table, as before (default one; env KDB_TABLE_WRITERS).
+--snapshot-reads on|off: a reader of a table that a long CALL, trigger job or bulk write is changing
+  does not wait: it reads a snapshot of the committed rows (default off; env KDB_SNAPSHOT_READS).
+  Tables with an index too, while a writer is busy on them, at any size: the read uses the index
+  on the snapshot (an idle BEGIN is taken out and the index used, as before).
+--tail-files on|off: a checkpoint saves rows appended after the end of a partition in a small tail file
+  instead of writing the whole partition again (default off; env KDB_TAIL_FILES). A database with tail
+  files needs a KDB from 2026-10-02 or later (kdb downgrade merges them back).
+--snapshot-index-rows 1000000: a table with a full-text/JSON index, or an index not built yet, is
+  scanned on a snapshot: only up to this many rows, a bigger one waits for its writer as before
+  (default 1000000; 0 = indexed tables never get snapshots; env KDB_SNAPSHOT_INDEX_ROWS).
+--txn-spill-mb 64: a transaction&#39;s log records past this many MB (or 1/16 of --memory-limit) go to a
+  temporary file in the database&#39;s _tmp folder until COMMIT (default 64; 0 = never; env KDB_TXN_SPILL_MB).
+--lanes on|off: priority lanes (default on; env KDB_LANES). A read whose shape used --heavy-ms of
+  CPU or more the last three times it ran is heavy: only --heavy-slots of those run at once, at a
+  lower CPU priority, and the rest wait in line. Charts and other short statements never wait. SET kdb.priority = high|normal|low, the X-KDB-Priority header
+  and ALTER USER ... SET kdb.priority choose a lane by hand. Off: every statement runs at once.
+--heavy-ms 100: the CPU time a read shape must use to count as heavy (env KDB_HEAVY_MS).
+--heavy-slots N: heavy statements that run at once (default half the CPUs, at least 1; env
+  KDB_HEAVY_SLOTS).
+--heavy-queue N: heavy HTTP requests that may wait at once (default half the HTTP threads, at
+  least 4; env KDB_HEAVY_QUEUE). Past it a request sent with priority low gets 503; a read heavy by
+  its history runs at once. PostgreSQL statements are not counted: they wait up to their timeout.
+--read-slots auto|off|N: reads (outside BEGIN) that run at once; the rest wait in line. A read holds
+  its slot for at most 10 ms, so a long one never holds the line up (default auto = the CPUs the
+  process may use, at least 2, following docker update --cpus; env KDB_READ_SLOTS). Off: every read
+  starts at once, as before.
+--timezone Asia/Kathmandu: the clock of CURRENT_DATE, ::date, date_trunc, EXTRACT and to_char, and of
+  timer and backup schedules (default: the computer&#39;s own zone; env
+  KDB_TIMEZONE; kdb.conf &quot;timezone&quot;). Times are still stored as UTC. A session: SET TIME ZONE.
+  Default: the computer&#39;s own zone. Zones with summer time (America/New_York) need the system&#39;s
+  zone files (tzdata); per user: ALTER USER name SET timezone = &#39;zone&#39;.
+--warm-indexes on|off: build every index right after a database opens, on a background thread,
+  so the first query finds them ready (default on; env KDB_WARM_INDEXES). Off: on first use.
+--sync-commits always: every write is on disk before it is confirmed (default).
+--sync-commits batch: writes are confirmed at once and put on disk every 10 ms. Much faster for
+  many small writes; a power cut can lose the last confirmed writes, but never damages the data.
+Protection of kdb serve (docs/tutorial/21-protection.md):
+  --statement-timeout 60s      stop statements that run longer (default 60s, 0 = no limit)
+  --max-result-memory 1GB      rows one query may keep in memory (default 1GB, 0 = no limit)
+  --max-groups N               GROUP BY groups of one query (default 5000000, 0 = no limit)
+  --max-queries-per-user N     statements one user runs at the same time (default 32, 0 = no limit)
+  --safe-updates               refuse UPDATE and DELETE without WHERE (SET safe_updates = off per session)
+  --read-only                  the whole server only reads
+  --standby-of URL             this server is a standby: it copies every database of the primary at URL
+                               (http://host:9900) from its log, and only reads (env KDB_STANDBY_OF)
+  --standby-token T            the token the standby sends to the primary: its --token or an admin&#39;s API
+                               token (env KDB_STANDBY_TOKEN)
+  --trash-days N               DROP TABLE keeps the table N days for UNDROP TABLE (default 7; also sql, shell)
+  --audit on|off               audit log of logins, users, DDL, backups in _system (default on)
+  --audit-keep-days N          remove audit rows older than N days (default 0 = keep forever)
+  --activity-log-size N        recent events for the console&#39;s activity panel, in memory (default 5000, 0 = off)
+  --slow-query-ms N            statements taking N ms or more go to &lt;data&gt;/_logs/slow_queries.jsonl
+                               (GET /api/slow-queries; default 1000, 0 = off; env KDB_SLOW_QUERY_MS)
+  --stat-statements on|off     pg_stat_statements: totals per statement shape, in memory
+                               (default on; env KDB_STAT_STATEMENTS)
+  --token-name NAME            what the audit log calls whoever uses the --token (default token; env KDB_TOKEN_NAME)
+  --trash-max-mb N             a database&#39;s _trash may hold N MB; beyond it the oldest go at once
+                               (default: a quarter of the data, at least 256 MB; 0 = no limit;
+                               env KDB_TRASH_MAX_MB, kdb.conf trash_max_mb)
+  --drain-timeout 30s          on stop, running requests may finish this long; new ones get 503 (default 30s)
+  --tls-cert FILE --tls-key FILE  TLS on both ports: https:// and PostgreSQL sslmode=require (PEM files;
+                               --tls-cert auto: a self-signed pair made in &lt;data&gt;/_tls; env KDB_TLS_CERT,
+                               KDB_TLS_KEY; kdb.conf tls_cert, tls_key)
+  --tls-required on|off        with TLS, refuse plain connections except from 127.x (default on;
+                               env KDB_TLS_REQUIRED)
+  --rate-limit-ip N            requests per second one client address may send, HTTP and PostgreSQL
+                               (default 0 = no limit; 127.x is never limited; env KDB_RATE_LIMIT_IP)
+  --rate-limit-user N          requests per second one user may send (default 0 = no limit;
+                               env KDB_RATE_LIMIT_USER). Over a limit: HTTP 429 with Retry-After
+  --http-threads N             HTTP requests handled at once (default: the CPU threads, at least 8; env KDB_HTTP_THREADS)
+  --http-gzip remote|on|off    gzip answers of 2 KB or more for clients that send Accept-Encoding: gzip:
+                               clients on other computers (remote, the default), all, or none (env KDB_HTTP_GZIP)
+  --timer-workers N            timers that may run at the same time (1 to 64, default 3; env KDB_TIMER_WORKERS)
+  --tcp-keepalives-idle S      TCP keepalive of every connection: seconds idle before the first probe,
+  --tcp-keepalives-interval S  seconds between probes, and probes before a vanished client is dropped
+  --tcp-keepalives-count N     (0 = the system&#39;s, the default; env KDB_TCP_KEEPALIVES_IDLE, ...)
+  --ilp-auto-create on|off     POST /write creates a table it does not find, as QuestDB does (default on;
+                               kdb.conf &quot;ilp_auto_create&quot;; env KDB_ILP_AUTO_CREATE)
+  --max-connections N          PostgreSQL logins at once, all databases (default 100, 0 = no limit; env KDB_MAX_CONNECTIONS)
+  --lock-timeout 5s            a writer waits this long for a busy table (default 5s, 0 = no limit; env KDB_LOCK_TIMEOUT;
+                               a session: SET lock_timeout = &#39;20s&#39;)
+  --idle-in-transaction-timeout 30s  an open BEGIN ... COMMIT that sends nothing this long is rolled
+                               back (default 30s, 0 = never; env KDB_IDLE_IN_TRANSACTION_TIMEOUT;
+                               a session: SET idle_in_transaction_session_timeout = &#39;5min&#39;)
+  --trigger-retries N          a failed deferred trigger job runs again N times (1 s, 2 s, 4 s ... apart) before
+                               its queue stops (default 3, 0 = never; env KDB_TRIGGER_RETRIES)
+  --max-trigger-jobs N         deferred trigger jobs waiting per database; a write past it is refused with the
+                               reason (default 10000, 0 = no limit; env KDB_MAX_TRIGGER_JOBS)
+  --alert-webhook URL          POST failed trigger jobs as JSON to http://&lt;IPv4&gt;:&lt;port&gt;/&lt;path&gt;
+                               (env KDB_ALERT_WEBHOOK, kdb.conf alert_webhook)
+  --backups &lt;dir&gt;              backup folder (default &lt;data folder&gt;/_backups; &quot;off&quot; = none; or KDB_BACKUP_DIR)
+  --backup-schedule &quot;daily 16:00&quot;  verified backups of every database (local time; or KDB_BACKUP_SCHEDULE)
+  --backup-command &quot;&lt;cmd&gt;&quot;     run after each backup to copy it off the server: {dir} {database} {name}
+                               (or KDB_BACKUP_COMMAND), e.g. &quot;rclone copy {dir} remote:kdb/{database}/{name}&quot;
+  --backup-copy &lt;dir&gt;          a second, checked copy of each scheduled backup (another disk)
+  --backup-warn-hours N        warn in the log when the last good backup is older (default 26)
+  --keep-daily N --keep-weekly N   backups kept (default 7 and 4; or KDB_BACKUP_KEEP_DAILY / _WEEKLY)
+Exit codes: 0 OK, 1 error, 2 damage found, 3 the database needs a newer KDB (nothing was changed).
+
+Help topics (0), from ./help-placeholder. &quot;kdb help &lt;topic&gt;&quot; prints one; a running server has them at /help:</code></pre>
+<h2 id="kdb-version">kdb version</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb version
+kdb --version
+kdb version &lt;db&gt;</code></pre>
+<p>Prints the version of KDB and the stored-format features it can read. <code>crc32c hardware: yes</code> means the CPU computes checksums (CRC32C) with special fast instructions. <code>no</code> also works, only slower.
+With <code>&lt;db&gt;</code> it shows the features that database uses (<a href="versions.html">versions and upgrades</a>).</p>
+<ul><li><strong>Exit code:</strong> <code>0</code>. With <code>&lt;db&gt;</code>: <code>3</code> when the database needs a newer KDB.</li></ul>
+<p><strong>Command line</strong></p>
+<pre><code class="language-bash">kdb version</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">kdb 0.2.0-dev (crc32c hardware: yes)
+tls: OpenSSL 3.6.3 9 Jun 2026
+
+Stored-format features this build reads (51):
+  views                0.2.0-dev (2026-09-10)   CREATE VIEW: the &quot;views&quot; file
+  partition_format_2   0.2.0-dev (2026-09-11)   table partition files in format 2 (one raw block per column)
+  block_stats          0.2.0-dev (2026-09-11)   column stats section in partition files (count, min, max, sum per column)
+  runs                 0.2.0-dev (2026-09-11)   log record &#39;C&#39;: rows of a bulk upsert kept as columns
+  auto_meta            0.2.0-dev (2026-09-11)   AUTO id counters in the manifest (auto.&lt;table id&gt;)
+  json                 0.2.0-dev (2026-09-11)   JSON columns (type code 12)
+  bytes                0.2.0-dev (2026-09-11)   BYTES columns (type code 13)
+  check                0.2.0-dev (2026-09-11)   CHECK constraints (catalog format 2, part &#39;C&#39;)
+  indexes              0.2.0-dev (2026-09-11)   CREATE INDEX, UNIQUE and FULLTEXT indexes (catalog part &#39;I&#39;)
+  routines             0.2.0-dev (2026-09-11)   functions, procedures and triggers: the &quot;routines&quot; file
+  users                0.2.0-dev (2026-09-11)   server users and roles (_system.users)
+  audit                0.2.0-dev (2026-09-12)   SET AUDIT ON: catalog part &#39;A&#39;, log record &#39;P&#39;, the _audit_log table
+  table_grants         0.2.0-dev (2026-09-12)   GRANT ... ON TABLE (_system.users.table_grants)
+  totp                 0.2.0-dev (2026-09-12)   two-factor logins (_system.users.totp)
+  trash                0.2.0-dev (2026-09-12)   dropped tables kept as _dropped_&lt;ms&gt;_&lt;name&gt; for UNDROP TABLE
+  database_settings    0.2.0-dev (2026-09-12)   ALTER DATABASE ... SET READ ONLY (_system.database_settings)
+  dialects             0.2.0-dev (2026-09-12)   ALTER DATABASE ... SET dialect (_system.database_dialects)
+  pg_catalog_parts     0.2.0-dev (2026-09-12)   PostgreSQL column types, multi-column keys, foreign keys, expression and partial indexes (catalog parts &#39;T&#39;, &#39;K&#39;, &#39;F&#39;, &#39;X&#39;)
+  sequences            0.2.0-dev (2026-09-12)   CREATE SEQUENCE: the &quot;sequences&quot; file and its log records
+  batched_log_sync     0.2.0-dev (2026-09-11)   log segments in the batched format (header flag 1, 16-byte commit records): group commit and --sync-commits batch
+  dedup_change         0.2.0-dev (2026-09-12)   ALTER TABLE ... DEDUP ENABLE / DISABLE: the DEDUP KEY of a table that already holds rows
+  plpgsql_triggers     0.2.0-dev (2026-09-12)   PostgreSQL plpgsql trigger functions and FOR EACH ROW triggers in the &quot;routines&quot; file
+  cached_views         0.2.0-dev (2026-09-13)   CREATE CACHED VIEW: which views are cached, and REFRESH ON COMMIT, in the &quot;views&quot; file
+  deferred_triggers    0.2.0-dev (2026-09-13)   CREATE TRIGGER ... DEFERRED: job records in the log, and the &quot;trigger_queue&quot; and &quot;q/&lt;job&gt;&quot; files of queued jobs
+  materialized_views   0.2.0-dev (2026-09-13)   CREATE MATERIALIZED VIEW: catalog part &#39;M&#39;, REFRESH MATERIALIZED VIEW log records, mv_dirty.&lt;id&gt; in the manifest
+  table_ttl            0.2.0-dev (2026-09-13)   TTL n DAYS on a table: catalog part &#39;L&#39;
+  read_only_procedures 0.2.0-dev (2026-09-24)   CREATE PROCEDURE ... READ ONLY in the &quot;routines&quot; file
+  dedup_insert         0.2.0-dev (2026-09-24)   WITH (dedup_insert = &#39;upsert&#39;) on a table: catalog part &#39;U&#39;
+  decimal128           0.2.0-dev (2026-09-25)   NUMERIC(p, s) columns with more than 18 digits: 128-bit DECIMAL (type code 14) in the catalog, partition files and log
+  dedup_generated_key  0.2.0-dev (2026-09-25)   a stored generated column in a DEDUP KEY, like the minute of the time (an older build refuses such a catalog)
+  symbol_partitions    0.2.0-dev (2026-09-25)   PARTITION BY &lt;time&gt;, SYMBOL(col): catalog part &#39;P&#39; (one partition file per time bucket and symbol, t/&lt;id&gt;/&lt;time&gt;/s-...)
+  round_time_zone      0.2.0-dev (2026-09-25)   TIMESTAMP ROUND ... TIME ZONE &#39;zone&#39; columns: catalog part &#39;R&#39;
+  enum_types           0.2.0-dev (2026-09-25)   CREATE TYPE ... AS ENUM: the ENUM types after the tables of the catalog (catalog format 3)
+  row_ttl              0.2.0-dev (2026-09-25)   CREATE TABLE ... WITH (ttl_column = c): rows expire one by one, catalog part &#39;E&#39;
+  column_compression   0.2.0-dev (2026-09-25)   ALTER TABLE ... SET (compression = on): catalog part &#39;Z&#39; and packed partition files (header flag 2)
+  calendars            0.2.0-dev (2026-09-25)   CREATE CALENDAR: trading calendars (eras, holidays, extra trading days) after the ENUM types of the catalog (catalog format 4)
+  materialized_view_sample_by 0.2.0-dev (2026-09-26)   CREATE MATERIALIZED VIEW ... AS (SELECT ... SAMPLE BY ...): a SAMPLE BY query in catalog part &#39;M&#39;, refreshed bucket by bucket
+  comments             0.2.0-dev (2026-09-26)   COMMENT ON TABLE / COLUMN: the comments of a table and its columns, catalog part &#39;N&#39;
+  cache_tables         0.2.0-dev (2026-10-02)   WITH (max_bytes, evict, durability): cache tables with a memory cap and eviction, catalog part &#39;Y&#39;
+  resident_tables      0.2.0-dev (2026-10-02)   WITH / SET (resident = on): a table never unloaded to make room, catalog part &#39;H&#39;
+  partition_tails      0.2.0-dev (2026-10-02)   tail files: rows appended to a partition saved in extra files t/&lt;id&gt;/&lt;partition&gt;.tail&lt;k&gt;.b&lt;version&gt; (tail_files)
+  uuid                 0.2.0-dev (2026-10-02)   UUID columns: 16 bytes per value (type code 15) in the catalog, partition files and log
+  search_analyzer      0.2.0-dev (2026-10-02)   CREATE FULLTEXT INDEX ... WITH (language = &#39;english&#39;): the word analyzer of a full-text index, catalog part &#39;S&#39;
+  column_grants        0.2.0-dev (2026-10-02)   GRANT / REVOKE on single columns (_system.users.column_grants)
+  row_policies         0.2.0-dev (2026-10-02)   row-level security: CREATE POLICY and ALTER TABLE ... ENABLE ROW LEVEL SECURITY (_system.row_policies)
+  partition_deltas     0.2.0-dev (2026-10-02)   delta files: a few rows of a partition replaced or deleted, saved in t/&lt;id&gt;/&lt;partition&gt;.delta.b&lt;version&gt;
+  fulltext_segments    0.2.0-dev (2026-10-02)   full-text and JSON index segments in fts/*.kfs (the words of each partition&#39;s rows; never recorded: an older build ignores them)
+  compressed_log       0.2.0-dev (2026-10-02)   packed log records (type 3): the data records of a big commit written compressed (KDB_WAL_COMPRESS)
+  endpoints            0.2.0-dev (2026-10-03)   CREATE ENDPOINT: saved queries served at GET /v/&lt;name&gt;, kind &#39;E&#39; in the routines file
+  rules                0.2.0-dev (2026-10-03)   CREATE RULE: named checks, session hours and settings of a table (catalog part &#39;Q&#39;)
+  sync_commit_tables   0.2.0-dev (2026-10-03)   WITH (synchronous_commit = on | off) of a table: catalog part &#39;G&#39;
+
+A database that uses a feature not in this list needs a newer KDB (kdb check exits with 3).</code></pre>
+<h2 id="db-argument">&lt;db&gt;: a name or a folder path</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb sql market &quot;...&quot;          -- a name: the database &#39;market&#39; in the data folder
+kdb sql ./market &quot;...&quot;        -- a path: the folder &#39;market&#39; in the current folder
+kdb sql D:\kdb\market &quot;...&quot;   -- a path: always that folder</code></pre>
+<p>The commands <code>sql</code>, <code>shell</code>, <code>serve</code>, <code>info</code>, <code>check</code>, <code>repair</code> and <code>backup</code> take <code>&lt;db&gt;</code>. KDB decides like this:</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>KDB uses</th></tr></thead><tbody><tr><td>A name (only letters, digits, <code>_</code> and <code>-</code>), and the data folder has a database with that name</td><td>That database in the data folder. Upper or lower case does not matter.</td></tr><tr><td>A name, and the data folder has <strong>no</strong> database with that name</td><td>The folder with that name in the <strong>current</strong> folder. It is created when it does not exist.</td></tr><tr><td>A path (it has <code>\</code>, <code>/</code>, <code>:</code> or <code>.</code>)</td><td>Always that folder. It is created when it does not exist (not by <code>kdb info</code> and <code>kdb check</code>).</td></tr><tr><td>Nothing (only <code>kdb shell</code> and <code>kdb serve</code>)</td><td>The data folder: <code>kdb shell</code> opens the database <code>default</code>; <code>kdb serve</code> serves all databases.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> a wrong name does <strong>not</strong> give an error. <code>kdb sql markett &quot;...&quot;</code> makes a new, empty database <code>markett</code>, and then says <code>table ... does not exist</code>. Write <code>./market</code> when you want to be sure you mean a folder.</li><li>With a <strong>name</strong>, <code>kdb backup</code> and <code>kdb repair --backups</code> use the sub-folder <code>&lt;backups-dir&gt;/&lt;name&gt;</code>, the same place <code>kdb serve</code> uses.</li><li>Database names are 1 to 64 characters. <code>Market</code> and <code>market</code> are the same database.</li></ul>
+<p><strong>Command line: A name in the data folder, and a path in the current folder</strong></p>
+<pre><code class="language-bash">kdb shell
+&gt; CREATE DATABASE reports;
+kdb sql reports &quot;CREATE TABLE daily (day DATE PRIMARY KEY, trades LONG); INSERT INTO daily VALUES (&#39;2026-09-10&#39;, 32)&quot;
+kdb info reports
+kdb sql ./reports &quot;SHOW TABLES&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb shell</code></p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on default (data folder ./kdb-data)
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; database &#39;reports&#39; created
+kdb&gt;</code></pre>
+<p><code>&gt; kdb sql reports &quot;CREATE TABLE daily (day DATE PRIMARY KEY, trades LONG); INSERT INTO daily VALUES (&#39;2026-09-10&#39;, 32)&quot;</code></p>
+<pre><code class="language-text">table &#39;daily&#39; created
+
+1 row(s) inserted</code></pre>
+<p><code>&gt; kdb info reports</code></p>
+<pre><code class="language-text">database        ./kdb-data/reports
+manifest        copy a, sequence 7
+last shutdown   clean
+log position    4 (saved in files up to 4)
+newest change   2026-10-22 11:28:31
+features        batched_log_sync, block_stats, compressed_log, partition_format_2
+manifest keys   7
+
+FILE                                      VERSION       SIZE          LSN  STATUS
+catalog                                         1      232 B            4  ok
+t/1/all                                         2      388 B            4  ok
+
+2 files, 620 B, 0 marked damaged
+(STATUS is what the manifest records. To read every block and find new damage, run: kdb check)</code></pre>
+<p><code>&gt; kdb sql ./reports &quot;SHOW TABLES&quot;</code></p>
+<pre><code class="language-text">name | kind | partition | columns | rows
+-----+------+-----------+---------+-----
+(0 rows, 0.0 ms)</code></pre>
+<p>In this example the data folder is <code>./kdb-data</code>. <code>kdb info reports</code> opens <code>./kdb-data/reports</code>. <code>./reports</code> is a new, empty database in the current folder, so it has no tables.</p>
+<h2 id="data-folder">The data folder</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">--data-dir &lt;folder&gt;
+KDB_DATA_DIR=&lt;folder&gt;</code></pre>
+<p>The data folder holds many databases, one sub-folder per database. KDB looks for it in this order; the first one that is set wins:</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Where</th><th>Example</th></tr></thead><tbody><tr><td>1</td><td>The option <code>--data-dir &lt;folder&gt;</code></td><td><code>kdb serve --data-dir E:\kdb-data</code></td></tr><tr><td>2</td><td>Only <code>kdb serve</code>: <code>data_dir</code> in <code>kdb.conf</code>, what the console&#39;s <a href="console-settings.html">Settings page</a> saved (<a href="cli-serve.html#kdb-conf">kdb.conf</a>)</td><td><code>&quot;data_dir&quot;: &quot;E:/kdb-data&quot;</code></td></tr><tr><td>3</td><td>The environment variable <code>KDB_DATA_DIR</code></td><td><code>$env:KDB_DATA_DIR = &quot;E:\kdb-data&quot;</code></td></tr><tr><td>4</td><td>The folder <code>data</code> next to the <code>kdb</code> program</td><td><code>D:\KDB\build\bin\data</code></td></tr></tbody></table></div>
+<ul><li><code>--data-dir</code> works with <code>kdb sql</code>, <code>kdb shell</code>, <code>kdb serve</code>, <code>kdb info</code>, <code>kdb check</code>, <code>kdb repair</code>, <code>kdb backup</code> and <code>kdb user</code>.</li><li>KDB creates the data folder when it is missing.</li><li><code>kdb sql</code>, <code>kdb shell</code> and the other commands do not read <code>kdb.conf</code>. When the Settings page moved the server to another folder, give that folder to them with <code>--data-dir</code>.</li><li>The data folder also holds <code>_trash</code> (dropped databases) and <code>_system</code> (the server&#39;s users). They are not databases you can use.</li><li>Use <code>KDB_DATA_DIR</code> when the data must be on another disk, or when <code>kdb.exe</code> is in a folder where you cannot write (like <code>C:\Program Files</code>).</li></ul>
+<h3 id="wal-dir">The log on another disk</h3>
+<p>Syntax:</p>
+<pre><code class="language-sql">KDB_WAL_DIR=&lt;folder&gt;
+&quot;wal_dir&quot;: &quot;&lt;folder&gt;&quot;        in kdb.conf (kdb serve only)</code></pre>
+<p>Every commit writes the database&#39;s log and waits for the disk to confirm it. When the data folder is on a slow-to-sync disk (a Windows folder bind-mounted into Docker Desktop confirms a small write in about 1 ms; a Docker volume inside the VM in 0.4 ms), <code>wal_dir</code> puts the log on the faster disk while the data files stay where they are. Each database gets a sub-folder of it, named like the database. KDB leaves a note in the database&#39;s own <code>wal</code> folder saying where its log went, so <code>kdb backup</code>, a repair and a server started without the setting still find it. A database that already has a log keeps writing its current segment where it is; the next segment goes to the new folder. The old log kept for repairs (<code>wal_archive</code>) stays in the data folder.</p>
+<p><strong>Command line: --data-dir wins over KDB_DATA_DIR</strong></p>
+<pre><code class="language-bash">kdb shell --data-dir my-data
+&gt; CREATE DATABASE shop;
+&gt; SHOW DATABASES;
+kdb serve --data-dir my-data</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb shell --data-dir my-data</code></p>
+<pre><code class="language-text">KDB 0.2.0-dev shell on default (data folder my-data)
+End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
+kdb&gt; database &#39;shop&#39; created
+kdb&gt; name    | tables | bytes | current
+--------+--------+-------+--------
+default |      0 |     0 | true   
+shop    |      0 |     0 | false  
+(2 rows, 0.5 ms)
+kdb&gt;</code></pre>
+<p><code>&gt; kdb serve --data-dir my-data</code></p>
+<pre><code class="language-text">KDB 0.2.0-dev
+  console   http://127.0.0.1:9900
+  data      my-data (from --data-dir; one folder per database)
+  default   default (used when a request names no database)
+  backups   my-data/_backups/&lt;database name&gt; (from default)
+  access    no token
+  capacity  32 HTTP threads (default), 500 PostgreSQL connections (default), lock wait 5 s (default)
+  lanes     reads using 100 ms of CPU (three times in a row) wait for one of 16 heavy slots, at most 16 HTTP in line (--lanes on)
+  reads     32 reads run at once (the CPUs, at least 2; follows the CPU limit), the rest wait in line (--read-slots)
+  commits   synced to disk before they are confirmed (--sync-commits always)
+  time zone Asia/Katmandu (the computer&#39;s); also timers and backup schedules
+  readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
+  memory    26.95 GB for the whole process (85% of the machine&#39;s memory); table data 512.0 MB of it (--memory)
+  cpu       32 CPUs (the machine&#39;s); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
+  limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
+  safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
+  logs      slow queries &gt;= 1000 ms to my-data/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
+  recovery  manifest copy: a, last shutdown: clean
+  open      opened in 1 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
+
+Press Ctrl+C to stop.</code></pre>
+<p>The banner of <code>kdb serve</code> says where the data folder came from: <code>from --data-dir</code>, <code>from kdb.conf</code>, <code>from KDB_DATA_DIR</code> or <code>from program folder</code>.</p>
+<p>To set <code>KDB_DATA_DIR</code> for good (these lines are not run here):</p>
+<pre><code class="language-powershell"># Windows, for your user. Open a new PowerShell window afterwards.
+[Environment]::SetEnvironmentVariable(&quot;KDB_DATA_DIR&quot;, &quot;E:\kdb-data&quot;, &quot;User&quot;)</code></pre>
+<pre><code class="language-bash"># Linux and macOS: add this line to ~/.bashrc or ~/.zshrc
+export KDB_DATA_DIR=/srv/kdb/data</code></pre>
+<h2 id="exit-codes">Exit codes</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">0   OK
+1   error
+2   damage found, or damage that could not be repaired
+3   the database needs a newer KDB (nothing was changed)</code></pre>
+<p>Every <code>kdb</code> command ends with an exit code. Scripts use it to know if the command worked.</p>
+<div class="table-wrap"><table><thead><tr><th>Code</th><th>Meaning</th><th>Examples</th></tr></thead><tbody><tr><td><code>0</code></td><td>OK</td><td>The query ran. The backup was made. No damage found.</td></tr><tr><td><code>1</code></td><td>Error</td><td>Wrong SQL. A duplicate key. The database is open in another program. Wrong arguments.</td></tr><tr><td><code>2</code></td><td>Damage</td><td><code>kdb check</code> found damage. A data file failed its checksum. A repair could not fix everything.</td></tr><tr><td><code>3</code></td><td>Needs a newer KDB</td><td>A newer KDB wrote the database. It is not damaged: open it with that KDB (<a href="versions.html#needs-newer">versions</a>).</td></tr></tbody></table></div>
+<ul><li>In PowerShell the exit code is in <code>$LASTEXITCODE</code>. In bash and zsh it is in <code>$?</code>. Read it <strong>right after</strong> the <code>kdb</code> command.</li><li><code>$ErrorActionPreference = &quot;Stop&quot;</code> does not stop a PowerShell script when <code>kdb</code> fails. Check <code>$LASTEXITCODE</code> yourself.</li><li>Error messages go to the error output (stderr) and start with <code>error:</code>.</li><li><code>kdb shell</code> ends with the exit code of the last statement or dot command.</li></ul>
+<p><strong>Command line: 0 for a good query, 1 for a wrong table name</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb sql market &quot;SELECT count(*) AS n FROM brokers&quot;
+kdb sql market &quot;SELECT count(*) FROM brokerz&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb sql market &quot;SELECT count(*) AS n FROM brokers&quot;</code></p>
+<pre><code class="language-text">n
+-
+5
+(1 row, 0.3 ms)</code></pre>
+<p><code>&gt; kdb sql market &quot;SELECT count(*) FROM brokerz&quot;</code></p>
+<pre><code class="language-text">error: line 1, column 22: table or view &#39;brokerz&#39; does not exist</code></pre>
+<p>exit code 1</p>
+<pre><code class="language-powershell"># In a script (not run here)
+kdb check D:\kdb\market | Out-Null
+switch ($LASTEXITCODE) {
+  0 { &quot;check: OK&quot; }
+  2 { &quot;check: DAMAGE FOUND - run kdb repair&quot; }
+  3 { &quot;check: this database needs a newer KDB - do not repair it&quot; }
+  default { &quot;check: could not run (exit code $LASTEXITCODE)&quot; }
+}</code></pre>
+<h2 id="options">How options are read</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb &lt;command&gt; &lt;arguments&gt; [--option value] [--flag]</code></pre>
+<p>Options can come before or after the other arguments. Some options take a value (<code>--format csv</code>), some do not (<code>--hard-links</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Value</th><th>Used by</th></tr></thead><tbody><tr><td><code>--data-dir</code></td><td>folder</td><td><a href="cli-sql-and-shell.html">sql, shell</a>, <a href="cli-serve.html">serve</a>, info, check, repair, backup, <a href="cli-users.html">user</a></td></tr><tr><td><code>--backups</code></td><td>folder</td><td><a href="cli-sql-and-shell.html">sql, shell</a>, <a href="cli-serve.html">serve</a>, <a href="cli-maintenance.html#kdb-repair">repair</a></td></tr><tr><td><code>--memory</code></td><td>megabytes</td><td>sql, shell, serve</td></tr><tr><td><code>--format</code>, <code>--max-rows</code></td><td><code>table</code>/<code>csv</code>/<code>json</code>, a number</td><td><a href="cli-sql-and-shell.html#kdb-sql">kdb sql</a></td></tr><tr><td><code>--port</code>, <code>--bind</code>, <code>--token</code>, <code>--db</code>, <code>--threads</code>, <code>--cache-mb</code>, <code>--sync-commits</code>, <code>--pg-port</code>, <code>--pg-timestamptz</code>, <code>--config</code>, <code>--warm-indexes</code>, <code>--reader-yield</code>, <code>--drain-timeout</code></td><td>see <a href="cli-serve.html#kdb-serve">kdb serve</a></td><td>serve</td></tr><tr><td><code>--statement-timeout</code>, <code>--max-result-memory</code>, <code>--max-groups</code>, <code>--max-queries-per-user</code>, <code>--safe-updates</code>, <code>--read-only</code>, <code>--trash-days</code>, <code>--audit</code>, <code>--audit-keep-days</code>, <code>--activity-log-size</code></td><td>see <a href="protection.html">protection</a></td><td>serve (<code>--trash-days</code> also sql, shell)</td></tr><tr><td><code>--backup-schedule</code>, <code>--backup-copy</code>, <code>--backup-warn-hours</code></td><td>see <a href="backup-schedule.html">backup schedule</a></td><td>serve</td></tr><tr><td><code>--dir</code>, <code>--url</code>, <code>--token</code>, <code>--home</code></td><td>folder, address, secret, folder</td><td><a href="install-packages.html#skill">kdb skill install</a></td></tr><tr><td><code>--hard-links</code>, <code>--keep-daily</code>, <code>--keep-weekly</code></td><td>-, a number, a number</td><td><a href="backup-and-safety.html#kdb-backup">kdb backup</a></td></tr><tr><td><code>--logs-from</code>, <code>--until</code></td><td>folder, time</td><td><a href="backup-and-safety.html#kdb-restore">kdb restore</a></td></tr><tr><td><code>--accept-log-loss</code></td><td>-</td><td><a href="cli-maintenance.html#kdb-repair">kdb repair</a></td></tr><tr><td><code>--role</code></td><td><code>admin</code>/<code>write</code>/<code>read</code>/<code>none</code></td><td><a href="cli-users.html#kdb-user-add">kdb user add</a></td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> an option a command does not know is <strong>ignored without a message</strong>. Check the spelling: <code>--hard-link</code> (without <code>s</code>) makes a normal backup.</li><li>An option that takes a value always takes the <strong>next word</strong>, even when that word starts with <code>--</code>. So <code>--token --port 9901</code> sets the token to <code>--port</code>.</li><li>A word that is not an option counts as an argument. <code>kdb sql market &quot;SELECT 1&quot; --formt csv</code> has one argument too many (<code>csv</code>), so it prints the usage line.</li><li>Text in arguments may use any language: <code>kdb sql market &quot;INSERT ... &#39;नेपाल&#39;&quot;</code> works on Windows too.</li></ul>
+<p><strong>Command line: A misspelled option with a value</strong> (sample data: sample)</p>
+<pre><code class="language-bash">kdb sql market &quot;SELECT 1&quot; --formt csv</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">usage: kdb sql &lt;db&gt; &quot;SQL&quot; [--format table|csv|json] [--max-rows N] [--backups &lt;dir&gt;]</code></pre>
+<p>exit code 1</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/cli-overview.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit log - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="KDB writes security events (logins, users, DDL, backups, refused rights) and, for chosen tables, every changed row with who, when, old and new values.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/audit-log.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/audit-log.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="audit-log">Audit log</h1>
+<blockquote><p>KDB writes security events (logins, users, DDL, backups, refused rights) and, for chosen tables, every changed row with who, when, old and new values.</p></blockquote>
+<ul><li>Category: Users &amp; security</li><li>Keywords: audit, audit log, audit trail, hash chain, tamper, tamper-evident, SHOW AUDIT VERIFY, verify, user agent, User-Agent, application_name, agent, --token-name, KDB_TOKEN_NAME, who changed, history of changes, login history, failed logins, lockout, _audit_log, AUDIT, SET AUDIT ON, SET AUDIT OFF, old values, new values, accounting, compliance, --audit, --audit-keep-days, retention, erase user, delete user data, right to be forgotten, GDPR, privacy, personal data, erasure</li><li>See also: <a href="protection.html">Protection - timeouts, limits, safe updates, read-only</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="server-security.html">Keeping kdb serve safe</a>, <a href="table-rights.html">Table rights - GRANT ON TABLE</a>, <a href="two-factor-login.html">Two-factor login (TOTP)</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a></li></ul>
+<p>The audit log is a table named <code>_audit_log</code>. KDB writes it; nobody can change, delete or drop its rows (it is <strong>append-only</strong>). It goes through the log like any change, so it survives crashes, and backups hold it.</p>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>Where</th><th>Turn it on</th></tr></thead><tbody><tr><td>logins (good, failed, lockouts), user and grant changes, <code>CREATE</code>/<code>DROP</code>/<code>ALTER</code> of tables, indexes, views, functions, procedures, triggers and databases, backups, timers, pinned statements, partitions a TTL dropped, refused rights</td><td><code>_audit_log</code> of the hidden <code>_system</code> database</td><td><code>kdb serve --data-dir ...</code> (default <code>--audit on</code>)</td></tr><tr><td>every row a statement adds, changes or deletes in one table</td><td><code>_audit_log</code> of that database</td><td><code>ALTER TABLE t SET AUDIT ON</code></td></tr></tbody></table></div>
+<p>Columns of <code>_audit_log</code>: <code>time</code>, <code>event</code>, <code>user</code>, <code>client</code>, <code>db</code>, <code>object</code>, <code>detail</code>, <code>row_key</code>, <code>old_values</code> (JSON), <code>new_values</code> (JSON), <code>session</code>, <code>ok</code>, <code>seq</code>, <code>hash</code>, <code>agent</code>.</p>
+<p><code>client</code> is the address and protocol (<code>10.0.0.5 (http)</code>). <code>agent</code> is the program that sent the request: the HTTP <code>User-Agent</code> header (<code>curl/8.4.0</code>, the browser of the web console), or the PostgreSQL <code>application_name</code> (<code>psql</code>, <code>DBeaver</code>). It is at most 200 characters, and <code>NULL</code> when the client sent none. A client can write anything there, so it helps to tell programs apart but proves nothing.</p>
+<p>An action done with the server&#39;s <code>--token</code> is written with <code>user</code> = <code>token</code>, or the name given with <code>--token-name</code> (or <code>KDB_TOKEN_NAME</code>), never with an empty user.</p>
+<div class="table-wrap"><table><thead><tr><th>event</th><th>Meaning</th></tr></thead><tbody><tr><td><code>login</code>, <code>login_failed</code>, <code>lockout</code></td><td>a login, a wrong password or code, an address that must wait</td></tr><tr><td><code>user</code>, <code>ddl</code>, <code>protection</code>, <code>backup</code>, <code>server</code></td><td>user statements, schema changes, protection settings, backups, server start, stop and restart</td></tr><tr><td><code>timer</code></td><td>a <a href="timers.html">timer</a> saved, run now, turned on or off, or deleted</td></tr><tr><td><code>pin</code></td><td>a <a href="pinned-queries.html">pinned statement</a> pinned or unpinned</td></tr><tr><td><code>ttl_drop</code></td><td>partitions a table&#39;s <a href="alter-table.html#set-ttl">TTL</a> dropped by itself</td></tr><tr><td><code>denied</code></td><td>a statement the user&#39;s rights did not allow</td></tr><tr><td><code>insert</code>, <code>update</code>, <code>delete</code></td><td>a row of a table with <code>SET AUDIT ON</code></td></tr></tbody></table></div>
+<h2 id="show-audit">SHOW AUDIT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW AUDIT [LIMIT n] [WHERE &lt;condition&gt;] [LIMIT n]</code></pre>
+<p>The newest security events first (100 when there is no <code>LIMIT</code>). The condition uses the columns above.</p>
+<ul><li><strong>Returns:</strong> rows of <code>_audit_log</code> of <code>_system</code> (on a server that opened one folder by its path: of that database).</li><li><strong>Notes:</strong> needs a server admin. The condition may only use the audit rows: no subqueries of other tables.</li></ul>
+<p><strong>Example: Failed logins of the last day</strong></p>
+<pre><code class="language-sql">SHOW AUDIT WHERE event = &#39;login_failed&#39; AND time &gt; dateadd(&#39;d&#39;, -1, now()) LIMIT 20;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>event (STRING)</th><th>user (STRING)</th><th>client (STRING)</th><th>db (STRING)</th><th>object (STRING)</th><th>detail (STRING)</th><th>row_key (STRING)</th><th>old_values (JSON)</th><th>new_values (JSON)</th><th>session (LONG)</th><th>ok (BOOL)</th><th>seq (LONG)</th><th>hash (STRING)</th><th>agent (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<pre><code class="language-text">no audit events yet</code></pre>
+<h2 id="set-audit">ALTER TABLE ... SET AUDIT ON</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER TABLE &lt;name&gt; SET AUDIT ON
+ALTER TABLE &lt;name&gt; SET AUDIT OFF</code></pre>
+<p>From now on, every row a statement adds, changes or deletes in the table is also written to <code>_audit_log</code> of the database, <strong>in the same transaction</strong> as the change: there is never a change without its audit row, or an audit row without its change.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Holds</th></tr></thead><tbody><tr><td><code>event</code></td><td><code>insert</code>, <code>update</code> or <code>delete</code></td></tr><tr><td><code>user</code>, <code>client</code>, <code>agent</code>, <code>session</code></td><td>who: the logged-in user, the address and protocol, the client program, the session</td></tr><tr><td><code>detail</code></td><td>the statement (a big INSERT is shortened)</td></tr><tr><td><code>row_key</code></td><td>the key of the row: <code>id=&#39;5&#39;</code>, or <code>rowid=7</code> for a table without a key</td></tr><tr><td><code>old_values</code>, <code>new_values</code></td><td>the row before and after, as JSON. Columns whose name holds <code>password</code>, <code>secret</code>, <code>token</code>, <code>scram</code> or <code>totp</code> show <code>&quot;***&quot;</code>.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>audit is on for table &#39;accounts&#39;: every changed row is written to _audit_log</code>.</li><li><strong>Notes:</strong>
+<ul><li>Tables without <code>SET AUDIT ON</code> cost nothing extra. An audited table&#39;s writes cost one row lookup and one audit row per changed row.</li><li>An <code>UPDATE</code> that changes nothing in a row writes no audit row. Rolled back transactions write none.</li><li>Read the rows with <code>SELECT ... FROM _audit_log</code> (needs role admin on the database).</li><li>Older KDB programs refuse a database with an audited table (the setting would be lost).</li></ul></li></ul>
+<p><strong>Example: Audit an accounts table</strong></p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, owner STRING, balance DECIMAL(2));
+ALTER TABLE accounts SET AUDIT ON;
+INSERT INTO accounts VALUES (1, &#39;Sita&#39;, 100.00);
+UPDATE accounts SET balance = balance - 25 WHERE id = 1;
+SELECT event, row_key, old_values, new_values FROM _audit_log ORDER BY time;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>ALTER TABLE accounts SET AUDIT ON</code></p>
+<pre><code class="language-text">audit is on for table &#39;accounts&#39;: every changed row is written to _audit_log</code></pre>
+<p><code>INSERT INTO accounts VALUES (1, &#39;Sita&#39;, 100.00)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>UPDATE accounts SET balance = balance - 25 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT event, row_key, old_values, new_values FROM _audit_log ORDER BY time</code></p>
+<div class="table-wrap"><table><thead><tr><th>event (STRING)</th><th>row_key (STRING)</th><th>old_values (JSON)</th><th>new_values (JSON)</th></tr></thead><tbody><tr><td>insert</td><td>id=&#39;1&#39;</td><td>NULL</td><td>{&quot;id&quot;:1,&quot;owner&quot;:&quot;Sita&quot;,&quot;balance&quot;:100.00}</td></tr><tr><td>update</td><td>id=&#39;1&#39;</td><td>{&quot;id&quot;:1,&quot;owner&quot;:&quot;Sita&quot;,&quot;balance&quot;:100.00}</td><td>{&quot;id&quot;:1,&quot;owner&quot;:&quot;Sita&quot;,&quot;balance&quot;:75.00}</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Nobody can change the audit rows</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY, balance DECIMAL(2));
+ALTER TABLE accounts SET AUDIT ON;
+DELETE FROM _audit_log;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE accounts (</code></p>
+<pre><code class="language-text">table &#39;accounts&#39; created</code></pre>
+<p><code>ALTER TABLE accounts SET AUDIT ON</code></p>
+<pre><code class="language-text">audit is on for table &#39;accounts&#39;: every changed row is written to _audit_log</code></pre>
+<p>Error: <code>the audit table _audit_log is append-only: KDB writes it, nobody can change or drop it (old rows are removed by the audit retention setting)</code></p>
+<h2 id="hash-chain">The hash chain</h2>
+<p>Every row gets a number and a hash, so a row changed or removed outside KDB (by editing the files) is found.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Holds</th></tr></thead><tbody><tr><td><code>seq</code></td><td>1, 2, 3 ... in the order the rows were written</td></tr><tr><td><code>hash</code></td><td>SHA-256 (hex) of the previous row&#39;s hash and this row&#39;s values</td></tr></tbody></table></div>
+<p>A changed row no longer matches its hash. A removed row leaves a gap in <code>seq</code>. <code>SHOW AUDIT VERIFY</code>, <code>kdb check &lt;database&gt;</code> and <code>POST /api/check</code> check the whole chain and name the rows that do not fit.</p>
+<ul><li><strong>Returns:</strong> <code>kdb check</code> prints <code>audit chain: N row(s) checked, seq 1 to N, newest hash ...</code>, or a <code>TAMPERED:</code> line per problem (exit code 2).</li><li><strong>Notes:</strong>
+<ul><li>Note the newest hash somewhere else now and then (a ticket, an email). Then even the newest rows cannot be cut off unseen.</li><li>Rows written before KDB had the chain keep <code>seq</code> and <code>hash</code> empty; the check counts them apart.</li><li>When <code>--audit-keep-days</code> removes old months, the check starts at the oldest row left.</li><li>The <code>agent</code> column came after the chain. It is in the hashed values only when it has a value: older rows (no agent) keep the hash they were written with, and a row&#39;s agent can not be changed or cleared unseen.</li></ul></li></ul>
+<p><strong>Example: The chain of an audited table</strong></p>
+<pre><code class="language-sql">CREATE TABLE ledger (id INT PRIMARY KEY, amount DECIMAL(2));
+ALTER TABLE ledger SET AUDIT ON;
+INSERT INTO ledger VALUES (1, 10.00), (2, 20.00);
+SELECT seq, event, row_key, length(hash) AS hash_length FROM _audit_log ORDER BY seq;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ledger (</code></p>
+<pre><code class="language-text">table &#39;ledger&#39; created</code></pre>
+<p><code>ALTER TABLE ledger SET AUDIT ON</code></p>
+<pre><code class="language-text">audit is on for table &#39;ledger&#39;: every changed row is written to _audit_log</code></pre>
+<p><code>INSERT INTO ledger VALUES (1, 10.00), (2, 20.00)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT seq, event, row_key, length(hash) AS hash_length FROM _audit_log ORDER BY seq</code></p>
+<div class="table-wrap"><table><thead><tr><th>seq (LONG)</th><th>event (STRING)</th><th>row_key (STRING)</th><th>hash_length (LONG)</th></tr></thead><tbody><tr><td>1</td><td>insert</td><td>id=&#39;1&#39;</td><td>64</td></tr><tr><td>2</td><td>insert</td><td>id=&#39;2&#39;</td><td>64</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="show-audit-verify">SHOW AUDIT VERIFY</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW AUDIT VERIFY</code></pre>
+<p>Checks the hash chain from SQL, the same check as <code>kdb check</code>, without stopping the server.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Holds</th></tr></thead><tbody><tr><td><code>log</code></td><td>which <code>_audit_log</code>: <code>_system</code> (the security events), or the database of the session (its <code>SET AUDIT ON</code> rows)</td></tr><tr><td><code>ok</code></td><td><code>true</code> when every row matches its hash and no <code>seq</code> is missing</td></tr><tr><td><code>rows_checked</code></td><td>the rows with a <code>seq</code></td></tr><tr><td><code>unchained</code></td><td>older rows written before the chain existed</td></tr><tr><td><code>first_seq</code>, <code>last_seq</code></td><td>the range of <code>seq</code> checked</td></tr><tr><td><code>first_broken</code></td><td>the <code>seq</code> of the first row that does not fit; <code>NULL</code> when all fit</td></tr><tr><td><code>problems</code></td><td>what is wrong, row by row</td></tr><tr><td><code>last_hash</code></td><td>the newest hash: note it somewhere else to also catch a cut at the end</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per audit log, and the message <code>the audit hash chain is intact (N rows checked)</code> or <code>the audit hash chain is broken: ...</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs a server admin, like <code>SHOW AUDIT</code>.</li><li>It reads the whole chain: on a log of millions of rows it takes a few seconds.</li></ul></li></ul>
+<p><strong>Example: Check the chain of an audited table</strong></p>
+<pre><code class="language-sql">CREATE TABLE ledger (id INT PRIMARY KEY, amount DECIMAL(2));
+ALTER TABLE ledger SET AUDIT ON;
+INSERT INTO ledger VALUES (1, 10.00), (2, 20.00);
+UPDATE ledger SET amount = 15.00 WHERE id = 1;
+SHOW AUDIT VERIFY;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE ledger (</code></p>
+<pre><code class="language-text">table &#39;ledger&#39; created</code></pre>
+<p><code>ALTER TABLE ledger SET AUDIT ON</code></p>
+<pre><code class="language-text">audit is on for table &#39;ledger&#39;: every changed row is written to _audit_log</code></pre>
+<p><code>INSERT INTO ledger VALUES (1, 10.00), (2, 20.00)</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>UPDATE ledger SET amount = 15.00 WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SHOW AUDIT VERIFY</code></p>
+<div class="table-wrap"><table><thead><tr><th>log (STRING)</th><th>ok (BOOL)</th><th>rows_checked (LONG)</th><th>unchained (LONG)</th><th>first_seq (LONG)</th><th>last_seq (LONG)</th><th>first_broken (LONG)</th><th>problems (STRING)</th><th>last_hash (STRING)</th></tr></thead><tbody><tr><td>demo</td><td>true</td><td>3</td><td>0</td><td>1</td><td>3</td><td>NULL</td><td>NULL</td><td>4f8bf0605dba55930de5b81641faa09cf33287adde9c68e299bcae5d37ea3930</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">the audit hash chain is intact (3 rows checked)</code></pre>
+<h2 id="api-audit">GET /api/audit</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /api/audit?limit=100&amp;where=&lt;condition&gt;
+GET /api/audit?db=&lt;name&gt;&amp;kind=data&amp;limit=100&amp;where=&lt;condition&gt;</code></pre>
+<p>The same as <code>SHOW AUDIT</code> over HTTP. With <code>kind=data</code>: the data-change rows of the database <code>db</code>.</p>
+<ul><li><strong>Returns:</strong> <code>{&quot;query&quot;, &quot;columns&quot;, &quot;dataset&quot;, &quot;count&quot;}</code>.</li><li><strong>Notes:</strong> needs a server admin (for <code>kind=data</code>: admin on that database). HTTP 404 when no table of the database has <code>SET AUDIT ON</code> yet.</li></ul>
+<p><strong>HTTP: The newest security events</strong></p>
+<pre><code class="language-http">GET /api/audit?limit=5</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SHOW AUDIT LIMIT 5&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+    {&quot;name&quot;: &quot;event&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;user&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;client&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;db&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;object&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;detail&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;row_key&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;old_values&quot;, &quot;type&quot;: &quot;JSON&quot;},
+    {&quot;name&quot;: &quot;new_values&quot;, &quot;type&quot;: &quot;JSON&quot;},
+    {&quot;name&quot;: &quot;session&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;ok&quot;, &quot;type&quot;: &quot;BOOL&quot;},
+    {&quot;name&quot;: &quot;seq&quot;, &quot;type&quot;: &quot;LONG&quot;},
+    {&quot;name&quot;: &quot;hash&quot;, &quot;type&quot;: &quot;STRING&quot;},
+    {&quot;name&quot;: &quot;agent&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [],
+  &quot;count&quot;: 0
+}</code></pre>
+<h2 id="audit-keep-days">--audit-keep-days</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">kdb serve [--audit on|off] [--audit-keep-days N]</code></pre>
+<p><code>--audit off</code> writes no security events. <code>--audit-keep-days N</code> removes security events older than N days, a whole month at a time, once a day (0 = keep forever, the default).</p>
+<ul><li><strong>Notes:</strong>
+<ul><li>Security events (<code>login_failed</code>, <code>lockout</code>, <code>denied</code>, <code>user</code>, <code>protection</code>) are written to disk before the request that caused them gets its answer. A successful <code>login</code> and the other events (<code>ddl</code>, <code>timer</code>, <code>backup</code> ...) are written in groups every 200 ms, so a crash can lose the events of that moment. A new connection does not wait for a disk write.</li><li>Keep the audit log of accounting for as long as the law asks (often several years).</li><li><code>--audit-keep-days</code> only removes <strong>security events</strong> (the <code>_audit_log</code> of <code>_system</code>). The data-change rows of <code>SET AUDIT ON</code> tables, in each database&#39;s own <code>_audit_log</code>, are kept as long as the database lives (see <a href="#erase-user">erase one user&#39;s data</a>).</li></ul></li></ul>
+<h2 id="erase-user">Erase one user&#39;s data</h2>
+<p>A person asks you to delete everything you hold about them. Three steps: find the tables, delete the rows, and know what the audit log keeps.</p>
+<p><strong>1. Find every table with a user column.</strong> <code>information_schema.columns</code> lists the columns of every table.</p>
+<p><strong>Example: Which tables hold a user id or an email?</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY, email STRING NOT NULL);
+CREATE TABLE orders (id INT PRIMARY KEY, user_id INT REFERENCES app_users(id) ON DELETE CASCADE, amount DECIMAL(2));
+CREATE TABLE page_views (time TIMESTAMP, user_id INT, page STRING) TIMESERIES(time) PARTITION BY DAY;</code></pre>
+<pre><code class="language-sql">SELECT table_name, column_name FROM information_schema.columns
+WHERE column_name IN (&#39;user_id&#39;, &#39;email&#39;) ORDER BY table_name;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>table_name (STRING)</th><th>column_name (STRING)</th></tr></thead><tbody><tr><td>app_users</td><td>email</td></tr><tr><td>orders</td><td>user_id</td></tr><tr><td>page_views</td><td>user_id</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>2. Delete the rows in one transaction.</strong> Tables that point to the user with <code>REFERENCES ... ON DELETE CASCADE</code> lose their rows together with the user&#39;s row (<a href="constraints.html#references">REFERENCES</a>). Tables without such a key (a time-series table of page views, for example) need their own <code>DELETE</code>. One <code>BEGIN ... COMMIT</code> makes it all or nothing.</p>
+<p><strong>Example: Delete user 1 everywhere, then check</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY, email STRING NOT NULL);
+CREATE TABLE orders (id INT PRIMARY KEY, user_id INT REFERENCES app_users(id) ON DELETE CASCADE, amount DECIMAL(2));
+CREATE TABLE page_views (time TIMESTAMP, user_id INT, page STRING) TIMESERIES(time) PARTITION BY DAY;
+INSERT INTO app_users VALUES (1, &#39;ram@example.com&#39;), (2, &#39;sita@example.com&#39;);
+INSERT INTO orders VALUES (10, 1, 250.00), (11, 2, 99.50), (12, 1, 10.00);
+INSERT INTO page_views VALUES (&#39;2026-09-24T10:00:00Z&#39;, 1, &#39;/home&#39;), (&#39;2026-09-24T10:01:00Z&#39;, 2, &#39;/home&#39;);</code></pre>
+<pre><code class="language-sql">BEGIN;
+DELETE FROM page_views WHERE user_id = 1;
+DELETE FROM app_users WHERE id = 1;
+COMMIT;
+SELECT &#39;orders&#39; AS table_name, count(*) AS rows_left FROM orders WHERE user_id = 1
+UNION ALL SELECT &#39;page_views&#39;, count(*) FROM page_views WHERE user_id = 1
+UNION ALL SELECT &#39;app_users&#39;, count(*) FROM app_users WHERE id = 1;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>DELETE FROM page_views WHERE user_id = 1</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>DELETE FROM app_users WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 4 change(s) saved</code></pre>
+<p><code>SELECT &#39;orders&#39; AS table_name, count(*) AS rows_left FROM orders WHERE user_id = 1 UNION ALL SELECT </code></p>
+<div class="table-wrap"><table><thead><tr><th>table_name (STRING)</th><th>rows_left (LONG)</th></tr></thead><tbody><tr><td>orders</td><td>0</td></tr><tr><td>page_views</td><td>0</td></tr><tr><td>app_users</td><td>0</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>3. What the audit log keeps.</strong> If a table has <code>SET AUDIT ON</code>, its <code>_audit_log</code> row for the <code>DELETE</code> holds the deleted row in <code>old_values</code>, and the older <code>insert</code> and <code>update</code> rows hold it too. <strong>These rows cannot be erased with SQL.</strong> The log is append-only on purpose: <code>DELETE</code>, <code>UPDATE</code>, <code>TRUNCATE</code> and <code>DROP</code> of <code>_audit_log</code> are refused, and every row is linked to the one before by the <a href="#hash-chain">hash chain</a>, so a row removed by editing the files is reported by <code>kdb check</code>. <code>--audit-keep-days</code> does not reach these rows either: it only removes security events.</p>
+<p><strong>Example: The deleted row is still in old_values</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_users (id INT PRIMARY KEY, email STRING NOT NULL);
+ALTER TABLE app_users SET AUDIT ON;
+INSERT INTO app_users VALUES (1, &#39;ram@example.com&#39;);</code></pre>
+<pre><code class="language-sql">DELETE FROM app_users WHERE id = 1;
+SELECT event, row_key, old_values FROM _audit_log WHERE event = &#39;delete&#39;;</code></pre>
+<p>Result:</p>
+<p><code>DELETE FROM app_users WHERE id = 1</code></p>
+<pre><code class="language-text">1 row(s) deleted</code></pre>
+<p><code>SELECT event, row_key, old_values FROM _audit_log WHERE event = &#39;delete&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>event (STRING)</th><th>row_key (STRING)</th><th>old_values (JSON)</th></tr></thead><tbody><tr><td>delete</td><td>id=&#39;1&#39;</td><td>{&quot;id&quot;:1,&quot;email&quot;:&quot;ram@example.com&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<div class="table-wrap"><table><thead><tr><th>What you can do</th><th>How</th></tr></thead><tbody><tr><td>Keep personal data out of audited tables</td><td>Put names, emails and phone numbers in a table <strong>without</strong> <code>SET AUDIT ON</code>, and audit the table of money or orders that holds only the user&#39;s id. The audit rows then hold an id that means nothing once the user row is gone.</td></tr><tr><td>Hide secrets</td><td>Columns whose name holds <code>password</code>, <code>secret</code>, <code>token</code>, <code>scram</code> or <code>totp</code> are always written as <code>&quot;***&quot;</code>.</td></tr><tr><td>Stop recording</td><td><code>ALTER TABLE t SET AUDIT OFF</code> writes no new rows. The rows already there stay.</td></tr><tr><td>Remove everything</td><td><code>DROP DATABASE</code>, then <code>PURGE TRASH ALL</code>, removes the database and its <code>_audit_log</code>. There is no way to remove only some rows.</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> backups hold the deleted rows too, until the <a href="backup-schedule.html">backup schedule</a> removes the old backups (<code>backup_keep_daily</code>, <code>backup_keep_weekly</code>).</li><li><strong>Notes:</strong> in many places the law lets you keep records you must keep for accounting or security, even after an erasure request. Say in your privacy policy that the audit log keeps the changes of audited tables, and for how long.</li></ul>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/audit-log.md">This page as markdown</a>.</footer>
+</body>
+</html>

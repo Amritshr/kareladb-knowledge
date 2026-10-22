@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL basics - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="How KDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/sql-basics.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sql-basics.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="sql-basics">SQL basics</h1>
+<blockquote><p>How KDB reads SQL text: statements, names, text, numbers, TRUE/FALSE/NULL, comments, errors and reserved words.</p></blockquote>
+<ul><li>Category: Getting started</li><li>Keywords: syntax, statement, semicolon, ;, case, upper case, lower case, identifier, name, quoted name, double quotes, string, text, single quote, escape quote, number, integer, float, scientific notation, boolean, constant, comment, --, /*, error message, line and column, syntax error, reserved word, keyword, three-valued logic, IS NULL, IS NOT NULL, unknown, alias</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="operators.html">Operators</a>, <a href="functions-conditional.html">Conditional and NULL functions</a>, <a href="column-types.html">Column types</a>, <a href="select.html">SELECT</a>, <a href="where.html">WHERE</a></li></ul>
+<p><strong>SQL</strong> is the language you use to talk to KDB. A <strong>statement</strong> is one command, like <code>SELECT</code> or <code>INSERT</code>. This page shows the small rules that every statement follows.</p>
+<p><strong>Example: Names, text, numbers, NULL and a comment in one query</strong></p>
+<pre><code class="language-sql">-- the price of one CITY share, and a note
+SELECT &#39;CITY&#39; AS symbol,
+       512.45 AS &quot;Last Price&quot;,   /* a name with a space needs double quotes */
+       100 AS quantity,
+       512.45 * 100 AS amount,
+       &#39;City&#39;&#39;s bank&#39; AS note,
+       NULL AS broker;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>Last Price (DOUBLE)</th><th>quantity (LONG)</th><th>amount (DOUBLE)</th><th>note (STRING)</th><th>broker (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>512.45</td><td>100</td><td>51245</td><td>City&#39;s bank</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="statements">Statements and ;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">statement ; statement ; ...</code></pre>
+<p>A text can hold many statements. Put <code>;</code> between them. The <code>;</code> after the last statement is optional. Extra <code>;</code> are ignored.</p>
+<ul><li>When you send a text (with <code>kdb sql</code>, a file, or HTTP <code>/exec</code>), KDB first checks the <strong>grammar</strong> of the whole text. If one statement has a syntax error, <strong>no</strong> statement runs. (<code>kdb shell</code> runs what you typed each time a line ends with <code>;</code>.)</li><li>Then the statements run one by one. Each one is saved on its own.</li><li>At the first error while running, KDB <strong>stops</strong>. The statements before it stay saved. The statements after it do not run.</li><li>One statement is all or nothing: an <code>INSERT</code> of 5000 rows with one bad row saves no row.</li><li><strong>Notes:</strong> to make many statements succeed or fail together, use <a href="transactions.html">BEGIN ... COMMIT</a>.</li></ul>
+<p><strong>Example: Three statements, one result each</strong></p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);
+INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;);;
+SELECT id, name FROM brokers</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE brokers (</code></p>
+<pre><code class="language-text">table &#39;brokers&#39; created</code></pre>
+<p><code>INSERT INTO brokers VALUES (58, &#39;Northgate Securities&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, name FROM brokers</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>58</td><td>Northgate Securities</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A script stops at the first error; row 21 stays saved</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">INSERT INTO brokers VALUES (21, &#39;Test Broker A&#39;);
+INSERT INTO brokers VALUES (21, &#39;Test Broker B&#39;);
+INSERT INTO brokers VALUES (22, &#39;Test Broker C&#39;);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p>Error: <code>a row with id=&#39;21&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></p>
+<p><strong>Example: A syntax error in the second statement: the first does not run either</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE notes (id INT, body STRING);
+SELEC * FROM notes;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 2, column 1: expected a statement (CREATE, DROP, RENAME, ALTER, SHOW, INSERT, UPDATE, DELETE, BACKUP, CHECK, SELECT, EXPLAIN, CALL, BEGIN, COMMIT, ROLLBACK, SAVEPOINT, DECLARE, FETCH or CLOSE) but found &#39;SELEC&#39;</code></p>
+<h2 id="case">Upper and lower case</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT = select = Select
+ochl_day = OCHL_DAY = Ochl_Day
+&#39;CITY&#39; &lt;&gt; &#39;city&#39;</code></pre>
+<p>Keywords, table names, column names and function names do not care about case. <strong>Text values do</strong>: <code>&#39;CITY&#39;</code> is not <code>&#39;city&#39;</code>.</p>
+<ul><li>A table or column keeps the spelling you used in <code>CREATE TABLE</code>. <code>SHOW TABLES</code> shows that spelling.</li><li>A column name in the result keeps the spelling of the alias you wrote.</li><li><strong>Notes:</strong> in PostgreSQL, a name in double quotes is case sensitive. In KDB it is not: <code>&quot;Total&quot;</code> and <code>&quot;total&quot;</code> are the same name.</li></ul>
+<p><strong>Example: Any case works for names; text compares exactly</strong></p>
+<pre><code class="language-sql">CREATE TABLE Brokers (Id INT PRIMARY KEY, Name STRING);
+INSERT INTO BROKERS (ID, NAME) VALUES (58, &#39;Northgate Securities&#39;);
+select id, name, name = &#39;northgate securities&#39; AS same_text, upper(name) = &#39;NORTHGATE SECURITIES&#39; AS same_upper from brokers;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE Brokers (</code></p>
+<pre><code class="language-text">table &#39;Brokers&#39; created</code></pre>
+<p><code>INSERT INTO BROKERS (ID, NAME) VALUES (58, &#39;Northgate Securities&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, name, name = &#39;northgate securities&#39; AS same_text, upper(name) = &#39;NORTHGATE SECURITIES&#39; AS</code></p>
+<div class="table-wrap"><table><thead><tr><th>Id (INT)</th><th>Name (STRING)</th><th>same_text (BOOL)</th><th>same_upper (BOOL)</th></tr></thead><tbody><tr><td>58</td><td>Northgate Securities</td><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="names">Names and &quot;quoted names&quot;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">name
+&quot;any name&quot;
+&quot;a name with a &quot;&quot; inside&quot;</code></pre>
+<p>A <strong>name</strong> (also called identifier) names a table, column, alias, view or index. A plain name has letters, digits and <code>_</code>, and does not start with a digit. Letters of any language (Nepali, Chinese, ...) also work.</p>
+<p>Write a name in <strong>double quotes</strong> when it:</p>
+<ul><li>is a <a href="#reserved-words">reserved word</a>, like <code>&quot;order&quot;</code> or <code>&quot;select&quot;</code>;</li><li>has a space or another special character, like <code>&quot;Total Amount&quot;</code>;</li><li>starts with a digit, like <code>&quot;1st_level&quot;</code>.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Rule</th></tr></thead><tbody><tr><td>Plain name</td><td>letters (any language), digits, <code>_</code>; not starting with a digit</td></tr><tr><td>Quoted name</td><td>any characters; a <code>&quot;</code> inside is written twice: <code>&quot;&quot;</code></td></tr><tr><td>Empty name <code>&quot;&quot;</code></td><td>not allowed</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>time</code>, <code>date</code>, <code>timestamp</code>, <code>symbol</code>, <code>partition</code>, <code>open</code>, <code>close</code>, <code>volume</code>, <code>value</code> and <code>key</code> are <strong>not</strong> reserved. Use them freely as column names.</li></ul>
+<p><strong>Example: A forum table with a column called order</strong></p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY, &quot;order&quot; INT, &quot;Posted By&quot; STRING, body STRING);
+INSERT INTO posts VALUES (1, 1, &#39;ram&#39;, &#39;First post&#39;);
+SELECT id, &quot;order&quot;, &quot;Posted By&quot; FROM posts ORDER BY &quot;order&quot;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE posts (</code></p>
+<pre><code class="language-text">table &#39;posts&#39; created</code></pre>
+<p><code>INSERT INTO posts VALUES (1, 1, &#39;ram&#39;, &#39;First post&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, &quot;order&quot;, &quot;Posted By&quot; FROM posts ORDER BY &quot;order&quot;</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>order (INT)</th><th>Posted By (STRING)</th></tr></thead><tbody><tr><td>1</td><td>1</td><td>ram</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Names in any language work without quotes (here Nepali)</strong></p>
+<pre><code class="language-sql">CREATE TABLE कम्पनी (चिन्ह STRING PRIMARY KEY, नाम STRING);
+INSERT INTO कम्पनी VALUES (&#39;CITY&#39;, &#39;नमस्ते&#39;);
+SELECT चिन्ह, नाम FROM कम्पनी;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE कम्पनी (</code></p>
+<pre><code class="language-text">table &#39;कम्पनी&#39; created</code></pre>
+<p><code>INSERT INTO कम्पनी VALUES (&#39;CITY&#39;, &#39;नमस्ते&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT चिन्ह, नाम FROM कम्पनी</code></p>
+<div class="table-wrap"><table><thead><tr><th>चिन्ह (STRING)</th><th>नाम (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>नमस्ते</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A reserved word without quotes</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE orders (id INT, order STRING);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 30: expected a column name but found the reserved word &#39;order&#39; (write it in double quotes, &quot;order&quot;, to use it as a name)</code></p>
+<h2 id="text">Text: &#39;single quotes&#39;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&#39;text&#39;
+&#39;City&#39;&#39;s bank&#39;
+&#39;&#39;</code></pre>
+<p>Text (also called a string) goes in <strong>single quotes</strong>. A <code>&#39;</code> inside the text is written twice: <code>&#39;&#39;</code>. Text may have many lines and any language (UTF-8).</p>
+<ul><li>There are no backslash escapes: <code>&#39;a\nb&#39;</code> is the four characters <code>a</code>, <code>\</code>, <code>n</code>, <code>b</code>.</li><li><code>&#39;&#39;</code> is an empty text. It is <strong>not</strong> NULL.</li><li>Double quotes <code>&quot;...&quot;</code> are for names, never for text. <code>WHERE symbol = &quot;CITY&quot;</code> looks for a <strong>column</strong> called CITY.</li><li><strong>Notes:</strong> bytes are written <code>X&#39;0A0B&#39;</code>; see <a href="column-types.html#bytes">BYTES</a>. Times are text too: <code>&#39;2026-09-10T11:00:00+05:45&#39;</code>; see <a href="column-types.html#timestamp">TIMESTAMP</a>.</li></ul>
+<p><strong>Example: Quotes inside text, empty text, text in another language</strong></p>
+<pre><code class="language-sql">SELECT &#39;City&#39;&#39;s bank&#39; AS name,
+       &#39;&#39; AS empty, &#39;&#39; IS NULL AS empty_is_null,
+       &#39;नेपाल&#39; AS nepali,
+       &#39;a\nb&#39; AS no_escapes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>empty (STRING)</th><th>empty_is_null (BOOL)</th><th>nepali (STRING)</th><th>no_escapes (STRING)</th></tr></thead><tbody><tr><td>City&#39;s bank</td><td></td><td>false</td><td>नेपाल</td><td>a\nb</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Double quotes mean a column name, not text</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE securities (symbol SYMBOL PRIMARY KEY, name STRING);
+SELECT name FROM securities WHERE symbol = &quot;CITY&quot;;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">table &#39;securities&#39; created</code></pre>
+<p>Error: <code>line 2, column 44: unknown column &#39;CITY&#39; (table &#39;securities&#39; has: symbol name)</code></p>
+<p><strong>Example: Text without its closing quote</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT &#39;Northgate;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: expected a closing &#39; to end the string that starts here but found the end of the input</code></p>
+<h2 id="numbers">Numbers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">42    -7    512.45    .5    1.5e3    2E-4</code></pre>
+<p>A number without a point or <code>e</code> is a whole number (type <code>LONG</code>). A number with a point or <code>e</code> is a <code>DOUBLE</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Type</th><th>Range</th></tr></thead><tbody><tr><td><code>42</code>, <code>-7</code></td><td><code>LONG</code></td><td>-9223372036854775808 to 9223372036854775807</td></tr><tr><td><code>512.45</code>, <code>.5</code>, <code>1.5e3</code></td><td><code>DOUBLE</code></td><td>about ±1.8e308, 15 digits</td></tr></tbody></table></div>
+<ul><li>There is no <code>,</code> or <code>_</code> inside a number: write <code>1000000</code>, not <code>1,000,000</code>.</li><li>A number put into a column is converted to the column type; see <a href="column-types.html">column types</a>.</li><li><code>/</code> always gives a <code>DOUBLE</code>: <code>10 / 4</code> is <code>2.5</code>. See <a href="functions-math.html#operators">arithmetic</a>.</li><li><strong>Notes:</strong> for exact money, the column type matters, not the literal: use <code>DECIMAL(2)</code> columns. For amounts with more than about 15 digits, write the value as text: <code>&#39;123456789012345.67&#39;</code>.</li></ul>
+<p><strong>Example: Kinds of numbers</strong></p>
+<pre><code class="language-sql">SELECT 42 AS whole, -7 AS negative, 512.45 AS price, .5 AS half, 1.5e3 AS thousand_five, 2E-4 AS small, 10 / 4 AS division;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>whole (LONG)</th><th>negative (LONG)</th><th>price (DOUBLE)</th><th>half (DOUBLE)</th><th>thousand_five (DOUBLE)</th><th>small (DOUBLE)</th><th>division (DOUBLE)</th></tr></thead><tbody><tr><td>42</td><td>-7</td><td>512.45</td><td>0.5</td><td>1500</td><td>0.0002</td><td>2.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A whole number that is too big</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT 9223372036854775808;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: expected an integer between -9223372036854775808 and 9223372036854775807 but found &#39;9223372036854775808&#39;</code></p>
+<h2 id="constants">TRUE, FALSE and NULL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">TRUE    FALSE    NULL</code></pre>
+<p><code>TRUE</code> and <code>FALSE</code> are the two <code>BOOL</code> values. <code>NULL</code> means &quot;no value&quot; or &quot;unknown&quot;. Every column type can hold <code>NULL</code>, unless the column is <code>NOT NULL</code>.</p>
+<ul><li><code>NULL</code> is not <code>0</code>, not <code>&#39;&#39;</code> and not <code>FALSE</code>.</li><li>Use <code>IS NULL</code> and <code>IS NOT NULL</code> to test for <code>NULL</code>. See <a href="#null-logic">NULL logic</a>.</li><li><strong>Notes:</strong> a <code>BOOL</code> is not a number: <code>TRUE = 1</code> is an error. A <code>BOOL</code> column accepts <code>1</code>/<code>0</code> and <code>&#39;true&#39;</code>/<code>&#39;false&#39;</code> when a row is written.</li></ul>
+<p><strong>Example: The three constants</strong></p>
+<pre><code class="language-sql">SELECT TRUE AS yes, FALSE AS no, NULL AS nothing, NULL IS NULL AS is_null, NOT FALSE AS not_false;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>yes (BOOL)</th><th>no (BOOL)</th><th>nothing (STRING)</th><th>is_null (BOOL)</th><th>not_false (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>NULL</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A user who has not verified the email yet</strong></p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL, verified BOOL NOT NULL DEFAULT FALSE, phone STRING);
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;);
+INSERT INTO users (email, verified, phone) VALUES (&#39;sita@example.com&#39;, TRUE, &#39;9800000000&#39;);
+SELECT id, email, verified, phone, phone IS NULL AS no_phone FROM users;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE users (</code></p>
+<pre><code class="language-text">table &#39;users&#39; created</code></pre>
+<p><code>INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO users (email, verified, phone) VALUES (&#39;sita@example.com&#39;, TRUE, &#39;9800000000&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, email, verified, phone, phone IS NULL AS no_phone FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>verified (BOOL)</th><th>phone (STRING)</th><th>no_phone (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>false</td><td>NULL</td><td>true</td></tr><tr><td>2</td><td>sita@example.com</td><td>true</td><td>9800000000</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="comments">Comments</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">-- to the end of the line
+/* between these marks, also over many lines */</code></pre>
+<p>KDB skips comments. Use them to explain a script.</p>
+<ul><li><code>/* ... */</code> comments do not nest: the first <code>*/</code> ends the comment.</li><li>A <code>/*</code> without <code>*/</code> is an error that shows where the comment starts.</li></ul>
+<p><strong>Example: Both kinds of comments in a report query</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ledger (id LONG PRIMARY KEY AUTO, account INT, amount DECIMAL(2));
+INSERT INTO ledger (account, amount) VALUES (1, 1000.00), (1, -250.50), (2, 250.50);</code></pre>
+<pre><code class="language-sql">/* Balance per account.
+   Used by the daily report. */
+SELECT account,            -- the account number
+       sum(amount) AS balance
+FROM ledger
+GROUP BY account
+ORDER BY account;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>account (INT)</th><th>balance (DECIMAL(2))</th></tr></thead><tbody><tr><td>1</td><td>749.50</td></tr><tr><td>2</td><td>250.50</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A comment that is not closed</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT 1 /* forgot to close</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 10: expected &#39;*/&#39; to close the comment that starts here but found the end of the input</code></p>
+<h2 id="errors">Error messages</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">error: line L, column C: expected ... but found ...
+error: &lt;what is wrong&gt;</code></pre>
+<p>When KDB cannot run a statement, it prints <code>error:</code> and a message. Messages about the SQL text say <strong>where</strong>: <code>line 3, column 8</code> is the place in the text you sent (in a file: the line of the file). They also say what KDB expected there.</p>
+<div class="table-wrap"><table><thead><tr><th>Message starts with</th><th>Meaning</th></tr></thead><tbody><tr><td><code>expected ... but found ...</code></td><td>the grammar is wrong at that place</td></tr><tr><td><code>unknown column &#39;x&#39; (table &#39;t&#39; has: ...)</code></td><td>a typing mistake; the message lists the real columns</td></tr><tr><td><code>table or view &#39;x&#39; does not exist</code></td><td>wrong table name, or the wrong database</td></tr><tr><td><code>a row with ... already exists</code></td><td>a duplicate key; see <a href="insert.html#duplicates">INSERT</a></td></tr><tr><td><code>column &#39;x&#39; (TYPE): ...</code></td><td>a value does not fit the column; see <a href="column-types.html">column types</a></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> exit code <code>1</code> from <code>kdb sql</code>; HTTP status 400 from the HTTP API.</li><li><strong>Notes:</strong> a missing comma is not an error: <code>SELECT symbol close</code> means &quot;column <code>symbol</code>, named <code>close</code>&quot;. <a href="../tutorial/12-troubleshooting.html">Chapter 12</a> lists many messages and their fixes.</li></ul>
+<p><strong>Example: The message points to line 3, column 8</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time);</code></pre>
+<pre><code class="language-sql">SELECT time,
+       symbol,
+       clsoe
+FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 3, column 8: unknown column &#39;clsoe&#39; (table &#39;ochl_day&#39; has: time symbol close)</code></p>
+<p><strong>Example: What the grammar wanted</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time);</code></pre>
+<pre><code class="language-sql">SELECT symbol close FROM ochl_day WHERE;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 40: expected an expression (a value, column name, function call or &#39;(&#39;) but found &#39;;&#39;</code></p>
+<h2 id="reserved-words">Reserved words</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER AND AS BETWEEN CASE CREATE DEFAULT DELETE DISTINCT DROP ELSE END
+FALSE FROM GROUP IN INSERT INTO IS JOIN LIKE LIMIT NOT NULL ON OR ORDER
+PRIMARY REFERENCES SELECT SET TABLE THEN TO TRUE UNIQUE UPDATE VALUES WHEN WHERE</code></pre>
+<p>These 40 words have a fixed meaning. They cannot be a table, column or alias name, unless you write them in double quotes: <code>&quot;order&quot;</code>, <code>&quot;from&quot;</code>.</p>
+<ul><li>All other words are normal names, also words like <code>CHECK</code>, <code>INDEX</code>, <code>BEGIN</code>, <code>KEY</code>, <code>USER</code>, <code>DATE</code>, <code>TIME</code>, <code>OPEN</code> and <code>CLOSE</code>: KDB knows them from their place in the statement.</li><li><strong>Notes:</strong> PostgreSQL reserves more words. A name that works in KDB may need quotes in PostgreSQL.</li></ul>
+<p><strong>Example: Columns called time, date, open, close, key and value need no quotes</strong></p>
+<pre><code class="language-sql">CREATE TABLE prices (time TIMESTAMP, date DATE, open DOUBLE, close DOUBLE, key STRING, value DOUBLE) TIMESERIES(time);
+INSERT INTO prices VALUES (&#39;2026-09-10&#39;, &#39;2026-09-10&#39;, 504.6, 504.9, &#39;CITY&#39;, 1);
+SELECT time, date, open, close, key, value FROM prices;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE prices (</code></p>
+<pre><code class="language-text">table &#39;prices&#39; created</code></pre>
+<p><code>INSERT INTO prices VALUES (&#39;2026-09-10&#39;, &#39;2026-09-10&#39;, 504.6, 504.9, &#39;CITY&#39;, 1)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT time, date, open, close, key, value FROM prices</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>date (DATE)</th><th>open (DOUBLE)</th><th>close (DOUBLE)</th><th>key (STRING)</th><th>value (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>2026-09-10</td><td>504.6</td><td>504.9</td><td>CITY</td><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A reserved word as a column name</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE TABLE transfers (id INT, from INT, to_account INT);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 33: expected a column name but found the reserved word &#39;from&#39; (write it in double quotes, &quot;from&quot;, to use it as a name)</code></p>
+<h2 id="clause-words">Clause words</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ASOF CROSS FULL HAVING INNER LATEST LEFT LT OVER REFRESH RIGHT SAMPLE SPLICE UNION USING</code></pre>
+<p>These 15 words start a part of a query (a <strong>clause</strong>), like <code>LEFT JOIN</code> or <code>SAMPLE BY</code>. They <strong>can</strong> be table and column names. But they cannot be a short alias without <code>AS</code>: write <code>SELECT 1 AS left</code>, not <code>SELECT 1 left</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Word</th><th>Used in</th></tr></thead><tbody><tr><td><code>INNER</code>, <code>LEFT</code>, <code>RIGHT</code>, <code>FULL</code>, <code>CROSS</code>, <code>USING</code></td><td><a href="joins.html">joins</a></td></tr><tr><td><code>ASOF</code>, <code>LT</code>, <code>SPLICE</code></td><td><a href="joins.html#asof-join">time joins</a></td></tr><tr><td><code>HAVING</code></td><td><a href="group-by.html">GROUP BY</a></td></tr><tr><td><code>LATEST</code></td><td><a href="latest-on.html">LATEST ON</a></td></tr><tr><td><code>SAMPLE</code></td><td><a href="sample-by.html">SAMPLE BY</a></td></tr><tr><td><code>UNION</code></td><td><a href="union-subqueries.html">UNION ALL</a></td></tr><tr><td><code>OVER</code></td><td><a href="functions-window.html">window functions</a></td></tr><tr><td><code>REFRESH</code></td><td><code>CREATE CACHED VIEW ... REFRESH ON COMMIT</code> (<a href="views.html">views</a>)</td></tr></tbody></table></div>
+<p><strong>Example: Clause words as column names, and as aliases with AS</strong></p>
+<pre><code class="language-sql">CREATE TABLE t (left INT, right INT, sample INT, latest INT);
+INSERT INTO t VALUES (1, 2, 3, 4);
+SELECT left, right, sample AS union, latest AS over FROM t;</code></pre>
+<p>Result:</p>
+<p><code>CREATE TABLE t (</code></p>
+<pre><code class="language-text">table &#39;t&#39; created</code></pre>
+<p><code>INSERT INTO t VALUES (1, 2, 3, 4)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT left, right, sample AS union, latest AS over FROM t</code></p>
+<div class="table-wrap"><table><thead><tr><th>left (INT)</th><th>right (INT)</th><th>union (INT)</th><th>over (INT)</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td><td>4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: RIGHT JOIN: every broker, also the ones without trades</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING);
+CREATE TABLE trades (id LONG PRIMARY KEY, buyer INT);
+INSERT INTO brokers VALUES (1, &#39;Alpha&#39;), (2, &#39;Beta&#39;);
+INSERT INTO trades VALUES (10, 1);</code></pre>
+<pre><code class="language-sql">SELECT brokers.name, trades.id FROM trades RIGHT JOIN brokers ON trades.buyer = brokers.id ORDER BY brokers.name;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>id (LONG)</th></tr></thead><tbody><tr><td>Alpha</td><td>10</td></tr><tr><td>Beta</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A clause word as a short alias</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT 1 left;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 10: expected an operator, AS, &#39;,&#39;, FROM, WHERE, GROUP BY, UNION ALL, ORDER BY, LIMIT, &#39;;&#39; or the end of the input but found &#39;left&#39;</code></p>
+<h2 id="null-logic">NULL logic</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value IS NULL
+value IS NOT NULL
+NULL = anything   -&gt;  NULL (unknown)</code></pre>
+<p><code>NULL</code> means &quot;unknown&quot;. So most things done with <code>NULL</code> give <code>NULL</code> again:</p>
+<div class="table-wrap"><table><thead><tr><th>Expression</th><th>Result</th><th>Why</th></tr></thead><tbody><tr><td><code>NULL + 1</code></td><td><code>NULL</code></td><td>unknown plus 1 is unknown</td></tr><tr><td><code>NULL = NULL</code></td><td><code>NULL</code></td><td>two unknown values may differ</td></tr><tr><td><code>TRUE AND NULL</code></td><td><code>NULL</code></td><td>depends on the unknown value</td></tr><tr><td><code>FALSE AND NULL</code></td><td><code>FALSE</code></td><td>false whatever the unknown value is</td></tr><tr><td><code>TRUE OR NULL</code></td><td><code>TRUE</code></td><td>true whatever the unknown value is</td></tr><tr><td><code>NOT NULL</code></td><td><code>NULL</code></td><td></td></tr><tr><td><code>3 IN (1, NULL)</code></td><td><code>NULL</code></td><td>3 might be the unknown value</td></tr><tr><td><code>NULL IS NULL</code></td><td><code>TRUE</code></td><td>the right way to test</td></tr></tbody></table></div>
+<ul><li><code>WHERE</code> and <code>HAVING</code> keep a row only when the condition is <code>TRUE</code>. A <code>NULL</code> condition drops the row, like <code>FALSE</code>.</li><li>So <code>WHERE phone = NULL</code> finds nothing. Write <code>WHERE phone IS NULL</code>.</li><li><code>WHERE v &lt;&gt; 5</code> also drops the rows where <code>v</code> is <code>NULL</code>.</li><li>Aggregates skip <code>NULL</code>: <code>count(v)</code> counts only values, <code>sum(v)</code> adds only values. <code>count(*)</code> counts all rows.</li><li><code>ORDER BY v</code> puts <code>NULL</code> last (with <code>DESC</code>: first).</li><li><strong>Notes:</strong> <code>coalesce(v, 0)</code> gives <code>0</code> for <code>NULL</code>; see <a href="functions-conditional.html">conditional functions</a>.</li></ul>
+<p><strong>Example: NULL in expressions</strong></p>
+<pre><code class="language-sql">SELECT NULL + 1 AS plus, NULL = NULL AS equal, TRUE AND NULL AS and_true, FALSE AND NULL AS and_false,
+       TRUE OR NULL AS or_true, 3 IN (1, NULL) AS in_list, NULL IS NULL AS is_null;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>plus (STRING)</th><th>equal (STRING)</th><th>and_true (STRING)</th><th>and_false (BOOL)</th><th>or_true (BOOL)</th><th>in_list (STRING)</th><th>is_null (BOOL)</th></tr></thead><tbody><tr><td>NULL</td><td>NULL</td><td>NULL</td><td>false</td><td>true</td><td>NULL</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Users without a phone: = NULL finds nothing, IS NULL works</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id INT PRIMARY KEY, email STRING, phone STRING);
+INSERT INTO users VALUES (1, &#39;ram@example.com&#39;, NULL), (2, &#39;sita@example.com&#39;, &#39;9800000000&#39;), (3, &#39;hari@example.com&#39;, NULL);</code></pre>
+<pre><code class="language-sql">SELECT id FROM users WHERE phone = NULL;
+SELECT id FROM users WHERE phone IS NULL;
+SELECT id FROM users WHERE phone &lt;&gt; &#39;9800000000&#39;;
+SELECT count(*) AS users, count(phone) AS with_phone FROM users;</code></pre>
+<p>Result:</p>
+<p><code>SELECT id FROM users WHERE phone = NULL</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><code>SELECT id FROM users WHERE phone IS NULL</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr><tr><td>3</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><code>SELECT id FROM users WHERE phone != &#39;9800000000&#39;</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
+<p><code>SELECT count(*) AS users, count(phone) AS with_phone FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>users (LONG)</th><th>with_phone (LONG)</th></tr></thead><tbody><tr><td>3</td><td>1</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/sql-basics.md">This page as markdown</a>.</footer>
+</body>
+</html>

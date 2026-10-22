@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. Writing data - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/04-writing-data.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/04-writing-data.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="4-writing-data">4. Writing data</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>How to insert, replace, update and delete rows.</li><li>How to write times, and how KDB stores them (UTC).</li><li>A safe way to fix bad data. (This is the main reason KDB was made.)</li></ul>
+<p>The examples use the database <code>market</code> with the sample data. They change the data, so run them in order.</p>
+<h2 id="every-change-is-saved-at-once">Every change is saved at once</h2>
+<p>When KDB says <code>1 row(s) inserted</code>, the change is already on the disk. There is no <code>COMMIT</code> to type. A power cut after that message does not lose the row (chapter 9 explains how).</p>
+<p><strong>One statement is all or nothing.</strong> If an INSERT with 5000 rows has one bad row, <strong>no</strong> row is saved.</p>
+<h2 id="insert">INSERT</h2>
+<p>Insert many rows in one statement. It is much faster than one statement per row.</p>
+<pre><code class="language-sql">INSERT INTO ochl_day (time, symbol, open, high, low, close, volume) VALUES
+  (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 508.2, 91000),
+  (&#39;2026-09-13&#39;, &#39;COAST&#39;,  376.0, 379.9, 374.0, 378.5, 120500),
+  (&#39;2026-09-13&#39;, &#39;VOLT&#39;, 191.0, 194.2, 190.1, 193.7, 64000);
+
+SELECT time, symbol, close FROM ochl_day WHERE time IN &#39;2026-09-13&#39;;</code></pre>
+<pre><code class="language-text">3 row(s) inserted
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-13T00:00:00.000Z | CITY   | 508.2
+2026-09-13T00:00:00.000Z | COAST  | 378.5
+2026-09-13T00:00:00.000Z | VOLT   | 193.7
+(3 rows, 0.2 ms)</code></pre>
+<ul><li>The column list <code>(time, symbol, ...)</code> is optional. Without it, give a value for every column in table order (computed columns are skipped).</li><li>Columns you do not list get their DEFAULT value, or NULL.</li><li>Text and times go in single quotes. A <code>&#39;</code> inside text is written twice: <code>&#39;City&#39;&#39;s&#39;</code>.</li><li>Numbers can also be given as text (<code>&#39;99.5&#39;</code>). KDB converts them to the column type.</li></ul>
+<p>A second row with the same DEDUP KEY <code>(symbol, time)</code> is refused:</p>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 508.2, 91000);</code></pre>
+<pre><code class="language-text">error: a row with symbol=&#39;CITY&#39;, time=&#39;2026-09-13T00:00:00.000Z&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
+<h2 id="insert-or-replace">INSERT OR REPLACE</h2>
+<p>The close price for CITY on 2026-09-13 was wrong. Send the full, correct row again:</p>
+<pre><code class="language-sql">INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 507.6, 91000);
+
+SELECT time, symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-13&#39;;</code></pre>
+<pre><code class="language-text">0 row(s) inserted, 1 replaced
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-13T00:00:00.000Z | CITY   | 507.6
+(1 row, 0.2 ms)</code></pre>
+<ul><li>A new key: the row is inserted.</li><li>A key that exists: the <strong>whole old row</strong> is replaced by the new row. Columns you do not give become DEFAULT or NULL, not the old values. To change only some columns, use UPDATE.</li></ul>
+<p>This is the best statement for <strong>imports</strong>: you can run the same import file again and again. You never get double rows.</p>
+<h2 id="insert-or-ignore">INSERT OR IGNORE</h2>
+<p>Keeps the old row and skips the new one:</p>
+<pre><code class="language-sql">INSERT OR IGNORE INTO ochl_day VALUES
+  (&#39;2026-09-13&#39;, &#39;CITY&#39;, 1, 1, 1, 1, 1),
+  (&#39;2026-09-14&#39;, &#39;CITY&#39;, 507.6, 512.0, 506.0, 511.0, 64000);
+
+SELECT time, symbol, close FROM ochl_day WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-13&#39;;</code></pre>
+<pre><code class="language-text">1 row(s) inserted, 1 skipped (already there)
+
+time                     | symbol | close
+-------------------------+--------+------
+2026-09-13T00:00:00.000Z | CITY   | 507.6
+2026-09-14T00:00:00.000Z | CITY   |   511
+(2 rows, 0.2 ms)</code></pre>
+<h2 id="how-duplicates-are-found">How duplicates are found</h2>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>What makes two rows &quot;the same&quot;</th><th>Without it</th></tr></thead><tbody><tr><td>Relational with <code>PRIMARY KEY</code></td><td>the same primary key value</td><td>-</td></tr><tr><td>Relational without a key</td><td>nothing</td><td>every INSERT adds rows</td></tr><tr><td>Time-series with <code>DEDUP KEY (a, time)</code></td><td>the same values in all DEDUP KEY columns</td><td>-</td></tr><tr><td>Time-series without DEDUP KEY</td><td>nothing</td><td>every INSERT adds rows, also exact copies</td></tr><tr><td>Any column with <code>UNIQUE</code></td><td>the same value in that column</td><td>-</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>Key is new</th><th>Key exists</th></tr></thead><tbody><tr><td><code>INSERT</code></td><td>inserted</td><td><strong>error</strong>, nothing is saved</td></tr><tr><td><code>INSERT OR REPLACE</code></td><td>inserted</td><td>old row replaced</td></tr><tr><td><code>INSERT OR IGNORE</code></td><td>inserted</td><td>new row skipped</td></tr></tbody></table></div>
+<p>Duplicates <strong>inside one statement</strong> are found too: with INSERT OR REPLACE, the last one wins.</p>
+<h2 id="update">UPDATE</h2>
+<p><code>UPDATE table SET column = value, ... WHERE condition</code>. The new value can use the old values of the row.</p>
+<pre><code class="language-sql">UPDATE ochl_day SET volume = 95000 WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-13&#39;;
+
+UPDATE live_data SET ltp = round(ltp, 0), point_change = round(point_change, 0) WHERE symbol = &#39;TELCO&#39;;
+
+SELECT timestamp, symbol, ltp, point_change FROM live_data WHERE symbol = &#39;TELCO&#39;;</code></pre>
+<pre><code class="language-text">1 row(s) updated
+
+3 row(s) updated
+
+timestamp                | symbol | ltp | point_change
+-------------------------+--------+-----+-------------
+2026-09-10T05:20:00.000Z | TELCO  | 861 |          -21
+2026-09-10T07:15:00.000Z | TELCO  | 869 |          -12
+2026-09-10T09:14:00.000Z | TELCO  | 898 |           17
+(3 rows, 0.1 ms)</code></pre>
+<p><strong>Warning:</strong> <code>UPDATE ... </code> without <code>WHERE</code> changes <strong>every row</strong> of the table. Chapter 9 shows how to go back in time after such a mistake.</p>
+<p>An UPDATE may change the time or key columns. KDB moves the row. But it refuses to make a duplicate:</p>
+<pre><code class="language-sql">UPDATE ochl_day SET time = &#39;2026-09-13&#39; WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-14&#39;;</code></pre>
+<pre><code class="language-text">error: the update would create a second row with symbol=&#39;CITY&#39;, time=&#39;2026-09-13T00:00:00.000Z&#39; in &#39;ochl_day&#39;</code></pre>
+<p>Computed columns (<code>AS (...)</code>) cannot be set.</p>
+<h2 id="delete">DELETE</h2>
+<p><code>DELETE FROM table WHERE condition</code>. Without WHERE it deletes every row.</p>
+<pre><code class="language-sql">SELECT count(*) AS rows_before FROM ochl_day WHERE time IN &#39;2026-09-14&#39;;
+DELETE FROM ochl_day WHERE time IN &#39;2026-09-14&#39;;
+SELECT count(*) AS rows_after FROM ochl_day WHERE time IN &#39;2026-09-14&#39;;</code></pre>
+<pre><code class="language-text">rows_before
+-----------
+          1
+(1 row, 0.2 ms)
+
+1 row(s) deleted
+
+rows_after
+----------
+         0
+(1 row, 0.0 ms)</code></pre>
+<p><strong>Tip:</strong> before a DELETE or UPDATE, run a <code>SELECT count(*)</code> with the <strong>same WHERE</strong>. Check the number. Then run the change.</p>
+<p>To empty a whole table, <code>TRUNCATE TABLE ochl_day</code> is much faster than <code>DELETE FROM ochl_day</code>. The table, its columns and indexes stay; only the rows go.</p>
+<h2 id="drop-partition-delete-a-whole-day-month-or-year-fast">DROP PARTITION: delete a whole day, month or year fast</h2>
+<pre><code class="language-sql">SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;;
+ALTER TABLE ochl_day DROP PARTITION &#39;2025&#39;;
+SELECT count(*) AS rows_2025 FROM ochl_day WHERE time IN &#39;2025&#39;;</code></pre>
+<pre><code class="language-text">rows_2025
+---------
+       12
+(1 row, 0.3 ms)
+
+1 partition(s) of &#39;ochl_day&#39; dropped
+
+rows_2025
+---------
+        0
+(1 row, 0.0 ms)</code></pre>
+<p>The name of a partition depends on <code>PARTITION BY</code>: <code>&#39;2026&#39;</code> (YEAR), <code>&#39;2026-09&#39;</code> (MONTH), <code>&#39;2026-09-10&#39;</code> (DAY). You can drop many at once: <code>DROP PARTITION &#39;2026-09-09&#39;, &#39;2026-09-10&#39;</code>. To drop everything older than some time, write <code>ALTER TABLE ochl_day DROP PARTITION OLDER THAN 1 YEAR</code>. A table with a TTL does this by itself (chapter 3). If the partition does not exist, KDB lists the ones that do:</p>
+<pre><code class="language-sql">ALTER TABLE ochl_day DROP PARTITION &#39;2024&#39;;</code></pre>
+<pre><code class="language-text">error: table &#39;ochl_day&#39; has no partition &#39;2024&#39;; partitions: 2026</code></pre>
+<h2 id="times-and-time-zones">Times and time zones</h2>
+<p>KDB stores every <code>TIMESTAMP</code> in <strong>UTC</strong>, in milliseconds. It always shows times in UTC, with a <code>Z</code> at the end. Your data may use any local time, such as New York (<code>-04:00</code> in summer) or Nepal (<code>+05:45</code>). The examples here use Nepal time (NPT, <strong>UTC+05:45</strong>, no daylight saving) for a sample market that opens at 11:00 local time.</p>
+<div class="table-wrap"><table><thead><tr><th>Market event</th><th>Nepal time</th><th>UTC</th></tr></thead><tbody><tr><td>Market opens</td><td>11:00</td><td>05:15</td></tr><tr><td>Market closes</td><td>15:00</td><td>09:15</td></tr><tr><td>Midnight</td><td>00:00</td><td>18:15 the day before</td></tr></tbody></table></div>
+<p>You can write a time in several ways:</p>
+<pre><code class="language-sql">CREATE TABLE time_test (time TIMESTAMP, note STRING) TIMESERIES(time) PARTITION BY DAY;
+
+INSERT INTO time_test VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;Nepal time, with +05:45&#39;),
+  (&#39;2026-09-10T11:00:00+0545&#39;,  &#39;Nepal time, without the colon&#39;),
+  (&#39;2026-09-10 05:15:00&#39;,       &#39;no zone = UTC&#39;),
+  (&#39;2026-09-10T05:15:00Z&#39;,      &#39;Z = UTC&#39;),
+  (&#39;2026-09-10T05:15:00.250Z&#39;,  &#39;with milliseconds&#39;),
+  (&#39;2026-09-10&#39;,                &#39;only a date = 00:00 UTC&#39;),
+  (1789017300000,               &#39;a number = milliseconds since 1970 (UTC)&#39;);
+
+SELECT time, note FROM time_test;</code></pre>
+<pre><code class="language-text">table &#39;time_test&#39; created
+
+7 row(s) inserted
+
+time                     | note                                    
+-------------------------+-----------------------------------------
+2026-09-10T00:00:00.000Z | only a date = 00:00 UTC                 
+2026-09-10T05:15:00.000Z | Nepal time, with +05:45                 
+2026-09-10T05:15:00.000Z | Nepal time, without the colon           
+2026-09-10T05:15:00.000Z | no zone = UTC                           
+2026-09-10T05:15:00.000Z | Z = UTC                                 
+2026-09-10T05:15:00.000Z | a number = milliseconds since 1970 (UTC)
+2026-09-10T05:15:00.250Z | with milliseconds                       
+(7 rows, 0.1 ms)</code></pre>
+<p>The rules:</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>KDB reads it as</th></tr></thead><tbody><tr><td><code>&#39;2026-09-10T11:00:00+05:45&#39;</code></td><td>11:00 Nepal time = 05:15 UTC</td></tr><tr><td><code>&#39;2026-09-10 11:00:00&#39;</code> (no zone)</td><td>11:00 <strong>UTC</strong> (not Nepal time!)</td></tr><tr><td><code>&#39;2026-09-10T11:00:00Z&#39;</code></td><td>11:00 UTC</td></tr><tr><td><code>&#39;2026-09-10&#39;</code></td><td>00:00 UTC</td></tr><tr><td><code>1789017300000</code></td><td>milliseconds since 1970-01-01 UTC</td></tr><tr><td>More than 3 digits after the second (<code>.000000</code>)</td><td>only milliseconds are kept</td></tr></tbody></table></div>
+<p>The format must be <code>YYYY-MM-DD</code>. <code>&#39;10/09/2026&#39;</code> or <code>&#39;2026-9-10&#39;</code> are errors (see chapter 12).</p>
+<p><strong>The most common mistake:</strong> writing Nepal time without <code>+05:45</code>. KDB then thinks it is UTC, and the row is 5 hours 45 minutes wrong. <strong>Always add <code>+05:45</code> to Nepal times.</strong></p>
+<p>The same rules work in WHERE. Trades between 11:00 and 11:05 Nepal time:</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_minutes
+WHERE symbol = &#39;CITY&#39;
+  AND time &gt;= &#39;2026-09-10T11:00:00+05:45&#39;
+  AND time &lt;  &#39;2026-09-10T11:05:00+05:45&#39;;</code></pre>
+<pre><code class="language-text">time                     | symbol | close
+-------------------------+--------+------
+2026-09-10T05:15:00.000Z | CITY   | 504.4
+2026-09-10T05:16:00.000Z | CITY   | 504.6
+2026-09-10T05:17:00.000Z | CITY   | 504.2
+2026-09-10T05:18:00.000Z | CITY   | 504.4
+2026-09-10T05:19:00.000Z | CITY   | 504.5
+(5 rows, 0.8 ms)</code></pre>
+<p><code>time IN &#39;2026-09-10&#39;</code> means the <strong>UTC</strong> day. For the sample market this is fine, because the whole trading day (05:15 to 09:15 UTC) is inside the same UTC day.</p>
+<h2 id="a-script-stops-at-the-first-error">A script stops at the first error</h2>
+<p>When you send many statements at once (a file, or <code>a; b; c</code>), KDB runs them one by one. <strong>Each statement is saved on its own.</strong> At the first error, KDB stops.</p>
+<pre><code class="language-sql">INSERT INTO brokers VALUES (21, &#39;Test Broker A&#39;);
+INSERT INTO brokers VALUES (21, &#39;Test Broker B&#39;);
+INSERT INTO brokers VALUES (22, &#39;Test Broker C&#39;);</code></pre>
+<pre><code class="language-text">1 row(s) inserted
+error: a row with id=&#39;21&#39; already exists in &#39;brokers&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></pre>
+<pre><code class="language-sql">SELECT id, name FROM brokers WHERE id IN (21, 22);</code></pre>
+<pre><code class="language-text">id | name         
+---+--------------
+21 | Test Broker A
+(1 row, 0.2 ms)</code></pre>
+<ul><li>Statement 1 ran and is saved.</li><li>Statement 2 failed.</li><li>Statement 3 did <strong>not</strong> run.</li></ul>
+<p>If many changes must succeed together, put them between <code>BEGIN;</code> and <code>COMMIT;</code> (chapter 13 and chapter 15). Then an error undoes all of them. Or put them in <strong>one</strong> statement, or make the import safe to repeat with INSERT OR REPLACE.</p>
+<h2 id="fixing-mistakes-a-safe-workflow">Fixing mistakes: a safe workflow</h2>
+<p>Bad data happens: a wrong file is imported, a price is 10 times too big, a day is loaded twice. QuestDB cannot delete single rows. KDB can. Use these steps.</p>
+<p>Example: an import made every COAST minute price on 2026-09-10 ten times too big. (The UPDATE below only creates this &quot;bad import&quot; for the example.)</p>
+<pre><code class="language-sql">UPDATE ochl_minutes SET open = open * 10, high = high * 10, low = low * 10, close = close * 10
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<p><strong>Step 1. Look at the data. Count the bad rows.</strong></p>
+<pre><code class="language-sql">SELECT count(*) AS rows, min(low) AS min_low, max(high) AS max_high
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<pre><code class="language-text">rows | min_low | max_high
+-----+---------+---------
+ 236 |    3732 |     3820
+(1 row, 0.3 ms)</code></pre>
+<p>236 rows, and the prices are near 3800 instead of 380. The WHERE is right.</p>
+<p><strong>Step 2. Make a backup.</strong> Then you can always go back.</p>
+<pre><code class="language-powershell">kdb backup market backups</code></pre>
+<pre><code class="language-text">backup created and verified: backups/20260923-120922-256
+  9 files, 217.4 KB, log up to 52</code></pre>
+<p>(If <code>kdb serve</code> is running, use <code>BACKUP DATABASE</code> or the console&#39;s <strong>Backup now</strong> button instead. See chapter 9.)</p>
+<p><strong>Step 3. Delete only the bad rows.</strong> Use the same WHERE as in step 1.</p>
+<pre><code class="language-sql">DELETE FROM ochl_minutes WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<pre><code class="language-text">236 row(s) deleted</code></pre>
+<p>The number is the same as in step 1. Good.</p>
+<p><strong>Step 4. Load the correct rows</strong> with INSERT OR REPLACE. (Here only two minutes, to keep the example short.)</p>
+<pre><code class="language-sql">INSERT OR REPLACE INTO ochl_minutes VALUES
+  (&#39;2026-09-10T11:00:00+05:45&#39;, &#39;COAST&#39;, 380.1, 380.4, 379.8, 380.2, 900),
+  (&#39;2026-09-10T11:01:00+05:45&#39;, &#39;COAST&#39;, 380.2, 380.5, 380.0, 380.3, 650);</code></pre>
+<p><strong>Step 5. Check the result.</strong></p>
+<pre><code class="language-sql">SELECT time, symbol, open, high, low, close, volume
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
+<pre><code class="language-text">2 row(s) inserted
+
+time                     | symbol | open  | high  | low   | close | volume
+-------------------------+--------+-------+-------+-------+-------+-------
+2026-09-10T05:15:00.000Z | COAST  | 380.1 | 380.4 | 379.8 | 380.2 |    900
+2026-09-10T05:16:00.000Z | COAST  | 380.2 | 380.5 |   380 | 380.3 |    650
+(2 rows, 0.3 ms)</code></pre>
+<p>(The first line, <code>2 row(s) inserted</code>, is from step 4.)</p>
+<p>If something went badly wrong (for example an UPDATE without WHERE), do not try to fix it row by row. <strong>Restore to the time before the mistake</strong> with <code>kdb restore --until</code> (chapter 9).</p>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>Insert a CITY live snapshot for <code>2026-09-10 14:30</code> Nepal time with ltp 520.5. Check that it is stored as <code>08:45</code> UTC.</li><li>Make every VOLT daily volume on 2026-09 ten percent bigger. First count the rows.</li><li>Delete all trade_log trades of broker 34 on 2026-09-09.</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><pre><code class="language-sql">INSERT INTO live_data (timestamp, symbol, ltp) VALUES (&#39;2026-09-10T14:30:00+05:45&#39;, &#39;CITY&#39;, 520.5);
+SELECT timestamp, ltp FROM live_data WHERE symbol = &#39;CITY&#39; AND ltp = 520.5;</code></pre>
+<p>The time is <code>2026-09-10T08:45:00.000Z</code>.</p></li><li><pre><code class="language-sql">SELECT count(*) FROM ochl_day WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09&#39;;
+UPDATE ochl_day SET volume = volume * 1.1 WHERE symbol = &#39;VOLT&#39; AND time IN &#39;2026-09&#39;;</code></pre></li><li><pre><code class="language-sql">SELECT count(*) FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34);
+DELETE FROM trade_log WHERE date IN &#39;2026-09-09&#39; AND (buyer = 34 OR seller = 34);</code></pre></li></ol>
+</details>
+<hr>
+<p>Next: <a href="05-queries.html">5. Queries</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/04-writing-data.md">This page as markdown</a>.</footer>
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users and roles - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Database users with passwords, and the roles read, write, ddl and admin for every database or for one.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/users-and-roles.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/users-and-roles.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="users-and-roles">Users and roles</h1>
+<blockquote><p>Database users with passwords, and the roles read, write, ddl and admin for every database or for one.</p></blockquote>
+<ul><li>Category: Users &amp; security</li><li>Keywords: ALTER USER SET timezone, user time zone, user, users, database user, role, roles, rights, permissions, privileges, GRANT, REVOKE, PASSWORD, ROLE, USER, USERS, IF NOT EXISTS, IF EXISTS, WITH, ALL, admin, ddl, write, read, none, DDL right, schema changes, migrations, _system, last admin, REVOKE ALL ON DATABASE, 403, permission denied, SET ROLE, RESET ROLE, SET ROLE NONE, current_user, session_user</li><li>See also: <a href="server-security.html">Keeping kdb serve safe</a>, <a href="functions-security.html">Security functions</a>, <a href="cli-users.html">kdb user</a>, <a href="http-login.html">Logins, tokens and roles over HTTP</a>, <a href="databases.html">Databases and the data folder</a>, <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a></li></ul>
+<p><strong>Database users</strong> are the people and programs that connect to a running <code>kdb serve</code>: you in the web console, your app&#39;s backend, a report script. Each user has a password and a <strong>role</strong> (what it may do).</p>
+<ul><li>As soon as the first user exists, <code>kdb serve</code> asks for a login on every request (see <a href="server-security.html">Keeping kdb serve safe</a>).</li><li>The users of <strong>your app</strong> (customers who register on your web site) are something else. Keep them in your own table with <a href="functions-security.html#password-hash">password_hash</a>.</li><li><code>kdb sql</code> and <code>kdb shell</code> open the files directly. They never ask for a login and can run every statement here. Protect the data folder with the file rights of the operating system.</li></ul>
+<p>A small shop with three users: you (admin), the shop&#39;s backend (write on one database) and a report script (read everywhere).</p>
+<p><strong>Example: Three users for a small shop</strong></p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39;;
+GRANT write ON DATABASE demo TO shop_app;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>CREATE USER admin WITH PASSWORD &#39;***&#39; ROLE admin</code></p>
+<pre><code class="language-text">user &#39;admin&#39; created with role admin</code></pre>
+<p><code>CREATE USER shop_app WITH PASSWORD &#39;***&#39;</code></p>
+<pre><code class="language-text">user &#39;shop_app&#39; created with role none</code></pre>
+<p><code>GRANT write ON DATABASE demo TO shop_app</code></p>
+<pre><code class="language-text">user &#39;shop_app&#39; has role write on database &#39;demo&#39;</code></pre>
+<p><code>CREATE USER report WITH PASSWORD &#39;***&#39; ROLE read</code></p>
+<pre><code class="language-text">user &#39;report&#39; created with role read</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:39.234Z</td><td>2026-10-22T05:44:39.234Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:39.366Z</td><td>2026-10-22T05:44:39.366Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-22T05:44:39.299Z</td><td>2026-10-22T05:44:39.301Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="create-user">CREATE USER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE USER [IF NOT EXISTS] name [WITH] PASSWORD &#39;secret&#39; [ROLE admin | ddl | write | read | none]</code></pre>
+<p>Adds a database user with a password. <code>PASSWORD</code> and <code>ROLE</code> may come in any order.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>IF NOT EXISTS</code></td><td>no error when the user is already there (nothing is changed then)</td></tr><tr><td><code>name</code></td><td>letters, digits, <code>_</code> and <code>-</code>, 1 to 63 characters. <code>Bob</code> and <code>bob</code> are the same user.</td></tr><tr><td><code>PASSWORD &#39;secret&#39;</code></td><td>at least 12 characters, not the user name, at most 1024 bytes. Write <code>&#39;&#39;</code> for a <code>&#39;</code> inside. Required.</td></tr><tr><td><code>ROLE</code></td><td>the role on <strong>every</strong> database. Default <code>none</code> (nothing until a <code>GRANT</code>).</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message like <code>user &#39;report&#39; created with role read</code>.</li><li><strong>Notes:</strong>
+<ul><li>The <strong>first</strong> user must have <code>ROLE admin</code>. Once a user exists, the server asks for a login, and only an admin can manage users.</li><li>Only a user whose own <code>ROLE</code> is <code>admin</code> may run it (on a server with users).</li><li>KDB keeps a PBKDF2 hash of the password (600,000 rounds) and a SCRAM-SHA-256 secret for the PostgreSQL port. The password itself is never stored. The statement KDB shows back reads <code>PASSWORD &#39;***&#39;</code>.</li><li>Hashing takes about 0.1 second, so creating many users is not instant.</li><li>A name with other characters (a dot, a space, Nepali letters) is refused, also inside double quotes. The name is kept as you wrote it (<code>Sita-K</code>), but compared without case.</li><li>Different from PostgreSQL: there is no <code>CREATE ROLE</code>, no <code>LOGIN</code>/<code>NOLOGIN</code> and no <code>VALID UNTIL</code>. MySQL writes <code>&#39;name&#39;@&#39;host&#39; IDENTIFIED BY &#39;...&#39;</code>; KDB has no host part.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER IF NOT EXISTS admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report ROLE read PASSWORD &#39;Reports-only-secret-7&#39;;</code></pre>
+<p>Result:</p>
+<p><code>CREATE USER admin WITH PASSWORD &#39;***&#39; ROLE admin</code></p>
+<pre><code class="language-text">user &#39;admin&#39; created with role admin</code></pre>
+<p><code>CREATE USER IF NOT EXISTS admin WITH PASSWORD &#39;***&#39; ROLE admin</code></p>
+<pre><code class="language-text">user &#39;admin&#39; already exists</code></pre>
+<p><code>CREATE USER report WITH PASSWORD &#39;***&#39; ROLE read</code></p>
+<pre><code class="language-text">user &#39;report&#39; created with role read</code></pre>
+<p><strong>Example: The first user must be an admin</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>the first user must have ROLE admin (CREATE USER name WITH PASSWORD &#39;...&#39; ROLE admin): once a user exists the server asks for a login, and only an admin can manage users</code></p>
+<p><strong>Example: Too short a password</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;nepal&#39; ROLE admin;</code></pre>
+<p>Result:</p>
+<p>Error: <code>the password is too short: use at least 12 characters (a password manager can make a long random one)</code></p>
+<p><strong>Example: The same name in other letters is the same user</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;</code></pre>
+<pre><code class="language-sql">CREATE USER Admin WITH PASSWORD &#39;Another-long-secret-42&#39; ROLE read;</code></pre>
+<p>Result:</p>
+<p>Error: <code>user &#39;admin&#39; already exists</code></p>
+<p><strong>Example: A password is required</strong> (shows an error)</p>
+<pre><code class="language-sql">CREATE USER report ROLE read;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 29: CREATE USER needs a password, like CREATE USER report WITH PASSWORD &#39;...&#39; ROLE read</code></p>
+<h2 id="alter-user">ALTER USER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER USER name [WITH] PASSWORD &#39;new secret&#39;
+ALTER USER name ROLE admin | ddl | write | read | none
+ALTER USER name [WITH] PASSWORD &#39;new secret&#39; ROLE read</code></pre>
+<p>Changes the password, the role, or both.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>an existing user</td></tr><tr><td><code>PASSWORD &#39;new secret&#39;</code></td><td>the new password (at least 12 characters, at most 1024 bytes)</td></tr><tr><td><code>ROLE</code></td><td>the new role on every database. Grants on single databases stay.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message like <code>user &#39;report&#39; changed: new password, role read</code>.</li><li><strong>Notes:</strong>
+<ul><li><strong>Every user may change their own password.</strong> Changing a role, or another user&#39;s password, needs <code>ROLE admin</code>.</li><li>A new password ends every login (session) of that user at once: the web console and <code>POST /api/login</code> tokens must log in again.</li><li>The last user with <code>ROLE admin</code> can not lose that role while other users exist. Make another user admin first.</li></ul></li></ul>
+<p><strong>Example: A new password and a new role</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">ALTER USER report WITH PASSWORD &#39;New-report-secret-8&#39;;
+ALTER USER report ROLE write;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>ALTER USER report WITH PASSWORD &#39;***&#39;</code></p>
+<pre><code class="language-text">user &#39;report&#39; changed: new password</code></pre>
+<p><code>ALTER USER report ROLE write</code></p>
+<pre><code class="language-text">user &#39;report&#39; changed: role write</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:39.719Z</td><td>2026-10-22T05:44:39.719Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>write</td><td>NULL</td><td>2026-10-22T05:44:39.792Z</td><td>2026-10-22T05:44:40.030Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The last admin must stay an admin</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">ALTER USER admin ROLE read;</code></pre>
+<p>Result:</p>
+<p>Error: <code>&#39;admin&#39; is the last user with ROLE admin; make another user admin first (ALTER USER &lt;name&gt; ROLE admin), or nobody could manage users any more</code></p>
+<p><strong>Example: Nothing to change</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;</code></pre>
+<pre><code class="language-sql">ALTER USER admin;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 17: ALTER USER needs PASSWORD &#39;...&#39; or ROLE read|write|ddl|admin</code></p>
+<h2 id="statement-timeout">ALTER USER ... SET statement_timeout</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER USER name SET statement_timeout = &#39;5s&#39; | 5000 | 0 | DEFAULT
+ALTER USER name RESET statement_timeout</code></pre>
+<p>Gives one user their own time limit for a statement. It takes the place of the server&#39;s <code>--statement-timeout</code> (60 s unless set) for that user only.</p>
+<div class="table-wrap"><table><thead><tr><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&#39;2s&#39;</code>, <code>&#39;500ms&#39;</code>, <code>&#39;10min&#39;</code>, <code>5000</code></td><td>the time; a plain number is milliseconds</td></tr><tr><td><code>0</code></td><td>no limit for this user</td></tr><tr><td><code>DEFAULT</code>, or <code>RESET</code></td><td>the server&#39;s limit again</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message like <code>statement_timeout of user &#39;charts&#39; is 2 s (from their next statement)</code>. <code>SHOW USERS</code> shows it in the column <code>statement_timeout</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs <code>ROLE admin</code>. A user can not change their own limit.</li><li>It may be longer than the server&#39;s limit: a report user may get 10 minutes while every other user keeps 60 s.</li><li>In a session, the user may still make it <strong>shorter</strong> with <code>SET statement_timeout</code>, never longer (an admin user may do both).</li><li>It counts on the HTTP API and on the PostgreSQL port, from the user&#39;s next statement. It is kept in the data folder, so it survives a restart.</li><li>A per-role limit (all <code>read</code> users at once) does not exist; set it on each user.</li></ul></li></ul>
+<p><strong>Example: Short queries for the chart app, long ones for reports</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER charts WITH PASSWORD &#39;Chart-app-secret-11&#39; ROLE read;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">ALTER USER charts SET statement_timeout = &#39;2s&#39;;
+ALTER USER report SET statement_timeout = &#39;10min&#39;;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>ALTER USER charts SET statement_timeout = &#39;2000ms&#39;</code></p>
+<pre><code class="language-text">statement_timeout of user &#39;charts&#39; is 2 s (from their next statement)</code></pre>
+<p><code>ALTER USER report SET statement_timeout = &#39;600000ms&#39;</code></p>
+<pre><code class="language-text">statement_timeout of user &#39;report&#39; is 10 min (from their next statement)</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.103Z</td><td>2026-10-22T05:44:40.103Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>charts</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:40.170Z</td><td>2026-10-22T05:44:40.381Z</td><td>NULL</td><td>false</td><td>2 s</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:40.237Z</td><td>2026-10-22T05:44:40.384Z</td><td>NULL</td><td>false</td><td>10 min</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Back to the server&#39;s limit</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;
+ALTER USER report SET statement_timeout = &#39;10min&#39;;</code></pre>
+<pre><code class="language-sql">ALTER USER report RESET statement_timeout;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">user &#39;report&#39; has the server&#39;s statement_timeout again</code></pre>
+<p><strong>Example: Only a time is accepted</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;</code></pre>
+<pre><code class="language-sql">ALTER USER admin SET statement_timeout = &#39;soon&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 42: statement_timeout needs a time like &#39;30s&#39;, &#39;500ms&#39;, &#39;2min&#39;, 0 (no limit) or DEFAULT, not &#39;soon&#39;</code></p>
+<h2 id="user-timezone">ALTER USER ... SET timezone</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER USER name SET timezone = &#39;Asia/Kathmandu&#39; | &#39;America/New_York&#39; | &#39;+05:45&#39; | DEFAULT
+ALTER USER name SET TIME ZONE &#39;Asia/Kathmandu&#39;
+ALTER USER name RESET timezone</code></pre>
+<p>The clock one user&#39;s sessions start on: <code>CURRENT_DATE</code>, <code>::date</code>, <code>date_trunc</code>, <code>EXTRACT</code>, <code>to_char</code> and a <code>DATE</code> met by a <code>TIMESTAMP</code> use it (<a href="time-and-time-zones.html#session-time-zone">time zones</a>). The user&#39;s own <code>SET TIME ZONE</code> still changes it for a session. Users without one have the server&#39;s zone, which is the computer&#39;s own unless <code>kdb serve --timezone</code> names another.</p>
+<ul><li><strong>Role:</strong> an admin sets it, for any user.</li><li><strong>Kept:</strong> with the user, across restarts and backups.</li></ul>
+<p><strong>Example: Asha sees days on the Nepal clock, the others on the server&#39;s</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER asha WITH PASSWORD &#39;Asha-Long-Passw0rd&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">ALTER USER asha SET timezone = &#39;Asia/Kathmandu&#39;;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">time zone of user &#39;asha&#39; is Asia/Kathmandu (from their next session)</code></pre>
+<h2 id="drop-user">DROP USER</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP USER [IF EXISTS] name</code></pre>
+<p>Removes a user and its grants. Its logins stop working at once.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>IF EXISTS</code></td><td>no error when there is no such user</td></tr><tr><td><code>name</code></td><td>the user to remove</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>user &#39;name&#39; dropped</code>, or <code>user &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong>
+<ul><li>Needs <code>ROLE admin</code>.</li><li>The last user with <code>ROLE admin</code> can not be dropped while other users exist.</li><li>When the <strong>last</strong> user is dropped, the server has no users again and stops asking for a login (on <code>127.0.0.1</code>).</li><li>Tables and data are never touched: KDB has no &quot;owner&quot; of a table.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">DROP USER report;
+DROP USER IF EXISTS report;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>DROP USER report</code></p>
+<pre><code class="language-text">user &#39;report&#39; dropped</code></pre>
+<p><code>DROP USER IF EXISTS report</code></p>
+<pre><code class="language-text">user &#39;report&#39; does not exist</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.692Z</td><td>2026-10-22T05:44:40.692Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The last admin can not be dropped while others exist</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">DROP USER admin;</code></pre>
+<p>Result:</p>
+<p>Error: <code>&#39;admin&#39; is the last user with ROLE admin; make another user admin first (ALTER USER &lt;name&gt; ROLE admin), or nobody could manage users any more</code></p>
+<h2 id="show-users">SHOW USERS</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SHOW USERS</code></pre>
+<p>Lists the users with their roles and grants. It never shows passwords or hashes.</p>
+<div class="table-wrap"><table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the user name as it was created</td></tr><tr><td><code>role</code></td><td>the role on every database</td></tr><tr><td><code>grants</code></td><td>the roles on single databases, like <code>shop=write, demo=read</code>; <code>NULL</code> when there are none</td></tr><tr><td><code>created</code></td><td>when the user was made (UTC)</td></tr><tr><td><code>changed</code></td><td>the last change of password, role or grants (UTC)</td></tr><tr><td><code>table_grants</code></td><td><a href="table-rights.html">table rights</a>, like <code>shop.ledger: -DELETE</code>; <code>NULL</code> when there are none</td></tr><tr><td><code>two_factor</code></td><td><code>true</code> when the user logs in with a <a href="two-factor-login.html">two-factor code</a></td></tr><tr><td><code>statement_timeout</code></td><td>the user&#39;s own <a href="#statement-timeout">time limit</a>, like <code>2 s</code> or <code>off</code>; <code>NULL</code> = the server&#39;s</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per user, sorted by name (small and capital letters count the same).</li><li><strong>Notes:</strong>
+<ul><li>Every user may run it. A user who is not an admin sees <strong>only their own row</strong>.</li><li>With no users yet it gives 0 rows.</li><li>A server or command that opened one database folder by its path (not a data folder) gives an error: users need a data folder.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39; ROLE none;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;
+CREATE DATABASE shop;
+GRANT write ON DATABASE shop TO shop_app;
+GRANT read ON DATABASE demo TO shop_app;</code></pre>
+<pre><code class="language-sql">SHOW USERS;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.810Z</td><td>2026-10-22T05:44:40.810Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:40.953Z</td><td>2026-10-22T05:44:40.953Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=read, shop=write</td><td>2026-10-22T05:44:40.877Z</td><td>2026-10-22T05:44:40.985Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="grant">GRANT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GRANT read | write | ddl | admin | ALL ON DATABASE db TO name</code></pre>
+<p>Gives a user a role on <strong>one</strong> database. <code>ALL</code> is the same as <code>admin</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td>role</td><td><code>read</code>, <code>write</code>, <code>ddl</code>, <code>admin</code> or <code>ALL</code></td></tr><tr><td><code>db</code></td><td>an existing database</td></tr><tr><td><code>name</code></td><td>an existing user</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a message like <code>user &#39;shop_app&#39; has role write on database &#39;shop&#39;</code>.</li><li><strong>Notes:</strong>
+<ul><li>A user has <strong>one</strong> grant per database. A new <code>GRANT</code> on the same database replaces the old one (also a weaker one: <code>GRANT read</code> after <code>GRANT admin</code> leaves <code>read</code>).</li><li>The user may use the <strong>stronger</strong> of its own <code>ROLE</code> and the grant. A grant can never take away what <code>ROLE</code> gives.</li><li><code>GRANT admin ON DATABASE shop</code> gives all rights <strong>inside</strong> <code>shop</code>, but not creating or dropping databases, and not managing users. Those need <code>ROLE admin</code>.</li><li>Needs <code>ROLE admin</code>.</li><li><code>DROP DATABASE</code> also removes every grant on that database.</li><li>A <code>GRANT</code> of a role is per database. For single tables use <a href="table-rights.html">table rights</a>: <code>GRANT SELECT ON TABLE prices TO u</code>, <code>REVOKE DELETE ON TABLE ledger FROM app</code>. There are no column or row rights.</li></ul></li></ul>
+<p><strong>Example: The app may write in its own database only</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39;;
+CREATE DATABASE shop;</code></pre>
+<pre><code class="language-sql">GRANT write ON DATABASE shop TO shop_app;
+GRANT ALL ON DATABASE demo TO shop_app;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>GRANT write ON DATABASE shop TO shop_app</code></p>
+<pre><code class="language-text">user &#39;shop_app&#39; has role write on database &#39;shop&#39;</code></pre>
+<p><code>GRANT admin ON DATABASE demo TO shop_app</code></p>
+<pre><code class="language-text">user &#39;shop_app&#39; has role admin on database &#39;demo&#39;</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:40.924Z</td><td>2026-10-22T05:44:40.924Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=admin, shop=write</td><td>2026-10-22T05:44:40.999Z</td><td>2026-10-22T05:44:41.200Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: DROP DATABASE removes the grants on it</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39;;
+CREATE DATABASE shop;
+GRANT write ON DATABASE shop TO shop_app;</code></pre>
+<pre><code class="language-sql">DROP DATABASE shop;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>DROP DATABASE shop</code></p>
+<pre><code class="language-text">database &#39;shop&#39; dropped; its folder was moved to kdb-data/_trash/1792647881547-shop</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:41.285Z</td><td>2026-10-22T05:44:41.285Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-22T05:44:41.351Z</td><td>2026-10-22T05:44:41.553Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: The database must exist</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39;;</code></pre>
+<pre><code class="language-sql">GRANT write ON DATABASE accounts TO shop_app;</code></pre>
+<p>Result:</p>
+<p>Error: <code>database &#39;accounts&#39; does not exist</code></p>
+<p><strong>Example: none is not a role to grant: use REVOKE</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;</code></pre>
+<pre><code class="language-sql">GRANT none ON DATABASE demo TO admin;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 7: expected a role (read, write, ddl or admin, or ALL) in GRANT, found &#39;none&#39;</code></p>
+<h2 id="revoke">REVOKE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">REVOKE [read | write | ddl | admin | ALL] ON DATABASE db FROM name</code></pre>
+<p>Removes the user&#39;s grant on one database.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td>role</td><td>optional, and only for reading comfort: the whole grant on <code>db</code> goes, whatever role you write</td></tr><tr><td><code>db</code></td><td>the database. It may already be gone.</td></tr><tr><td><code>name</code></td><td>an existing user</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>user &#39;name&#39; has no grant on database &#39;db&#39; now</code> (also when there was no grant).</li><li><strong>Notes:</strong>
+<ul><li>It does <strong>not</strong> change the user&#39;s own <code>ROLE</code>. A user with <code>ROLE read</code> can still read <code>db</code> after <code>REVOKE</code>. Use <code>ALTER USER name ROLE none</code> for that.</li><li><code>REVOKE read ...</code> on a user with a <code>write</code> grant removes the <code>write</code> grant too; there is no &quot;step down&quot;. To give less, <code>GRANT</code> the smaller role instead.</li><li>KDB also accepts <code>TO name</code> instead of <code>FROM name</code>.</li><li>Needs <code>ROLE admin</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39;;
+GRANT write ON DATABASE demo TO shop_app;</code></pre>
+<pre><code class="language-sql">REVOKE ALL ON DATABASE demo FROM shop_app;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>REVOKE ALL ON DATABASE demo FROM shop_app</code></p>
+<pre><code class="language-text">user &#39;shop_app&#39; has no grant on database &#39;demo&#39; now</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:41.537Z</td><td>2026-10-22T05:44:41.537Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-22T05:44:41.605Z</td><td>2026-10-22T05:44:41.774Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: REVOKE does not touch the user&#39;s own ROLE</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;
+GRANT write ON DATABASE demo TO report;</code></pre>
+<pre><code class="language-sql">REVOKE read ON DATABASE demo FROM report;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>REVOKE read ON DATABASE demo FROM report</code></p>
+<pre><code class="language-text">user &#39;report&#39; keeps role write on database &#39;demo&#39;: REVOKE read takes away only a read grant; use REVOKE write or REVOKE ALL. Nothing was revoked</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:41.895Z</td><td>2026-10-22T05:44:41.895Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>demo=write</td><td>2026-10-22T05:44:41.963Z</td><td>2026-10-22T05:44:41.965Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="set-role">SET ROLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SET ROLE name          -- from now on, statements use the rights of user `name`
+SET ROLE NONE          -- back to the login user&#39;s rights
+RESET ROLE             -- the same</code></pre>
+<p>An app that logs in as an admin (for its start-up migrations) can drop to the rights of its own user for everything else. The session keeps the role until <code>RESET ROLE</code>, as in PostgreSQL.</p>
+<div class="table-wrap"><table><thead><tr><th>Who logged in</th><th>May take</th></tr></thead><tbody><tr><td>the token, or a server without users</td><td>any user</td></tr><tr><td>a user whose own <code>ROLE</code> is <code>admin</code></td><td>any user</td></tr><tr><td>any other user</td><td>only itself</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>statements now use the rights of user &#39;name&#39; (RESET ROLE goes back)</code>.</li><li><strong>Errors:</strong> a name that is no user: <code>role &quot;name&quot; does not exist</code> (<code>22023</code>). Someone else, without <code>ROLE admin</code>: <code>permission denied to set role &quot;name&quot;</code> (<code>42501</code>).</li><li><strong>Notes:</strong>
+<ul><li>Every statement is checked against the rights of the role: its <code>ROLE</code>, its database <code>GRANT</code>s and its <a href="table-rights.html">table rights</a>.</li><li>Over the PostgreSQL protocol <code>current_user</code> gives the role and <code>session_user</code> the login user. The audit log names both (<code>admin (as report)</code>).</li><li>It changes the rights of SQL. HTTP routes that are not SQL (<code>/api/...</code>) still use the login.</li><li>It lasts for the HTTP session or the PostgreSQL connection. Without a session it lasts for the one request.</li></ul></li></ul>
+<p><strong>Example: An admin session takes the rights of a report user</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">SET ROLE report;
+SELECT 1 AS reading_is_fine;
+CREATE TABLE made_by_report (id INT);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">statements now use the rights of user &#39;report&#39; (RESET ROLE goes back)</code></pre>
+<p>Error: <code>CREATE TABLE needs role ddl on database &#39;demo&#39;; user &#39;report&#39; has read</code></p>
+<p><strong>Example: RESET ROLE goes back to the login user&#39;s rights</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;</code></pre>
+<pre><code class="language-sql">SET ROLE report;
+RESET ROLE;
+CREATE TABLE made_after_reset (id INT);</code></pre>
+<p>Result:</p>
+<p><code>SET role = &#39;report&#39;</code></p>
+<pre><code class="language-text">statements now use the rights of user &#39;report&#39; (RESET ROLE goes back)</code></pre>
+<p><code>SET role = &#39;&#39;</code></p>
+<pre><code class="language-text">back to the rights of the login user</code></pre>
+<p><code>CREATE TABLE made_after_reset (</code></p>
+<pre><code class="language-text">table &#39;made_after_reset&#39; created</code></pre>
+<h2 id="roles">Roles: what each one may do</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">none  &lt;  read  &lt;  write  &lt;  ddl  &lt;  admin</code></pre>
+<p>Each role may do everything of the roles before it.</p>
+<div class="table-wrap"><table><thead><tr><th>Role</th><th>May do</th></tr></thead><tbody><tr><td><code>none</code></td><td>nothing (until a <code>GRANT</code>). It may still log in, change its own password and see its own row in <code>SHOW USERS</code>.</td></tr><tr><td><code>read</code></td><td><code>SELECT</code>, <code>SHOW ...</code>, <code>EXPLAIN</code>, <code>USE</code>, CSV export, cursors (<code>DECLARE</code>, <code>FETCH</code>, <code>CLOSE</code>), <code>BEGIN</code> / <code>COMMIT</code> / <code>ROLLBACK</code> / <code>SAVEPOINT</code>, <code>/api/info</code>, list backups</td></tr><tr><td><code>write</code></td><td>also <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> (with <code>RETURNING</code>), <code>TRUNCATE</code>, <code>CALL</code> of procedures, <code>SELECT ... FOR UPDATE</code>, line protocol (<code>POST /write</code>)</td></tr><tr><td><code>ddl</code></td><td>also the schema: <code>CREATE</code> / <code>ALTER</code> / <code>DROP</code> / <code>RENAME</code> of tables, views, indexes, sequences, functions, procedures and triggers, <code>REFRESH VIEW</code>, a new table with <code>POST /imp</code>. No users, no server settings, no backups, no audit log.</td></tr><tr><td><code>admin</code></td><td>also <code>BACKUP</code>, <code>CHECK TABLE</code>, <code>SHOW AUDIT</code>, <code>ALTER TABLE ... SET AUDIT</code>, <code>ALTER DATABASE</code>, <code>TRUNCATE ALL TABLES</code>, the trigger queue (<code>RETRY</code> / <code>SKIP</code>)</td></tr></tbody></table></div>
+<p>The HTTP routes that are not SQL need these roles:</p>
+<div class="table-wrap"><table><thead><tr><th>Needs</th><th>Routes</th></tr></thead><tbody><tr><td>a login only</td><td><code>GET /api/me</code>, <code>POST /api/feedback</code> (send a comment)</td></tr><tr><td><code>read</code> on the database</td><td><code>GET /api/info</code>, <code>GET /api/disk</code>, <code>GET /api/backups</code>, <code>GET /api/stats</code>, <code>GET /api/trigger-queue</code>, <code>GET /api/timers</code>, <code>GET /api/pins</code>, cursors</td></tr><tr><td><code>write</code> on the database</td><td><code>POST /write</code>, <code>POST /api/v2/write</code>, <code>POST /imp</code> (<code>ddl</code> when it creates the table)</td></tr><tr><td><code>admin</code> on the database</td><td><code>POST /api/check</code>, <code>POST /api/backup</code>, save, run, turn off or delete a <a href="timers.html">timer</a>, pin or unpin a <a href="pinned-queries.html">statement</a></td></tr><tr><td>the user&#39;s own <code>ROLE admin</code></td><td><code>GET</code> and <code>POST /api/settings</code>, <code>POST /api/restart</code>, <code>POST</code> and <code>DELETE /api/databases</code>, <code>GET /api/feedback</code>, <code>POST /api/feedback/&lt;id&gt;</code>, <code>GET /api/audit</code> (with <code>kind=data</code>: <code>admin</code> on that database is enough)</td></tr></tbody></table></div>
+<p>Two places give a role:</p>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>For</th><th>Written</th></tr></thead><tbody><tr><td>the user&#39;s own <code>ROLE</code></td><td><strong>every</strong> database</td><td><code>CREATE USER ... ROLE read</code>, <code>ALTER USER ... ROLE read</code></td></tr><tr><td>a grant</td><td><strong>one</strong> database</td><td><code>GRANT write ON DATABASE shop TO shop_app</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a statement without the needed role is refused before any of it runs, with HTTP status 403 and a message like <code>INSERT needs role write on database &#39;shop&#39;; user &#39;report&#39; has read</code>.</li><li><strong>Notes:</strong>
+<ul><li>Only a user whose own <code>ROLE</code> is <code>admin</code> may create and drop databases and manage users (<code>CREATE USER</code>, <code>ALTER USER ... ROLE</code>, <code>DROP USER</code>, <code>GRANT</code>, <code>REVOKE</code>). The message then says <code>needs role admin as its own ROLE (it acts on the whole server)</code>.</li><li><code>SHOW DATABASES</code> lists only the databases the user may read.</li><li>A <code>--token</code> of the server works like a full admin.</li><li>Give each program only what it needs: your app&#39;s backend <code>write</code> on its own database, a report script <code>read</code>, a migration tool <code>ddl</code>. Keep <code>admin</code> for yourself.</li><li><code>ddl</code> is for a developer or a migration tool (Flyway, Alembic, Prisma) that changes tables but must not manage users or settings. It is kept by its name, like the other roles. An older KDB reads a <code>ddl</code> user as <code>none</code>: that user loses rights there, it never gains them.</li><li><code>CALL</code> needs <code>write</code>: a procedure can only change rows (it can not hold <code>CREATE</code> or <code>DROP</code>).</li><li>A view, procedure or trigger saved by a <code>ddl</code> user may only read and change what that user may. <code>CREATE VIEW v AS SELECT * FROM _audit_log</code> needs <code>admin</code>, like reading <code>_audit_log</code> itself. See <a href="table-rights.html#revoke-on-table">table rights</a>.</li><li>Only <code>kdb serve</code> (HTTP, web console and PostgreSQL port) checks roles. <code>kdb sql</code> and <code>kdb shell</code> do not.</li></ul></li></ul>
+<p><strong>Example: A report user that may read every database, and an app that may write one</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;</code></pre>
+<pre><code class="language-sql">CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39; ROLE none;
+GRANT write ON DATABASE demo TO shop_app;
+SHOW USERS;</code></pre>
+<p>Result:</p>
+<p><code>CREATE USER report WITH PASSWORD &#39;***&#39; ROLE read</code></p>
+<pre><code class="language-text">user &#39;report&#39; created with role read</code></pre>
+<p><code>CREATE USER shop_app WITH PASSWORD &#39;***&#39; ROLE none</code></p>
+<pre><code class="language-text">user &#39;shop_app&#39; created with role none</code></pre>
+<p><code>GRANT write ON DATABASE demo TO shop_app</code></p>
+<pre><code class="language-text">user &#39;shop_app&#39; has role write on database &#39;demo&#39;</code></pre>
+<p><code>SHOW USERS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-22T05:44:42.114Z</td><td>2026-10-22T05:44:42.114Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-22T05:44:42.334Z</td><td>2026-10-22T05:44:42.334Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-22T05:44:42.406Z</td><td>2026-10-22T05:44:42.408Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A migration user may change tables, not users</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER migrate WITH PASSWORD &#39;Migrations-only-secret-9&#39; ROLE ddl;</code></pre>
+<pre><code class="language-sql">SET ROLE migrate;
+CREATE TABLE orders (id INT PRIMARY KEY, total DOUBLE);
+ALTER TABLE orders ADD COLUMN placed TIMESTAMP;
+CREATE INDEX orders_placed ON orders (placed);
+INSERT INTO orders VALUES (1, 12.5, &#39;2026-09-25T10:00:00Z&#39;);
+CREATE USER intern WITH PASSWORD &#39;Intern-long-secret-3&#39;;</code></pre>
+<p>Result:</p>
+<p><code>SET role = &#39;migrate&#39;</code></p>
+<pre><code class="language-text">statements now use the rights of user &#39;migrate&#39; (RESET ROLE goes back)</code></pre>
+<p><code>CREATE TABLE orders (</code></p>
+<pre><code class="language-text">table &#39;orders&#39; created</code></pre>
+<p><code>ALTER TABLE orders ADD COLUMN placed TIMESTAMP</code></p>
+<pre><code class="language-text">table &#39;orders&#39; altered</code></pre>
+<p><code>CREATE INDEX orders_placed ON orders (placed)</code></p>
+<pre><code class="language-text">index &#39;orders_placed&#39; created on table &#39;orders&#39; (0 rows)</code></pre>
+<p><code>INSERT INTO orders VALUES (1, 12.5, &#39;2026-09-25T10:00:00Z&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p>Error: <code>CREATE USER needs role admin as its own ROLE (it acts on the whole server); user &#39;migrate&#39; has ddl</code></p>
+<p><strong>Example: A writer may change rows but not the schema</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER shop_app WITH PASSWORD &#39;Another-long-secret-42&#39; ROLE write;</code></pre>
+<pre><code class="language-sql">SET ROLE shop_app;
+CREATE TABLE app_made (id INT);</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">statements now use the rights of user &#39;shop_app&#39; (RESET ROLE goes back)</code></pre>
+<p>Error: <code>CREATE TABLE needs role ddl on database &#39;demo&#39;; user &#39;shop_app&#39; has write</code></p>
+<h2 id="system-database">Where users are kept</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&lt;data folder&gt;/_system/        the hidden database with the table users</code></pre>
+<p>Users belong to the <strong>data folder</strong>, not to one database. KDB keeps them in a hidden database named <code>_system</code> inside the data folder. All databases of that folder share the users.</p>
+<div class="table-wrap"><table><thead><tr><th>Column of <code>users</code></th><th>Holds</th></tr></thead><tbody><tr><td><code>name</code>, <code>role</code>, <code>grants</code></td><td>what <code>SHOW USERS</code> shows</td></tr><tr><td><code>password_hash</code></td><td><code>$pbkdf2-sha256$i=600000$...</code> (the same form as <code>password_hash()</code>)</td></tr><tr><td><code>scram</code></td><td><code>SCRAM-SHA-256$4096:...</code> for PostgreSQL clients</td></tr><tr><td><code>created_at</code>, <code>changed_at</code></td><td>times</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> not a statement: <code>USE _system</code> and <code>CREATE DATABASE _system</code> are refused.</li><li><strong>Notes:</strong>
+<ul><li>A server that opened <strong>one database folder by its path</strong> (<code>kdb serve D:\kdb\market</code>) has no users. Use <code>--data-dir &lt;folder&gt;</code>.</li><li>Anyone who can read the data folder or a backup can read the password hashes. Keep the folder and backups private (<code>chmod 700</code> on Linux).</li><li><code>kdb user add | passwd | role | list | remove</code> work on the same users while the server is stopped (see <a href="cli-users.html">kdb user</a>). While <code>kdb serve</code> runs, use SQL in its console.</li><li>Logins (sessions) and <a href="api-tokens.html">API tokens</a> are kept here too, as hashes only, so a restart logs nobody out.</li><li>An old <code>kdb</code> program made before users existed does not know <code>_system</code> and would serve the data <strong>without</strong> a login. Update every <code>kdb</code> program first.</li></ul></li></ul>
+<p><strong>Example: _system is not a normal database</strong> (shows an error)</p>
+<pre><code class="language-sql">USE _system;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 5: bad database name &#39;_system&#39;: &#39;_system&#39; is where KDB keeps its users</code></p>
+<p><strong>Command line: kdb user and SQL see the same users</strong></p>
+<pre><code class="language-bash">kdb user add admin --role admin
+&gt; Long-Admin-Passw0rd
+&gt; Long-Admin-Passw0rd
+kdb user list
+kdb sql kdb-data/shop &quot;CREATE TABLE orders (id INT PRIMARY KEY)&quot;
+kdb sql shop &quot;CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read; SHOW USERS&quot;</code></pre>
+<p>Output:</p>
+<p><code>&gt; kdb user add admin --role admin</code></p>
+<pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
+<p><code>&gt; kdb user list</code></p>
+<pre><code class="language-text">USER                     ROLE   GRANTS                         CHANGED
+admin                    admin  -                              2026-10-22 11:29:42
+1 user in ./kdb-data</code></pre>
+<p><code>&gt; kdb sql kdb-data/shop &quot;CREATE TABLE orders (id INT PRIMARY KEY)&quot;</code></p>
+<pre><code class="language-text">table &#39;orders&#39; created</code></pre>
+<p><code>&gt; kdb sql shop &quot;CREATE USER report WITH PASSWORD &#39;Reports-only-secret-7&#39; ROLE read; SHOW USERS&quot;</code></p>
+<pre><code class="language-text">user &#39;report&#39; created with role read
+
+name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority
+-------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+---------
+admin  | admin | NULL   | 2026-10-22T05:44:42.569Z | 2026-10-22T05:44:42.569Z | NULL         | false      | NULL              | NULL    
+report | read  | NULL   | 2026-10-22T05:44:43.043Z | 2026-10-22T05:44:43.043Z | NULL         | false      | NULL              | NULL    
+(2 rows, 0.0 ms)</code></pre>
+<p>Here the data folder is <code>kdb-data</code>. The first <code>kdb sql</code> makes the database <code>shop</code> in it by its path. After that, the plain name <code>shop</code> means the database in the data folder, so the user statements work. A plain name that is <strong>not</strong> in the data folder is taken as a new folder in the current folder, and then user statements say <code>users need a data folder</code>.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/users-and-roles.md">This page as markdown</a>.</footer>
+</body>
+</html>

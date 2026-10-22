@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trigonometry and probability - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Sine, cosine, tangent and their inverses, hyperbolic functions, and the normal distribution (chance, bell height and inverse).">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-math-more.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-math-more.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="trigonometry-and-probability">Trigonometry and probability</h1>
+<blockquote><p>Sine, cosine, tangent and their inverses, hyperbolic functions, and the normal distribution (chance, bell height and inverse).</p></blockquote>
+<ul><li>Category: Functions — math</li><li>Keywords: trigonometry, angle, radian, degree, circle, cycle, wave, seasonality, sine, cosine, tangent, cotangent, arc sine, arcsin, arc cosine, arccos, arc tangent, arctan, arctan2, trend angle, hyperbolic, squash, fisher transform, normal distribution, bell curve, gaussian, probability, chance, z-score, cumulative distribution, norm.dist, NORMSDIST, density, norm.inv, NORMSINV, quantile of normal, confidence level</li><li>See also: <a href="functions-math.html">Math functions</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="functions-returns-risk.html">Returns and risk</a>, <a href="functions-finance.html">Finance and price functions</a></li></ul>
+<p>These functions work with <strong>angles</strong> and with <strong>chances</strong>.</p>
+<p><strong>Angles.</strong> An angle can be measured in <strong>degrees</strong> (a full circle is 360°) or in <strong>radians</strong> (a full circle is 2π, about 6.28). All functions here use <strong>radians</strong>. Change degrees to radians with <a href="functions-math.html#radians">radians</a>, and back with <a href="functions-math.html#degrees">degrees</a>: <code>sin(radians(30))</code> is <code>0.5</code>.</p>
+<p><strong>Rules</strong></p>
+<ul><li>A <code>NULL</code> argument gives <code>NULL</code>.</li><li>A value outside the allowed range gives <code>NULL</code>, not an error: <code>asin(2)</code> is <code>NULL</code>.</li><li>Text is an error: <code>sin(&#39;a&#39;)</code>. Use <code>CAST</code> for text that holds a number.</li><li>They return <code>DOUBLE</code>. Results like <code>sin(pi())</code> are a tiny number instead of exactly <code>0</code>: use <code>round(x, 10)</code> to clean them.</li></ul>
+<p><strong>Example: Angles in degrees and radians, with sine and cosine</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT deg, round(radians(deg), 4) AS rad, round(sin(radians(deg)), 4) AS sin, round(cos(radians(deg)), 4) AS cos
+FROM (SELECT 0 AS deg UNION ALL SELECT 30 UNION ALL SELECT 45 UNION ALL SELECT 90 UNION ALL SELECT 180) t
+ORDER BY deg;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>deg (LONG)</th><th>rad (DOUBLE)</th><th>sin (DOUBLE)</th><th>cos (DOUBLE)</th></tr></thead><tbody><tr><td>0</td><td>0</td><td>0</td><td>1</td></tr><tr><td>30</td><td>0.5236</td><td>0.5</td><td>0.866</td></tr><tr><td>45</td><td>0.7854</td><td>0.7071</td><td>0.7071</td></tr><tr><td>90</td><td>1.5708</td><td>1</td><td>0</td></tr><tr><td>180</td><td>3.1416</td><td>0</td><td>-1</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="sin">sin</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sin(x)</code></pre>
+<p>The <strong>sine</strong> of the angle <code>x</code> (in radians). As the angle goes round the circle, the sine goes smoothly up and down between <code>-1</code> and <code>1</code>, like a wave. Use it to make a cycle: <code>sin(2 × π × day / 8)</code> repeats every 8 days.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>an angle in radians</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from <code>-1</code> to <code>1</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT sin(0) AS a, sin(pi() / 2) AS b, round(sin(radians(30)), 4) AS c, round(sin(pi()), 10) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th><th>d (DOUBLE)</th></tr></thead><tbody><tr><td>0</td><td>1</td><td>0.5</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An 8-day wave next to CITY&#39;s close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, round(sin(2 * pi() * row_number() / 8), 3) AS wave
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-02&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>wave (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-02T00:00:00.000Z</td><td>496.4</td><td>0.707</td></tr><tr><td>2026-09-03T00:00:00.000Z</td><td>497.9</td><td>1</td></tr><tr><td>2026-09-06T00:00:00.000Z</td><td>499</td><td>0.707</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>498.7</td><td>0</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>497.5</td><td>-0.707</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>504.6</td><td>-1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>504.9</td><td>-0.707</td></tr></tbody></table></div>
+<p>(7 rows)</p>
+<h2 id="cos">cos</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cos(x)</code></pre>
+<p>The <strong>cosine</strong> of the angle <code>x</code> (in radians): the same wave as <code>sin</code>, a quarter circle earlier. <code>cos(0)</code> is <code>1</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>an angle in radians</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from <code>-1</code> to <code>1</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> <code>sin</code> and <code>cos</code> together put a month on a circle, so December (12) and January (1) come out close to each other. This is useful for <strong>seasonality</strong> (patterns that repeat every year) in reports and models.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT cos(0) AS a, round(cos(pi() / 2), 10) AS b, cos(pi()) AS c, round(cos(radians(60)), 4) AS d;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th><th>d (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>0</td><td>-1</td><td>0.5</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Months on a circle: December is next to January, July is far away</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT m AS month,
+       round(sin(2 * pi() * (m - 1) / 12), 3) AS month_sin,
+       round(cos(2 * pi() * (m - 1) / 12), 3) AS month_cos
+FROM (SELECT 1 AS m UNION ALL SELECT 4 UNION ALL SELECT 7 UNION ALL SELECT 12) t
+ORDER BY m;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>month (LONG)</th><th>month_sin (DOUBLE)</th><th>month_cos (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>0</td><td>1</td></tr><tr><td>4</td><td>1</td><td>0</td></tr><tr><td>7</td><td>0</td><td>-1</td></tr><tr><td>12</td><td>-0.5</td><td>0.866</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="tan">tan</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">tan(x)</code></pre>
+<p>The <strong>tangent</strong> of the angle <code>x</code> (in radians): <code>sin(x) / cos(x)</code>. It is the <strong>slope</strong> of a line with that angle: how much it goes up for one step to the right. <code>tan(radians(45))</code> is <code>1</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>an angle in radians</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> near 90° the tangent becomes very big.</li></ul>
+<p><strong>Example: Rise per step for a line at 10, 30, 45 and 60 degrees</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT deg, round(tan(radians(deg)), 4) AS rise_per_step
+FROM (SELECT 10 AS deg UNION ALL SELECT 30 UNION ALL SELECT 45 UNION ALL SELECT 60) t
+ORDER BY deg;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>deg (LONG)</th><th>rise_per_step (DOUBLE)</th></tr></thead><tbody><tr><td>10</td><td>0.1763</td></tr><tr><td>30</td><td>0.5774</td></tr><tr><td>45</td><td>1</td></tr><tr><td>60</td><td>1.7321</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="cot">cot</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cot(x)</code></pre>
+<p>The <strong>cotangent</strong> of the angle <code>x</code> (in radians): <code>1 / tan(x)</code>, or <code>cos(x) / sin(x)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>an angle in radians</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. <code>cot(0)</code> is <code>NULL</code> (it would be a division by zero).</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(cot(radians(45)), 4) AS a, round(cot(radians(60)), 4) AS b, round(1 / tan(radians(60)), 4) AS same, cot(0) AS zero;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>same (DOUBLE)</th><th>zero (STRING)</th></tr></thead><tbody><tr><td>1</td><td>0.5774</td><td>0.5774</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="asin">asin</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">asin(x)</code></pre>
+<p>The <strong>arc sine</strong>: the angle whose sine is <code>x</code>. It undoes <code>sin</code>. <code>asin(1)</code> is π/2 (90°).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number from <code>-1</code> to <code>1</code></td><td>a sine value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, an angle in radians from -π/2 to π/2.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. <code>x</code> below <code>-1</code> or above <code>1</code> gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT asin(1) AS a, degrees(asin(0.5)) AS b_degrees, degrees(asin(-1)) AS c_degrees, asin(2) AS out_of_range;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b_degrees (DOUBLE)</th><th>c_degrees (DOUBLE)</th><th>out_of_range (STRING)</th></tr></thead><tbody><tr><td>1.5707963267949</td><td>30</td><td>-90</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="acos">acos</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">acos(x)</code></pre>
+<p>The <strong>arc cosine</strong>: the angle whose cosine is <code>x</code>. It undoes <code>cos</code>. <code>acos(1)</code> is <code>0</code>, <code>acos(-1)</code> is π (180°).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>number from <code>-1</code> to <code>1</code></td><td>a cosine value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, an angle in radians from 0 to π.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. <code>x</code> below <code>-1</code> or above <code>1</code> gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT acos(1) AS a, degrees(acos(0.5)) AS b_degrees, degrees(acos(-1)) AS c_degrees, acos(-2) AS out_of_range;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b_degrees (DOUBLE)</th><th>c_degrees (DOUBLE)</th><th>out_of_range (STRING)</th></tr></thead><tbody><tr><td>0</td><td>60</td><td>180</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="atan">atan</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">atan(x)</code></pre>
+<p>The <strong>arc tangent</strong>: the angle whose tangent is <code>x</code>. It undoes <code>tan</code>, and turns a <strong>slope</strong> into an angle. <code>degrees(atan(1))</code> is <code>45</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>a tangent value (a slope)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, an angle in radians between -π/2 and π/2 (-90° and 90°).</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong> a chart angle depends on the scale of the chart. Measure the slope in <strong>percent per candle</strong>: then a rise of 1% per day is 45°.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT atan(0) AS a, degrees(atan(1)) AS b_degrees, degrees(atan(-1)) AS c_degrees, round(degrees(atan(1000000)), 3) AS almost_90;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b_degrees (DOUBLE)</th><th>c_degrees (DOUBLE)</th><th>almost_90 (DOUBLE)</th></tr></thead><tbody><tr><td>0</td><td>45</td><td>-45</td><td>90</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Trend angle of VOLT: the rise over 4 days, in % per day, as an angle</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, close, pct_per_day, round(degrees(atan(pct_per_day)), 1) AS angle_degrees
+FROM (SELECT time, close, round((close / lag(close, 4) - 1) * 100 / 4, 3) AS pct_per_day
+      FROM ochl_day
+      WHERE symbol = &#39;VOLT&#39; AND time &gt;= &#39;2026-08-23&#39;) t
+WHERE time &gt;= &#39;2026-09-06&#39;
+ORDER BY time;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>pct_per_day (DOUBLE)</th><th>angle_degrees (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-06T00:00:00.000Z</td><td>180.1</td><td>1.086</td><td>47.4</td></tr><tr><td>2026-09-07T00:00:00.000Z</td><td>176.9</td><td>1.169</td><td>49.5</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>182.4</td><td>1.589</td><td>57.8</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>187.3</td><td>1.605</td><td>58.1</td></tr><tr><td>2026-09-10T00:00:00.000Z</td><td>191.2</td><td>1.541</td><td>57</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="atan2">atan2</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">atan2(y, x)</code></pre>
+<p>The angle of the point (<code>x</code>, <code>y</code>) as seen from (0, 0). Unlike <code>atan(y / x)</code>, it knows which quarter of the circle the point is in, and it works when <code>x</code> is <code>0</code>. Note the order: <code>y</code> comes first.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>y</code></td><td>any number</td><td>the up-down position</td></tr><tr><td><code>x</code></td><td>any number</td><td>the left-right position</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, an angle in radians from -π to π (-180° to 180°).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>. <code>atan2(0, 0)</code> is <code>0</code>.</li></ul>
+<p><strong>Example: The angle of four points, one in each quarter</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT x, y, round(degrees(atan2(y, x)), 1) AS angle_degrees, round(degrees(atan(y / x)), 1) AS atan_of_ratio
+FROM (SELECT 1 AS x, 1 AS y UNION ALL SELECT -1, 1 UNION ALL SELECT -1, -1 UNION ALL SELECT 1, -1) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>x (LONG)</th><th>y (LONG)</th><th>angle_degrees (DOUBLE)</th><th>atan_of_ratio (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>1</td><td>45</td><td>45</td></tr><tr><td>-1</td><td>1</td><td>135</td><td>-45</td></tr><tr><td>-1</td><td>-1</td><td>-135</td><td>45</td></tr><tr><td>1</td><td>-1</td><td>-45</td><td>-45</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="sinh">sinh, cosh, tanh</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">sinh(x)
+cosh(x)
+tanh(x)</code></pre>
+<p>The <strong>hyperbolic</strong> sine, cosine and tangent. They are made from <code>exp</code>: <code>sinh(x) = (e^x - e^-x) / 2</code>, <code>cosh(x) = (e^x + e^-x) / 2</code>, <code>tanh(x) = sinh(x) / cosh(x)</code>. The most useful one for data is <code>tanh</code>: it <strong>squashes</strong> any number into the range <code>-1</code> to <code>1</code>. Small values stay almost the same; very big values come close to <code>1</code> (or <code>-1</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>. <code>tanh</code> is from <code>-1</code> to <code>1</code>; <code>cosh</code> is <code>1</code> or more.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. A result too big for a <code>DOUBLE</code> (like <code>sinh(1000)</code>) is <code>NULL</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT sinh(0) AS sinh_0, round(sinh(1), 4) AS sinh_1, cosh(0) AS cosh_0, round(tanh(1), 4) AS tanh_1, round(tanh(5), 4) AS tanh_5, round(tanh(-5), 4) AS tanh_minus_5, sinh(1000) AS too_big;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sinh_0 (DOUBLE)</th><th>sinh_1 (DOUBLE)</th><th>cosh_0 (DOUBLE)</th><th>tanh_1 (DOUBLE)</th><th>tanh_5 (DOUBLE)</th><th>tanh_minus_5 (DOUBLE)</th><th>too_big (STRING)</th></tr></thead><tbody><tr><td>0</td><td>1.1752</td><td>1</td><td>0.7616</td><td>0.9999</td><td>-0.9999</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A signal from -1 to 1: tanh of the daily % change</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, round(chg, 2) AS change_pct, round(tanh(chg), 3) AS signal
+FROM (SELECT time, symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS chg
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-09-06&#39;) t
+WHERE time IN &#39;2026-09-09&#39;
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>change_pct (DOUBLE)</th><th>signal (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T00:00:00.000Z</td><td>CITY</td><td>1.43</td><td>0.891</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>COAST</td><td>0.77</td><td>0.646</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>VOLT</td><td>2.69</td><td>0.991</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="asinh">asinh, acosh, atanh</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">asinh(x)
+acosh(x)
+atanh(x)</code></pre>
+<p>The inverse hyperbolic functions: they undo <code>sinh</code>, <code>cosh</code> and <code>tanh</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Allowed <code>x</code></th><th>Use</th></tr></thead><tbody><tr><td><code>asinh(x)</code></td><td>any number</td><td>like a logarithm that also works for <code>0</code> and negative numbers: good to shrink big profits and losses for a chart</td></tr><tr><td><code>acosh(x)</code></td><td><code>1</code> or more</td><td>undoes <code>cosh</code></td></tr><tr><td><code>atanh(x)</code></td><td>more than <code>-1</code> and less than <code>1</code></td><td>undoes <code>tanh</code>; it is the <strong>Fisher transform</strong> that traders use to make turning points of an oscillator sharper</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out. A value outside the allowed range gives <code>NULL</code>: <code>acosh(0.5)</code>, <code>atanh(1)</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(asinh(1), 4) AS asinh_1, acosh(1) AS acosh_1, round(atanh(0.5), 4) AS atanh_half, round(atanh(tanh(0.3)), 4) AS back_to_0_3, acosh(0.5) AS out_of_range, atanh(1) AS atanh_1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>asinh_1 (DOUBLE)</th><th>acosh_1 (DOUBLE)</th><th>atanh_half (DOUBLE)</th><th>back_to_0_3 (DOUBLE)</th><th>out_of_range (STRING)</th><th>atanh_1 (STRING)</th></tr></thead><tbody><tr><td>0.8814</td><td>0</td><td>0.5493</td><td>0.3</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Shrink profits and losses with asinh (works for 0 and minus)</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT pnl, round(asinh(pnl), 2) AS scaled
+FROM (SELECT -100000 AS pnl UNION ALL SELECT -500 UNION ALL SELECT 0 UNION ALL SELECT 500 UNION ALL SELECT 100000) t
+ORDER BY pnl;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pnl (LONG)</th><th>scaled (DOUBLE)</th></tr></thead><tbody><tr><td>-100000</td><td>-12.21</td></tr><tr><td>-500</td><td>-6.91</td></tr><tr><td>0</td><td>0</td></tr><tr><td>500</td><td>6.91</td></tr><tr><td>100000</td><td>12.21</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="normal_cdf">normal_cdf</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">normal_cdf(x)
+normal_cdf(x, mean, stddev)</code></pre>
+<p>Many values spread around their average like a <strong>bell</strong>: most values are near the average, few are far away. The <strong>normal distribution</strong> is this bell shape. It is described by two numbers: the <strong>mean</strong> (the middle) and the <strong>standard deviation</strong> (how wide the bell is; see <a href="functions-statistics.html#stddev">stddev</a>).</p>
+<p><code>normal_cdf</code> gives the <strong>chance</strong> that a value is <strong>at or below</strong> <code>x</code>, as a number from 0 to 1. For example, if CITY&#39;s daily return has mean -0.04% and standard deviation 0.75%, <code>normal_cdf(-2, -0.04, 0.75)</code> is the chance of a day worse than -2%.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value</td></tr><tr><td><code>mean</code></td><td>any number</td><td>the middle of the bell; default <code>0</code></td></tr><tr><td><code>stddev</code></td><td>number, more than 0</td><td>the width of the bell; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> from 0 to 1 (<code>0.025</code> means 2.5%).</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>stddev</code> of 0 or less is an error. With the defaults, <code>x</code> is a <strong>z-score</strong> (how many standard deviations from the mean): <code>normal_cdf(1.96)</code> is 0.975. Careful: real prices have more big jumps than the bell says, so treat the result as a rough guide. Like Excel <code>NORM.DIST(x, mean, sd, TRUE)</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT normal_cdf(0) AS at_mean, round(normal_cdf(1.96), 4) AS z_1_96, round(normal_cdf(-1), 4) AS z_minus_1, round(normal_cdf(110, 100, 10), 4) AS one_sd_above;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>at_mean (DOUBLE)</th><th>z_1_96 (DOUBLE)</th><th>z_minus_1 (DOUBLE)</th><th>one_sd_above (DOUBLE)</th></tr></thead><tbody><tr><td>0.5</td><td>0.975</td><td>0.1587</td><td>0.8413</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Chance of a day worse than -2%, from each share&#39;s daily returns</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(chg) AS days,
+       round(avg(chg), 3) AS mean_pct,
+       round(stddev(chg), 3) AS stddev_pct,
+       round(normal_cdf(-2, avg(chg), stddev(chg)) * 100, 1) AS chance_pct
+FROM (SELECT symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS chg
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>days (LONG)</th><th>mean_pct (DOUBLE)</th><th>stddev_pct (DOUBLE)</th><th>chance_pct (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>14</td><td>-0.04</td><td>0.746</td><td>0.4</td></tr><tr><td>COAST</td><td>14</td><td>-0.271</td><td>1.145</td><td>6.5</td></tr><tr><td>VOLT</td><td>14</td><td>0.409</td><td>1.885</td><td>10.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: The standard deviation must be more than 0</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT normal_cdf(1, 0, 0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: normal_cdf: the standard deviation must be more than 0</code></p>
+<h2 id="normal_pdf">normal_pdf</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">normal_pdf(x)
+normal_pdf(x, mean, stddev)</code></pre>
+<p>The <strong>height of the bell</strong> at <code>x</code> (the &quot;density&quot;). It is highest at the mean and gets lower far from it. The height itself is not a chance; compare two heights to see which value is more usual.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>x</code></td><td>any number</td><td>the value</td></tr><tr><td><code>mean</code></td><td>any number</td><td>the middle of the bell; default <code>0</code></td></tr><tr><td><code>stddev</code></td><td>number, more than 0</td><td>the width of the bell; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>, more than 0.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>stddev</code> of 0 or less is an error. Like Excel <code>NORM.DIST(x, mean, sd, FALSE)</code>.</li></ul>
+<p><strong>Example: The bell is highest at the mean</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT z, round(normal_pdf(z), 4) AS height, round(normal_pdf(z) / normal_pdf(0), 3) AS compared_to_mean
+FROM (SELECT 0 AS z UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3) t
+ORDER BY z;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>z (LONG)</th><th>height (DOUBLE)</th><th>compared_to_mean (DOUBLE)</th></tr></thead><tbody><tr><td>0</td><td>0.3989</td><td>1</td></tr><tr><td>1</td><td>0.242</td><td>0.607</td></tr><tr><td>2</td><td>0.054</td><td>0.135</td></tr><tr><td>3</td><td>0.0044</td><td>0.011</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(normal_pdf(100, 100, 10), 5) AS at_mean, round(normal_pdf(120, 100, 10), 5) AS two_sd_away;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>at_mean (DOUBLE)</th><th>two_sd_away (DOUBLE)</th></tr></thead><tbody><tr><td>0.03989</td><td>0.0054</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="normal_inv">normal_inv</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">normal_inv(p)
+normal_inv(p, mean, stddev)</code></pre>
+<p>The opposite of <code>normal_cdf</code>: the value <code>x</code> that has a chance <code>p</code> of being at or below it. <code>normal_inv(0.975)</code> is about <code>1.96</code>. Use it to find a level that is crossed only a small part of the time, for example the daily return that is worse only 5% of the days (a simple <strong>value at risk</strong>; see also <a href="functions-returns-risk.html#value_at_risk">value_at_risk</a>).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>p</code></td><td>number, more than 0 and less than 1</td><td>the chance</td></tr><tr><td><code>mean</code></td><td>any number</td><td>the middle of the bell; default <code>0</code></td></tr><tr><td><code>stddev</code></td><td>number, more than 0</td><td>the width of the bell; default <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>p</code> of 0 or 1 or outside that range is an error, and so is a <code>stddev</code> of 0 or less. Like Excel <code>NORM.INV(p, mean, sd)</code>.</li></ul>
+<p><strong>Example: z-scores for 90%, 95% and 99% confidence</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(normal_inv(0.95), 3) AS z_90_two_sided, round(normal_inv(0.975), 3) AS z_95_two_sided, round(normal_inv(0.995), 3) AS z_99_two_sided, normal_inv(0.5, 100, 10) AS middle;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>z_90_two_sided (DOUBLE)</th><th>z_95_two_sided (DOUBLE)</th><th>z_99_two_sided (DOUBLE)</th><th>middle (DOUBLE)</th></tr></thead><tbody><tr><td>1.645</td><td>1.96</td><td>2.576</td><td>100</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The daily return that is worse only 5% of the days</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, round(avg(chg), 3) AS mean_pct, round(stddev(chg), 3) AS stddev_pct,
+       round(normal_inv(0.05, avg(chg), stddev(chg)), 2) AS worst_5pct_day
+FROM (SELECT symbol, pct_change(close) OVER (PARTITION BY symbol ORDER BY time) AS chg
+      FROM ochl_day
+      WHERE time &gt;= &#39;2026-08-23&#39;) t
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>mean_pct (DOUBLE)</th><th>stddev_pct (DOUBLE)</th><th>worst_5pct_day (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>-0.04</td><td>0.746</td><td>-1.27</td></tr><tr><td>COAST</td><td>-0.271</td><td>1.145</td><td>-2.15</td></tr><tr><td>VOLT</td><td>0.409</td><td>1.885</td><td>-2.69</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: p must be more than 0 and less than 1</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-sql">SELECT normal_inv(1);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: normal_inv: the probability must be more than 0 and less than 1</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-math-more.md">This page as markdown</a>.</footer>
+</body>
+</html>

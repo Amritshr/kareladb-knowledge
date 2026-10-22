@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18. Content data: companies, reports, news and a forum - KDB (KARELA DataBase) docs</title>
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/tutorial/18-content-data.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/18-content-data.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="18-content-data-companies-reports-news-and-a-forum">18. Content data: companies, reports, news and a forum</h1>
+<ul><li>Category: Tutorial</li></ul>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul><li>How to store company data, quarterly numbers, financial reports, news and forum posts in KDB.</li><li>The <code>JSON</code> type: store flexible data, read one value, change one value.</li><li>The <code>BYTES</code> type: store hashes and small files.</li><li>Text functions that work with text in any language (the examples use Nepali).</li><li>How triggers keep forum counters (posts, votes) correct.</li><li>Limits, and why big files should stay outside the database.</li></ul>
+<p>All examples are in examples/18-content-data/. The output under each example is real. The numbers are made up.</p>
+<h2 id="the-plan">The plan</h2>
+<p>A trading app needs more than prices. It also needs:</p>
+<div class="table-wrap"><table><thead><tr><th>Data</th><th>Table</th><th>Special types</th></tr></thead><tbody><tr><td>Company details</td><td><code>companies</code></td><td><code>JSON</code> for details that differ between companies</td></tr><tr><td>Numbers per quarter</td><td><code>fundamentals</code></td><td><code>DECIMAL</code> for exact money, <code>JSON</code> for extra numbers</td></tr><tr><td>Financial reports</td><td><code>reports</code></td><td><code>JSON</code> for the statements, <code>BYTES</code> for a file hash</td></tr><tr><td>News</td><td><code>news</code></td><td>text in any language, <code>JSON</code> tags</td></tr><tr><td>Forum</td><td><code>forum_categories</code>, <code>forum_threads</code>, <code>forum_posts</code>, <code>forum_votes</code></td><td>replies with <code>REFERENCES</code>, counters with triggers</td></tr></tbody></table></div>
+<p>These are <strong>relational</strong> tables (chapter 3): each row has an id, and rows are changed often. Prices and candles stay in time-series tables.</p>
+<h2 id="step-1-the-company-tables">Step 1: the company tables</h2>
+<p>01-schema.sql:</p>
+<pre><code class="language-sql">CREATE TABLE companies (
+  symbol STRING PRIMARY KEY,
+  name STRING NOT NULL,
+  name_ne STRING,
+  sector STRING NOT NULL,
+  listed_shares LONG,
+  paid_up_capital DECIMAL(2),
+  listed_on DATE,
+  profile JSON DEFAULT &#39;{}&#39;
+);
+
+CREATE TABLE fundamentals (
+  id LONG PRIMARY KEY AUTO,
+  symbol STRING NOT NULL REFERENCES companies(symbol),
+  fiscal_year STRING NOT NULL,
+  quarter INT NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+  period_end DATE NOT NULL,
+  eps DECIMAL(2),
+  book_value DECIMAL(2),
+  net_profit DECIMAL(2),
+  extra JSON DEFAULT &#39;{}&#39;
+);
+CREATE UNIQUE INDEX fundamentals_one_per_quarter ON fundamentals (symbol, fiscal_year, quarter);
+
+CREATE TABLE reports (
+  id LONG PRIMARY KEY AUTO,
+  symbol STRING NOT NULL REFERENCES companies(symbol),
+  fiscal_year STRING NOT NULL,
+  kind STRING NOT NULL,
+  published_at TIMESTAMP NOT NULL,
+  statements JSON NOT NULL,
+  pdf_url STRING,
+  pdf_sha256 BYTES
+);
+
+CREATE TABLE news (
+  id LONG PRIMARY KEY AUTO,
+  symbol STRING REFERENCES companies(symbol),
+  published_at TIMESTAMP NOT NULL,
+  lang STRING NOT NULL DEFAULT &#39;en&#39;,
+  title STRING NOT NULL,
+  body STRING NOT NULL,
+  source_url STRING,
+  tags JSON DEFAULT &#39;[]&#39;
+);</code></pre>
+<pre><code class="language-text">table &#39;companies&#39; created
+
+table &#39;fundamentals&#39; created
+
+index &#39;fundamentals_one_per_quarter&#39; created on table &#39;fundamentals&#39; (0 rows)
+
+table &#39;reports&#39; created
+
+table &#39;news&#39; created</code></pre>
+<p>Why these types:</p>
+<ul><li><strong>Money is <code>DECIMAL(2)</code></strong>, never <code>DOUBLE</code>. <code>DECIMAL</code> is exact (chapter 3).</li><li>The fiscal year is text like <code>&#39;2082/83&#39;</code>, because it is a year of a local calendar (here the Bikram Sambat year used in Nepal). <code>period_end</code> is the normal (AD) date, so you can sort and filter by time.</li><li><code>CREATE UNIQUE INDEX</code> makes sure there is only one row per company, year and quarter. <a href="17-indexes-and-search.html">Chapter 17</a> explains indexes.</li><li><code>CHECK (quarter BETWEEN 1 AND 4)</code> refuses a wrong quarter (chapter 15).</li></ul>
+<h2 id="step-2-json">Step 2: JSON</h2>
+<p>Some data is different for every company. A bank has branches and NPL (bad loans). A hydropower company has megawatts and rivers. Do not make 50 columns that are mostly empty. Put such data in a <code>JSON</code> column.</p>
+<p>02-companies.sql:</p>
+<pre><code class="language-sql">INSERT INTO companies VALUES
+  (&#39;CITY&#39;, &#39;City Bank Limited&#39;, &#39;सिटी बैंक लिमिटेड&#39;, &#39;Banking&#39;, 270578640, 27057864000.00, &#39;1985-07-12&#39;,
+   &#39;{&quot;website&quot;: &quot;https://www.citybank.com&quot;, &quot;head_office&quot;: &quot;Kathmandu&quot;, &quot;ceo&quot;: &quot;A. Sharma&quot;, &quot;branches&quot;: 270}&#39;),
+  ...
+  (&#39;VOLT&#39;, &#39;Volt River Hydropower Limited&#39;, &#39;भोल्ट रिभर जलविद्युत लिमिटेड&#39;, &#39;Energy&#39;, 105900000, 10590000000.00, &#39;2019-01-21&#39;,
+   &#39;{&quot;website&quot;: &quot;https://www.voltriverhydro.com&quot;, &quot;capacity_mw&quot;: 456, &quot;rivers&quot;: [&quot;Volt River&quot;]}&#39;);
+
+SELECT symbol, name_ne, length(name_ne) AS letters, octet_length(name_ne) AS bytes, sector
+FROM companies ORDER BY symbol;
+
+SELECT symbol,
+       json_value(profile, &#39;$.head_office&#39;) AS office,
+       profile -&gt;&gt; &#39;website&#39; AS website,
+       json_value(profile, &#39;$.capacity_mw&#39;) AS mw,
+       profile -&gt; &#39;rivers&#39; -&gt;&gt; 0 AS river
+FROM companies ORDER BY symbol;</code></pre>
+<pre><code class="language-text">3 row(s) inserted
+
+symbol | name_ne                      | letters | bytes | sector
+-------+------------------------------+---------+-------+--------
+CITY   | सिटी बैंक लिमिटेड            |      17 |    47 | Banking
+COAST  | कोस्टल बैंक लिमिटेड          |      19 |    53 | Banking
+VOLT   | भोल्ट रिभर जलविद्युत लिमिटेड |      28 |    78 | Energy
+(3 rows, 0.1 ms)
+
+symbol | office    | website                        | mw   | river
+-------+-----------+--------------------------------+------+-----------
+CITY   | Kathmandu | https://www.citybank.com       | NULL | NULL
+COAST  | Kathmandu | https://www.coastalbank.com    | NULL | NULL
+VOLT   | NULL      | https://www.voltriverhydro.com |  456 | Volt River
+(3 rows, 0.1 ms)</code></pre>
+<p>What you see:</p>
+<ul><li><code>length()</code> counts <strong>letters</strong> (17). <code>octet_length()</code> counts <strong>bytes</strong> (47). A Nepali letter takes 3 bytes.</li><li>A <strong>path</strong> starts with <code>$</code>. <code>$.head_office</code> is the key <code>head_office</code>. <code>$.rivers[0]</code> is the first element of the array <code>rivers</code>.</li><li>A key that is not there gives <code>NULL</code>. It is not an error.</li></ul>
+<h3 id="how-to-read-json">How to read JSON</h3>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>You get</th><th>Type of the result</th></tr></thead><tbody><tr><td><code>json_extract(doc, &#39;$.a.b&#39;)</code></td><td>the part, as JSON</td><td><code>JSON</code></td></tr><tr><td><code>doc -&gt; &#39;a&#39; -&gt; &#39;b&#39;</code></td><td>the same, shorter</td><td><code>JSON</code></td></tr><tr><td><code>doc -&gt; 0</code></td><td>array element 0 (<code>-&gt; -1</code> is the last one)</td><td><code>JSON</code></td></tr><tr><td><code>doc -&gt;&gt; &#39;a&#39;</code></td><td>the part as text</td><td><code>STRING</code></td></tr><tr><td><code>json_value(doc, &#39;$.a&#39;)</code></td><td>text, a whole number (<code>LONG</code>), a decimal number (<code>DOUBLE</code>) or <code>true</code>/<code>false</code></td><td>depends on the value</td></tr><tr><td><code>json_value_text</code> / <code>json_value_double</code> / <code>json_value_long</code> / <code>json_value_bool</code></td><td>always this type (NULL if it does not fit)</td><td><code>STRING</code> / <code>DOUBLE</code> / <code>LONG</code> / <code>BOOL</code></td></tr><tr><td><code>json_type(doc, &#39;$.a&#39;)</code></td><td><code>object</code>, <code>array</code>, <code>string</code>, <code>number</code>, <code>boolean</code> or <code>null</code></td><td><code>STRING</code></td></tr><tr><td><code>json_array_length(doc, &#39;$.a&#39;)</code></td><td>number of elements</td><td><code>LONG</code></td></tr><tr><td><code>json_keys(doc)</code></td><td>the keys, as a JSON array</td><td><code>JSON</code></td></tr></tbody></table></div>
+<p>Paths: <code>$.a.b</code>, <code>$.list[0]</code>, <code>$.list[-1]</code> (last), <code>$.list[last]</code>, <code>$.&quot;key with spaces&quot;</code>, <code>$[&#39;key&#39;]</code>.</p>
+<h2 id="step-3-numbers-per-quarter">Step 3: numbers per quarter</h2>
+<p>03-fundamentals.sql:</p>
+<pre><code class="language-sql">INSERT INTO fundamentals (symbol, fiscal_year, quarter, period_end, eps, book_value, net_profit, extra) VALUES
+  (&#39;CITY&#39;, &#39;2082/83&#39;, 2, &#39;2026-01-13&#39;, 10.85, 181.20, 1467500000.00, &#39;{&quot;npl_pct&quot;: 2.91, &quot;car_pct&quot;: 12.8, &quot;deposits&quot;: 431200000000}&#39;),
+  (&#39;CITY&#39;, &#39;2082/83&#39;, 3, &#39;2026-04-13&#39;, 11.40, 184.05, 2310200000.00, &#39;{&quot;npl_pct&quot;: 2.75, &quot;car_pct&quot;: 13.1, &quot;deposits&quot;: 442900000000}&#39;),
+  (&#39;CITY&#39;, &#39;2082/83&#39;, 4, &#39;2026-07-16&#39;, 12.10, 187.60, 3270100000.00, &#39;{&quot;npl_pct&quot;: 2.60, &quot;car_pct&quot;: 13.4, &quot;deposits&quot;: 455000000000, &quot;audited&quot;: false}&#39;),
+  (&#39;COAST&#39;, &#39;2082/83&#39;, 4, &#39;2026-07-16&#39;, 6.35, 158.90, 1011000000.00, &#39;{&quot;npl_pct&quot;: 4.10, &quot;car_pct&quot;: 12.2}&#39;),
+  (&#39;VOLT&#39;, &#39;2082/83&#39;, 4, &#39;2026-07-16&#39;, 3.20, 102.40, 338900000.00, &#39;{&quot;energy_gwh&quot;: 2105.4, &quot;plant_factor_pct&quot;: 52.7}&#39;);
+
+SELECT fiscal_year, quarter, period_end, eps, book_value FROM fundamentals
+WHERE symbol = &#39;CITY&#39; ORDER BY period_end;
+
+SELECT symbol, quarter,
+       json_value(extra, &#39;$.npl_pct&#39;) AS npl,
+       CAST(json_value_text(extra, &#39;$.car_pct&#39;) AS DECIMAL(2)) AS car,
+       json_type(extra, &#39;$.audited&#39;) AS audited_type
+FROM fundamentals WHERE fiscal_year = &#39;2082/83&#39; AND quarter = 4 ORDER BY symbol;
+
+SELECT symbol, extra -&gt;&gt; &#39;npl_pct&#39; AS npl FROM fundamentals
+WHERE quarter = 4 AND json_value_double(extra, &#39;$.npl_pct&#39;) &gt; 3;
+
+UPDATE fundamentals SET extra = json_set(extra, &#39;$.audited&#39;, TRUE, &#39;$.auditor&#39;, &#39;CA firm A&#39;)
+WHERE symbol = &#39;CITY&#39; AND quarter = 4;
+SELECT json_value(extra, &#39;$.audited&#39;) AS audited, extra -&gt;&gt; &#39;auditor&#39; AS auditor, extra -&gt;&gt; &#39;npl_pct&#39; AS npl
+FROM fundamentals WHERE symbol = &#39;CITY&#39; AND quarter = 4;</code></pre>
+<pre><code class="language-text">5 row(s) inserted
+
+fiscal_year | quarter | period_end | eps   | book_value
+------------+---------+------------+-------+-----------
+2082/83     |       2 | 2026-01-13 | 10.85 |     181.20
+2082/83     |       3 | 2026-04-13 | 11.40 |     184.05
+2082/83     |       4 | 2026-07-16 | 12.10 |     187.60
+(3 rows, 0.1 ms)
+
+symbol | quarter | npl  | car   | audited_type
+-------+---------+------+-------+-------------
+CITY   |       4 |  2.6 | 13.40 | boolean
+COAST  |       4 |  4.1 | 12.20 | NULL
+VOLT   |       4 | NULL |  NULL | NULL
+(3 rows, 0.1 ms)
+
+symbol | npl
+-------+-----
+COAST  | 4.10
+(1 row, 0.1 ms)
+
+1 row(s) updated
+
+audited | auditor   | npl
+--------+-----------+-----
+true    | CA firm A | 2.60
+(1 row, 0.1 ms)</code></pre>
+<p>Notes:</p>
+<ul><li><code>json_value</code> gives <code>2.6</code> as a <code>DOUBLE</code>. For <strong>exact</strong> money or percent, take the text and cast it: <code>CAST(json_value_text(extra, &#39;$.car_pct&#39;) AS DECIMAL(2))</code>.</li><li><code>-&gt;&gt;</code> keeps the number as it was written: <code>4.10</code>.</li><li><code>json_set(doc, path, value, path, value, ...)</code> changes or adds keys. The other keys stay. Use it in <code>UPDATE</code>.</li></ul>
+<h3 id="how-to-change-json">How to change JSON</h3>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>What it does</th></tr></thead><tbody><tr><td><code>json_set(doc, path, value, ...)</code></td><td>adds the key, or replaces its value</td></tr><tr><td><code>json_insert(doc, path, value, ...)</code></td><td>adds only; a key that is already there stays</td></tr><tr><td><code>json_replace(doc, path, value, ...)</code></td><td>replaces only; a missing key is not added</td></tr><tr><td><code>json_remove(doc, path, ...)</code></td><td>removes keys or array elements</td></tr><tr><td><code>json_array_append(doc, path, value)</code></td><td>adds a value at the end of an array</td></tr><tr><td><code>json_object(&#39;k&#39;, v, ...)</code>, <code>json_array(v, ...)</code></td><td>builds new JSON</td></tr></tbody></table></div>
+<p>The value can be text (<code>&#39;yes&#39;</code> becomes <code>&quot;yes&quot;</code>), a number, <code>TRUE</code>/<code>FALSE</code>, <code>NULL</code> (becomes <code>null</code>), or JSON (<code>json(&#39;{&quot;a&quot;: 1}&#39;)</code>, or another JSON column). If the parent of the path does not exist, nothing changes.</p>
+<h3 id="bad-json-is-refused">Bad JSON is refused</h3>
+<p>04-bad-json.sql:</p>
+<pre><code class="language-sql">INSERT INTO fundamentals (symbol, fiscal_year, quarter, period_end, extra) VALUES
+  (&#39;COAST&#39;, &#39;2082/83&#39;, 3, &#39;2026-04-13&#39;, &#39;{&quot;npl_pct&quot;: 4.3}&#39;),
+  (&#39;VOLT&#39;, &#39;2082/83&#39;, 3, &#39;2026-04-13&#39;, &#39;{&quot;energy_gwh&quot;: 1850.2,}&#39;);</code></pre>
+<pre><code class="language-text">error: row 2: column &#39;extra&#39; (JSON): not valid JSON: a JSON object cannot end with &#39;,&#39; at character 23 (near &#39;}&#39;)</code></pre>
+<p>The message says the row, the column and the character. Nothing was saved (also not row 1).</p>
+<p>How KDB keeps JSON:</p>
+<ul><li>It checks the text is valid JSON (RFC 8259). Keys need double quotes. <code>true</code>, <code>false</code> and <code>null</code> are lower case.</li><li>It removes spaces between the parts. <code>{ &quot;a&quot; : 1 }</code> is saved as <code>{&quot;a&quot;:1}</code>.</li><li>It keeps the order of the keys and the digits of numbers (<code>2.60</code> stays <code>2.60</code>).</li><li>A key written twice: a lookup finds the last one.</li><li>JSON <code>null</code> is a value. It is not SQL <code>NULL</code>: <code>profile IS NULL</code> is false for <code>&#39;null&#39;</code>.</li></ul>
+<h2 id="step-4-reports-and-bytes">Step 4: reports, and BYTES</h2>
+<p>A report has statements (balance sheet, income statement). Put them in a <code>JSON</code> column. The <strong>PDF file stays outside the database</strong> (see <a href="#big-files-keep-them-outside">Big files</a>). KDB keeps its address and its SHA-256 hash.</p>
+<p>05-reports.sql:</p>
+<pre><code class="language-sql">INSERT INTO reports (symbol, fiscal_year, kind, published_at, statements, pdf_url, pdf_sha256) VALUES
+  (&#39;CITY&#39;, &#39;2082/83&#39;, &#39;quarterly&#39;, &#39;2026-08-01T10:15:00+05:45&#39;,
+   &#39;{&quot;income&quot;: {&quot;interest_income&quot;: 9820.5, &quot;operating_profit&quot;: 4410.2, &quot;net_profit&quot;: 3270.1},
+     &quot;balance_sheet&quot;: {&quot;total_assets&quot;: 612300.8, &quot;deposits&quot;: 455000.0, &quot;loans&quot;: 402100.3},
+     &quot;unit&quot;: &quot;USD million&quot;}&#39;,
+   &#39;https://files.example.com/city/2082-83-q4.pdf&#39;,
+   X&#39;9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08&#39;),
+  (&#39;VOLT&#39;, &#39;2082/83&#39;, &#39;quarterly&#39;, &#39;2026-08-03T16:00:00+05:45&#39;,
+   &#39;{&quot;income&quot;: {&quot;sales&quot;: 1520.4, &quot;net_profit&quot;: 338.9}, &quot;unit&quot;: &quot;USD million&quot;}&#39;,
+   &#39;https://files.example.com/volt/2082-83-q4.pdf&#39;, NULL);
+
+SELECT symbol,
+       json_value(statements, &#39;$.income.net_profit&#39;) AS net_profit,
+       statements -&gt; &#39;balance_sheet&#39; -&gt;&gt; &#39;total_assets&#39; AS assets,
+       json_keys(statements) AS parts,
+       length(pdf_sha256) AS hash_bytes,
+       left(hex(pdf_sha256), 16) AS hash_start
+FROM reports ORDER BY symbol;
+
+SELECT to_base64(X&#39;00FF10&#39;) AS b64, from_base64(&#39;AP8Q&#39;) AS back, X&#39;0102&#39; || X&#39;00&#39; AS joined,
+       &#39;\x6869&#39;::BYTES AS from_text, octet_length(&#39;नेपाल&#39;::BYTES) AS utf8_bytes;</code></pre>
+<pre><code class="language-text">2 row(s) inserted
+
+symbol | net_profit | assets   | parts                             | hash_bytes | hash_start
+-------+------------+----------+-----------------------------------+------------+-----------------
+CITY   |     3270.1 | 612300.8 | [&quot;income&quot;,&quot;balance_sheet&quot;,&quot;unit&quot;] |         32 | 9f86d081884c7d65
+VOLT   |      338.9 | NULL     | [&quot;income&quot;,&quot;unit&quot;]                 |       NULL | NULL
+(2 rows, 0.2 ms)
+
+b64  | back     | joined   | from_text | utf8_bytes
+-----+----------+----------+-----------+-----------
+AP8Q | \x00ff10 | \x010200 | \x6869    |         15
+(1 row, 0.1 ms)</code></pre>
+<p>About <code>BYTES</code>:</p>
+<ul><li><code>BYTES</code> holds any bytes, also zero bytes. Good for hashes, keys, small images and signatures.</li><li>Write bytes as <code>X&#39;0A0B&#39;</code> or as text <code>&#39;\x0a0b&#39;</code>. Other text is saved as its UTF-8 bytes.</li><li>KDB <strong>shows</strong> bytes as <code>\x</code> and hex (<code>\x00ff10</code>), in the shell, in CSV and in the HTTP API. This is the same as PostgreSQL. <code>&#39;\x...&#39;</code> reads back as the same bytes.</li><li>On <code>BYTES</code>, <code>length()</code> and <code>substring()</code> count bytes.</li><li>Functions: <code>hex()</code>, <code>unhex()</code>, <code>to_base64()</code>, <code>from_base64()</code>, <code>encode(b, &#39;hex&#39; | &#39;base64&#39;)</code>, <code>decode(t, &#39;hex&#39; | &#39;base64&#39;)</code>, and <code>||</code> to join.</li></ul>
+<h2 id="step-5-news-and-text-search">Step 5: news and text search</h2>
+<p>06-news.sql:</p>
+<pre><code class="language-sql">INSERT INTO news (symbol, published_at, lang, title, body, source_url, tags) VALUES
+  (&#39;CITY&#39;, &#39;2026-08-01T11:00:00+05:45&#39;, &#39;en&#39;, &#39;City Bank profit rises 18%&#39;,
+   &#39;City Bank reported a net profit of 3.27 billion dollars for Q4 of 2082/83.&#39;, &#39;https://news.example.com/1&#39;, &#39;[&quot;results&quot;, &quot;banking&quot;]&#39;),
+  (&#39;CITY&#39;, &#39;2026-08-02T09:30:00+05:45&#39;, &#39;ne&#39;, &#39;सिटी बैंकको नाफा १८ प्रतिशतले बढ्यो&#39;,
+   &#39;सिटी बैंकले आर्थिक वर्ष २०८२/८३ को चौथो त्रैमासिकमा ३ अर्ब २७ करोड नाफा कमाएको छ।&#39;, &#39;https://news.example.com/2&#39;, &#39;[&quot;results&quot;]&#39;),
+  (&#39;VOLT&#39;, &#39;2026-08-20T14:00:00+05:45&#39;, &#39;en&#39;, &#39;Volt River sells record energy&#39;,
+   &#39;The plant produced 2105 GWh this year. Contact: info@voltriverhydro.com&#39;, NULL, &#39;[&quot;hydro&quot;, &quot;energy&quot;]&#39;),
+  (NULL, &#39;2026-09-01T08:00:00+05:45&#39;, &#39;en&#39;, &#39;Market index closes at 2,840&#39;,
+   &#39;The market gained 1.2% today. Banking stocks led the gains.&#39;, NULL, &#39;[]&#39;);
+
+SELECT id, lang, left(title, 30) AS preview, length(body) AS letters FROM news ORDER BY published_at;
+
+SELECT id, title FROM news WHERE title ILIKE &#39;%profit%&#39; OR body ILIKE &#39;%profit%&#39; ORDER BY id;
+SELECT id, title FROM news WHERE body LIKE &#39;%नाफा%&#39;;
+
+SELECT id, regexp_substr(body, &#39;[\w.]+@[\w.]+\w&#39;) AS email FROM news WHERE regexp_like(body, &#39;\w+@\w+&#39;);
+
+SELECT to_char(published_at, &#39;YYYY-MM&#39;, &#39;+05:45&#39;) AS month, lang, count(*) AS items
+FROM news ORDER BY month, lang;
+
+SELECT id, json_array_length(tags) AS tag_count, tags -&gt;&gt; 0 AS first_tag FROM news ORDER BY id;</code></pre>
+<pre><code class="language-text">4 row(s) inserted
+
+id | lang | preview                        | letters
+---+------+--------------------------------+--------
+ 1 | en   | City Bank profit rises 18%     |      74
+ 2 | ne   | सिटी बैंकको नाफा १८ प्रतिशतले  |      81
+ 3 | en   | Volt River sells record energy |      71
+ 4 | en   | Market index closes at 2,840   |      59
+(4 rows, 0.1 ms)
+
+id | title
+---+---------------------------
+ 1 | City Bank profit rises 18%
+(1 row, 0.0 ms)
+
+id | title
+---+------------------------------------
+ 2 | सिटी बैंकको नाफा १८ प्रतिशतले बढ्यो
+(1 row, 0.0 ms)
+
+id | email
+---+------------------------
+ 3 | info@voltriverhydro.com
+(1 row, 0.1 ms)
+
+month   | lang | items
+--------+------+------
+2026-08 | en   |     2
+2026-08 | ne   |     1
+2026-09 | en   |     1
+(3 rows, 0.1 ms)
+
+id | tag_count | first_tag
+---+-----------+----------
+ 1 |         2 | results
+ 2 |         1 | results
+ 3 |         2 | hydro
+ 4 |         0 | NULL
+(4 rows, 0.0 ms)</code></pre>
+<p>Notes:</p>
+<ul><li><code>left(title, 30)</code> cuts after 30 <strong>letters</strong>, never in the middle of a Nepali letter.</li><li><code>ILIKE</code> is <code>LIKE</code> that ignores upper and lower case of English letters. In <code>LIKE</code>, <code>%</code> is any text and <code>_</code> is one letter (also one Nepali letter). Write <code>\%</code> to find a real <code>%</code>.</li><li><code>LIKE &#39;%word%&#39;</code>, <code>ILIKE</code> and <code>regexp_like</code> read <strong>every row</strong>. That is fine for thousands of rows. For big tables, use <strong>full-text search with an index</strong>: <a href="17-indexes-and-search.html">chapter 17</a>.</li><li><code>to_char(time, format, zone)</code> makes text from a time. Use it to group reports by month, quarter (<code>Q</code>) or year in a local time, such as Nepal (<code>&#39;+05:45&#39;</code> or <code>&#39;Asia/Kathmandu&#39;</code>) or New York in summer (<code>&#39;-04:00&#39;</code>).</li><li>Regular expressions support <code>\d</code>, <code>\w</code> (also Nepali letters), <code>\s</code>, <code>[...]</code>, <code>(...)</code>, <code>|</code>, <code>*</code>, <code>+</code>, <code>?</code>, <code>{n,m}</code>. KDB never backtracks, so a bad pattern cannot hang the server.</li></ul>
+<h3 id="text-functions">Text functions</h3>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Example</th><th>Result</th></tr></thead><tbody><tr><td><code>length(s)</code>, <code>octet_length(s)</code></td><td><code>length(&#39;नेपाल&#39;)</code>, <code>octet_length(&#39;नेपाल&#39;)</code></td><td><code>5</code>, <code>15</code></td></tr><tr><td><code>substring(s, from, len)</code></td><td><code>substring(&#39;नेपाल&#39;, 2, 2)</code></td><td><code>ेप</code></td></tr><tr><td><code>left(s, n)</code>, <code>right(s, n)</code></td><td><code>right(&#39;CITY&#39;, 3)</code></td><td><code>ITY</code></td></tr><tr><td><code>upper(s)</code>, <code>lower(s)</code></td><td><code>upper(&#39;city नेपाल&#39;)</code></td><td><code>CITY नेपाल</code></td></tr><tr><td><code>trim(s [, chars])</code>, <code>ltrim</code>, <code>rtrim</code></td><td><code>rtrim(&#39;नेपाल।।&#39;, &#39;।&#39;)</code></td><td><code>नेपाल</code></td></tr><tr><td><code>replace(s, from, to)</code></td><td><code>replace(&#39;a-b&#39;, &#39;-&#39;, &#39;/&#39;)</code></td><td><code>a/b</code></td></tr><tr><td><code>split_part(s, sep, n)</code></td><td><code>split_part(&#39;2082/83&#39;, &#39;/&#39;, 1)</code></td><td><code>2082</code></td></tr><tr><td><code>strpos(s, part)</code>, <code>position(part IN s)</code></td><td><code>position(&#39;बैंक&#39; IN &#39;नेपाल बैंक&#39;)</code></td><td><code>7</code></td></tr><tr><td><code>starts_with</code>, <code>ends_with</code></td><td><code>ends_with(&#39;CITY&#39;, &#39;TY&#39;)</code></td><td><code>true</code></td></tr><tr><td><code>lpad(s, n, fill)</code>, <code>rpad</code></td><td><code>lpad(&#39;7&#39;, 3, &#39;0&#39;)</code></td><td><code>007</code></td></tr><tr><td><code>concat(a, b)</code>, <code>a || b</code>, <code>concat_ws(sep, ...)</code></td><td><code>&#39;CITY&#39; || &#39;-&#39; || 2082</code></td><td><code>CITY-2082</code></td></tr><tr><td><code>regexp_like</code>, <code>regexp_substr</code>, <code>regexp_count</code>, <code>regexp_replace</code></td><td><code>regexp_replace(&#39;a1b2&#39;, &#39;\d&#39;, &#39;#&#39;, &#39;g&#39;)</code></td><td><code>a#b#</code></td></tr><tr><td><code>coalesce</code>, <code>nullif</code>, <code>greatest</code>, <code>least</code></td><td><code>coalesce(name_ne, name)</code></td><td>the first that is not NULL</td></tr></tbody></table></div>
+<p><code>a || b</code> gives NULL when a or b is NULL. <code>concat(a, b)</code> skips NULL. The SQL reference (chapter 11) lists every function.</p>
+<h2 id="step-6-the-forum">Step 6: the forum</h2>
+<p>07-forum-schema.sql (the triggers are shortened here; the file has all of them):</p>
+<pre><code class="language-sql">CREATE TABLE users (
+  id INT PRIMARY KEY AUTO,
+  name STRING NOT NULL UNIQUE
+);
+
+CREATE TABLE forum_categories (
+  id INT PRIMARY KEY AUTO,
+  slug STRING NOT NULL UNIQUE,
+  title STRING NOT NULL,
+  thread_count INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE forum_threads (
+  id LONG PRIMARY KEY AUTO,
+  category_id INT NOT NULL REFERENCES forum_categories(id),
+  symbol STRING REFERENCES companies(symbol),
+  user_id INT NOT NULL REFERENCES users(id),
+  title STRING NOT NULL,
+  created TIMESTAMP NOT NULL,
+  post_count INT NOT NULL DEFAULT 0,
+  last_post_at TIMESTAMP
+);
+
+CREATE TABLE forum_posts (
+  id LONG PRIMARY KEY AUTO,
+  thread_id LONG NOT NULL REFERENCES forum_threads(id),
+  parent_id LONG REFERENCES forum_posts(id),
+  user_id INT NOT NULL REFERENCES users(id),
+  body STRING NOT NULL,
+  created TIMESTAMP NOT NULL,
+  score INT NOT NULL DEFAULT 0,
+  meta JSON DEFAULT &#39;{}&#39;
+);
+
+CREATE TABLE forum_votes (
+  id LONG PRIMARY KEY AUTO,
+  post_id LONG NOT NULL REFERENCES forum_posts(id),
+  user_id INT NOT NULL REFERENCES users(id),
+  value INT NOT NULL CHECK (value IN (1, -1))
+);
+CREATE UNIQUE INDEX forum_votes_one_per_user ON forum_votes (user_id, post_id);
+
+CREATE TRIGGER count_posts AFTER INSERT ON forum_posts EXECUTE BEGIN
+  FOR r IN (SELECT thread_id, count(*) AS n, max(created) AS last FROM NEW GROUP BY thread_id) DO
+    UPDATE forum_threads SET post_count = post_count + r.n, last_post_at = greatest(last_post_at, r.last)
+    WHERE id = r.thread_id;
+  END FOR;
+END;
+
+CREATE TRIGGER score_new_votes AFTER INSERT ON forum_votes EXECUTE BEGIN
+  FOR r IN (SELECT post_id, sum(value) AS v FROM NEW GROUP BY post_id) DO
+    UPDATE forum_posts SET score = score + r.v WHERE id = r.post_id;
+  END FOR;
+END;
+
+CREATE TRIGGER score_changed_votes AFTER UPDATE ON forum_votes EXECUTE BEGIN
+  FOR r IN (SELECT post_id, sum(value) AS v FROM OLD GROUP BY post_id) DO
+    UPDATE forum_posts SET score = score - r.v WHERE id = r.post_id;
+  END FOR;
+  FOR r IN (SELECT post_id, sum(value) AS v FROM NEW GROUP BY post_id) DO
+    UPDATE forum_posts SET score = score + r.v WHERE id = r.post_id;
+  END FOR;
+END;</code></pre>
+<p>The ideas:</p>
+<ul><li><strong>Replies</strong>: <code>parent_id REFERENCES forum_posts(id)</code>. A reply points to the post it answers. The first post of a thread has <code>parent_id</code> NULL.</li><li><strong>One vote per user</strong>: the unique index on <code>(user_id, post_id)</code>.</li><li><strong>Counters</strong>: <code>thread_count</code>, <code>post_count</code> and <code>score</code> are kept by triggers. A trigger runs in the same transaction as the change. So the counter is never wrong, also after a crash. Counting on every page view (<code>count(*)</code>) would be slower.</li><li>Triggers run <strong>once per statement</strong>. They read all new rows from <code>NEW</code> and old rows from <code>OLD</code> (chapter 13). This is why they use <code>GROUP BY</code>.</li></ul>
+<p>08-forum-posts.sql:</p>
+<pre><code class="language-sql">INSERT INTO users (name) VALUES (&#39;ram&#39;), (&#39;sita&#39;), (&#39;hari&#39;);
+INSERT INTO forum_categories (slug, title) VALUES (&#39;banking&#39;, &#39;Banking stocks&#39;), (&#39;hydro&#39;, &#39;Hydropower&#39;);
+
+INSERT INTO forum_threads (category_id, symbol, user_id, title, created) VALUES
+  (1, &#39;CITY&#39;, 1, &#39;CITY Q4 results: good or bad?&#39;, &#39;2026-08-01T12:00:00+05:45&#39;),
+  (2, &#39;VOLT&#39;, 2, &#39;VOLT dividend this year?&#39;, &#39;2026-08-21T09:00:00+05:45&#39;);
+
+INSERT INTO forum_posts (thread_id, parent_id, user_id, body, created, meta) VALUES
+  (1, NULL, 1, &#39;Profit is up 18%. I think the price will go up.&#39;, &#39;2026-08-01T12:00:00+05:45&#39;, &#39;{&quot;device&quot;: &quot;android&quot;}&#39;),
+  (2, NULL, 2, &#39;Energy sales were a record. Dividend soon?&#39;, &#39;2026-08-21T09:00:00+05:45&#39;, &#39;{}&#39;);
+INSERT INTO forum_posts (thread_id, parent_id, user_id, body, created) VALUES
+  (1, 1, 2, &#39;But NPL is still 2.6%. Wait for the next quarter.&#39;, &#39;2026-08-01T12:30:00+05:45&#39;);
+INSERT INTO forum_posts (thread_id, parent_id, user_id, body, created, meta) VALUES
+  (1, 3, 1, &#39;NPL went down from 2.91%. That is good news.&#39;, &#39;2026-08-01T13:05:00+05:45&#39;, &#39;{&quot;edited&quot;: true}&#39;),
+  (1, 1, 3, &#39;नाफा राम्रो छ, तर मूल्य पहिले नै बढिसकेको छ।&#39;, &#39;2026-08-01T15:40:00+05:45&#39;, &#39;{&quot;lang&quot;: &quot;ne&quot;}&#39;);
+
+INSERT INTO forum_votes (post_id, user_id, value) VALUES (1, 2, 1), (1, 3, 1), (3, 1, -1), (3, 3, 1), (5, 1, 1);
+
+SELECT slug, thread_count FROM forum_categories ORDER BY id;
+SELECT id, title, post_count, last_post_at FROM forum_threads ORDER BY id;
+
+SELECT p.id, p.parent_id, u.name, p.score, left(p.body, 30) AS text
+FROM forum_posts p JOIN users u ON u.id = p.user_id
+WHERE p.thread_id = 1 ORDER BY p.created;
+
+SELECT parent_id, count(*) AS answers FROM forum_posts WHERE parent_id IS NOT NULL ORDER BY parent_id;
+SELECT id, score FROM forum_posts ORDER BY score DESC, id LIMIT 1;</code></pre>
+<pre><code class="language-text">3 row(s) inserted
+
+2 row(s) inserted
+
+2 row(s) inserted
+
+2 row(s) inserted
+
+1 row(s) inserted
+
+2 row(s) inserted
+
+5 row(s) inserted
+
+slug    | thread_count
+--------+-------------
+banking |            1
+hydro   |            1
+(2 rows, 0.0 ms)
+
+id | title                         | post_count | last_post_at
+---+-------------------------------+------------+-------------------------
+ 1 | CITY Q4 results: good or bad? |          4 | 2026-08-01T09:55:00.000Z
+ 2 | VOLT dividend this year?      |          1 | 2026-08-21T03:15:00.000Z
+(2 rows, 0.0 ms)
+
+id | parent_id | name | score | text
+---+-----------+------+-------+-------------------------------
+ 1 |      NULL | ram  |     2 | Profit is up 18%. I think the
+ 3 |         1 | sita |     0 | But NPL is still 2.6%. Wait fo
+ 4 |         3 | ram  |     0 | NPL went down from 2.91%. That
+ 5 |         1 | hari |     1 | नाफा राम्रो छ, तर मूल्य पहिले
+(4 rows, 0.1 ms)
+
+parent_id | answers
+----------+--------
+        1 |       2
+        3 |       1
+(2 rows, 0.1 ms)
+
+id | score
+---+------
+ 1 |     2
+(1 row, 0.0 ms)</code></pre>
+<p>A reply must be its own <code>INSERT</code>: the post it answers must already be saved. In an app this is always true, because people answer posts they can see.</p>
+<h3 id="a-second-vote-is-refused">A second vote is refused</h3>
+<p>09-vote-twice.sql:</p>
+<pre><code class="language-sql">INSERT INTO forum_votes (post_id, user_id, value) VALUES (1, 2, 1);</code></pre>
+<pre><code class="language-text">error: duplicate value violates unique index &#39;forum_votes_one_per_user&#39; on table &#39;forum_votes&#39;: a row with user_id=&#39;2&#39;, post_id=&#39;1&#39; already exists</code></pre>
+<p>In the app, show &quot;you already voted&quot;, or change the vote with <code>UPDATE</code>:</p>
+<p>10-change-vote.sql:</p>
+<pre><code class="language-sql">UPDATE forum_votes SET value = -1 WHERE user_id = 3 AND post_id = 3;
+DELETE FROM forum_votes WHERE user_id = 1 AND post_id = 5;
+SELECT id, score FROM forum_posts ORDER BY id;
+
+INSERT INTO forum_posts (thread_id, parent_id, user_id, body, created)
+VALUES (2, 2, 3, &#39;Last year they paid 10% bonus shares.&#39;, &#39;2026-08-22T10:00:00+05:45&#39;)
+RETURNING id, thread_id;
+SELECT id, post_count, last_post_at FROM forum_threads ORDER BY id;
+
+SELECT id, regexp_substr(body, &#39;\d+(\.\d+)?%&#39;) AS percent FROM forum_posts
+WHERE regexp_like(body, &#39;\d%&#39;) ORDER BY id;</code></pre>
+<pre><code class="language-text">1 row(s) updated
+
+1 row(s) deleted
+
+id | score
+---+------
+ 1 |     2
+ 2 |     0
+ 3 |    -2
+ 4 |     0
+ 5 |     0
+(5 rows, 0.0 ms)
+
+id | thread_id
+---+----------
+ 6 |         2
+(1 row, 0.7 ms)
+1 row(s) inserted
+
+id | post_count | last_post_at
+---+------------+-------------------------
+ 1 |          4 | 2026-08-01T09:55:00.000Z
+ 2 |          2 | 2026-08-22T04:15:00.000Z
+(2 rows, 0.0 ms)
+
+id | percent
+---+--------
+ 1 | 18%
+ 3 | 2.6%
+ 4 | 2.91%
+ 6 | 10%
+(4 rows, 0.1 ms)</code></pre>
+<ul><li>Post 3 had +1 and −1. Hari changed +1 to −1, so the score went from 0 to −2.</li><li><code>RETURNING id</code> gives the new post&#39;s id at once (chapter 15).</li></ul>
+<h2 id="step-7-json-over-http">Step 7: JSON over HTTP</h2>
+<p>The HTTP API (chapter 8) sends a <code>JSON</code> column as a <strong>real JSON object</strong>, not as a string. <code>BYTES</code> are sent as a string with <code>\x</code> and hex. CSV export (<code>/exp</code>) writes JSON as text.</p>
+<p>11-http.ps1 (it starts a server on port 9948):</p>
+<pre><code class="language-powershell">curl.exe -s &quot;$url/exec?compat=0&quot; --data-binary &quot;SELECT symbol, statements -&gt; &#39;income&#39; AS income, pdf_sha256 FROM reports WHERE symbol = &#39;CITY&#39;&quot;
+
+$r = Invoke-RestMethod -Method Post &quot;$url/exec&quot; -Body &quot;SELECT symbol, statements FROM reports ORDER BY symbol&quot;
+foreach ($row in $r.dataset) { &quot;{0}: net profit {1} {2}&quot; -f $row[0], $row[1].income.net_profit, $row[1].unit }
+
+curl.exe -s -G &quot;$url/exp&quot; --data-urlencode &quot;query=SELECT id, tags FROM news ORDER BY id&quot;</code></pre>
+<pre><code class="language-text">{&quot;query&quot;:&quot;SELECT symbol, statements -&gt; &#39;income&#39; AS income, pdf_sha256 FROM reports WHERE symbol = &#39;CITY&#39;&quot;,&quot;results&quot;:[{&quot;statement&quot;:&quot;SELECT symbol, statements -&gt; &#39;income&#39; AS income, pdf_sha256 FROM reports WHERE symbol = &#39;CITY&#39;&quot;,&quot;columns&quot;:[{&quot;name&quot;:&quot;symbol&quot;,&quot;type&quot;:&quot;STRING&quot;},{&quot;name&quot;:&quot;income&quot;,&quot;type&quot;:&quot;JSON&quot;},{&quot;name&quot;:&quot;pdf_sha256&quot;,&quot;type&quot;:&quot;BYTES&quot;}],&quot;dataset&quot;:[[&quot;CITY&quot;,{&quot;interest_income&quot;:9820.5,&quot;operating_profit&quot;:4410.2,&quot;net_profit&quot;:3270.1},&quot;\\x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08&quot;]],&quot;count&quot;:1,&quot;truncated&quot;:false,&quot;rows_affected&quot;:0,&quot;message&quot;:&quot;&quot;,&quot;timings&quot;:{&quot;parse_us&quot;:32,&quot;execute_us&quot;:289}}],&quot;timings&quot;:{&quot;parse_us&quot;:32,&quot;execute_us&quot;:289}}
+CITY: net profit 3270.1 USD million
+VOLT: net profit 338.9 USD million
+id,tags
+1,&quot;[&quot;&quot;results&quot;&quot;,&quot;&quot;banking&quot;&quot;]&quot;
+2,&quot;[&quot;&quot;results&quot;&quot;]&quot;
+3,&quot;[&quot;&quot;hydro&quot;&quot;,&quot;&quot;energy&quot;&quot;]&quot;
+4,[]</code></pre>
+<p>In JSON, a backslash is written twice, so <code>&quot;\\x9f86...&quot;</code> is the text <code>\x9f86...</code>.</p>
+<p>Other ways in and out:</p>
+<ul><li><code>kdb sql market &quot;...&quot; --format json</code> also writes JSON columns as objects.</li><li>The PostgreSQL protocol (chapter 14) sends <code>JSON</code> as type <code>json</code> and <code>BYTES</code> as type <code>bytea</code>.</li><li>The line protocol (<code>POST /write</code>) can fill <code>JSON</code> and <code>BYTES</code> columns from text fields: <code>news_feed,symbol=CITY payload=&quot;{\&quot;price\&quot;: 512.5}&quot;</code>. Bad JSON is refused with the line number.</li></ul>
+<h2 id="big-files-keep-them-outside">Big files: keep them outside</h2>
+<p>A <code>STRING</code>, <code>JSON</code> or <code>BYTES</code> value can be <strong>at most 16 MB</strong>. A bigger value gets this error:</p>
+<pre><code class="language-text">column &#39;body&#39; (STRING): the value is 17000000 bytes; the limit is 16 MB (16777216 bytes). Keep big files outside the database and store their path or URL</code></pre>
+<p>Values of 1 MB work well: through INSERT, UPDATE, SELECT, the log, checkpoints, restarts, <code>/exec</code> and the line protocol (tested).</p>
+<p>For PDF files, images and videos, the best plan is:</p>
+<ol><li>Save the file in a folder or an object store (for example S3-compatible storage).</li><li>In KDB, store the path or URL (<code>pdf_url STRING</code>) and the hash (<code>pdf_sha256 BYTES</code>).</li><li>When you read the file, check the hash.</li></ol>
+<p>Why: every change in KDB is written to the log and later to table files, and backups copy everything. Big files make the log, backups and restarts slow. Small things (hashes, thumbnails of a few KB, signatures) are fine in <code>BYTES</code>.</p>
+<p>Other limits:</p>
+<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>One text, JSON or BYTES value</td><td>16 MB</td></tr><tr><td>JSON nesting</td><td>256 levels</td></tr><tr><td>HTTP request body</td><td>64 MB</td></tr><tr><td>Regular expression</td><td>4096 bytes; <code>{n,m}</code> up to 1000; very big jobs stop with an error</td></tr></tbody></table></div>
+<h2 id="summary">Summary</h2>
+<div class="table-wrap"><table><thead><tr><th>Need</th><th>Use</th></tr></thead><tbody><tr><td>Data that differs between rows</td><td>a <code>JSON</code> column; read with <code>-&gt;</code>, <code>-&gt;&gt;</code>, <code>json_value</code></td></tr><tr><td>Exact numbers from JSON</td><td><code>CAST(json_value_text(doc, &#39;$.x&#39;) AS DECIMAL(2))</code></td></tr><tr><td>Change one key</td><td><code>UPDATE ... SET doc = json_set(doc, &#39;$.key&#39;, value)</code></td></tr><tr><td>Hashes, small binary data</td><td><code>BYTES</code>, written <code>X&#39;0A0B&#39;</code>, shown <code>\x0a0b</code></td></tr><tr><td>Text in any language</td><td>normal <code>STRING</code>; <code>length</code>, <code>left</code>, <code>substring</code> count letters</td></tr><tr><td>Search in a few thousand rows</td><td><code>ILIKE</code>, <code>LIKE</code>, <code>regexp_like</code></td></tr><tr><td>Search in big tables</td><td>full-text index, <a href="17-indexes-and-search.html">chapter 17</a></td></tr><tr><td>Counters (posts, votes)</td><td>triggers</td></tr><tr><td>One vote per user</td><td><code>CREATE UNIQUE INDEX ... (user_id, post_id)</code></td></tr><tr><td>Big files</td><td>outside KDB; store the URL and a hash</td></tr></tbody></table></div>
+<h2 id="try-it-yourself">Try it yourself</h2>
+<ol><li>Add <code>&quot;dividend_pct&quot;: 10</code> to the <code>profile</code> of VOLT.</li><li>List the companies whose profile has a key <code>branches</code>, with the number of branches.</li><li>Find forum posts written in Nepali (hint: <code>meta -&gt;&gt; &#39;lang&#39;</code>, or <code>regexp_like(body, &#39;[ऀ-ॿ]&#39;)</code>).</li></ol>
+<details>
+<summary>Answers</summary>
+<ol><li><code>UPDATE companies SET profile = json_set(profile, &#39;$.dividend_pct&#39;, 10) WHERE symbol = &#39;VOLT&#39;;</code></li><li><code>SELECT symbol, json_value(profile, &#39;$.branches&#39;) AS branches FROM companies WHERE json_type(profile, &#39;$.branches&#39;) IS NOT NULL;</code></li><li><code>SELECT id, body FROM forum_posts WHERE regexp_like(body, &#39;[ऀ-ॿ]&#39;);</code></li></ol>
+</details>
+<hr>
+<p>Next: <a href="19-analysis-functions.html">19. Analysis functions</a></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/tutorial/18-content-data.md">This page as markdown</a>.</footer>
+</body>
+</html>

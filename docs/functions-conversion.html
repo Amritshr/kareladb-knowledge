@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conversion functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Change a value from one type to another with CAST, ::, to_timestamp and to_date.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-conversion.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conversion.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="conversion-functions">Conversion functions</h1>
+<blockquote><p>Change a value from one type to another with CAST, ::, to_timestamp and to_date.</p></blockquote>
+<ul><li>Category: Functions — conversion</li><li>Keywords: convert, conversion, type conversion, change type, cast, ::, to number, to text, parse number, parse date, epoch, unix time, milliseconds, cannot convert, INTEGER, BIGINT, BOOLEAN, VARCHAR, TEXT, JSONB, BYTEA, BLOB, FLOAT, SHORT, BYTE</li><li>See also: <a href="column-types.html">Column types</a>, <a href="functions-date-time.html#to_char">Date and time functions (to_char)</a>, <a href="functions-conditional.html#coalesce">Conditional and NULL functions (coalesce)</a>, <a href="functions-math.html#round">Math functions (round)</a>, <a href="functions-json.html">JSON functions</a>, <a href="operators.html">Operators</a></li></ul>
+<p>A value has a type: a number, a text, a time and so on. Sometimes a value has the wrong type for what you want to do. A price read from a text file is the text <code>&#39;512.50&#39;</code>, not a number. <code>CAST</code> changes the type.</p>
+<ul><li><code>CAST(x AS type)</code> and <code>x::type</code> do the same thing.</li><li><code>to_timestamp(x)</code> turns text or seconds into a time; <code>to_date(x)</code> turns text or milliseconds into a date.</li><li>KDB never guesses. When a value does not fit the new type, you get an error like <code>cannot convert &#39;5.5&#39; to INT</code>. It does not round or cut the value for you.</li><li><code>NULL</code> stays <code>NULL</code> in every conversion.</li></ul>
+<p>The rules are the same as when a value goes into a table column of that type (see <a href="column-types.html">column types</a>). The entries &quot;Into ...&quot; below list them for each type.</p>
+<p><strong>Example: Prices, quantities and times that arrived as text</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE price_import (line INT PRIMARY KEY, symbol STRING, price STRING, qty STRING, traded STRING, is_buy STRING);
+INSERT INTO price_import VALUES
+  (1, &#39;CITY&#39;, &#39;512.50&#39;, &#39;100&#39;, &#39;2026-09-10T11:05:00+05:45&#39;, &#39;true&#39;),
+  (2, &#39;COAST&#39;,  &#39;398&#39;,    &#39;20&#39;,  &#39;2026-09-10T13:00:00+05:45&#39;, &#39;false&#39;),
+  (3, &#39;VOLT&#39;, &#39;184.0&#39;,  &#39;50&#39;,  &#39;2026-09-10T14:59:00+05:45&#39;, &#39;1&#39;);</code></pre>
+<pre><code class="language-sql">SELECT symbol,
+       CAST(price AS DOUBLE) * CAST(qty AS LONG) AS amount,
+       CAST(traded AS TIMESTAMP) AS traded_utc,
+       is_buy::BOOL AS is_buy
+FROM price_import
+ORDER BY line;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>amount (DOUBLE)</th><th>traded_utc (TIMESTAMP)</th><th>is_buy (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>51250</td><td>2026-09-10T05:20:00.000Z</td><td>true</td></tr><tr><td>COAST</td><td>7960</td><td>2026-09-10T07:15:00.000Z</td><td>false</td></tr><tr><td>VOLT</td><td>9200</td><td>2026-09-10T09:14:00.000Z</td><td>true</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p>The examples below also use this small accounting table. Money is kept in <code>DECIMAL(2)</code>: an exact number with 2 places after the point.</p>
+<p>Setup used by the examples below:</p>
+<pre><code class="language-sql">CREATE TABLE ledger (
+  id      INT PRIMARY KEY,
+  day     DATE,
+  account STRING,
+  amount  DECIMAL(2)
+);
+INSERT INTO ledger VALUES
+  (1, &#39;2026-09-01&#39;, &#39;Sales&#39;, 1250.00),
+  (2, &#39;2026-09-02&#39;, &#39;Sales&#39;, 899.99),
+  (3, &#39;2026-09-02&#39;, &#39;Rent&#39;, 1200.50);</code></pre>
+<h2 id="cast">CAST</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS type)</code></pre>
+<p>Changes <code>value</code> into <code>type</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to change</td></tr><tr><td><code>type</code></td><td>a type name</td><td><code>BOOL</code> (<code>BOOLEAN</code>), <code>BYTE</code>, <code>SHORT</code>, <code>INT</code> (<code>INTEGER</code>), <code>LONG</code> (<code>BIGINT</code>), <code>FLOAT</code>, <code>DOUBLE</code>, <code>DECIMAL(s)</code>, <code>DATE</code>, <code>TIMESTAMP</code>, <code>SYMBOL</code>, <code>STRING</code> (<code>VARCHAR</code>, <code>TEXT</code>), <code>JSON</code> (<code>JSONB</code>), <code>BYTES</code> (<code>BYTEA</code>, <code>BLOB</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> a value of <code>type</code>.</li><li><strong>NULL:</strong> <code>CAST(NULL AS type)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>When the value does not fit, the error is <code>cannot convert &#39;...&#39; to TYPE</code>. For JSON and BYTES the message also says what is wrong.</li><li><code>DECIMAL</code> without a scale means <code>DOUBLE</code>. Write <code>CAST(x AS DECIMAL(2))</code> when you want exact money. A length like <code>VARCHAR(10)</code> or <code>CHAR(3)</code> is read and <strong>ignored</strong>: nothing is cut.</li><li>Many things need no <code>CAST</code>. Text compared with a time is read as a time (<code>time &gt;= &#39;2026-09-01&#39;</code>). <code>||</code> joins numbers as text (<code>&#39;CITY&#39; || 1</code>).</li><li>To turn a time into formatted text, use <a href="functions-date-time.html#to_char">to_char</a>, not <code>CAST</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;512.5&#39; AS DOUBLE) + 1 AS a,
+       CAST(42 AS STRING) AS b,
+       CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) AS c,
+       CAST(&#39;12.5&#39; AS DECIMAL(2)) AS d,
+       CAST(NULL AS INT) AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (STRING)</th><th>c (TIMESTAMP)</th><th>d (DECIMAL(2))</th><th>e (STRING)</th></tr></thead><tbody><tr><td>513.5</td><td>42</td><td>2026-09-10T05:15:00.000Z</td><td>12.50</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: 13% VAT on each ledger line, as exact money</strong></p>
+<pre><code class="language-sql">SELECT id, account, amount,
+       CAST(round(amount * 0.13, 2) AS DECIMAL(2)) AS vat,
+       amount * 0.13 AS vat_as_double
+FROM ledger
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>account (STRING)</th><th>amount (DECIMAL(2))</th><th>vat (DECIMAL(2))</th><th>vat_as_double (DECIMAL(4))</th></tr></thead><tbody><tr><td>1</td><td>Sales</td><td>1250.00</td><td>162.50</td><td>162.5000</td></tr><tr><td>2</td><td>Sales</td><td>899.99</td><td>117.00</td><td>116.9987</td></tr><tr><td>3</td><td>Rent</td><td>1200.50</td><td>156.07</td><td>156.0650</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Into a whole number: the fraction is rounded</strong></p>
+<pre><code class="language-sql">SELECT CAST(5.5 AS INT) AS half_up, CAST(5.4 AS INT) AS down, CAST(-5.5 AS INT) AS negative;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>half_up (LONG)</th><th>down (LONG)</th><th>negative (LONG)</th></tr></thead><tbody><tr><td>6</td><td>5</td><td>-6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: DECIMAL without a scale is DOUBLE</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;12.50&#39; AS DECIMAL) AS as_double, CAST(&#39;12.50&#39; AS DECIMAL(2)) AS exact_money;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>as_double (DOUBLE)</th><th>exact_money (DECIMAL(2))</th></tr></thead><tbody><tr><td>12.5</td><td>12.50</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="cast-short">:: (short cast)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">value::type</code></pre>
+<p>The short way to write <code>CAST(value AS type)</code>. <code>&#39;42&#39;::INT</code> is <code>CAST(&#39;42&#39; AS INT)</code>. It comes from PostgreSQL.</p>
+<ul><li><strong>Returns:</strong> a value of <code>type</code>, as with <a href="functions-conversion.html#cast">CAST</a>.</li><li><strong>NULL:</strong> <code>NULL::INT</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>::</code> holds on to the value right before it, more tightly than any operator. <code>2 + 3::DOUBLE</code> changes only <code>3</code>. Put <code>( )</code> around a longer expression: <code>(2 + 3)::STRING</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT &#39;42&#39;::INT + 1 AS a, 2 + 3::DOUBLE AS b, (2 + 3)::STRING AS c, &#39;12.5&#39;::DECIMAL(2) AS d, NULL::BOOL AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (DOUBLE)</th><th>c (STRING)</th><th>d (DECIMAL(2))</th><th>e (STRING)</th></tr></thead><tbody><tr><td>43</td><td>5</td><td>5</td><td>12.50</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Filter candles with a Nepal time written as text</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, symbol, close
+FROM ochl_minutes
+WHERE symbol = &#39;COAST&#39;
+  AND time &gt;= &#39;2026-09-10T11:00:00+05:45&#39;::TIMESTAMP
+  AND time &lt;  &#39;2026-09-10T11:03:00+05:45&#39;::TIMESTAMP;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>COAST</td><td>380</td></tr><tr><td>2026-09-10T05:16:00.000Z</td><td>COAST</td><td>379.6</td></tr><tr><td>2026-09-10T05:17:00.000Z</td><td>COAST</td><td>380.1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A length after VARCHAR is read and ignored</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;CITY&#39; AS VARCHAR(10)) AS a, CAST(&#39;CITY&#39; AS VARCHAR(3)) AS nothing_is_cut;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>nothing_is_cut (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>CITY</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="to_timestamp">to_timestamp</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_timestamp(value)</code></pre>
+<p>Makes a <code>TIMESTAMP</code> (a moment in time, stored in UTC) from time text, a <code>DATE</code> or a number of seconds.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>text, <code>DATE</code>, <code>TIMESTAMP</code> or number</td><td>time text like <code>&#39;2026-09-10T11:00:00+05:45&#39;</code>, or seconds since 1970-01-01 UTC (a fraction is allowed)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
+<ul><li>A number means <strong>seconds</strong>, as in PostgreSQL and Unix time: <code>to_timestamp(1789020900)</code>. A fraction keeps the milliseconds: <code>to_timestamp(1789020900.25)</code>. Before 2026-09-25 a number meant milliseconds.</li><li>Milliseconds, like JavaScript&#39;s <code>Date.now()</code>: divide by 1000.0 first, or cast: <code>CAST(ms AS TIMESTAMP)</code>.</li><li>There is no second &quot;format&quot; argument. The text must look like <code>YYYY-MM-DD</code>, then optional <code>T</code> or space and <code>HH:MM:SS.fff</code>, then optional <code>Z</code> or <code>+05:45</code>. Text without a zone is UTC.</li><li>A <code>DATE</code> becomes midnight UTC of that day.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_timestamp(&#39;2026-09-10T11:00:00+05:45&#39;) AS nepal_text,
+       to_timestamp(&#39;2026-09-10&#39;) AS date_text,
+       to_timestamp(1789020900) AS from_seconds,
+       to_timestamp(1789020900.25) AS with_fraction,
+       to_timestamp(1789020900000 / 1000.0) AS from_ms,
+       to_timestamp(NULL) AS nothing;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_text (TIMESTAMP)</th><th>date_text (TIMESTAMP)</th><th>from_seconds (TIMESTAMP)</th><th>with_fraction (TIMESTAMP)</th><th>from_ms (TIMESTAMP)</th><th>nothing (STRING)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T00:00:00.000Z</td><td>2026-09-10T06:15:00.000Z</td><td>2026-09-10T06:15:00.250Z</td><td>2026-09-10T06:15:00.000Z</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: App sign-up times sent as milliseconds</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_signups (user_id INT PRIMARY KEY, name STRING, created_ms LONG);
+INSERT INTO app_signups VALUES (1, &#39;Sita&#39;, 1788900300000), (2, &#39;Ram&#39;, 1788928200000), (3, &#39;Hari&#39;, 1789020900000);</code></pre>
+<pre><code class="language-sql">SELECT user_id, name, created_ms, to_timestamp(created_ms / 1000.0) AS created, CAST(created_ms AS TIMESTAMP) AS same
+FROM app_signups
+ORDER BY user_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>name (STRING)</th><th>created_ms (LONG)</th><th>created (TIMESTAMP)</th><th>same (TIMESTAMP)</th></tr></thead><tbody><tr><td>1</td><td>Sita</td><td>1788900300000</td><td>2026-09-08T20:45:00.000Z</td><td>2026-09-08T20:45:00.000Z</td></tr><tr><td>2</td><td>Ram</td><td>1788928200000</td><td>2026-09-09T04:30:00.000Z</td><td>2026-09-09T04:30:00.000Z</td></tr><tr><td>3</td><td>Hari</td><td>1789020900000</td><td>2026-09-10T06:15:00.000Z</td><td>2026-09-10T06:15:00.000Z</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Text that is not a time</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT to_timestamp(&#39;10/09/2026&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: to_timestamp: argument 1 must be a time, got &#39;10/09/2026&#39;</code></p>
+<h2 id="to_date">to_date</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_date(value)</code></pre>
+<p>Makes a <code>DATE</code> (a day without a clock time) from time text, a <code>TIMESTAMP</code> or a number of milliseconds. It keeps the <strong>UTC</strong> date.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>text, <code>TIMESTAMP</code>, <code>DATE</code> or whole number</td><td>a time, or milliseconds since 1970-01-01 UTC</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DATE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
+<ul><li>The date is the UTC date. Nepal is 5 hours 45 minutes ahead of UTC, so between 00:00 and 05:45 Nepal time the UTC date is the day before. For the Nepal date write <code>to_date(time + 20700000)</code> (20700000 ms = 5 h 45 min).</li><li><code>to_date(86400000)</code> works (a number of milliseconds), but <code>CAST(86400000 AS DATE)</code> is an error. <code>CAST</code> into <code>DATE</code> does not take numbers.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_date(&#39;2026-09-10T20:00:00Z&#39;) AS a,
+       to_date(&#39;2026-09-10T03:00:00+05:45&#39;) AS nepal_3am_is_utc_day_before,
+       to_date(86400000) AS b,
+       to_date(NULL) AS c;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DATE)</th><th>nepal_3am_is_utc_day_before (DATE)</th><th>b (DATE)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>2026-09-10</td><td>2026-09-09</td><td>1970-01-02</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Sign-ups per day: UTC date and Nepal date</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE app_signups (user_id INT PRIMARY KEY, name STRING, created TIMESTAMP);
+INSERT INTO app_signups VALUES
+  (1, &#39;Sita&#39;, &#39;2026-09-09T02:30:00+05:45&#39;),
+  (2, &#39;Ram&#39;,  &#39;2026-09-09T10:15:00+05:45&#39;),
+  (3, &#39;Hari&#39;, &#39;2026-09-09T15:45:00+05:45&#39;),
+  (4, &#39;Gita&#39;, &#39;2026-09-10T12:00:00+05:45&#39;);</code></pre>
+<pre><code class="language-sql">SELECT to_date(created) AS utc_day, count(*) AS signups
+FROM app_signups GROUP BY to_date(created) ORDER BY utc_day;
+
+SELECT to_date(created + 20700000) AS nepal_day, count(*) AS signups
+FROM app_signups GROUP BY to_date(created + 20700000) ORDER BY nepal_day;</code></pre>
+<p>Result:</p>
+<p><code>SELECT to_date(created) AS utc_day, count(*) AS signups FROM app_signups GROUP BY to_date(created) O</code></p>
+<div class="table-wrap"><table><thead><tr><th>utc_day (DATE)</th><th>signups (LONG)</th></tr></thead><tbody><tr><td>2026-09-08</td><td>1</td></tr><tr><td>2026-09-09</td><td>2</td></tr><tr><td>2026-09-10</td><td>1</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><code>SELECT to_date(created + 20700000) AS nepal_day, count(*) AS signups FROM app_signups GROUP BY to_da</code></p>
+<div class="table-wrap"><table><thead><tr><th>nepal_day (DATE)</th><th>signups (LONG)</th></tr></thead><tbody><tr><td>2026-09-09</td><td>3</td></tr><tr><td>2026-09-10</td><td>1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: true is not a time</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT to_date(TRUE);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: to_date: argument 1 must be a time, got &#39;true&#39;</code></p>
+<h2 id="into-integers">Into integers</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS BYTE | SHORT | INT | INTEGER | LONG | BIGINT)</code></pre>
+<p>Whole numbers. The types differ only in size:</p>
+<div class="table-wrap"><table><thead><tr><th>Type</th><th>Smallest</th><th>Biggest</th></tr></thead><tbody><tr><td><code>BYTE</code></td><td>-127</td><td>127</td></tr><tr><td><code>SHORT</code></td><td>-32767</td><td>32767</td></tr><tr><td><code>INT</code>, <code>INTEGER</code></td><td>-2147483647</td><td>2147483647</td></tr><tr><td><code>LONG</code>, <code>BIGINT</code></td><td>-9223372036854775807</td><td>9223372036854775807</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>a whole number</td><td>the same number, if it is in range</td></tr><tr><td><code>DOUBLE</code></td><td>rounded to the nearest whole number: <code>5.4</code> gives <code>5</code>, <code>5.5</code> gives <code>6</code>, <code>-5.5</code> gives <code>-6</code></td></tr><tr><td><code>DECIMAL(s)</code></td><td>rounded the same way: <code>1.50</code> gives <code>2</code></td></tr><tr><td>text</td><td>a number like <code>&#39;42&#39;</code>, <code>&#39; -7&#39;</code> or <code>&#39;5.5&#39;</code> (spaces before are allowed, spaces after are not); a fraction is rounded</td></tr><tr><td><code>TRUE</code> / <code>FALSE</code></td><td><code>1</code> / <code>0</code></td></tr><tr><td><code>TIMESTAMP</code></td><td>the milliseconds since 1970-01-01, as PostgreSQL apps expect</td></tr><tr><td><code>DATE</code>, <code>JSON</code>, <code>BYTES</code></td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the chosen integer type.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>A fraction is <strong>rounded to the nearest</strong> whole number, half away from zero, as PostgreSQL does. To cut instead, use <a href="functions-math.html#floor">floor</a>, <a href="functions-math.html#ceil">ceil</a> or <a href="functions-math.html#trunc">trunc</a> first.</li><li>A number too big for the type is still an error: <code>CAST(300 AS BYTE)</code>.</li><li>For the milliseconds of a time, <code>CAST(t AS LONG)</code> works; <code>time - 0::TIMESTAMP</code> does the same.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;42&#39; AS INT) AS a, CAST(5.0 AS INT) AS b, CAST(TRUE AS INT) AS c,
+       CAST(CAST(&#39;2.00&#39; AS DECIMAL(2)) AS LONG) AS d, CAST(round(512.5) AS INT) AS e, CAST(-127 AS BYTE) AS f;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>c (LONG)</th><th>d (LONG)</th><th>e (LONG)</th><th>f (LONG)</th></tr></thead><tbody><tr><td>42</td><td>5</td><td>1</td><td>2</td><td>513</td><td>-127</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Shares per trade from text, and a time as milliseconds</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT transaction_id, symbol,
+       CAST(quantity AS STRING) AS qty_text,
+       CAST(CAST(quantity AS STRING) AS LONG) + 1 AS back_to_number,
+       date - 0::TIMESTAMP AS date_ms
+FROM trade_log
+ORDER BY transaction_id
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>qty_text (STRING)</th><th>back_to_number (LONG)</th><th>date_ms (LONG)</th></tr></thead><tbody><tr><td>100001</td><td>TELCO</td><td>1000</td><td>1001</td><td>1788912000000</td></tr><tr><td>100002</td><td>CITY</td><td>10</td><td>11</td><td>1788912000000</td></tr><tr><td>100003</td><td>CITY</td><td>500</td><td>501</td><td>1788912000000</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: A fraction is rounded to the nearest whole number</strong></p>
+<pre><code class="language-sql">SELECT CAST(512.5 AS INT) AS a, CAST(512.4 AS INT) AS b, CAST(&#39;5.5&#39; AS INT) AS from_text;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (LONG)</th><th>b (LONG)</th><th>from_text (LONG)</th></tr></thead><tbody><tr><td>513</td><td>512</td><td>6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Too big for BYTE</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(300 AS BYTE);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;300&#39; to BYTE</code></p>
+<p><strong>Example: A TIMESTAMP gives its milliseconds; a DATE does not</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(CAST(&#39;2026-09-10&#39; AS TIMESTAMP) AS LONG) AS milliseconds;
+SELECT CAST(CAST(&#39;2026-09-10&#39; AS DATE) AS LONG);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>milliseconds (LONG)</th></tr></thead><tbody><tr><td>1788998400000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p>Error: <code>line 2, column 8: cannot convert &#39;2026-09-10&#39; to LONG</code></p>
+<h2 id="into-double">Into DOUBLE and FLOAT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS DOUBLE | FLOAT)</code></pre>
+<p>Numbers with a fraction. <code>DOUBLE</code> keeps about 15 digits. <code>FLOAT</code> is smaller and keeps about 7 digits.</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>any number (<code>LONG</code>, <code>DOUBLE</code>, <code>DECIMAL</code>)</td><td>the number</td></tr><tr><td>text</td><td>a number like <code>&#39;512.5&#39;</code>, <code>&#39;-3&#39;</code> or <code>&#39;1e3&#39;</code></td></tr><tr><td><code>BOOL</code>, times, <code>JSON</code>, <code>BYTES</code></td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DOUBLE</code> or <code>FLOAT</code>.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>A <code>DOUBLE</code> cannot hold every decimal exactly. <code>0.1 + 0.2</code> is shown as <code>0.3</code>, but the real value is <code>0.30000000000000004</code> (see <a href="functions-conversion.html#into-string">Into STRING</a>). For money use <code>DECIMAL(2)</code>.</li><li><code>FLOAT</code> loses digits: <code>CAST(0.1 AS FLOAT)</code> shows <code>0.100000001490116</code>. A value above about 3.4e38 is an error.</li><li><code>/</code> already gives a <code>DOUBLE</code> (<code>7 / 2</code> is <code>3.5</code>), so <code>CAST(7 AS DOUBLE) / 2</code> is not needed (it is after <code>SET int_division = integer</code>: <a href="operators.html#integer-division">integer division</a>).</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;512.5&#39; AS DOUBLE) AS a, CAST(&#39;1e3&#39; AS DOUBLE) AS b,
+       CAST(CAST(&#39;1.25&#39; AS DECIMAL(2)) AS DOUBLE) AS c, CAST(0.1 AS FLOAT) AS d, 0.1 + 0.2 AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DOUBLE)</th><th>b (DOUBLE)</th><th>c (DOUBLE)</th><th>d (DOUBLE)</th><th>e (DOUBLE)</th></tr></thead><tbody><tr><td>512.5</td><td>1000</td><td>1.25</td><td>0.100000001490116</td><td>0.3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Ledger amounts as DOUBLE for a chart</strong></p>
+<pre><code class="language-sql">SELECT day, account, amount, CAST(amount AS DOUBLE) AS amount_double
+FROM ledger
+ORDER BY id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th><th>account (STRING)</th><th>amount (DECIMAL(2))</th><th>amount_double (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01</td><td>Sales</td><td>1250.00</td><td>1250</td></tr><tr><td>2026-09-02</td><td>Sales</td><td>899.99</td><td>899.99</td></tr><tr><td>2026-09-02</td><td>Rent</td><td>1200.50</td><td>1200.5</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Text that is not a number</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;$512&#39; AS DOUBLE);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;$512&#39; to DOUBLE</code></p>
+<h2 id="into-decimal">Into DECIMAL(s)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS DECIMAL(scale))</code></pre>
+<p>An exact number with <code>scale</code> places after the point. <code>DECIMAL(2)</code> is right for dollars and cents.</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>a whole number</td><td><code>7</code> becomes <code>7.00</code></td></tr><tr><td><code>DECIMAL</code></td><td>the same value with the new scale, if no digit is lost</td></tr><tr><td><code>DOUBLE</code></td><td>the value rounded to <code>scale</code> places: <code>12.345</code> gives <code>12.35</code> for <code>DECIMAL(2)</code></td></tr><tr><td>text</td><td>a number like <code>&#39;1250.75&#39;</code>; more places than <code>scale</code> are rounded</td></tr><tr><td><code>BOOL</code>, times, <code>JSON</code>, <code>BYTES</code></td><td>error</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>scale</code></td><td><code>DECIMAL(s)</code>: 0 to 18 (18 digits in all). <code>NUMERIC(p, s)</code>: 0 to 38, <code>p</code> up to 38 digits</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DECIMAL(scale)</code>.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>More places than <code>scale</code> are <strong>rounded</strong> to the nearest, half away from zero. <code>CAST(round(x, 2) AS DECIMAL(2))</code> says the same thing and is clearer to read.</li><li><code>DECIMAL</code> <strong>without</strong> a scale is not exact money: it is the same as <code>DOUBLE</code>.</li><li>Arithmetic with <code>DECIMAL</code> values (<code>amount * 0.13</code>, <code>debit - credit</code>) is exact and gives a <code>DECIMAL</code>, as in PostgreSQL (<a href="column-types.html#decimal">DECIMAL</a>). CAST it to <code>DECIMAL(2)</code> to show it with 2 places. <code>sum</code> and <code>avg</code> of <code>DECIMAL</code> values are <code>DECIMAL</code> too (<a href="functions-aggregate.html#sum">sum</a>).</li><li>A <code>DOUBLE</code> like <code>0.1 + 0.2</code> is close enough to <code>0.30</code>, so <code>CAST(0.1 + 0.2 AS DECIMAL(2))</code> gives <code>0.30</code>.</li><li><code>DECIMAL(s)</code> keeps 18 digits in 64 bits: with 2 places the largest value is <code>92233720368547758.07</code>. <code>NUMERIC(p, s)</code> keeps its <code>p</code> digits, up to 38: <code>CAST(x AS NUMERIC(24,2))</code> holds 22 digits before the point, and more is an error that names the type you wrote: <code>cannot convert &#39;...&#39; to NUMERIC(24,2): numeric field overflow</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(7 AS DECIMAL(2)) AS a, CAST(&#39;1250.75&#39; AS DECIMAL(2)) AS b, CAST(1500.256 AS DECIMAL(3)) AS c,
+       CAST(0.1 + 0.2 AS DECIMAL(2)) AS d, CAST(CAST(&#39;1.5&#39; AS DECIMAL(1)) AS DECIMAL(3)) AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DECIMAL(2))</th><th>b (DECIMAL(2))</th><th>c (DECIMAL(3))</th><th>d (DECIMAL(2))</th><th>e (DECIMAL(3))</th></tr></thead><tbody><tr><td>7.00</td><td>1250.75</td><td>1500.256</td><td>0.30</td><td>1.500</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Month report: totals and average per account, exact to the cent</strong></p>
+<pre><code class="language-sql">SELECT account,
+       sum(amount) AS total,
+       CAST(round(avg(amount), 2) AS DECIMAL(2)) AS average,
+       count(*) AS lines
+FROM ledger
+WHERE day IN &#39;2026-09&#39;
+GROUP BY account
+ORDER BY account;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>account (STRING)</th><th>total (DECIMAL(2))</th><th>average (DECIMAL(2))</th><th>lines (LONG)</th></tr></thead><tbody><tr><td>Rent</td><td>1200.50</td><td>1200.50</td><td>1</td></tr><tr><td>Sales</td><td>2149.99</td><td>1075.00</td><td>2</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Too many places are rounded, not refused</strong></p>
+<pre><code class="language-sql">SELECT CAST(12.345 AS DECIMAL(2)) AS rounded_up, CAST(12.344 AS DECIMAL(2)) AS rounded_down,
+       CAST(&#39;1250.756&#39; AS DECIMAL(2)) AS from_text;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>rounded_up (DECIMAL(2))</th><th>rounded_down (DECIMAL(2))</th><th>from_text (DECIMAL(2))</th></tr></thead><tbody><tr><td>12.35</td><td>12.34</td><td>1250.76</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: NUMERIC(24,2) holds 24 digits</strong></p>
+<pre><code class="language-sql">SELECT CAST(123456789012345678.12 AS NUMERIC(24,2)) AS big, CAST(1 AS NUMERIC(20,2)) / 3 AS third;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>big (DECIMAL(38,2))</th><th>third (DECIMAL(38,20))</th></tr></thead><tbody><tr><td>123456789012345678.12</td><td>0.33333333333333333333</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="into-timestamp">Into TIMESTAMP</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS TIMESTAMP)</code></pre>
+<p>A moment in time, stored as milliseconds since 1970-01-01 UTC. KDB always shows it in UTC, like <code>2026-09-10T05:15:00.000Z</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>time text</td><td><code>&#39;2026-09-10&#39;</code>, <code>&#39;2026-09-10 11:00&#39;</code>, <code>&#39;2026-09-10T11:00:00.123&#39;</code>, with an optional <code>Z</code>, <code>+05:45</code> or <code>+0545</code> at the end. No zone means UTC</td></tr><tr><td><code>DATE</code></td><td>midnight UTC of that day</td></tr><tr><td>a whole number</td><td>that many milliseconds after 1970-01-01 UTC</td></tr><tr><td><code>DOUBLE</code>, <code>BOOL</code>, <code>JSON</code>, <code>BYTES</code></td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>TIMESTAMP</code>.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>A local time must be written with its zone offset, for example <code>+05:45</code> for Nepal. <code>&#39;2026-09-10 11:00&#39;</code> is 11:00 <strong>UTC</strong>, which is 16:45 in Nepal.</li><li>Zone names (<code>NPT</code>, <code>Asia/Kathmandu</code>) are not allowed inside the text. Only an offset like <code>+05:45</code>.</li><li>Other date orders (<code>&#39;10/09/2026&#39;</code>), one-digit months (<code>&#39;2026-9-1&#39;</code>) and <code>24:00</code> are errors. More than 3 digits after the second are cut to milliseconds.</li><li>The same as <a href="functions-conversion.html#to_timestamp">to_timestamp</a>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) AS nepal_11am,
+       CAST(&#39;2026-09-10 11:00&#39; AS TIMESTAMP) AS utc_11am,
+       CAST(CAST(&#39;2026-09-10&#39; AS DATE) AS TIMESTAMP) AS from_date,
+       CAST(0 AS TIMESTAMP) AS zero,
+       CAST(&#39;2026-09-10T11:00:00.123456+0545&#39; AS TIMESTAMP) AS micro_cut;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>nepal_11am (TIMESTAMP)</th><th>utc_11am (TIMESTAMP)</th><th>from_date (TIMESTAMP)</th><th>zero (TIMESTAMP)</th><th>micro_cut (TIMESTAMP)</th></tr></thead><tbody><tr><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T11:00:00.000Z</td><td>2026-09-10T00:00:00.000Z</td><td>1970-01-01T00:00:00.000Z</td><td>2026-09-10T05:15:00.123Z</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Market open and close (Nepal time) as UTC times</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, count(*) AS minutes, min(time) AS first_minute, max(time) AS last_minute
+FROM ochl_minutes
+WHERE time &gt;= CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP)
+  AND time &lt;  CAST(&#39;2026-09-10T15:00:00+05:45&#39; AS TIMESTAMP)
+GROUP BY symbol
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>minutes (LONG)</th><th>first_minute (TIMESTAMP)</th><th>last_minute (TIMESTAMP)</th></tr></thead><tbody><tr><td>CITY</td><td>240</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T09:14:00.000Z</td></tr><tr><td>COAST</td><td>236</td><td>2026-09-10T05:15:00.000Z</td><td>2026-09-10T09:14:00.000Z</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Day/month/year order is not read</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;10/09/2026&#39; AS TIMESTAMP);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;10/09/2026&#39; to TIMESTAMP</code></p>
+<h2 id="into-date">Into DATE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS DATE)</code></pre>
+<p>A day without a clock time, shown like <code>2026-09-10</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>date text</td><td><code>&#39;2026-09-10&#39;</code></td></tr><tr><td>time text</td><td>the <strong>UTC</strong> date of that time</td></tr><tr><td><code>TIMESTAMP</code></td><td>the UTC date</td></tr><tr><td>numbers, <code>BOOL</code>, <code>JSON</code>, <code>BYTES</code></td><td>error (use <a href="functions-conversion.html#to_date">to_date</a> for milliseconds)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>DATE</code>.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li><code>&#39;2026-09-10T03:00:00+05:45&#39;</code> is 21:15 UTC on 9 September, so its <code>DATE</code> is <code>2026-09-09</code>.</li><li>A date that does not exist (<code>&#39;2026-02-30&#39;</code>) is an error.</li><li><code>DATE + 1</code> is the next day.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-09-10&#39; AS DATE) AS a,
+       CAST(&#39;2026-09-10T03:00:00+05:45&#39; AS DATE) AS nepal_early_morning,
+       CAST(CAST(&#39;2026-09-10T23:59:00Z&#39; AS TIMESTAMP) AS DATE) AS b,
+       CAST(&#39;2026-09-10&#39; AS DATE) + 1 AS next_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (DATE)</th><th>nepal_early_morning (DATE)</th><th>b (DATE)</th><th>next_day (DATE)</th></tr></thead><tbody><tr><td>2026-09-10</td><td>2026-09-09</td><td>2026-09-10</td><td>2026-09-11</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Trades per day from the trade log</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT CAST(date AS DATE) AS trade_day, count(*) AS trades, sum(quantity) AS shares
+FROM trade_log
+GROUP BY CAST(date AS DATE)
+ORDER BY trade_day;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>trade_day (DATE)</th><th>trades (LONG)</th><th>shares (LONG)</th></tr></thead><tbody><tr><td>2026-09-09</td><td>8</td><td>3730</td></tr><tr><td>2026-09-10</td><td>24</td><td>4930</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: There is no 30 February</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;2026-02-30&#39; AS DATE);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;2026-02-30&#39; to DATE</code></p>
+<p><strong>Example: CAST into DATE does not take a number</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(20260910 AS DATE);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;20260910&#39; to DATE</code></p>
+<h2 id="into-bool">Into BOOL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS BOOL | BOOLEAN)</code></pre>
+<p><code>true</code> or <code>false</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td><code>TRUE</code> / <code>FALSE</code></td><td>the same</td></tr><tr><td>the whole numbers <code>1</code> / <code>0</code></td><td><code>true</code> / <code>false</code>; any other number is an error</td></tr><tr><td>text</td><td><code>&#39;true&#39;</code>, <code>&#39;t&#39;</code>, <code>&#39;1&#39;</code> are <code>true</code>; <code>&#39;false&#39;</code>, <code>&#39;f&#39;</code>, <code>&#39;0&#39;</code> are <code>false</code> (any letter case)</td></tr><tr><td><code>DOUBLE</code>, times, <code>JSON</code>, <code>BYTES</code></td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong> <code>&#39;yes&#39;</code>, <code>&#39;no&#39;</code>, <code>2</code> and <code>1.0</code> are errors. Map them with <a href="functions-conditional.html#case-simple">CASE</a> first.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(1 AS BOOL) AS a, CAST(0 AS BOOL) AS b, CAST(&#39;TRUE&#39; AS BOOL) AS c, CAST(&#39;f&#39; AS BOOL) AS d, &#39;1&#39;::BOOLEAN AS e;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BOOL)</th><th>b (BOOL)</th><th>c (BOOL)</th><th>d (BOOL)</th><th>e (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>true</td><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A yes/no column from an import</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;yes&#39; AS BOOL);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;yes&#39; to BOOL</code></p>
+<p><strong>Example: Map yes/no with CASE, then it works</strong></p>
+<pre><code class="language-sql">SELECT answer, CASE lower(answer) WHEN &#39;yes&#39; THEN TRUE WHEN &#39;no&#39; THEN FALSE END AS agreed
+FROM (SELECT &#39;Yes&#39; AS answer UNION ALL SELECT &#39;no&#39;) t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>answer (STRING)</th><th>agreed (BOOL)</th></tr></thead><tbody><tr><td>Yes</td><td>true</td></tr><tr><td>no</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="into-string">Into STRING and SYMBOL</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS STRING | VARCHAR | TEXT | SYMBOL)</code></pre>
+<p>Text. Every value can become text.</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Text</th></tr></thead><tbody><tr><td>whole number</td><td><code>42</code></td></tr><tr><td><code>DOUBLE</code></td><td>the shortest form that reads back the same: <code>512.5</code>, <code>0.30000000000000004</code></td></tr><tr><td><code>DECIMAL(s)</code></td><td>with all <code>s</code> places: <code>1.50</code></td></tr><tr><td><code>BOOL</code></td><td><code>true</code> / <code>false</code></td></tr><tr><td><code>TIMESTAMP</code></td><td>UTC in ISO form: <code>2026-09-10T05:15:00.000Z</code></td></tr><tr><td><code>DATE</code></td><td><code>2026-09-10</code></td></tr><tr><td><code>JSON</code></td><td>the JSON text; a JSON string keeps its quotes (<code>&quot;text&quot;</code>)</td></tr><tr><td><code>BYTES</code></td><td>hex with <code>\x</code> in front: <code>\x4e41</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code> (or <code>SYMBOL</code>).</li><li><strong>NULL:</strong> stays <code>NULL</code>. An empty text <code>&#39;&#39;</code> is not <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li>For a time in another format or in Nepal time use <a href="functions-date-time.html#to_char">to_char</a>.</li><li>To get the text inside a JSON string without quotes, use <code>-&gt;&gt;</code> or <code>json_value_text</code> (<a href="functions-json.html">JSON functions</a>).</li><li><code>||</code> already turns numbers into text: <code>&#39;CITY-&#39; || 1</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(42 AS STRING) AS a, CAST(512.5 AS TEXT) AS b, CAST(CAST(&#39;1.50&#39; AS DECIMAL(2)) AS VARCHAR) AS c,
+       CAST(TRUE AS STRING) AS d, CAST(CAST(&#39;2026-09-10T11:00:00+05:45&#39; AS TIMESTAMP) AS STRING) AS e,
+       CAST(0.1 + 0.2 AS STRING) AS f;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (STRING)</th><th>b (STRING)</th><th>c (STRING)</th><th>d (STRING)</th><th>e (STRING)</th><th>f (STRING)</th></tr></thead><tbody><tr><td>42</td><td>512.5</td><td>1.50</td><td>true</td><td>2026-09-10T05:15:00.000Z</td><td>0.30000000000000004</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A label for a chart: symbol, date and close</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol || &#39; &#39; || CAST(CAST(time AS DATE) AS STRING) || &#39;: &#39; || CAST(close AS STRING) AS label
+FROM ochl_day
+WHERE symbol = &#39;VOLT&#39;
+ORDER BY time DESC
+LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>label (STRING)</th></tr></thead><tbody><tr><td>VOLT 2026-09-10: 191.2</td></tr><tr><td>VOLT 2026-09-09: 187.3</td></tr><tr><td>VOLT 2026-09-08: 182.4</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: JSON and BYTES as text</strong></p>
+<pre><code class="language-sql">SELECT CAST(CAST(&#39;{&quot;a&quot;: 1}&#39; AS JSON) AS STRING) AS json_object,
+       CAST(CAST(&#39;&quot;text&quot;&#39; AS JSON) AS STRING) AS json_string,
+       CAST(CAST(&#39;NA&#39; AS BYTES) AS STRING) AS bytes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>json_object (STRING)</th><th>json_string (STRING)</th><th>bytes (STRING)</th></tr></thead><tbody><tr><td>{&quot;a&quot;:1}</td><td>&quot;text&quot;</td><td>\x4e41</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="into-json">Into JSON</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS JSON | JSONB)</code></pre>
+<p>A JSON document (a text format for data, like <code>{&quot;name&quot;: &quot;Sita&quot;, &quot;tags&quot;: [1, 2]}</code>). KDB checks it and stores it without extra spaces.</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>text</td><td>parsed as JSON; bad JSON is an error that says where the problem is</td></tr><tr><td>numbers, <code>DECIMAL</code></td><td>a JSON number: <code>5</code>, <code>1.50</code></td></tr><tr><td><code>BOOL</code></td><td><code>true</code> / <code>false</code></td></tr><tr><td><code>TIMESTAMP</code>, <code>DATE</code>, <code>BYTES</code></td><td>a JSON string with their text: <code>&quot;2026-09-10&quot;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> SQL <code>NULL</code> stays <code>NULL</code>. The text <code>&#39;null&#39;</code> becomes the JSON value <code>null</code>, which is <strong>not</strong> SQL <code>NULL</code> (<code>IS NULL</code> is false).</li><li><strong>Notes:</strong>
+<ul><li>A text value must be valid JSON. The word <code>CITY</code> is not JSON; <code>&#39;&quot;CITY&quot;&#39;</code> (with double quotes inside) is. See <a href="functions-json.html">JSON functions</a> for reading parts of a document.</li><li>The result tables on this page show a JSON string without its quotes, and a JSON <code>null</code> as <code>NULL</code>.</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;{&quot;symbol&quot;: &quot;CITY&quot;, &quot;levels&quot;: [500, 520]}&#39; AS JSON) AS a,
+       CAST(5 AS JSON) AS b, CAST(TRUE AS JSONB) AS c,
+       CAST(CAST(&#39;2026-09-10&#39; AS DATE) AS JSON) AS d,
+       CAST(&#39;null&#39; AS JSON) AS json_null, CAST(&#39;null&#39; AS JSON) IS NULL AS is_sql_null;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (JSON)</th><th>b (JSON)</th><th>c (JSON)</th><th>d (JSON)</th><th>json_null (JSON)</th><th>is_sql_null (BOOL)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;levels&quot;:[500,520]}</td><td>5</td><td>true</td><td>&quot;2026-09-10&quot;</td><td>NULL</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: App settings saved as JSON text</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE user_settings (user_id INT PRIMARY KEY, settings STRING);
+INSERT INTO user_settings VALUES (1, &#39;{ &quot;theme&quot;: &quot;dark&quot;,  &quot;alerts&quot;: [&quot;CITY&quot;, &quot;COAST&quot;] }&#39;), (2, &#39;{&quot;theme&quot;: &quot;light&quot;, &quot;alerts&quot;: []}&#39;);</code></pre>
+<pre><code class="language-sql">SELECT user_id, CAST(settings AS JSON) AS settings_json
+FROM user_settings
+ORDER BY user_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>settings_json (JSON)</th></tr></thead><tbody><tr><td>1</td><td>{&quot;theme&quot;:&quot;dark&quot;,&quot;alerts&quot;:[&quot;CITY&quot;,&quot;COAST&quot;]}</td></tr><tr><td>2</td><td>{&quot;theme&quot;:&quot;light&quot;,&quot;alerts&quot;:[]}</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Keys need double quotes</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;{theme: &quot;dark&quot;}&#39; AS JSON);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;{theme: &quot;dark&quot;}&#39; to JSON: not valid JSON: expected a key in double quotes at character 2 (near &#39;theme: &quot;dark...&#39;)</code></p>
+<h2 id="into-bytes">Into BYTES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CAST(value AS BYTES | BYTEA | BLOB)</code></pre>
+<p>Raw bytes, shown as hex with <code>\x</code> in front (<code>\x0a0b</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>From</th><th>Result</th></tr></thead><tbody><tr><td>text that starts with <code>\x</code></td><td>read as hex digits: <code>&#39;\x4e41&#39;</code> is the two bytes 4e and 41</td></tr><tr><td>other text</td><td>its UTF-8 bytes: <code>&#39;NA&#39;</code> is <code>\x4e41</code>; a Nepali letter is 3 bytes</td></tr><tr><td><code>X&#39;0A0B&#39;</code></td><td>already bytes</td></tr><tr><td>numbers, <code>BOOL</code>, times, <code>JSON</code></td><td>error</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> stays <code>NULL</code>.</li><li><strong>Notes:</strong> <code>CAST(bytes AS STRING)</code> does not give the letters back; it gives the hex text. See <a href="functions-bytes.html">bytes functions</a> for <code>hex</code>, <code>unhex</code> and base64.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT CAST(&#39;\x4e41&#39; AS BYTES) AS from_hex, CAST(&#39;CITY&#39; AS BYTEA) AS from_text,
+       CAST(X&#39;0A0B&#39; AS BLOB) AS literal, CAST(&#39;नेपाल&#39; AS BYTES) AS nepali, length(CAST(&#39;नेपाल&#39; AS BYTES)) AS byte_count;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>from_hex (BYTES)</th><th>from_text (BYTES)</th><th>literal (BYTES)</th><th>nepali (BYTES)</th><th>byte_count (LONG)</th></tr></thead><tbody><tr><td>\x4e41</td><td>\x43495459</td><td>\x0a0b</td><td>\xe0a4a8e0a587e0a4aae0a4bee0a4b2</td><td>15</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Bad hex digits</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(&#39;\xZZ&#39; AS BYTES);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;\xZZ&#39; to BYTES: &#39;\xZZ&#39; is not hex bytes; write them like &#39;\x0a0b&#39; or X&#39;0A0B&#39;</code></p>
+<p><strong>Example: A number is not bytes</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT CAST(5 AS BYTES);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: cannot convert &#39;5&#39; to BYTES: expected bytes like X&#39;0A0B&#39; or &#39;\x0a0b&#39;, got LONG 5</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-conversion.md">This page as markdown</a>.</footer>
+</body>
+</html>

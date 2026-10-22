@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bytes, hex and base64 - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Store raw bytes (hashes, keys, small images) and turn them into hex or base64 text and back.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-bytes.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-bytes.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="bytes-hex-and-base64">Bytes, hex and base64</h1>
+<blockquote><p>Store raw bytes (hashes, keys, small images) and turn them into hex or base64 text and back.</p></blockquote>
+<ul><li>Category: Functions — JSON and bytes</li><li>Keywords: BYTES, BYTEA, BLOB, binary, hex, base64, \x, hash, file hash, image, avatar, bytes to text, X&#39;, convert_to, convert_from, encoding, UTF8, LATIN1, escape format</li><li>See also: <a href="functions-json.html">JSON functions</a>, <a href="functions-security.html">Security functions</a>, <a href="column-types.html">Column types</a>, <a href="functions-text.html">Text functions</a></li></ul>
+<p>A <code>BYTES</code> value holds raw bytes: any byte from 0 to 255, also zero bytes. Good uses are a file hash (SHA-256 is 32 bytes), a key, a signature or a very small image.
+<code>BYTEA</code> and <code>BLOB</code> are other names for the same column type (see <a href="column-types.html">column types</a>). One value can be at most 16 MB; keep big files outside the database and save their path and hash.</p>
+<ul><li><strong>Hex</strong> writes every byte as two digits <code>0-9 a-f</code>: the bytes 0, 255, 16 are <code>00ff10</code>.</li><li><strong>Base64</strong> writes 3 bytes as 4 letters: the same bytes are <code>AP8Q</code>. It is shorter than hex, and is often used in JSON and HTTP.</li><li>KDB <strong>shows</strong> <code>BYTES</code> as <code>\x</code> and hex (<code>\x00ff10</code>), like PostgreSQL. This is the same in the shell, CSV and HTTP answers.</li><li>On <code>BYTES</code>, <code>length()</code>, <code>octet_length()</code>, <code>substr()</code> and <code>reverse()</code> work on bytes, not letters (see <a href="functions-text.html">text functions</a>).</li></ul>
+<p>Setup used by the examples below:</p>
+<pre><code class="language-sql">CREATE TABLE reports (
+  id LONG PRIMARY KEY AUTO,
+  symbol STRING NOT NULL,
+  fiscal_year STRING NOT NULL,
+  pdf_url STRING,
+  pdf_sha256 BYTES
+);
+INSERT INTO reports (symbol, fiscal_year, pdf_url, pdf_sha256) VALUES
+  (&#39;CITY&#39;, &#39;2082/83&#39;, &#39;https://files.example.com/city/2082-83-q4.pdf&#39;,
+   X&#39;9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08&#39;),
+  (&#39;VOLT&#39;, &#39;2082/83&#39;, &#39;https://files.example.com/volt/2082-83-q4.pdf&#39;, NULL);</code></pre>
+<p><strong>Example: A report PDF stays outside; KDB keeps its SHA-256 hash</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       pdf_sha256,
+       length(pdf_sha256) AS bytes,
+       hex(pdf_sha256) AS hash_hex,
+       to_base64(pdf_sha256) AS hash_base64
+FROM reports
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>pdf_sha256 (BYTES)</th><th>bytes (LONG)</th><th>hash_hex (STRING)</th><th>hash_base64 (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>\x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08</td><td>32</td><td>9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08</td><td>n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=</td></tr><tr><td>VOLT</td><td>NULL</td><td>NULL</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="x-literal">X&#39;...&#39; bytes literal</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">X&#39;0A0B&#39;        x&#39;0a0b&#39;        X&#39;&#39;
+&#39;\x0a0b&#39;       text that becomes BYTES in a BYTES column or CAST
+CAST(&#39;\x0a0b&#39; AS BYTES)       &#39;\x0a0b&#39;::BYTES</code></pre>
+<p><code>X&#39;...&#39;</code> writes bytes in hex inside SQL. Each byte is two hex digits; big or small letters both work. There must be no space between <code>X</code> and the quote.</p>
+<p>When text goes into a <code>BYTES</code> column (or <code>CAST(... AS BYTES)</code>):</p>
+<div class="table-wrap"><table><thead><tr><th>Text</th><th>Bytes</th></tr></thead><tbody><tr><td>starts with <code>\x</code>, like <code>&#39;\x0a0b&#39;</code></td><td>the hex digits after <code>\x</code></td></tr><tr><td>any other text, like <code>&#39;hi&#39;</code></td><td>the UTF-8 bytes of the text (<code>\x6869</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> stays <code>NULL</code>.</li><li><strong>Notes:</strong> an odd number of digits or a letter that is not hex is an error (<code>X&#39;ABC&#39;</code>). <code>X&#39;...&#39;</code> is read as <code>unhex(&#39;...&#39;)</code>, so its error message says <code>unhex</code>.</li><li><code>&#39;\x0a0b&#39;</code> alone, outside a <code>BYTES</code> column or cast, is just text of 6 characters.</li><li>A number cannot become <code>BYTES</code> (<code>CAST(5 AS BYTES)</code> is an error).</li><li>Compare: <code>BYTES</code> compare byte by byte. <code>BYTES</code> compared with text read the text like the table above, so <code>X&#39;6869&#39; = &#39;hi&#39;</code> is true.</li><li><code>X&#39;01&#39; || X&#39;02&#39;</code> joins bytes (see <a href="functions-text.html#concat-operator">||</a>). Bytes joined with <strong>text</strong> give text: <code>X&#39;0102&#39; || &#39;ab&#39;</code> is the text <code>&#39;\x0102ab&#39;</code>, not bytes.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT X&#39;0A0B&#39; AS a,
+       x&#39;0a0b&#39; AS small_letters,
+       X&#39;&#39; AS empty,
+       &#39;\x0a0b&#39;::BYTES AS from_hex_text,
+       CAST(&#39;hi&#39; AS BYTES) AS from_text,
+       X&#39;0102&#39; || X&#39;03&#39; AS joined;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BYTES)</th><th>small_letters (BYTES)</th><th>empty (BYTES)</th><th>from_hex_text (BYTES)</th><th>from_text (BYTES)</th><th>joined (BYTES)</th></tr></thead><tbody><tr><td>\x0a0b</td><td>\x0a0b</td><td>\x</td><td>\x0a0b</td><td>\x6869</td><td>\x010203</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Store and compare file hashes</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE avatars (user_id LONG PRIMARY KEY, png_header BYTES, sha256 BYTES);
+INSERT INTO avatars VALUES
+  (1, X&#39;89504E470D0A1A0A&#39;, &#39;\x2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae&#39;),
+  (2, &#39;not a png&#39;, NULL);</code></pre>
+<pre><code class="language-sql">SELECT user_id, png_header, length(png_header) AS bytes,
+       png_header = X&#39;89504E470D0A1A0A&#39; AS is_png
+FROM avatars
+ORDER BY user_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (LONG)</th><th>png_header (BYTES)</th><th>bytes (LONG)</th><th>is_png (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>\x89504e470d0a1a0a</td><td>8</td><td>true</td></tr><tr><td>2</td><td>\x6e6f74206120706e67</td><td>9</td><td>false</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Bytes compared with text</strong></p>
+<pre><code class="language-sql">SELECT X&#39;6869&#39; = &#39;hi&#39; AS same_as_text,
+       X&#39;0A0B&#39; = &#39;\x0a0b&#39; AS same_as_hex_text,
+       X&#39;01&#39; &lt; X&#39;02&#39; AS smaller,
+       length(&#39;\x0a0b&#39;) AS text_letters,
+       length(&#39;\x0a0b&#39;::BYTES) AS bytes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>same_as_text (BOOL)</th><th>same_as_hex_text (BOOL)</th><th>smaller (BOOL)</th><th>text_letters (LONG)</th><th>bytes (LONG)</th></tr></thead><tbody><tr><td>true</td><td>true</td><td>true</td><td>6</td><td>2</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: An odd number of hex digits</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT X&#39;ABC&#39;;</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: unhex: &#39;ABC&#39; is not hex (an even number of the digits 0-9 and a-f)</code></p>
+<p><strong>Example: Bad hex in a BYTES column</strong> (shows an error)</p>
+<pre><code class="language-sql">INSERT INTO reports (symbol, fiscal_year, pdf_sha256) VALUES (&#39;COAST&#39;, &#39;2082/83&#39;, &#39;\x9F86ZZ&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;pdf_sha256&#39; (BYTES): &#39;\x9F86ZZ&#39; is not hex bytes; write them like &#39;\x0a0b&#39; or X&#39;0A0B&#39;</code></p>
+<h2 id="hex">hex</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">hex(value)</code></pre>
+<p>Writes bytes as hex text: two small-letter digits for every byte. Text is written as its UTF-8 bytes. A whole number is written as a hex number.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td><code>BYTES</code>, <code>STRING</code> or a whole number</td><td>what to write as hex</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>hex(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>hex(255)</code> is <code>ff</code> (like MySQL). A negative number uses 16 digits: <code>hex(-1)</code> is <code>ffffffffffffffff</code>. Other values (a <code>DOUBLE</code>, a time) are first turned into text: <code>hex(2.5)</code> is the hex of the text <code>&#39;2.5&#39;</code>.</li><li>A Nepali letter is 3 bytes in UTF-8, so it gives 6 hex digits.</li><li>The opposite is <code>unhex</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT hex(X&#39;00FF10&#39;) AS from_bytes,
+       hex(&#39;CITY&#39;) AS from_text,
+       hex(255) AS from_number,
+       hex(-1) AS negative,
+       hex(&#39;न&#39;) AS nepali_letter;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>from_bytes (STRING)</th><th>from_text (STRING)</th><th>from_number (STRING)</th><th>negative (STRING)</th><th>nepali_letter (STRING)</th></tr></thead><tbody><tr><td>00ff10</td><td>43495459</td><td>ff</td><td>ffffffffffffffff</td><td>e0a4a8</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Show a short hash code for each report on a web page</strong></p>
+<pre><code class="language-sql">SELECT symbol, left(hex(pdf_sha256), 12) AS short_hash
+FROM reports
+WHERE pdf_sha256 IS NOT NULL;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>short_hash (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>9f86d081884c</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="unhex">unhex</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">unhex(hex_text)</code></pre>
+<p>Reads hex text and gives the bytes. It is the opposite of <code>hex</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>hex_text</code></td><td><code>STRING</code></td><td>an even number of hex digits (<code>0-9</code>, <code>a-f</code> or <code>A-F</code>), nothing else</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>unhex(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> no <code>\x</code> in front, no spaces. An odd number of digits or another sign is an error. <code>unhex(&#39;&#39;)</code> is empty bytes.</li><li><code>decode(hex_text, &#39;hex&#39;)</code> does the same.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT unhex(&#39;4E4142494C&#39;) AS a, unhex(&#39;00ff10&#39;) AS b, unhex(&#39;&#39;) AS empty;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BYTES)</th><th>b (BYTES)</th><th>empty (BYTES)</th></tr></thead><tbody><tr><td>\x4e4142494c</td><td>\x00ff10</td><td>\x</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Save a SHA-256 hash as 32 bytes instead of 64 letters</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">INSERT INTO reports (symbol, fiscal_year, pdf_url, pdf_sha256)
+VALUES (&#39;COAST&#39;, &#39;2082/83&#39;, &#39;https://files.example.com/coast/2082-83-q4.pdf&#39;,
+        unhex(&#39;2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae&#39;));</code></pre>
+<pre><code class="language-sql">SELECT symbol, length(pdf_sha256) AS bytes, hex(pdf_sha256) AS hash_hex
+FROM reports
+WHERE symbol = &#39;COAST&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>bytes (LONG)</th><th>hash_hex (STRING)</th></tr></thead><tbody><tr><td>COAST</td><td>32</td><td>2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Spaces are not allowed</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT unhex(&#39;4E 41 42&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: unhex: &#39;4E 41 42&#39; is not hex (an even number of the digits 0-9 and a-f)</code></p>
+<h2 id="to-base64">to_base64</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_base64(value)</code></pre>
+<p>Writes bytes as base64 text (letters <code>A-Z a-z 0-9 + /</code>, with <code>=</code> at the end to fill). Text is written as its UTF-8 bytes.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td><code>BYTES</code> or <code>STRING</code></td><td>what to write as base64</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>to_base64(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> the result is one line (no line breaks). It uses the normal alphabet with <code>+</code> and <code>/</code>, not the URL alphabet (<code>-</code> and <code>_</code>).</li><li><code>encode(value, &#39;base64&#39;)</code> does the same. The opposite is <code>from_base64</code>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT to_base64(X&#39;00FF10&#39;) AS bytes_value,
+       to_base64(&#39;CITY&#39;) AS text_value,
+       to_base64(&#39;नेपाल&#39;) AS nepali,
+       to_base64(&#39;&#39;) AS empty;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>bytes_value (STRING)</th><th>text_value (STRING)</th><th>nepali (STRING)</th><th>empty (STRING)</th></tr></thead><tbody><tr><td>AP8Q</td><td>Q0lUWQ==</td><td>4KSo4KWH4KSq4KS+4KSy</td><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Send a small image to an app inside JSON</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE avatars (user_id LONG PRIMARY KEY, image BYTES);
+INSERT INTO avatars VALUES (7, X&#39;89504E470D0A1A0A0000000D49484452&#39;);</code></pre>
+<pre><code class="language-sql">SELECT json_object(&#39;user_id&#39;, user_id, &#39;image_base64&#39;, to_base64(image)) AS answer
+FROM avatars;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>answer (JSON)</th></tr></thead><tbody><tr><td>{&quot;user_id&quot;:7,&quot;image_base64&quot;:&quot;iVBORw0KGgoAAAANSUhEUg==&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="from-base64">from_base64</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">from_base64(text)</code></pre>
+<p>Reads base64 text and gives the bytes. It is the opposite of <code>to_base64</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td><code>STRING</code></td><td>base64 text</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>from_base64(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> both alphabets work: <code>+ /</code> and the URL one <code>- _</code>. The <code>=</code> at the end may be left out. Spaces and line breaks are skipped. Any other sign is an error.</li><li><code>decode(text, &#39;base64&#39;)</code> does the same.</li><li>There is no function yet to turn <code>BYTES</code> back into normal text: <code>CAST(bytes AS STRING)</code> gives the <code>\x...</code> hex text. Keep text in a <code>STRING</code> column.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT from_base64(&#39;AP8Q&#39;) AS a,
+       from_base64(&#39;TkFCSUw=&#39;) AS with_padding,
+       from_base64(&#39;TkFCSUw&#39;) AS without_padding,
+       from_base64(&#39;TkFC
+SUw=&#39;) AS with_line_break;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>a (BYTES)</th><th>with_padding (BYTES)</th><th>without_padding (BYTES)</th><th>with_line_break (BYTES)</th></tr></thead><tbody><tr><td>\x00ff10</td><td>\x4e4142494c</td><td>\x4e4142494c</td><td>\x4e4142494c</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A mobile app uploads an avatar as base64</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE avatars (user_id LONG PRIMARY KEY, image BYTES);</code></pre>
+<pre><code class="language-sql">INSERT INTO avatars VALUES (7, from_base64(&#39;iVBORw0KGgoAAAANSUhEUg==&#39;));
+SELECT user_id, image, length(image) AS bytes FROM avatars;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO avatars VALUES (7, from_base64(&#39;iVBORw0KGgoAAAANSUhEUg==&#39;))</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT user_id, image, length(image) AS bytes FROM avatars</code></p>
+<div class="table-wrap"><table><thead><tr><th>user_id (LONG)</th><th>image (BYTES)</th><th>bytes (LONG)</th></tr></thead><tbody><tr><td>7</td><td>\x89504e470d0a1a0a0000000d49484452</td><td>16</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Not base64</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT from_base64(&#39;abc$&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: from_base64: the text is not valid base64</code></p>
+<h2 id="encode">encode</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">encode(value, format)</code></pre>
+<p>Writes bytes as text in <code>format</code>: <code>&#39;hex&#39;</code>, <code>&#39;base64&#39;</code> or <code>&#39;escape&#39;</code>, as PostgreSQL does. <code>hex()</code> and <code>to_base64()</code> do the same as the first two.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td><code>BYTES</code> or <code>STRING</code></td><td>what to write (text is written as its UTF-8 bytes)</td></tr><tr><td><code>format</code></td><td><code>STRING</code></td><td><code>&#39;hex&#39;</code>, <code>&#39;base64&#39;</code> or <code>&#39;escape&#39;</code> (big or small letters)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong>
+<ul><li><code>&#39;base64&#39;</code> breaks the text into lines of 76 characters, as PostgreSQL does; <code>to_base64()</code> keeps one line. <code>decode</code> reads both.</li><li><code>&#39;escape&#39;</code> writes a zero byte and bytes from 128 up as <code>\nnn</code> (three octal digits) and a backslash as <code>\\</code>; the rest stays as it is.</li><li><code>encode(sha256(x), &#39;hex&#39;)</code> encodes the hash&#39;s own bytes, so PostgreSQL code gives the same 64 characters (<a href="functions-security.html#sha256">sha256</a>).</li></ul></li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT encode(X&#39;00FF10&#39;, &#39;hex&#39;) AS hex_text,
+       encode(X&#39;00FF10&#39;, &#39;base64&#39;) AS base64_text,
+       encode(X&#39;00FF10&#39;, &#39;escape&#39;) AS escape_text,
+       encode(&#39;CITY&#39;, &#39;HEX&#39;) AS text_as_hex;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>hex_text (STRING)</th><th>base64_text (STRING)</th><th>escape_text (STRING)</th><th>text_as_hex (STRING)</th></tr></thead><tbody><tr><td>00ff10</td><td>AP8Q</td><td>\000\377</td><td>43495459</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Other formats are an error</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT encode(X&#39;00FF10&#39;, &#39;utf8&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: encode: format &#39;utf8&#39; is not supported; use &#39;hex&#39;, &#39;base64&#39; or &#39;escape&#39;</code></p>
+<h2 id="decode">decode</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">decode(text, format)</code></pre>
+<p>Reads text in <code>format</code> (<code>&#39;hex&#39;</code>, <code>&#39;base64&#39;</code> or <code>&#39;escape&#39;</code>) and gives the bytes. It is the opposite of <code>encode</code>, and does the same as <code>unhex()</code> and <code>from_base64()</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td><code>STRING</code></td><td>hex, base64 or escape text</td></tr><tr><td><code>format</code></td><td><code>STRING</code></td><td><code>&#39;hex&#39;</code>, <code>&#39;base64&#39;</code> or <code>&#39;escape&#39;</code> (big or small letters)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> bad hex, bad base64 or a backslash in escape text that is not <code>\\</code> or <code>\nnn</code> is an error. Line breaks in base64 are skipped. Another format is an error. To turn bytes into text of an encoding, use <a href="#convert_from">convert_from</a>.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT decode(&#39;00ff10&#39;, &#39;hex&#39;) AS from_hex,
+       decode(&#39;AP8Q&#39;, &#39;base64&#39;) AS from_base64_text,
+       decode(&#39;00ff10&#39;, &#39;hex&#39;) = decode(&#39;AP8Q&#39;, &#39;base64&#39;) AS same_bytes;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>from_hex (BYTES)</th><th>from_base64_text (BYTES)</th><th>same_bytes (BOOL)</th></tr></thead><tbody><tr><td>\x00ff10</td><td>\x00ff10</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Check a download: compare the hash the server sent with the saved one</strong></p>
+<pre><code class="language-sql">SELECT symbol,
+       pdf_sha256 = decode(&#39;n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=&#39;, &#39;base64&#39;) AS hash_matches
+FROM reports
+WHERE symbol = &#39;CITY&#39;;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>hash_matches (BOOL)</th></tr></thead><tbody><tr><td>CITY</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Wrong format name</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT decode(&#39;hello&#39;, &#39;utf8&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: decode: format &#39;utf8&#39; is not supported; use &#39;hex&#39;, &#39;base64&#39; or &#39;escape&#39;</code></p>
+<h2 id="convert-to">convert_to</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">convert_to(text, encoding)</code></pre>
+<p>The bytes of a text in an encoding (PostgreSQL). <code>convert_to(token, &#39;UTF8&#39;)</code> is how PostgreSQL code turns a text into bytes before hashing it.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>text</code></td><td><code>STRING</code></td><td>the text</td></tr><tr><td><code>encoding</code></td><td><code>STRING</code></td><td><code>&#39;UTF8&#39;</code> (also <code>&#39;UTF-8&#39;</code>), <code>&#39;LATIN1&#39;</code> or <code>&#39;SQL_ASCII&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BYTES</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> KDB keeps text as UTF-8, so <code>&#39;UTF8&#39;</code> gives those bytes as they are. <code>&#39;LATIN1&#39;</code> gives one byte per character; a character LATIN1 does not have (like Nepali letters) is an error, never a <code>?</code>. Other encodings are an error.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT convert_to(&#39;CITY&#39;, &#39;UTF8&#39;) AS utf8_bytes,
+       convert_to(&#39;नेपाल&#39;, &#39;UTF8&#39;) AS nepali_bytes,
+       convert_to(&#39;Æ&#39;, &#39;LATIN1&#39;) AS latin1_byte;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>utf8_bytes (BYTES)</th><th>nepali_bytes (BYTES)</th><th>latin1_byte (BYTES)</th></tr></thead><tbody><tr><td>\x43495459</td><td>\xe0a4a8e0a587e0a4aae0a4bee0a4b2</td><td>\xc6</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Not in LATIN1</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT convert_to(&#39;नेपाल&#39;, &#39;LATIN1&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: convert_to: character &#39;न&#39; has no equivalent in encoding &quot;LATIN1&quot;</code></p>
+<h2 id="convert_from">convert_from</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">convert_from(bytes, encoding)</code></pre>
+<p>The text that bytes in an encoding stand for (PostgreSQL). The opposite of <code>convert_to</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>bytes</code></td><td><code>BYTES</code></td><td>the bytes</td></tr><tr><td><code>encoding</code></td><td><code>STRING</code></td><td><code>&#39;UTF8&#39;</code>, <code>&#39;LATIN1&#39;</code> or <code>&#39;SQL_ASCII&#39;</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> <code>NULL</code> when an argument is <code>NULL</code>.</li><li><strong>Notes:</strong> with <code>&#39;UTF8&#39;</code> (and <code>&#39;SQL_ASCII&#39;</code>) the bytes must be valid UTF-8; bad bytes are an error that names the first one, as in PostgreSQL. <code>&#39;LATIN1&#39;</code> turns each byte into its character.</li></ul>
+<p><strong>Example</strong></p>
+<pre><code class="language-sql">SELECT convert_from(&#39;\x43495459&#39;::bytea, &#39;UTF8&#39;) AS text,
+       convert_from(&#39;\xc6&#39;::bytea, &#39;LATIN1&#39;) AS latin1;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>text (STRING)</th><th>latin1 (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>Æ</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Not UTF-8</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT convert_from(&#39;\xff&#39;::bytea, &#39;UTF8&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: convert_from: invalid byte sequence for encoding &quot;UTF8&quot;: 0xff</code></p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-bytes.md">This page as markdown</a>.</footer>
+</body>
+</html>

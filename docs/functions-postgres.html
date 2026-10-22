@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PostgreSQL-compatible functions - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Functions a PostgreSQL app expects: arrays, sequence numbers (nextval), who you are and what you may do (current_user, has_table_privilege), comments (COMMENT ON), advisory locks and session settings, so app code runs on KDB without changes.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/functions-postgres.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-postgres.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="postgresql-compatible-functions">PostgreSQL-compatible functions</h1>
+<blockquote><p>Functions a PostgreSQL app expects: arrays, sequence numbers (nextval), who you are and what you may do (current_user, has_table_privilege), comments (COMMENT ON), advisory locks and session settings, so app code runs on KDB without changes.</p></blockquote>
+<ul><li>Category: Postgres protocol</li><li>Keywords: PostgreSQL functions, to_regclass, pg_relation_size, pg_total_relation_size, pg_table_size, pg_indexes_size, pg_database_size, pg_size_pretty, table size, database size, current_database, postgres compatibility, array, ARRAY[], arrays, list of values, watchlist, tags, sequence, auto number, order number, invoice number, advisory lock, named lock, job lock, one worker at a time, pg_advisory, nextval, currval, lastval, setval, unnest, cardinality, current_setting, set_config, SET LOCAL, session setting, custom setting, current_user, session_user, current_role, current_schema, current_schemas, current_catalog, version, has_table_privilege, has_column_privilege, has_database_privilege, has_schema_privilege, pg_has_role, privileges, rights, COMMENT ON, comment, description, obj_description, col_description, pg_get_indexdef, pg_get_constraintdef, pg_get_viewdef, pg_get_expr, format_type, pg_table_is_visible</li><li>See also: <a href="postgres-protocol.html">PostgreSQL protocol (port 8832)</a>, <a href="functions-json.html">JSON functions</a>, <a href="functions-text.html">Text functions</a>, <a href="functions-date-time.html">Date and time functions</a>, <a href="constraints.html">Constraints</a>, <a href="transactions.html">Transactions</a></li></ul>
+<p>A PostgreSQL app sends more than plain SQL. It also calls <strong>arrays</strong>, <strong>sequences</strong> and <strong>advisory locks</strong>.
+KDB answers all three with the PostgreSQL names, so the same app code runs here.</p>
+<ul><li>An <strong>array</strong> is a list of values in one value: <code>ARRAY[&#39;CITY&#39;, &#39;COAST&#39;]</code>. KDB keeps an array as a <a href="functions-json.html">JSON</a> list, so a <code>JSON</code> column can hold one and every JSON function still works on it.</li><li>A <strong>sequence</strong> is a counter the database keeps for you: order numbers, invoice numbers. <code>nextval</code> gives the next one. See <code>CREATE SEQUENCE</code> in <a href="constraints.html#auto">constraints</a> for how to make one.</li><li>An <strong>advisory lock</strong> is a name (a number) your app takes so two copies of it do not do the same job twice.</li></ul>
+<p>The other PostgreSQL function names live with their own kind: the JSON ones in <a href="functions-json.html">JSON functions</a>, the time ones in <a href="functions-date-time.html">date and time</a>, <code>initcap</code>, <code>md5</code>, <code>to_str</code> and <code>string_to_array</code> in <a href="functions-text.html">text functions</a>.</p>
+<p><strong>Example: A watchlist as one array value</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;VOLT&#39;] AS watchlist,
+       cardinality(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;VOLT&#39;]) AS how_many,
+       array_to_string(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;VOLT&#39;], &#39;, &#39;) AS shown;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>watchlist (TEXT[])</th><th>how_many (LONG)</th><th>shown (STRING)</th></tr></thead><tbody><tr><td>[&quot;CITY&quot;,&quot;COAST&quot;,&quot;VOLT&quot;]</td><td>3</td><td>CITY, COAST, VOLT</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="arrays">Arrays in KDB</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ARRAY[value, value, ...]        an array value
+&#39;[&quot;CITY&quot;,&quot;COAST&quot;]&#39;              JSON text an array function reads as an array
+&#39;{CITY,COAST}&#39;                  PostgreSQL array text an array function reads too</code></pre>
+<p>An array is a list of values kept as one value. KDB stores it as a JSON list, so <code>ARRAY[&#39;CITY&#39;,&#39;COAST&#39;]</code> shows as <code>[&quot;CITY&quot;,&quot;COAST&quot;]</code> and fits in a <code>JSON</code> column.</p>
+<ul><li><strong>Counting starts at 1</strong>, as in PostgreSQL: the first element is number 1.</li><li>An array may hold text, numbers, <code>TRUE</code>/<code>FALSE</code> and <code>NULL</code> mixed together. KDB does not check that all elements are of one type.</li><li>The functions on this page also read <strong>text</strong>: text that starts with <code>[</code> as JSON, text that starts with <code>{</code> as PostgreSQL array text (<code>&#39;{CITY,COAST}&#39;</code>). So a value a PostgreSQL driver sends still works.</li><li>A <code>JSON</code> <strong>column</strong> keeps JSON only. To save a PostgreSQL array text in one, read it first: <code>string_to_array(t, &#39;,&#39;)</code>, or <code>array_cat(t, ARRAY[])</code>.</li><li>There are no arrays of arrays with their own functions. <code>array_length(a, 2)</code> (a second dimension) always gives <code>NULL</code>.</li><li>To store a list, use a <code>JSON</code> column. To take a list apart into rows, use <a href="functions-postgres.html#unnest">unnest</a>.</li></ul>
+<p><strong>Example: A watchlist column an app reads and writes</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE watchlists (user_id INT PRIMARY KEY, symbols JSON);
+INSERT INTO watchlists VALUES (1, &#39;[&quot;CITY&quot;,&quot;COAST&quot;]&#39;), (2, array_cat(&#39;{VOLT,ACME}&#39;, ARRAY[]));</code></pre>
+<pre><code class="language-sql">SELECT user_id, symbols, cardinality(symbols) AS how_many,
+       symbols -&gt;&gt; 0 AS first_symbol
+FROM watchlists ORDER BY user_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>symbols (JSON)</th><th>how_many (LONG)</th><th>first_symbol (STRING)</th></tr></thead><tbody><tr><td>1</td><td>[&quot;CITY&quot;,&quot;COAST&quot;]</td><td>2</td><td>CITY</td></tr><tr><td>2</td><td>[&quot;VOLT&quot;,&quot;ACME&quot;]</td><td>2</td><td>VOLT</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="array-append">array_append</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_append(array, value)</code></pre>
+<p>The array with one more value at the <strong>end</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array</code></td><td>array (<code>JSON</code> list, or array text)</td><td>the list to add to</td></tr><tr><td><code>value</code></td><td>any</td><td>the value to put at the end</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the new array (<code>JSON</code>). The old one is not changed.</li><li><strong>NULL:</strong> <code>array_append(NULL, &#39;CITY&#39;)</code> is <code>[&quot;CITY&quot;]</code> (a NULL array counts as empty). A <code>NULL</code> value is added as JSON <code>null</code>.</li><li><strong>Notes:</strong> PostgreSQL writes this as <code>array || value</code>. In KDB <code>||</code> joins text, so use the function name.</li></ul>
+<p><strong>Example: Add a company to a user&#39;s watchlist</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE watchlists (user_id INT PRIMARY KEY, symbols JSON);
+INSERT INTO watchlists VALUES (1, &#39;[&quot;CITY&quot;,&quot;COAST&quot;]&#39;);</code></pre>
+<pre><code class="language-sql">UPDATE watchlists SET symbols = array_append(symbols, &#39;VOLT&#39;) WHERE user_id = 1;
+SELECT user_id, symbols FROM watchlists;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE watchlists SET symbols = array_append(symbols, &#39;VOLT&#39;) WHERE user_id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT user_id, symbols FROM watchlists</code></p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>symbols (JSON)</th></tr></thead><tbody><tr><td>1</td><td>[&quot;CITY&quot;,&quot;COAST&quot;,&quot;VOLT&quot;]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="array-prepend">array_prepend</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_prepend(value, array)</code></pre>
+<p>The array with one more value at the <strong>front</strong>. The value comes first, the array second (as in PostgreSQL).</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to put in front</td></tr><tr><td><code>array</code></td><td>array</td><td>the list to add to</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the new array (<code>JSON</code>).</li><li><strong>NULL:</strong> a <code>NULL</code> array counts as empty. A <code>NULL</code> value is put in front as JSON <code>null</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT array_prepend(&#39;ACME&#39;, ARRAY[&#39;CITY&#39;, &#39;COAST&#39;]) AS watchlist;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>watchlist (JSON)</th></tr></thead><tbody><tr><td>[&quot;ACME&quot;,&quot;CITY&quot;,&quot;COAST&quot;]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="array-cat">array_cat</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_cat(array1, array2)</code></pre>
+<p>The two arrays joined into one, in order.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array1</code></td><td>array</td><td>the first list</td></tr><tr><td><code>array2</code></td><td>array</td><td>the list added after it</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the joined array (<code>JSON</code>).</li><li><strong>NULL:</strong> only when <strong>both</strong> are <code>NULL</code>. One <code>NULL</code> counts as an empty list.</li></ul>
+<p><strong>Example: One watchlist for two users</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT array_cat(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;], ARRAY[&#39;VOLT&#39;]) AS together,
+       array_cat(NULL, ARRAY[&#39;TELCO&#39;]) AS one_side_null,
+       array_cat(NULL, NULL) AS both_null;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>together (TEXT[])</th><th>one_side_null (TEXT[])</th><th>both_null (TEXT[])</th></tr></thead><tbody><tr><td>[&quot;CITY&quot;,&quot;COAST&quot;,&quot;VOLT&quot;]</td><td>[&quot;TELCO&quot;]</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="array-remove">array_remove</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_remove(array, value)</code></pre>
+<p>The array without <strong>every</strong> element equal to <code>value</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array</code></td><td>array</td><td>the list</td></tr><tr><td><code>value</code></td><td>any</td><td>the value to take out (all of them)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the shorter array (<code>JSON</code>). Nothing equal: the same array.</li><li><strong>NULL:</strong> <code>array_remove(NULL, x)</code> is <code>NULL</code>. <code>array_remove(a, NULL)</code> takes the <code>null</code> elements out.</li></ul>
+<p><strong>Example: A user removes a company from the watchlist</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE watchlists (user_id INT PRIMARY KEY, symbols JSON);
+INSERT INTO watchlists VALUES (1, &#39;[&quot;CITY&quot;,&quot;COAST&quot;,&quot;CITY&quot;]&#39;);</code></pre>
+<pre><code class="language-sql">UPDATE watchlists SET symbols = array_remove(symbols, &#39;CITY&#39;) WHERE user_id = 1;
+SELECT user_id, symbols FROM watchlists;</code></pre>
+<p>Result:</p>
+<p><code>UPDATE watchlists SET symbols = array_remove(symbols, &#39;CITY&#39;) WHERE user_id = 1</code></p>
+<pre><code class="language-text">1 row(s) updated</code></pre>
+<p><code>SELECT user_id, symbols FROM watchlists</code></p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>symbols (JSON)</th></tr></thead><tbody><tr><td>1</td><td>[&quot;COAST&quot;]</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="array-position">array_position</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_position(array, value [, start])</code></pre>
+<p>Which place <code>value</code> has in the array. The first place is <code>1</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array</code></td><td>array</td><td>the list to look in</td></tr><tr><td><code>value</code></td><td>any</td><td>the value to find</td></tr><tr><td><code>start</code></td><td><code>INT</code></td><td>look from this place on (default <code>1</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>, the place of the <strong>first</strong> match, or <code>NULL</code> when the value is not there.</li><li><strong>NULL:</strong> a <code>NULL</code> array gives <code>NULL</code>. <code>array_position(a, NULL)</code> finds a <code>null</code> element.</li></ul>
+<p><strong>Example: Where is VOLT in the watchlist?</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT array_position(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;VOLT&#39;], &#39;VOLT&#39;) AS at_place,
+       array_position(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;VOLT&#39;], &#39;TELCO&#39;) AS not_there,
+       array_position(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;CITY&#39;], &#39;CITY&#39;, 2) AS from_place_2;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>at_place (LONG)</th><th>not_there (STRING)</th><th>from_place_2 (LONG)</th></tr></thead><tbody><tr><td>3</td><td>NULL</td><td>3</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="array_length">array_length, array_upper</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_length(array, dimension)
+array_upper(array, dimension)</code></pre>
+<p>How many elements the array has. <code>dimension</code> must be <code>1</code>; KDB has one dimension only. <code>array_upper</code> gives the number of the last place, which is the same number.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array</code></td><td>array</td><td>the list</td></tr><tr><td><code>dimension</code></td><td><code>INT</code></td><td>always <code>1</code></td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> an <strong>empty</strong> array gives <code>NULL</code> (that is what PostgreSQL does; use <code>cardinality</code> for <code>0</code>). A <code>NULL</code> array, or a dimension that is not <code>1</code>, also gives <code>NULL</code>.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT array_length(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;], 1) AS how_many,
+       array_upper(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;], 1) AS last_place,
+       array_length(ARRAY[], 1) AS empty_list,
+       array_length(ARRAY[&#39;CITY&#39;], 2) AS no_second_dimension;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>how_many (LONG)</th><th>last_place (LONG)</th><th>empty_list (STRING)</th><th>no_second_dimension (STRING)</th></tr></thead><tbody><tr><td>2</td><td>2</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="cardinality">cardinality</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">cardinality(array)</code></pre>
+<p>How many elements the array has, counting an empty array as <code>0</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array</code></td><td>array</td><td>the list</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> <code>cardinality(NULL)</code> is <code>NULL</code>. An empty array gives <code>0</code>, not <code>NULL</code>.</li><li><strong>Notes:</strong> this is the safe one to use in <code>WHERE</code>: <code>cardinality(symbols) &gt; 0</code>.</li></ul>
+<p><strong>Example: How many companies each user follows</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE watchlists (user_id INT PRIMARY KEY, symbols JSON);
+INSERT INTO watchlists VALUES (1, &#39;[&quot;CITY&quot;,&quot;COAST&quot;]&#39;), (2, &#39;[]&#39;), (3, NULL);</code></pre>
+<pre><code class="language-sql">SELECT user_id, cardinality(symbols) AS follows, array_length(symbols, 1) AS same_but_null_when_empty
+FROM watchlists ORDER BY user_id;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>user_id (INT)</th><th>follows (LONG)</th><th>same_but_null_when_empty (LONG)</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>2</td></tr><tr><td>2</td><td>0</td><td>NULL</td></tr><tr><td>3</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="array-to-string">array_to_string</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">array_to_string(array, separator [, null_text])</code></pre>
+<p>The elements written one after the other with <code>separator</code> between them.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array</code></td><td>array</td><td>the list</td></tr><tr><td><code>separator</code></td><td><code>STRING</code></td><td>text put between two elements</td></tr><tr><td><code>null_text</code></td><td><code>STRING</code></td><td>what a <code>NULL</code> element is written as; without it <code>NULL</code> elements are left out</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>STRING</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> array or a <code>NULL</code> separator gives <code>NULL</code>.</li></ul>
+<p><strong>Example: A watchlist in one line for an email</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT array_to_string(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;VOLT&#39;], &#39;, &#39;) AS watchlist,
+       array_to_string(ARRAY[&#39;CITY&#39;, NULL, &#39;VOLT&#39;], &#39;, &#39;) AS nulls_left_out,
+       array_to_string(ARRAY[&#39;CITY&#39;, NULL, &#39;VOLT&#39;], &#39;, &#39;, &#39;?&#39;) AS nulls_shown;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>watchlist (STRING)</th><th>nulls_left_out (STRING)</th><th>nulls_shown (STRING)</th></tr></thead><tbody><tr><td>CITY, COAST, VOLT</td><td>CITY, VOLT</td><td>CITY, ?, VOLT</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="unnest">unnest</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">unnest(array)</code></pre>
+<p>Turns one array into <strong>many rows</strong>, one row per element, in order.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>array</code></td><td>array</td><td>the list to take apart</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> one row per element.</li><li><strong>NULL:</strong> a <code>NULL</code> array gives <strong>no rows</strong>.</li><li><strong>Notes:</strong> this is how a PostgreSQL app sends a list of symbols in one parameter: <code>WHERE symbol IN (SELECT unnest($1))</code>.</li></ul>
+<p><strong>Example: One row per company in the list</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT unnest(ARRAY[&#39;CITY&#39;, &#39;COAST&#39;, &#39;VOLT&#39;]) AS symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th></tr></thead><tbody><tr><td>CITY</td></tr><tr><td>COAST</td></tr><tr><td>VOLT</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: An app sends a watchlist and asks for those companies</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, name, sector
+FROM securities
+WHERE symbol IN (SELECT unnest(ARRAY[&#39;CITY&#39;, &#39;VOLT&#39;]))
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th><th>sector (STRING)</th></tr></thead><tbody><tr><td>CITY</td><td>City Bank Limited</td><td>Banking</td></tr><tr><td>VOLT</td><td>Volt River Hydropower Limited</td><td>Energy</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="nextval">nextval</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">nextval(&#39;sequence_name&#39;)</code></pre>
+<p>The next number of a sequence. Each call gives a number that was never given before, even when many connections ask at the same time.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>sequence_name</code></td><td><code>STRING</code></td><td>the sequence name in <strong>single quotes</strong>; <code>&#39;public.orders_id_seq&#39;</code> and <code>&#39;&quot;Name&quot;&#39;</code> are accepted too</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> name gives <code>NULL</code>.</li><li><strong>Notes:</strong> make the sequence first with <code>CREATE SEQUENCE order_no_seq START WITH 1001</code>. A number that was given is never given again, also when the transaction is rolled back - so there can be gaps. A sequence that does not exist is an error. For a simple id column, <code>PRIMARY KEY AUTO</code> is easier (see <a href="constraints.html#auto">constraints</a>).</li></ul>
+<p><strong>Example: Order numbers from a sequence</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE SEQUENCE order_no_seq START WITH 1001;
+CREATE TABLE orders (order_no LONG PRIMARY KEY, symbol SYMBOL, quantity LONG);</code></pre>
+<pre><code class="language-sql">INSERT INTO orders VALUES (nextval(&#39;order_no_seq&#39;), &#39;CITY&#39;, 100),
+                          (nextval(&#39;order_no_seq&#39;), &#39;COAST&#39;, 50);
+SELECT * FROM orders ORDER BY order_no;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO orders VALUES (nextval(&#39;order_no_seq&#39;), &#39;CITY&#39;, 100), (nextval(&#39;order_no_seq&#39;), &#39;COAST&#39;,</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT * FROM orders ORDER BY order_no</code></p>
+<div class="table-wrap"><table><thead><tr><th>order_no (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th></tr></thead><tbody><tr><td>1001</td><td>CITY</td><td>100</td></tr><tr><td>1002</td><td>COAST</td><td>50</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="currval">currval</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">currval(&#39;sequence_name&#39;)</code></pre>
+<p>The number this connection got <strong>last</strong> from that sequence. It does not move the sequence on.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>sequence_name</code></td><td><code>STRING</code></td><td>the sequence name in single quotes</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> name gives <code>NULL</code>.</li><li><strong>Notes:</strong> it is an error before this connection has called <code>nextval</code> on that sequence. Another connection&#39;s numbers are never shown, so <code>currval</code> is safe to read after an insert.</li></ul>
+<p><strong>Example: The order number just given</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE SEQUENCE order_no_seq START WITH 1001;
+CREATE TABLE orders (order_no LONG PRIMARY KEY, symbol SYMBOL);</code></pre>
+<pre><code class="language-sql">INSERT INTO orders VALUES (nextval(&#39;order_no_seq&#39;), &#39;CITY&#39;);
+SELECT currval(&#39;order_no_seq&#39;) AS my_order_no;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO orders VALUES (nextval(&#39;order_no_seq&#39;), &#39;CITY&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT currval(&#39;order_no_seq&#39;) AS my_order_no</code></p>
+<div class="table-wrap"><table><thead><tr><th>my_order_no (LONG)</th></tr></thead><tbody><tr><td>1001</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: currval before nextval is an error</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE SEQUENCE order_no_seq;</code></pre>
+<pre><code class="language-sql">SELECT currval(&#39;order_no_seq&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>currval of sequence &#39;order_no_seq&#39; is not yet defined in this session (call nextval first)</code></p>
+<h2 id="lastval">lastval</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">lastval()</code></pre>
+<p>The number this connection got last from <strong>any</strong> sequence.</p>
+<ul><li><strong>Returns:</strong> <code>LONG</code>.</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> it is an error before this connection has called <code>nextval</code> at all. With more than one sequence, <code>currval(&#39;name&#39;)</code> says clearly which one you mean.</li></ul>
+<p><strong>Example: The last number of any sequence</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE SEQUENCE order_no_seq START WITH 1001;
+CREATE SEQUENCE invoice_no_seq START WITH 500;</code></pre>
+<pre><code class="language-sql">SELECT nextval(&#39;order_no_seq&#39;) AS order_no, nextval(&#39;invoice_no_seq&#39;) AS invoice_no;
+SELECT lastval() AS last_of_any, currval(&#39;order_no_seq&#39;) AS last_order_no;</code></pre>
+<p>Result:</p>
+<p><code>SELECT nextval(&#39;order_no_seq&#39;) AS order_no, nextval(&#39;invoice_no_seq&#39;) AS invoice_no</code></p>
+<div class="table-wrap"><table><thead><tr><th>order_no (LONG)</th><th>invoice_no (LONG)</th></tr></thead><tbody><tr><td>1001</td><td>500</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT lastval() AS last_of_any, currval(&#39;order_no_seq&#39;) AS last_order_no</code></p>
+<div class="table-wrap"><table><thead><tr><th>last_of_any (LONG)</th><th>last_order_no (LONG)</th></tr></thead><tbody><tr><td>500</td><td>1001</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="setval">setval</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">setval(&#39;sequence_name&#39;, value)
+setval(&#39;sequence_name&#39;, value, is_called)</code></pre>
+<p>Sets the sequence to <code>value</code>. Use it after loading old rows, so new numbers start above them.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>sequence_name</code></td><td><code>STRING</code></td><td>the sequence name in single quotes</td></tr><tr><td><code>value</code></td><td><code>LONG</code></td><td>the number to set</td></tr><tr><td><code>is_called</code></td><td><code>BOOL</code></td><td><code>TRUE</code> (default): <code>value</code> counts as already given, so the next <code>nextval</code> is <code>value + 1</code>. <code>FALSE</code>: the next <code>nextval</code> gives <code>value</code> itself.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>LONG</code>, the <code>value</code> you gave.</li><li><strong>NULL:</strong> a <code>NULL</code> name or a <code>NULL</code> value gives <code>NULL</code> and changes nothing.</li><li><strong>Notes:</strong> a value outside the sequence&#39;s <code>MINVALUE</code>/<code>MAXVALUE</code> is an error. <code>setval</code> is written to disk at once; a <code>ROLLBACK</code> does not take it back.</li></ul>
+<p><strong>Example: Move the counter above the order numbers already loaded</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE SEQUENCE order_no_seq START WITH 1;
+CREATE TABLE orders (order_no LONG PRIMARY KEY, symbol SYMBOL);
+INSERT INTO orders VALUES (5000, &#39;CITY&#39;), (5001, &#39;COAST&#39;);</code></pre>
+<pre><code class="language-sql">SELECT setval(&#39;order_no_seq&#39;, (SELECT max(order_no) FROM orders)) AS set_to;
+INSERT INTO orders VALUES (nextval(&#39;order_no_seq&#39;), &#39;VOLT&#39;);
+SELECT * FROM orders ORDER BY order_no;</code></pre>
+<p>Result:</p>
+<p><code>SELECT setval(&#39;order_no_seq&#39;, (SELECT max(order_no) FROM orders)) AS set_to</code></p>
+<div class="table-wrap"><table><thead><tr><th>set_to (LONG)</th></tr></thead><tbody><tr><td>5001</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>INSERT INTO orders VALUES (nextval(&#39;order_no_seq&#39;), &#39;VOLT&#39;)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT * FROM orders ORDER BY order_no</code></p>
+<div class="table-wrap"><table><thead><tr><th>order_no (LONG)</th><th>symbol (SYMBOL)</th></tr></thead><tbody><tr><td>5000</td><td>CITY</td></tr><tr><td>5001</td><td>COAST</td></tr><tr><td>5002</td><td>VOLT</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: is_called = FALSE: the next number is the one you gave</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE SEQUENCE order_no_seq;</code></pre>
+<pre><code class="language-sql">SELECT setval(&#39;order_no_seq&#39;, 7000, FALSE) AS set_to;
+SELECT nextval(&#39;order_no_seq&#39;) AS next_number;</code></pre>
+<p>Result:</p>
+<p><code>SELECT setval(&#39;order_no_seq&#39;, 7000, FALSE) AS set_to</code></p>
+<div class="table-wrap"><table><thead><tr><th>set_to (LONG)</th></tr></thead><tbody><tr><td>7000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT nextval(&#39;order_no_seq&#39;) AS next_number</code></p>
+<div class="table-wrap"><table><thead><tr><th>next_number (LONG)</th></tr></thead><tbody><tr><td>7000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="sizes">Names and sizes: to_regclass, pg_relation_size, ...</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">to_regclass(&#39;name&#39;)
+pg_relation_size(relation [, &#39;main&#39;])
+pg_table_size(relation)
+pg_indexes_size(relation)
+pg_total_relation_size(relation)
+pg_database_size(name_or_oid)
+pg_size_pretty(bytes)
+current_database()</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th></tr></thead><tbody><tr><td><code>to_regclass(&#39;name&#39;)</code></td><td>the name of the table, index, view or sequence, or <code>NULL</code> when there is none</td></tr><tr><td><code>pg_relation_size</code>, <code>pg_table_size</code>, <code>pg_total_relation_size</code></td><td><code>LONG</code> bytes of the table on disk</td></tr><tr><td><code>pg_indexes_size</code></td><td><code>LONG</code>, always <code>0</code></td></tr><tr><td><code>pg_database_size</code></td><td><code>LONG</code> bytes of every file of the database: tables, the log, kept versions</td></tr><tr><td><code>pg_size_pretty(bytes)</code></td><td>text like <code>8192 bytes</code>, <code>24 kB</code>, <code>1536 MB</code>, exactly as PostgreSQL writes it</td></tr><tr><td><code>current_database()</code></td><td>the database&#39;s name</td></tr></tbody></table></div>
+<ul><li><strong>Arguments:</strong> a relation is a name in single quotes (<code>&#39;public.orders&#39;</code> and <code>&#39;&quot;Orders&quot;&#39;</code> work) or an oid from <code>pg_class</code>.</li><li><strong>Returns:</strong> a table&#39;s size is its partition files plus its new rows that are still in the log (they move into the files at the next checkpoint), so a table that was just filled is never <code>0</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> argument, or an oid nothing has, gives <code>NULL</code>. A name that does not exist is an error (<code>42P01</code>), as in PostgreSQL.</li><li><strong>Notes:</strong> KDB keeps indexes in memory only (built from the rows when the database opens), so they take <code>0</code> bytes on disk. <code>pg_database_size</code> measures only the database the statement runs in.</li><li><strong>Waits:</strong> a size reads the table the way a query of it does. <code>pg_total_relation_size(&#39;t&#39;)</code> waits for a statement that is writing <code>t</code> (never for writers of other tables), even with snapshot reads on. With an oid or a column instead of a name in quotes - <code>pg_total_relation_size(c.oid)</code> over <code>pg_class</code> - the size waits for every writer, as <code>SHOW TABLES</code> does.</li></ul>
+<p><strong>Example: How big are the tables?</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE orders (id LONG PRIMARY KEY, symbol SYMBOL, quantity LONG);
+INSERT INTO orders VALUES (1, &#39;CITY&#39;, 100), (2, &#39;VOLT&#39;, 50);</code></pre>
+<pre><code class="language-sql">SELECT to_regclass(&#39;orders&#39;) AS found, to_regclass(&#39;orderz&#39;) AS missing,
+       pg_total_relation_size(&#39;orders&#39;) &gt; 0 AS has_bytes,
+       pg_size_pretty(10240) AS ten_kb, pg_size_pretty(1610612736) AS big;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>found (STRING)</th><th>missing (STRING)</th><th>has_bytes (BOOL)</th><th>ten_kb (STRING)</th><th>big (STRING)</th></tr></thead><tbody><tr><td>orders</td><td>NULL</td><td>true</td><td>10 kB</td><td>1536 MB</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="session-info">Who and where: current_user, version()</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">current_user   current_role   user   session_user
+current_schema   current_schemas(include_implicit)   current_catalog
+version()</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th></tr></thead><tbody><tr><td><code>current_user</code>, <code>current_role</code>, <code>user</code></td><td>the user whose rights your statements use: after <code>SET ROLE</code> that user, else who logged in</td></tr><tr><td><code>session_user</code></td><td>who logged in, whatever <code>SET ROLE</code> did</td></tr><tr><td><code>current_schema</code>, <code>current_schema()</code></td><td><code>public</code>: every table is in it</td></tr><tr><td><code>current_schemas(false)</code></td><td><code>{public}</code>; with <code>true</code> also <code>pg_catalog</code>, which is searched first</td></tr><tr><td><code>current_catalog</code></td><td>the database&#39;s name, like <code>current_database()</code></td></tr><tr><td><code>version()</code></td><td><code>PostgreSQL 14.0 (KDB ...), compatible server</code> - drivers read the <code>14</code></td></tr></tbody></table></div>
+<ul><li>The same answers over HTTP <a href="http-exec.html"><code>/exec</code></a> and the <a href="postgres-protocol.html">Postgres port</a>. With an <a href="api-tokens.html">API token</a> you are its user.</li><li><strong>No user:</strong> with the server&#39;s <code>--token</code> or a local tool (<code>kdb sql</code>) there is no user; the name is <code>kdb</code>. On the Postgres port of a server without users it is the name the client connected as.</li><li>Write the first four without brackets, as SQL does. A column of that name wins: <code>SELECT user FROM _audit_log</code> reads the column.</li></ul>
+<p><strong>Example: Who am I, and on what?</strong></p>
+<pre><code class="language-sql">SELECT current_user, session_user, current_schema, current_catalog,
+       version() LIKE &#39;PostgreSQL 14%&#39; AS pg14;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>current_user (STRING)</th><th>session_user (STRING)</th><th>current_schema (STRING)</th><th>current_catalog (STRING)</th><th>pg14 (BOOL)</th></tr></thead><tbody><tr><td>kdb</td><td>kdb</td><td>public</td><td>demo</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="privileges">Rights: has_table_privilege and friends</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">has_table_privilege([user,] table, privilege)
+has_column_privilege([user,] table, column, privilege)
+has_database_privilege([user,] database, privilege)
+has_schema_privilege([user,] schema, privilege)
+pg_has_role([user,] role, privilege)</code></pre>
+<p><code>TRUE</code> when the user may do it now: the same rules the statements are checked with - the user&#39;s <a href="users-and-roles.html">role</a>, changed by <a href="table-rights.html">GRANT / REVOKE ... ON TABLE</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Privileges</th><th><code>TRUE</code> when</th></tr></thead><tbody><tr><td><code>has_table_privilege</code></td><td><code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>TRUNCATE</code>, <code>REFERENCES</code>, <code>TRIGGER</code></td><td><code>SELECT</code> needs role <code>read</code>, the changes <code>write</code> (<code>TRUNCATE</code> counts as <code>DELETE</code>), each changed by the table&#39;s grants; <code>REFERENCES</code> and <code>TRIGGER</code> need <code>ddl</code></td></tr><tr><td><code>has_column_privilege</code></td><td><code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>REFERENCES</code></td><td>as for the table: KDB has no rights per column</td></tr><tr><td><code>has_database_privilege</code></td><td><code>CONNECT</code>, <code>TEMPORARY</code> (<code>TEMP</code>), <code>CREATE</code></td><td>any role on that database; <code>CREATE</code> needs <code>ddl</code></td></tr><tr><td><code>has_schema_privilege</code></td><td><code>USAGE</code>, <code>CREATE</code></td><td><code>USAGE</code> of <code>public</code> needs a role; <code>pg_catalog</code> and <code>information_schema</code> are open to all. <code>CREATE</code> in <code>public</code> needs <code>ddl</code></td></tr><tr><td><code>pg_has_role</code></td><td><code>MEMBER</code>, <code>USAGE</code></td><td>the role is the user, or one of <code>read</code>, <code>write</code>, <code>ddl</code>, <code>admin</code> the user has here</td></tr></tbody></table></div>
+<ul><li><strong>user:</strong> a user name; without it, the current user. <code>public</code> is PostgreSQL&#39;s everyone and has no rights. A user whose own <code>ROLE</code> is <code>admin</code> has every right, as a PostgreSQL superuser.</li><li><strong>privilege:</strong> one word or a list, <code>&#39;SELECT, INSERT&#39;</code>: <code>TRUE</code> when any of them is allowed. <code>... WITH GRANT OPTION</code> is <code>TRUE</code> only for an admin: KDB has no grant options.</li><li><strong>Objects:</strong> a name (<code>&#39;orders&#39;</code>, <code>&#39;public.orders&#39;</code>) or an oid from <code>pg_class</code> or <code>pg_database</code>. An oid nothing has gives <code>NULL</code>; a name that does not exist is an error.</li><li><strong>Errors</strong>, as PostgreSQL: <code>22023</code> unrecognized privilege type, <code>42704</code> a user that does not exist, <code>42P01</code> a table, <code>42703</code> a column, <code>3D000</code> a database, <code>3F000</code> a schema.</li></ul>
+<p><strong>Example: What a read-only user may do</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
+CREATE USER charts WITH PASSWORD &#39;Chart-app-secret-11&#39; ROLE read;
+CREATE TABLE orders (id LONG PRIMARY KEY, quantity LONG);</code></pre>
+<pre><code class="language-sql">SELECT has_table_privilege(&#39;charts&#39;, &#39;orders&#39;, &#39;SELECT&#39;) AS reads,
+       has_table_privilege(&#39;charts&#39;, &#39;orders&#39;, &#39;INSERT&#39;) AS writes,
+       has_schema_privilege(&#39;charts&#39;, &#39;public&#39;, &#39;CREATE&#39;) AS creates,
+       pg_has_role(&#39;charts&#39;, &#39;read&#39;, &#39;MEMBER&#39;) AS is_reader;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>reads (BOOL)</th><th>writes (BOOL)</th><th>creates (BOOL)</th><th>is_reader (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>false</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A privilege PostgreSQL does not have</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE orders (id LONG PRIMARY KEY);</code></pre>
+<pre><code class="language-sql">SELECT has_table_privilege(&#39;orders&#39;, &#39;DROP&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: has_table_privilege: unrecognized privilege type: &quot;DROP&quot;</code></p>
+<h2 id="comments">Comments and definitions: COMMENT ON, obj_description, pg_get_indexdef</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">COMMENT ON TABLE table IS &#39;text&#39; | NULL
+COMMENT ON COLUMN table.column IS &#39;text&#39; | NULL
+obj_description(table [, &#39;pg_class&#39;])       col_description(table, column_number)
+pg_get_indexdef(index [, column, pretty])   pg_get_constraintdef(constraint_oid [, pretty])
+pg_get_viewdef(view [, pretty])             format_type(type_oid, typmod)
+pg_table_is_visible(relation)               pg_get_expr(text, relation)</code></pre>
+<p><code>COMMENT ON</code> keeps a description with a table or a column. It stays after a restart, and <code>\d+</code> in psql shows it. <code>IS NULL</code> (or <code>IS &#39;&#39;</code>) removes it. It needs role <code>ddl</code>, like <code>ALTER TABLE</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th></tr></thead><tbody><tr><td><code>obj_description(t, &#39;pg_class&#39;)</code></td><td>the table&#39;s comment, <code>NULL</code> when none</td></tr><tr><td><code>col_description(t, n)</code></td><td>the comment of column <code>n</code> (1 = the first), <code>NULL</code> when none</td></tr><tr><td><code>pg_get_indexdef(i)</code></td><td>the <code>CREATE INDEX</code> line of an index (also of <code>t_pkey</code>); with a column number, that key only</td></tr><tr><td><code>pg_get_constraintdef(oid)</code></td><td><code>PRIMARY KEY (id)</code>, <code>CHECK (...)</code>, <code>FOREIGN KEY ... REFERENCES ...</code>, by the oid in <code>pg_constraint</code></td></tr><tr><td><code>pg_get_viewdef(v)</code></td><td>the view&#39;s <code>SELECT</code>; <code>NULL</code> for a table</td></tr><tr><td><code>format_type(oid, typmod)</code></td><td>the type as PostgreSQL writes it: <code>integer</code>, <code>character varying(45)</code>, <code>numeric(10,2)</code></td></tr><tr><td><code>pg_table_is_visible(oid)</code></td><td><code>TRUE</code>: everything is in <code>public</code></td></tr></tbody></table></div>
+<ul><li><code>COMMENT ON</code> other objects (an index, a function, a schema) is accepted and says it is not kept. A view is not a table: <code>COMMENT ON TABLE v</code> is error <code>42809</code>.</li><li><code>pg_get_partkeydef</code> and <code>pg_get_functiondef</code> give <code>NULL</code>: KDB tables are not PostgreSQL partitioned tables and <code>pg_proc</code> lists no functions. <code>pg_get_serial_sequence(&#39;t&#39;, &#39;id&#39;)</code> gives <code>public.t_id_seq</code> for a <code>SERIAL</code> column: that is the name of the column&#39;s counter, which <code>nextval</code>, <code>currval</code>, <code>setval</code>, <code>lastval</code> and <code>ALTER SEQUENCE ... RESTART WITH n</code> take, so a <code>pg_dump</code> restore that ends with <code>SELECT setval(&#39;t_id_seq&#39;, max)</code> works as it is. The counter only goes up: a <code>setval</code> below the ids already in the table means their largest + 1.</li><li>Over HTTP, <code>&#39;orders&#39;::regclass</code> stays the name <code>&#39;orders&#39;</code>; these functions take the name as well as an oid.</li></ul>
+<p><strong>Example: Describe a table and a column</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE orders (id LONG PRIMARY KEY, quantity LONG);</code></pre>
+<pre><code class="language-sql">COMMENT ON TABLE orders IS &#39;one row per order&#39;;
+COMMENT ON COLUMN orders.quantity IS &#39;shares, never negative&#39;;
+SELECT obj_description(&#39;orders&#39;::regclass, &#39;pg_class&#39;) AS about_table,
+       col_description(&#39;orders&#39;::regclass, 2) AS about_quantity;</code></pre>
+<p>Result:</p>
+<p><code>COMMENT ON TABLE orders IS &#39;one row per order&#39;</code></p>
+<pre><code class="language-text">COMMENT</code></pre>
+<p><code>COMMENT ON COLUMN orders.quantity IS &#39;shares, never negative&#39;</code></p>
+<pre><code class="language-text">COMMENT</code></pre>
+<p><code>SELECT obj_description(CAST(&#39;orders&#39; AS STRING), &#39;pg_class&#39;) AS about_table, col_description(CAST(&#39;o</code></p>
+<div class="table-wrap"><table><thead><tr><th>about_table (STRING)</th><th>about_quantity (STRING)</th></tr></thead><tbody><tr><td>one row per order</td><td>shares, never negative</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: The SQL behind an index, a key and a type</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE orders (id LONG PRIMARY KEY, symbol VARCHAR(12));
+CREATE INDEX orders_symbol ON orders (symbol);</code></pre>
+<pre><code class="language-sql">SELECT pg_get_indexdef(&#39;orders_symbol&#39;::regclass) AS index_sql,
+       pg_get_indexdef(&#39;orders_pkey&#39;::regclass) AS key_sql,
+       format_type(1043, 16) AS symbol_type;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>index_sql (STRING)</th><th>key_sql (STRING)</th><th>symbol_type (STRING)</th></tr></thead><tbody><tr><td>CREATE INDEX orders_symbol ON public.orders USING btree (symbol)</td><td>CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)</td><td>character varying(12)</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="advisory-locks">Advisory locks</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_advisory_lock(key)            take a lock, wait if someone else has it
+pg_try_advisory_lock(key)        take it only if it is free (TRUE / FALSE)
+pg_advisory_unlock(key)          give it back</code></pre>
+<p>An <strong>advisory lock</strong> is a name your app agrees on. It locks <strong>no table and no row</strong> - it only stops two copies of your program from doing the same job at the same time.</p>
+<p>Say your app closes the trading day at 15:05: it reads the trade log and writes the daily candles. If two copies of the app run, the job must run once. Each copy asks for the lock <code>918273</code>; the one that gets it does the job, the other one skips it.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td>the lock name as a whole number (<code>BIGINT</code>), for example <code>918273</code></td></tr><tr><td><code>key1, key2</code></td><td>two <code>INT</code> numbers instead of one; they are a <strong>different</strong> set of names (so <code>(1, 2)</code> and the single number 1 never meet)</td></tr><tr><td><code>_shared</code></td><td>many holders at the same time (readers); a lock without <code>_shared</code> waits until no one holds the key</td></tr><tr><td><code>_xact</code></td><td>the lock ends by itself with the transaction</td></tr><tr><td><code>pg_try_*</code></td><td>never waits: <code>TRUE</code> when the lock was taken, <code>FALSE</code> when someone else has it</td></tr></tbody></table></div>
+<ul><li>Locks of <strong>different databases</strong> never meet, even with the same number.</li><li>A session lock is held until it is given back <strong>as many times as it was taken</strong>, or until the connection closes. Over HTTP, a statement without a <a href="http-sessions-and-cursors.html#post-session">session</a> is its own session, so its locks end with the statement.</li><li>Waiting has a limit of <strong>30 seconds</strong> (PostgreSQL waits forever). After that the statement fails with a &quot;locked&quot; error; try again later.</li><li>A <code>SELECT pg_advisory_xact_lock(...)</code> sent on its own waits <strong>without holding up the database</strong>, also inside <code>BEGIN ... COMMIT</code>: other readers and writers go on, and the waiter gets the lock as soon as the holder commits. A lock call inside a procedure or a longer statement list waits in place.</li><li>On the Postgres port, <code>pg_try_*</code> and <code>pg_advisory_unlock*</code> are typed <code>bool</code> before they run, so a driver can read them into a boolean (Go: <code>bool</code>).</li><li><code>SET statement_timeout</code> also ends the wait (see <a href="protection.html#statement-timeout">protection</a>).</li></ul>
+<p><strong>Example: Only one copy of the app closes the day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT pg_try_advisory_lock(918273) AS i_do_the_job;
+SELECT count(*) AS trades_to_sum FROM trade_log;
+SELECT pg_advisory_unlock(918273) AS given_back;</code></pre>
+<p>Result:</p>
+<p><code>SELECT pg_try_advisory_lock(918273) AS i_do_the_job</code></p>
+<div class="table-wrap"><table><thead><tr><th>i_do_the_job (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT count(*) AS trades_to_sum FROM trade_log</code></p>
+<div class="table-wrap"><table><thead><tr><th>trades_to_sum (LONG)</th></tr></thead><tbody><tr><td>32</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT pg_advisory_unlock(918273) AS given_back</code></p>
+<div class="table-wrap"><table><thead><tr><th>given_back (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pg_advisory_lock">pg_advisory_lock, pg_advisory_lock_shared</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_advisory_lock(key)
+pg_advisory_lock(key1, key2)
+pg_advisory_lock_shared(key)
+pg_advisory_lock_shared(key1, key2)</code></pre>
+<p>Takes a <strong>session</strong> lock and waits until it is free. The lock is held until <code>pg_advisory_unlock</code> gives it back, or the connection closes.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>LONG</code></td><td>the lock name as one whole number</td></tr><tr><td><code>key1</code>, <code>key2</code></td><td><code>INT</code></td><td>the lock name as two numbers (a different set of names)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> nothing (PostgreSQL calls this <code>void</code>; KDB shows an empty value).</li><li><strong>NULL:</strong> a <code>NULL</code> key gives <code>NULL</code> and takes no lock.</li><li><strong>Notes:</strong> <code>_shared</code> lets several connections hold the same key at once; a lock without <code>_shared</code> waits for all of them. Taking the same key twice in one connection works and needs two unlocks. Waiting stops after 30 seconds with an error.</li></ul>
+<p><strong>Example: Take the day-close lock, do the work, give it back</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT pg_advisory_lock(918273) AS taken;
+SELECT symbol, sum(quantity) AS shares FROM trade_log GROUP BY symbol ORDER BY symbol;
+SELECT pg_advisory_unlock(918273) AS given_back;</code></pre>
+<p>Result:</p>
+<p><code>SELECT pg_advisory_lock(918273) AS taken</code></p>
+<div class="table-wrap"><table><thead><tr><th>taken (STRING)</th></tr></thead><tbody><tr><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT symbol, sum(quantity) AS shares FROM trade_log GROUP BY symbol ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>shares (LONG)</th></tr></thead><tbody><tr><td>CITY</td><td>2420</td></tr><tr><td>COAST</td><td>3070</td></tr><tr><td>TELCO</td><td>2770</td></tr><tr><td>VOLT</td><td>400</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><code>SELECT pg_advisory_unlock(918273) AS given_back</code></p>
+<div class="table-wrap"><table><thead><tr><th>given_back (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pg_advisory_xact_lock">pg_advisory_xact_lock, pg_advisory_xact_lock_shared</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_advisory_xact_lock(key)
+pg_advisory_xact_lock(key1, key2)
+pg_advisory_xact_lock_shared(key)
+pg_advisory_xact_lock_shared(key1, key2)</code></pre>
+<p>The same, but the lock ends <strong>with the transaction</strong>. There is no unlock function for it.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>LONG</code></td><td>the lock name as one whole number</td></tr><tr><td><code>key1</code>, <code>key2</code></td><td><code>INT</code></td><td>the lock name as two numbers</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> nothing (<code>void</code>).</li><li><strong>NULL:</strong> a <code>NULL</code> key gives <code>NULL</code> and takes no lock.</li><li><strong>Notes:</strong> <code>COMMIT</code> and <code>ROLLBACK</code> free it. A statement outside <code>BEGIN ... COMMIT</code> is its own transaction, so the lock ends with that statement. This is the safest kind: a crash in the middle cannot leave the lock behind.</li></ul>
+<p><strong>Example: The lock is gone after COMMIT</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">BEGIN;
+SELECT pg_advisory_xact_lock(918273) AS taken_for_this_transaction;
+COMMIT;</code></pre>
+<pre><code class="language-sql">SELECT pg_try_advisory_lock(918273) AS free_again;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>free_again (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pg_try_advisory_lock">pg_try_advisory_lock, pg_try_advisory_lock_shared</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_try_advisory_lock(key)
+pg_try_advisory_lock(key1, key2)
+pg_try_advisory_lock_shared(key)
+pg_try_advisory_lock_shared(key1, key2)</code></pre>
+<p>Takes a <strong>session</strong> lock only if it is free right now. It never waits.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>LONG</code></td><td>the lock name as one whole number</td></tr><tr><td><code>key1</code>, <code>key2</code></td><td><code>INT</code></td><td>the lock name as two numbers</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>. <code>TRUE</code> the lock is yours, <code>FALSE</code> someone else holds it.</li><li><strong>NULL:</strong> a <code>NULL</code> key gives <code>NULL</code>.</li><li><strong>Notes:</strong> this is the one to use for &quot;do this job only if nobody else is doing it&quot;. Remember to call <code>pg_advisory_unlock</code> with the same key when the job is done.</li></ul>
+<p><strong>Example: Skip the job when another copy already has the lock</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT pg_try_advisory_lock(918273) AS first_call,
+       pg_try_advisory_lock(918273) AS same_connection_again;
+SELECT pg_advisory_unlock(918273) AS unlock_1, pg_advisory_unlock(918273) AS unlock_2;</code></pre>
+<p>Result:</p>
+<p><code>SELECT pg_try_advisory_lock(918273) AS first_call, pg_try_advisory_lock(918273) AS same_connection_a</code></p>
+<div class="table-wrap"><table><thead><tr><th>first_call (BOOL)</th><th>same_connection_again (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT pg_advisory_unlock(918273) AS unlock_1, pg_advisory_unlock(918273) AS unlock_2</code></p>
+<div class="table-wrap"><table><thead><tr><th>unlock_1 (BOOL)</th><th>unlock_2 (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pg_try_advisory_xact_lock">pg_try_advisory_xact_lock, pg_try_advisory_xact_lock_shared</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_try_advisory_xact_lock(key)
+pg_try_advisory_xact_lock(key1, key2)
+pg_try_advisory_xact_lock_shared(key)
+pg_try_advisory_xact_lock_shared(key1, key2)</code></pre>
+<p>Takes a <strong>transaction</strong> lock only if it is free right now. It never waits, and it ends with the transaction.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>LONG</code></td><td>the lock name as one whole number</td></tr><tr><td><code>key1</code>, <code>key2</code></td><td><code>INT</code></td><td>the lock name as two numbers</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>. <code>TRUE</code> the lock is yours until the transaction ends, <code>FALSE</code> someone else holds it.</li><li><strong>NULL:</strong> a <code>NULL</code> key gives <code>NULL</code>.</li><li><strong>Notes:</strong> nothing to unlock: <code>COMMIT</code> or <code>ROLLBACK</code> frees it.</li></ul>
+<p><strong>Example: Take it only if free, inside a transaction</strong> (sample data: sample)</p>
+<pre><code class="language-sql">BEGIN;
+SELECT pg_try_advisory_xact_lock(918273) AS got_it;
+COMMIT;</code></pre>
+<p>Result:</p>
+<p><code>BEGIN</code></p>
+<pre><code class="language-text">transaction started</code></pre>
+<p><code>SELECT pg_try_advisory_xact_lock(918273) AS got_it</code></p>
+<div class="table-wrap"><table><thead><tr><th>got_it (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>COMMIT</code></p>
+<pre><code class="language-text">transaction committed: 0 change(s) saved</code></pre>
+<h2 id="pg_advisory_unlock">pg_advisory_unlock, pg_advisory_unlock_shared</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_advisory_unlock(key)
+pg_advisory_unlock(key1, key2)
+pg_advisory_unlock_shared(key)
+pg_advisory_unlock_shared(key1, key2)</code></pre>
+<p>Gives back one <strong>session</strong> lock this connection holds.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>LONG</code></td><td>the lock name as one whole number</td></tr><tr><td><code>key1</code>, <code>key2</code></td><td><code>INT</code></td><td>the lock name as two numbers</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>BOOL</code>. <code>TRUE</code> a lock was given back, <code>FALSE</code> this connection did not hold that key.</li><li><strong>NULL:</strong> a <code>NULL</code> key gives <code>NULL</code>.</li><li><strong>Notes:</strong> use <code>_shared</code> for a lock taken with <code>pg_advisory_lock_shared</code>. A key taken twice needs two unlocks. Transaction locks (<code>_xact</code>) cannot be unlocked this way; they end with the transaction.</li></ul>
+<p><strong>Example: Unlocking a key you do not hold gives FALSE</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT pg_try_advisory_lock(918273) AS taken;
+SELECT pg_advisory_unlock(918273) AS given_back,
+       pg_advisory_unlock(918273) AS again,
+       pg_advisory_unlock(55) AS never_held;</code></pre>
+<p>Result:</p>
+<p><code>SELECT pg_try_advisory_lock(918273) AS taken</code></p>
+<div class="table-wrap"><table><thead><tr><th>taken (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT pg_advisory_unlock(918273) AS given_back, pg_advisory_unlock(918273) AS again, pg_advisory_un</code></p>
+<div class="table-wrap"><table><thead><tr><th>given_back (BOOL)</th><th>again (BOOL)</th><th>never_held (BOOL)</th></tr></thead><tbody><tr><td>true</td><td>false</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="pg-advisory-unlock-all">pg_advisory_unlock_all</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_advisory_unlock_all()</code></pre>
+<p>Gives back <strong>every</strong> session lock this connection holds.</p>
+<ul><li><strong>Returns:</strong> nothing (<code>void</code>).</li><li><strong>NULL:</strong> never <code>NULL</code>.</li><li><strong>Notes:</strong> transaction locks are not touched; they end with the transaction. A closing connection does this by itself, so you rarely need to call it.</li></ul>
+<p><strong>Example: Clean up after a job</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT pg_advisory_lock(918273) AS lock_1;
+SELECT pg_advisory_lock(918274) AS lock_2;
+SELECT pg_advisory_unlock_all() AS all_given_back;
+SELECT pg_try_advisory_lock(918273) AS free_again;</code></pre>
+<p>Result:</p>
+<p><code>SELECT pg_advisory_lock(918273) AS lock_1</code></p>
+<div class="table-wrap"><table><thead><tr><th>lock_1 (STRING)</th></tr></thead><tbody><tr><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT pg_advisory_lock(918274) AS lock_2</code></p>
+<div class="table-wrap"><table><thead><tr><th>lock_2 (STRING)</th></tr></thead><tbody><tr><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT pg_advisory_unlock_all() AS all_given_back</code></p>
+<div class="table-wrap"><table><thead><tr><th>all_given_back (STRING)</th></tr></thead><tbody><tr><td></td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><code>SELECT pg_try_advisory_lock(918273) AS free_again</code></p>
+<div class="table-wrap"><table><thead><tr><th>free_again (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="settings">Session settings: current_setting, set_config</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">current_setting(name)               the value, an error when it was never set
+current_setting(name, missing_ok)   the value, or NULL when missing_ok is TRUE
+set_config(name, value, is_local)   sets it and returns the value
+SET name = &#39;value&#39;                  the same as set_config(name, value, FALSE) (Postgres port)
+SET LOCAL name = &#39;value&#39;            the same as set_config(name, value, TRUE) (Postgres port)</code></pre>
+<p>A <strong>setting</strong> is a named text value your connection keeps. Apps use names of their own with a dot in them, like <code>app.allow_edit</code>, to tell a <a href="triggers.html">trigger</a> what the next statement may do.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the setting&#39;s name, any case; your own names have a dot: <code>nchartpro.allow_identity_update</code></td></tr><tr><td><code>value</code></td><td>text</td></tr><tr><td><code>is_local</code></td><td><code>TRUE</code>: only until the transaction ends (<code>COMMIT</code> or <code>ROLLBACK</code>); <code>FALSE</code>: until the connection closes</td></tr><tr><td><code>missing_ok</code></td><td><code>TRUE</code>: a name never set gives <code>NULL</code> instead of an error</td></tr></tbody></table></div>
+<ul><li>A value belongs to <strong>one connection</strong> (over HTTP, one <a href="http-sessions-and-cursors.html#post-session">session</a>). Another connection never sees it.</li><li>Triggers and procedures that your statement sets off see your values. Triggers made <code>DEFERRED</code> run later, outside your connection, so they do not.</li><li>A <code>LOCAL</code> value outside <code>BEGIN ... COMMIT</code> lasts for the call only, as each call is its own transaction. On the Postgres port, <code>SET LOCAL</code> outside a transaction does nothing and sends warning <code>25P01</code>, as PostgreSQL does.</li><li>After a <code>LOCAL</code> value ends, the name reads <code>&#39;&#39;</code> (empty text), as in PostgreSQL.</li><li>Built-in names answer too: <code>current_setting(&#39;TimeZone&#39;)</code> is the session&#39;s zone (<code>UTC</code> unless <code>SET TIME ZONE</code> or <code>kdb serve --timezone</code> names one).</li></ul>
+<p><strong>Example: Set a value, read it back, and ask for one never set</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT set_config(&#39;app.allow_edit&#39;, &#39;on&#39;, TRUE) AS set_to,
+       current_setting(&#39;app.allow_edit&#39;) AS read_back,
+       current_setting(&#39;app.never_set&#39;, TRUE) AS missing,
+       current_setting(&#39;TimeZone&#39;) AS time_zone;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>set_to (STRING)</th><th>read_back (STRING)</th><th>missing (STRING)</th><th>time_zone (STRING)</th></tr></thead><tbody><tr><td>on</td><td>on</td><td>NULL</td><td>UTC</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p>A trigger that lets a DBA through only when the statement asked for it:</p>
+<pre><code class="language-sql">CREATE FUNCTION guard_email() RETURNS trigger AS $$
+BEGIN
+  IF current_setting(&#39;app.allow_edit&#39;, true) = &#39;on&#39; THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.email IS DISTINCT FROM OLD.email THEN
+    RAISE EXCEPTION &#39;email is write-once&#39;;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- the DBA, on the Postgres port:
+BEGIN;
+SET LOCAL app.allow_edit = &#39;on&#39;;
+UPDATE users SET email = &#39;new@x.com&#39; WHERE id = 7;
+COMMIT;   -- the setting ends here</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/functions-postgres.md">This page as markdown</a>.</footer>
+</body>
+</html>

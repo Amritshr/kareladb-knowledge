@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calling web services from SQL (http_get, http_post) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="http_get and http_post call a web address from SQL, a procedure or a timer. Off until an admin lists the hosts they may call.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-functions.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-functions.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="calling-web-services-from-sql-http-get-http-post">Calling web services from SQL (http_get, http_post)</h1>
+<blockquote><p>http_get and http_post call a web address from SQL, a procedure or a timer. Off until an admin lists the hosts they may call.</p></blockquote>
+<ul><li>Category: Stored procedures</li><li>Keywords: http_get, http_post, http, https, web service, webhook, call url, rest api, outbound, http_functions, http_timeout_ms, KDB_HTTP_FUNCTIONS, allowlist, fetch, curl</li><li>See also: <a href="procedures.html">Stored procedures</a>, <a href="timers.html">Timers</a>, <a href="triggers.html">Triggers</a>, <a href="functions-json.html">JSON functions</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="console-settings.html">Settings page (data folder, old log, capacity, program files and users)</a></li></ul>
+<p><code>http_get</code> and <code>http_post</code> let SQL call another service. A procedure can tell a settlement service that a day is done. A timer can ask a checker every hour.</p>
+<ul><li>They are <strong>off</strong> until an admin lists the hosts they may call (the setting <code>http_functions</code>).</li><li>They need role <strong>write</strong> on the database, because a call changes things outside it.</li><li>Every call really runs. The answer is never kept in the result cache.</li><li>The headers you send are never written to a log. They often hold a token.</li></ul>
+<p><strong>Example: On a server where nobody turned them on, a call is refused</strong> (shows an error)</p>
+<pre><code class="language-sql">SELECT http_get(&#39;http://10.0.0.5:8080/health&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 8: http_get: calling web addresses from SQL is off on this server; an admin turns it on by listing the hosts it may call in the setting http_functions (kdb.conf, KDB_HTTP_FUNCTIONS or the Settings page)</code></p>
+<h2 id="http-get">http_get</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">http_get(url)
+http_get(url, headers)</code></pre>
+<p>Sends a <code>GET</code> request and waits for the whole answer.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>url</code></td><td>text</td><td><code>http://host[:port]/path</code> or <code>https://...</code>.</td></tr><tr><td><code>headers</code></td><td>JSON object</td><td>extra request headers, like <code>&#39;{&quot;Authorization&quot;:&quot;Bearer abc&quot;}&#39;</code>. Optional.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>JSON</code> like <code>{&quot;status&quot;:200,&quot;headers&quot;:{&quot;content-type&quot;:&quot;application/json&quot;},&quot;body&quot;:&quot;...&quot;}</code>.
+<ul><li><code>status</code> is the HTTP status. A <code>404</code> or a <code>500</code> is an answer, not an error.</li><li><code>headers</code> has the answer&#39;s headers, names in lower case.</li><li><code>body</code> is the answer as text.</li></ul></li><li><strong>NULL:</strong> a <code>NULL</code> url gives <code>NULL</code>. <code>NULL</code> headers count as none.</li><li><strong>Errors:</strong> the statement fails when the host is not allowed, the address cannot be reached, the time limit passes, or the answer is over 16 MB.</li></ul>
+<h2 id="http-post">http_post</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">http_post(url, body)
+http_post(url, body, content_type)
+http_post(url, body, content_type, headers)</code></pre>
+<p>Sends a <code>POST</code> request with a body.</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>url</code></td><td>text</td><td>as for <code>http_get</code>.</td></tr><tr><td><code>body</code></td><td>text or JSON</td><td>what to send.</td></tr><tr><td><code>content_type</code></td><td>text</td><td>the <code>Content-Type</code>. Default <code>application/json</code> for a JSON value, else <code>text/plain; charset=utf-8</code>.</td></tr><tr><td><code>headers</code></td><td>JSON object</td><td>extra request headers. Optional.</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the same JSON as <code>http_get</code>.</li></ul>
+<h2 id="reading-the-answer">Reading the answer</h2>
+<p>Use the JSON operators and functions on the result:</p>
+<div class="table-wrap"><table><thead><tr><th>You want</th><th>Write</th></tr></thead><tbody><tr><td>the status</td><td><code>json_value_long(r, &#39;$.status&#39;)</code></td></tr><tr><td>the body as text</td><td><code>r -&gt;&gt; &#39;body&#39;</code></td></tr><tr><td>one header</td><td><code>r -&gt; &#39;headers&#39; -&gt;&gt; &#39;content-type&#39;</code></td></tr><tr><td>a field of a JSON body</td><td><code>json(r -&gt;&gt; &#39;body&#39;) -&gt;&gt; &#39;ok&#39;</code></td></tr></tbody></table></div>
+<p>A procedure that calls a service and keeps what it said (it runs once <code>http_functions</code> lists <code>10.0.0.5:8080</code>):</p>
+<pre><code class="language-sql">CREATE TABLE settle_log (at TIMESTAMP, status INT, body STRING);
+
+CREATE PROCEDURE settle_day() AS BEGIN
+  INSERT INTO settle_log
+  SELECT now(), json_value_long(r, &#39;$.status&#39;), r -&gt;&gt; &#39;body&#39;
+  FROM (SELECT http_post(&#39;http://10.0.0.5:8080/settle&#39;, json_object(&#39;day&#39;, current_date),
+                         &#39;application/json&#39;, &#39;{&quot;Authorization&quot;:&quot;Bearer my-token&quot;}&#39;) AS r) AS call;
+END;</code></pre>
+<h2 id="turning-them-on">Turning them on</h2>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Where</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>http_functions</code></td><td>kdb.conf, <code>KDB_HTTP_FUNCTIONS</code>, the Settings page</td><td><code>off</code></td><td>the hosts SQL may call, separated by commas</td></tr><tr><td><code>http_timeout_ms</code></td><td>kdb.conf, <code>KDB_HTTP_TIMEOUT_MS</code>, the Settings page</td><td><code>10000</code></td><td>the most milliseconds one call may take, redirects included</td></tr></tbody></table></div>
+<p>kdb.conf wins over the environment. A save on the Settings page applies at once, without a restart.</p>
+<p>How to write the list:</p>
+<div class="table-wrap"><table><thead><tr><th>Entry</th><th>Allows</th></tr></thead><tbody><tr><td><code>api.example.com</code></td><td>that host, any port</td></tr><tr><td><code>10.0.0.5:8080</code></td><td>that address, port 8080 only</td></tr><tr><td><code>*</code></td><td>every host (still not <code>169.254.x.x</code>, see below)</td></tr><tr><td><code>off</code></td><td>nothing: the functions are off</td></tr></tbody></table></div>
+<pre><code class="language-text">{&quot;http_functions&quot;: &quot;settle.internal:8080, 10.0.0.5&quot;, &quot;http_timeout_ms&quot;: 5000}</code></pre>
+<h2 id="what-a-call-may-do">What a call may do</h2>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Why</th></tr></thead><tbody><tr><td><code>http://</code> and <code>https://</code> only</td><td>nothing else is a web service</td></tr><tr><td>https checks the certificate against the authorities the computer trusts</td><td>so nobody in between can answer instead</td></tr><tr><td>at most 3 redirects, each to an allowed host</td><td>a redirect cannot lead out of the list</td></tr><tr><td><code>Authorization</code> and <code>Cookie</code> are not sent on to another host</td><td>a token is for the host it was written for</td></tr><tr><td><code>169.254.x.x</code> and <code>0.x.x.x</code> are refused unless that host is listed by itself</td><td>clouds give out secret keys at 169.254.169.254</td></tr><tr><td>at most 16 MB of answer</td><td>a big answer is an error, never a cut body</td></tr><tr><td>IPv4 only</td><td></td></tr></tbody></table></div>
+<ul><li>A self-signed certificate is not trusted. Call such a service on the local network over <code>http://</code>.</li><li>On Linux the trusted authorities come from the usual CA bundle file (<code>/etc/ssl/certs/ca-certificates.crt</code> and others). Set <code>SSL_CERT_FILE</code> to use another file.</li><li>A build without TLS says so when asked for <code>https://</code>.</li></ul>
+<h2 id="who-may-call">Who may call</h2>
+<div class="table-wrap"><table><thead><tr><th>Caller</th><th>May call</th></tr></thead><tbody><tr><td>no login (a local tool, the server token)</td><td>yes</td></tr><tr><td>a user with role <code>write</code> or <code>admin</code></td><td>yes</td></tr><tr><td>a user with role <code>read</code></td><td>no: &quot;needs role write&quot;, also through a view</td></tr><tr><td>a procedure (<code>CALL</code> needs write), a trigger, a timer</td><td>yes</td></tr></tbody></table></div>
+<p>The text of a statement goes to the activity log and the slow-query log. There, every argument after the address shows as <code>&#39;***&#39;</code>, so a token in the headers is never kept.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-functions.md">This page as markdown</a>.</footer>
+</body>
+</html>

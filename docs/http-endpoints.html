@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saved queries as URLs (CREATE ENDPOINT) - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Save a SELECT with named parameters under a name; programs then call GET /v/&lt;name&gt;?param=value and get JSON, without sending SQL.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-endpoints.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-endpoints.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="saved-queries-as-urls-create-endpoint">Saved queries as URLs (CREATE ENDPOINT)</h1>
+<blockquote><p>Save a SELECT with named parameters under a name; programs then call GET /v/&lt;name&gt;?param=value and get JSON, without sending SQL.</p></blockquote>
+<ul><li>Category: HTTP API</li><li>Keywords: CREATE ENDPOINT, DROP ENDPOINT, endpoint, endpoints, saved query, saved queries, named query, REST endpoint, /v/, GET /v, URL parameters, query parameters, parameterized query, :name, DEFAULT, ROLE, API without SQL</li><li>See also: <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="http-overview.html">HTTP API overview</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="views.html">Views</a>, <a href="saved-functions.html">Saved functions</a></li></ul>
+<p>An <strong>endpoint</strong> is a saved <code>SELECT</code> with <strong>parameters</strong>. A program calls it with a plain URL and gets the same JSON as <a href="http-exec.html"><code>/exec</code></a>, without writing or sending any SQL:</p>
+<pre><code class="language-text">GET /v/last_close?symbol=CITY&amp;n=5</code></pre>
+<p>Why: the SQL lives in one place (the database), a client cannot change it, and each value from the URL is checked and used as a <strong>value</strong>, never as SQL text, so nobody can slip SQL in through a parameter.</p>
+<h2 id="create-endpoint">CREATE ENDPOINT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">CREATE [OR REPLACE] ENDPOINT [GET] /v/name [(param TYPE [DEFAULT value], ...)] [ROLE read | write | ddl | admin]
+  AS SELECT ... :param ...</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/v/name</code></td><td>the URL: <code>GET /v/name</code>. Letters, digits and <code>_</code>. Writing <code>GET /v/</code> is optional: <code>CREATE ENDPOINT last_close (...)</code> is the same</td></tr><tr><td><code>(param TYPE ...)</code></td><td>the parameters, with a <a href="column-types.html">type</a> each: <code>INT</code>, <code>LONG</code>, <code>DOUBLE</code>, <code>BOOL</code>, <code>TEXT</code>, <code>SYMBOL</code>, <code>TIMESTAMP</code>, <code>DATE</code> ...</td></tr><tr><td><code>DEFAULT value</code></td><td>used when the URL leaves the parameter out; a constant (<code>10</code>, <code>&#39;NEPSE&#39;</code>, <code>true</code>)</td></tr><tr><td><code>ROLE</code></td><td>the least <a href="users-and-roles.html">role</a> a caller needs on the database to call it; <code>read</code> when not given</td></tr><tr><td><code>AS SELECT</code></td><td>one query; <code>:param</code> is where a parameter&#39;s value goes (<code>$1</code>, <code>$2</code> ... by position work too)</td></tr></tbody></table></div>
+<ul><li><strong>Role:</strong> <code>ddl</code>, like <code>CREATE FUNCTION</code>.</li><li><strong>Only reads:</strong> the query must be one <code>SELECT</code> (or <code>WITH ... SELECT</code>). Writes belong to <a href="procedures.html">procedures</a>.</li><li>The tables are looked up when the endpoint is called, as for a <a href="views.html">view</a>: an endpoint may name a table made later.</li></ul>
+<p><strong>HTTP: Save the last closes of a symbol as an endpoint, then call it</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /exec?compat=0
+
+CREATE OR REPLACE ENDPOINT GET /v/last_close(symbol TEXT, n INT DEFAULT 3) AS
+  SELECT time, close FROM ochl_day WHERE symbol = :symbol ORDER BY time DESC LIMIT :n
+###
+GET /v/last_close?symbol=CITY
+###
+GET /v/last_close?symbol=CITY&amp;n=1</code></pre>
+<p>Response:</p>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;CREATE OR REPLACE ENDPOINT GET /v/last_close(symbol TEXT, n INT DEFAULT 3) AS\n  SELECT time, close FROM ochl_day WHERE symbol = :symbol ORDER BY time DESC LIMIT :n&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;CREATE OR REPLACE ENDPOINT GET /v/last_close(symbol STRING, n INT DEFAULT 3) ROLE read AS SELECT time , close FROM ochl_day WHERE symbol = $1 ORDER BY time DESC LIMIT $2&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;endpoint &#39;last_close&#39; created: GET /v/last_close&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 23089}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 23089}
+}</code></pre>
+<p><code>GET /v/last_close?symbol=CITY</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT time , close FROM ochl_day WHERE symbol = $1 ORDER BY time DESC LIMIT $2&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 3&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-10T00:00:00.000Z&quot;, 504.9],
+        [&quot;2026-09-09T00:00:00.000Z&quot;, 504.6],
+        [&quot;2026-09-08T00:00:00.000Z&quot;, 497.5]
+      ],
+      &quot;count&quot;: 3,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 285}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;2026-09-10T00:00:00.000Z&quot;, 504.9],
+    [&quot;2026-09-09T00:00:00.000Z&quot;, 504.6],
+    [&quot;2026-09-08T00:00:00.000Z&quot;, 497.5]
+  ],
+  &quot;count&quot;: 3,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 285}
+}</code></pre>
+<p><code>GET /v/last_close?symbol=CITY&amp;n=1</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT time , close FROM ochl_day WHERE symbol = $1 ORDER BY time DESC LIMIT $2&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39; ORDER BY time DESC LIMIT 1&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+        {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [&quot;2026-09-10T00:00:00.000Z&quot;, 504.9]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 65}
+    }
+  ],
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;2026-09-10T00:00:00.000Z&quot;, 504.9]
+  ],
+  &quot;count&quot;: 1,
+  &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 65}
+}</code></pre>
+<h2 id="call">Calling an endpoint</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /v/name?param=value&amp;...[&amp;db=&lt;database&gt;][&amp;format=columns][&amp;limit=&lt;n&gt;]</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Answer</th><th>When</th></tr></thead><tbody><tr><td><code>200</code> and the JSON of <a href="http-exec.html"><code>/exec</code></a></td><td>it ran</td></tr><tr><td><code>400</code></td><td>a parameter is missing (and has no <code>DEFAULT</code>), is not of its type (<code>n=abc</code> for an <code>INT</code>), or is not a parameter of the endpoint. The message shows how to call it</td></tr><tr><td><code>403</code></td><td>the caller&#39;s role on the database is below the endpoint&#39;s <code>ROLE</code></td></tr><tr><td><code>404</code></td><td>no endpoint of that name in the database</td></tr></tbody></table></div>
+<ul><li><strong>Types:</strong> whole-number types take whole numbers only, number types any number, <code>BOOL</code> takes <code>true</code> / <code>false</code> (also <code>1</code> / <code>0</code>). Every other type is passed as text, which the query compares or casts as it would a quoted value: <code>&#39;2026-09-24&#39;</code> for a <code>TIMESTAMP</code>.</li><li><strong>Rights:</strong> the query runs with the <strong>caller&#39;s</strong> rights, as on <code>/exec</code>. An endpoint never lets a user read a table they could not read with SQL.</li><li><code>db</code>, <code>format</code>, <code>nan</code>, <code>limit</code> and <code>cache</code> work as on <a href="http-exec.html"><code>/exec</code></a>.</li></ul>
+<p><strong>HTTP: A wrong parameter is a 400 that says how to call it</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /exec?compat=0
+
+CREATE OR REPLACE ENDPOINT GET /v/closes(symbol TEXT, n INT) AS
+  SELECT close FROM ochl_day WHERE symbol = :symbol ORDER BY time DESC LIMIT :n
+###
+GET /v/closes?symbol=CITY&amp;n=three</code></pre>
+<p>Response:</p>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;CREATE OR REPLACE ENDPOINT GET /v/closes(symbol TEXT, n INT) AS\n  SELECT close FROM ochl_day WHERE symbol = :symbol ORDER BY time DESC LIMIT :n&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;CREATE OR REPLACE ENDPOINT GET /v/closes(symbol STRING, n INT) ROLE read AS SELECT close FROM ochl_day WHERE symbol = $1 ORDER BY time DESC LIMIT $2&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;endpoint &#39;closes&#39; created: GET /v/closes&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 23115}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 23115}
+}</code></pre>
+<p><code>GET /v/closes?symbol=CITY&amp;n=three</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;parameter &#39;n&#39;: &#39;three&#39; is not a whole number&quot;}</code></pre>
+<h2 id="drop-endpoint">DROP ENDPOINT</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DROP ENDPOINT [IF EXISTS] name</code></pre>
+<p>The URL answers <code>404</code> from then on.</p>
+<h2 id="stored">How it is stored</h2>
+<p>An endpoint is kept with the database&#39;s functions and procedures, so a backup, a restore and a restart keep it. A database with an endpoint cannot be opened by a KDB built before 2026-10-03; it says it needs a newer KDB and changes nothing.</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-endpoints.md">This page as markdown</a>.</footer>
+</body>
+</html>

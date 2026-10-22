@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sessions and cursors over HTTP - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Keep a transaction open over several HTTP requests with a session, and read a big result a part at a time with a cursor.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/http-sessions-and-cursors.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-sessions-and-cursors.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="sessions-and-cursors-over-http">Sessions and cursors over HTTP</h1>
+<blockquote><p>Keep a transaction open over several HTTP requests with a session, and read a big result a part at a time with a cursor.</p></blockquote>
+<ul><li>Category: HTTP API</li><li>Keywords: session, /session, X-KDB-Session, transaction over HTTP, BEGIN COMMIT over HTTP, idle_timeout_ms, cursor, /cursor, fetch, done, big result, paging, read in parts, snapshot, database is busy, 503</li><li>See also: <a href="transactions.html">Transactions</a>, <a href="cursors.html">Cursors</a>, <a href="http-exec.html">Run SQL over HTTP (/exec, /exp)</a>, <a href="http-overview.html">HTTP API overview</a></li></ul>
+<p>Normally every HTTP request stands alone: a <code>BEGIN</code> in one <code>/exec</code> request cannot be finished by a <code>COMMIT</code> in the next one. Two tools help:</p>
+<ul><li>A <strong>session</strong> keeps a transaction (<code>BEGIN</code> ... <code>COMMIT</code>: several changes that are saved all together or not at all) open between requests. Open one with <code>POST /session</code>, then send its id in the header <code>X-KDB-Session</code> with each <code>/exec</code>.</li><li>A <strong>cursor</strong> runs one <code>SELECT</code> once, keeps its rows on the server, and gives them to you a few at a time. Use it for results too big for one answer.</li></ul>
+<p>More about transactions: <a href="transactions.html">Transactions</a>. SQL cursors inside procedures (<code>DECLARE ... CURSOR</code>): <a href="cursors.html">Cursors</a>.</p>
+<h2 id="post-session">POST /session</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /session</code></pre>
+<p>Opens a session and gives back its id. Send the id with every request that belongs to it:</p>
+<p>Syntax:</p>
+<pre><code class="language-sql">X-KDB-Session: &lt;id&gt;        (a header on /exec)
+/exec?session=&lt;id&gt;         (or a URL parameter or form field)</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td>(none)</td><td>-</td><td>The request has no body</td><td>-</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>session</code></td><td>The session id: 32 random hex characters. Keep it secret: it is like a key to the open transaction.</td></tr><tr><td><code>idle_timeout_ms</code></td><td>A session unused this long is closed, and its open transaction is rolled back (undone). 600,000 ms = 10 minutes.</td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200; 401 without a needed login; 503 too many open sessions (at most 1,000): close unused ones.</li><li><strong>Notes:</strong>
+<ul><li>A session belongs to the user who opened it. Another user&#39;s session id answers 404, as if it did not exist.</li><li>A session may run SQL on several databases (<code>db=</code> on each request); <code>DELETE /session/&lt;id&gt;</code> ends it on all of them.</li><li><strong>One writer per table:</strong> while a session has an open <code>BEGIN</code>, other changes to the tables it used (other requests, the line protocol) <strong>wait</strong> up to the lock timeout (5 seconds unless set: <code>SET lock_timeout = &#39;20s&#39;</code> in the session, or the header <code>X-KDB-Lock-Timeout: 20s</code> on one request; see <a href="transactions.html#lock-timeout">lock timeout</a>), then fail with HTTP 503 <code>table &#39;x&#39; is busy: ...</code>. Changes to other tables go on. Reads do not wait: they see the rows as they were before the open transaction. Keep transactions short.</li><li>An open transaction with no statement for <strong>30 seconds</strong> is rolled back by the database. The session then gets an error until it sends <code>ROLLBACK</code>.</li><li>Without a session, a transaction cannot stay open after its request: a <code>BEGIN</code> without <code>COMMIT</code> is rolled back at the end of the request, and the answer is an error (see the example below). Send <code>BEGIN; ...; COMMIT</code> in one <code>POST /exec</code>, or use a session.</li></ul></li></ul>
+<p><strong>HTTP: Without a session: BEGIN without COMMIT is rolled back</strong> (sample data: sample; shows an error)</p>
+<pre><code class="language-http">POST /exec?compat=0
+
+BEGIN;
+INSERT INTO brokers VALUES (72, &#39;Never Saved Securities&#39;)
+###
+GET /exec?compat=0&amp;query=SELECT count(*) AS saved FROM brokers WHERE id = 72</code></pre>
+<p>Response:</p>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN;\nINSERT INTO brokers VALUES (72, &#39;Never Saved Securities&#39;)&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 5}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (72, &#39;Never Saved Securities&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 92}
+    }
+  ],
+  &quot;saved&quot;: 0,
+  &quot;rolled_back&quot;: true,
+  &quot;error&quot;: &quot;BEGIN without COMMIT: the transaction was rolled back (end it with COMMIT to save the changes)&quot;,
+  &quot;sqlstate&quot;: &quot;XX000&quot;
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS saved FROM brokers WHERE id = 72</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) AS saved FROM brokers WHERE id = 72&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS saved FROM brokers WHERE id = 72&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;saved&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [0]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 116}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 116}
+}</code></pre>
+<p><strong>HTTP: A transaction over four requests</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /session
+###
+POST /exec?compat=0
+X-KDB-Session: {{session}}
+
+BEGIN;
+INSERT INTO brokers VALUES (70, &#39;Transaction Test Securities&#39;);
+###
+GET /exec?compat=0&amp;query=SELECT count(*) AS others_see FROM brokers WHERE id = 70
+###
+POST /exec?compat=0
+X-KDB-Session: {{session}}
+
+COMMIT
+###
+GET /exec?compat=0&amp;query=SELECT count(*) AS after_commit FROM brokers WHERE id = 70
+###
+DELETE /session/{{session}}</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;26717468710339bbc51881cf94b08239&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN;\nINSERT INTO brokers VALUES (70, &#39;Transaction Test Securities&#39;);&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (70, &#39;Transaction Test Securities&#39;)&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 1,
+      &quot;message&quot;: &quot;1 row(s) inserted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 91}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 95}
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS others_see FROM brokers WHERE id = 70</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) AS others_see FROM brokers WHERE id = 70&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS others_see FROM brokers WHERE id = 70&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;others_see&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [0]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 77}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 77}
+}</code></pre>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;COMMIT&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;COMMIT&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction committed: 1 change(s) saved&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 6, &quot;execute_us&quot;: 518}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 6, &quot;execute_us&quot;: 518}
+}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS after_commit FROM brokers WHERE id = 70</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) AS after_commit FROM brokers WHERE id = 70&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS after_commit FROM brokers WHERE id = 70&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;after_commit&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [1]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 151}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 151}
+}</code></pre>
+<p><code>DELETE /session/{{session}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;26717468710339bbc51881cf94b08239&quot;, &quot;closed&quot;: true}</code></pre>
+<p><strong>HTTP: ROLLBACK undoes the changes of the session</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /session
+###
+POST /exec?compat=0
+X-KDB-Session: {{session}}
+
+BEGIN;
+UPDATE ochl_day SET close = 0 WHERE symbol = &#39;CITY&#39;;
+SELECT max(close) AS inside_the_transaction FROM ochl_day WHERE symbol = &#39;CITY&#39;
+###
+POST /exec?compat=0&amp;session={{session}}
+
+ROLLBACK;
+SELECT max(close) AS after_rollback FROM ochl_day WHERE symbol = &#39;CITY&#39;
+###
+DELETE /session/{{session}}</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;14c0655b56b5f4be70aa52b8c7ee5a2a&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN;\nUPDATE ochl_day SET close = 0 WHERE symbol = &#39;CITY&#39;;\nSELECT max(close) AS inside_the_transaction FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 4}
+    },
+    {
+      &quot;statement&quot;: &quot;UPDATE ochl_day SET close = 0 WHERE symbol = &#39;CITY&#39;&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 19,
+      &quot;message&quot;: &quot;19 row(s) updated&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 224}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT max(close) AS inside_the_transaction FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;inside_the_transaction&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [0]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 130}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 358}
+}</code></pre>
+<p><code>POST /exec?compat=0&amp;session={{session}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;ROLLBACK;\nSELECT max(close) AS after_rollback FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;ROLLBACK&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction rolled back: 1 change(s) undone&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 27}
+    },
+    {
+      &quot;statement&quot;: &quot;SELECT max(close) AS after_rollback FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;after_rollback&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [542.4]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 107}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 134}
+}</code></pre>
+<p><code>DELETE /session/{{session}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;14c0655b56b5f4be70aa52b8c7ee5a2a&quot;, &quot;closed&quot;: true}</code></pre>
+<p>A transfer between two accounts in Python, with the <code>requests</code> library:</p>
+<pre><code class="language-python">import requests
+
+KDB = &quot;http://127.0.0.1:9900&quot;
+
+def run(sql, session=None):
+    headers = {&quot;Content-Type&quot;: &quot;text/plain; charset=utf-8&quot;}
+    if session:
+        headers[&quot;X-KDB-Session&quot;] = session
+    r = requests.post(f&quot;{KDB}/exec&quot;, params={&quot;compat&quot;: 0, &quot;db&quot;: &quot;shop&quot;}, data=sql.encode(&quot;utf-8&quot;), headers=headers)
+    body = r.json()
+    if r.status_code != 200:
+        raise RuntimeError(f&quot;HTTP {r.status_code}: {body[&#39;error&#39;]}&quot;)
+    return body[&quot;results&quot;]
+
+session = requests.post(f&quot;{KDB}/session&quot;).json()[&quot;session&quot;]
+try:
+    run(&quot;BEGIN&quot;, session)
+    run(&quot;UPDATE accounts SET balance = balance - 500 WHERE id = 1&quot;, session)
+    balance = run(&quot;SELECT balance FROM accounts WHERE id = 1&quot;, session)[0][&quot;dataset&quot;][0][0]
+    if float(balance) &lt; 0:
+        run(&quot;ROLLBACK&quot;, session)          # not enough money: undo
+    else:
+        run(&quot;UPDATE accounts SET balance = balance + 500 WHERE id = 2&quot;, session)
+        run(&quot;COMMIT&quot;, session)
+finally:
+    requests.delete(f&quot;{KDB}/session/{session}&quot;)   # rolls back anything still open</code></pre>
+<pre><code class="language-js">// Node 18+
+const KDB = &quot;http://127.0.0.1:9900&quot;;
+const { session } = await (await fetch(`${KDB}/session`, { method: &quot;POST&quot; })).json();
+const run = async (sql) =&gt; {
+  const res = await fetch(`${KDB}/exec?compat=0`, { method: &quot;POST&quot;, headers: { &quot;X-KDB-Session&quot;: session }, body: sql });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error);
+  return body.results;
+};
+try {
+  await run(&quot;BEGIN&quot;);
+  await run(&quot;INSERT INTO orders VALUES (1, &#39;CITY&#39;, 10)&quot;);
+  await run(&quot;COMMIT&quot;);
+} finally {
+  await fetch(`${KDB}/session/${session}`, { method: &quot;DELETE&quot; });
+}</code></pre>
+<pre><code class="language-powershell">$kdb = &quot;http://127.0.0.1:9900&quot;
+$s = (Invoke-RestMethod -Method Post &quot;$kdb/session&quot;).session
+$h = @{ &quot;X-KDB-Session&quot; = $s }
+Invoke-RestMethod -Method Post &quot;$kdb/exec?compat=0&quot; -Headers $h -ContentType &quot;text/plain&quot; -Body &quot;BEGIN; INSERT INTO brokers VALUES (71, &#39;Test&#39;)&quot; | Out-Null
+Invoke-RestMethod -Method Post &quot;$kdb/exec?compat=0&quot; -Headers $h -ContentType &quot;text/plain&quot; -Body &quot;COMMIT&quot; | Out-Null
+Invoke-RestMethod -Method Delete &quot;$kdb/session/$s&quot; | Out-Null</code></pre>
+<h2 id="delete-session">DELETE /session/&lt;id&gt;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DELETE /session/&lt;id&gt;</code></pre>
+<p>Closes a session. Its open transaction is <strong>rolled back</strong> (nothing of it is saved) and its SQL cursors are closed.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;id&gt;</code></td><td>path</td><td>The id from <code>POST /session</code></td><td>required</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>session</code></td><td>The id</td></tr><tr><td><code>closed</code></td><td><code>true</code></td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200; 401 without a needed login; 404 no such session (already closed, closed after 10 minutes unused, or opened by another user).</li><li><strong>Notes:</strong> always close sessions you opened (in a <code>finally</code> block), even after an error. A request with a closed session id answers 404 <code>session &#39;...&#39; does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session</code>. A server restart closes every session.</li></ul>
+<p><strong>HTTP: Closing the session undoes the open transaction</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /session
+###
+POST /exec?compat=0
+X-KDB-Session: {{session}}
+
+BEGIN;
+DELETE FROM ochl_day WHERE symbol = &#39;CITY&#39;
+###
+DELETE /session/{{session}}
+###
+GET /exec?compat=0&amp;query=SELECT count(*) AS city_days_still_there FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;b8685fc0b19c2708dc998cf1b39aab61&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;BEGIN;\nDELETE FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;BEGIN&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;transaction started&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 143, &quot;execute_us&quot;: 6}
+    },
+    {
+      &quot;statement&quot;: &quot;DELETE FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+      &quot;columns&quot;: [],
+      &quot;dataset&quot;: [],
+      &quot;count&quot;: 0,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 19,
+      &quot;message&quot;: &quot;19 row(s) deleted&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 143, &quot;execute_us&quot;: 352}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 286, &quot;execute_us&quot;: 358}
+}</code></pre>
+<p><code>DELETE /session/{{session}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;b8685fc0b19c2708dc998cf1b39aab61&quot;, &quot;closed&quot;: true}</code></pre>
+<p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS city_days_still_there FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;SELECT count(*) AS city_days_still_there FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+  &quot;results&quot;: [
+    {
+      &quot;statement&quot;: &quot;SELECT count(*) AS city_days_still_there FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
+      &quot;columns&quot;: [
+        {&quot;name&quot;: &quot;city_days_still_there&quot;, &quot;type&quot;: &quot;LONG&quot;}
+      ],
+      &quot;dataset&quot;: [
+        [19]
+      ],
+      &quot;count&quot;: 1,
+      &quot;truncated&quot;: false,
+      &quot;rows_affected&quot;: 0,
+      &quot;message&quot;: &quot;&quot;,
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 185}
+    }
+  ],
+  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 185}
+}</code></pre>
+<p><strong>HTTP: A closed session cannot be used</strong></p>
+<pre><code class="language-http">POST /session
+###
+DELETE /session/{{session}}
+###
+POST /exec?compat=0
+X-KDB-Session: {{session}}
+
+SELECT 1</code></pre>
+<p>Response:</p>
+<p><code>POST /session</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;8ebf095630c1793daccd6adfef334968&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<p><code>DELETE /session/{{session}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;session&quot;: &quot;8ebf095630c1793daccd6adfef334968&quot;, &quot;closed&quot;: true}</code></pre>
+<p><code>POST /exec?compat=0</code></p>
+<p>HTTP 404 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;error&quot;: &quot;session &#39;8ebf095630c1793daccd6adfef334968&#39; does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session&quot;
+}</code></pre>
+<h2 id="post-cursor">POST /cursor</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">POST /cursor[?db=&lt;name&gt;]
+body: one SELECT</code></pre>
+<p>Runs one <code>SELECT</code>, keeps all its rows on the server, and answers with the cursor&#39;s id. Read the rows with <a href="http-sessions-and-cursors.html#get-cursor">GET /cursor/&amp;lt;id&amp;gt;</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td>body</td><td>body</td><td>Exactly one <code>SELECT</code> (or a form field <code>query=</code>)</td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). Use the same database for all requests of this cursor.</td><td>the default database</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>cursor</code></td><td>The cursor id (16 hex characters, hard to guess)</td></tr><tr><td><code>columns[]</code></td><td><code>name</code> and <code>type</code> of each column</td></tr><tr><td><code>rows</code></td><td>How many rows the cursor holds</td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200; 400 not exactly one SELECT, bad SQL, more than 10,000,000 rows, or too many open cursors; 401/403 login or role (needs <code>read</code>); 404 unknown database.</li><li><strong>Notes:</strong>
+<ul><li>The rows are a <strong>snapshot</strong>: changes after <code>POST /cursor</code> do not change them. A cursor never sees a transaction that is still open.</li><li>The rows stay in the server&#39;s memory until the cursor is closed or done, so close it when you are finished.</li><li>At most 16 cursors per database are open at the same time (SQL cursors of procedures count too). An unused cursor closes after 10 minutes.</li><li>At most 10,000,000 rows per cursor: narrow the SELECT with <code>WHERE</code>.</li></ul></li></ul>
+<p><strong>HTTP: Open a cursor, read 3 rows twice, close it</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /cursor
+
+SELECT time, symbol, close FROM ochl_minutes WHERE time IN &#39;2026-09-10&#39; ORDER BY time, symbol
+###
+GET /cursor/{{cursor}}?fetch=3
+###
+GET /cursor/{{cursor}}?fetch=3
+###
+DELETE /cursor/{{cursor}}</code></pre>
+<p>Response:</p>
+<p><code>POST /cursor</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;5473dc90b23e81d5&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;rows&quot;: 476
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;5473dc90b23e81d5&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;2026-09-10T05:15:00.000Z&quot;, &quot;CITY&quot;, 504.4],
+    [&quot;2026-09-10T05:15:00.000Z&quot;, &quot;COAST&quot;, 380],
+    [&quot;2026-09-10T05:16:00.000Z&quot;, &quot;CITY&quot;, 504.6]
+  ],
+  &quot;count&quot;: 3,
+  &quot;done&quot;: false
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;5473dc90b23e81d5&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;close&quot;, &quot;type&quot;: &quot;DOUBLE&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;2026-09-10T05:16:00.000Z&quot;, &quot;COAST&quot;, 379.6],
+    [&quot;2026-09-10T05:17:00.000Z&quot;, &quot;CITY&quot;, 504.2],
+    [&quot;2026-09-10T05:17:00.000Z&quot;, &quot;COAST&quot;, 380.1]
+  ],
+  &quot;count&quot;: 3,
+  &quot;done&quot;: false
+}</code></pre>
+<p><code>DELETE /cursor/{{cursor}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;5473dc90b23e81d5&quot;, &quot;closed&quot;: true}</code></pre>
+<p><strong>HTTP: A cursor needs exactly one SELECT</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /cursor
+
+DELETE FROM brokers WHERE id = 1</code></pre>
+<p>Response:</p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;query&quot;: &quot;DELETE FROM brokers WHERE id = 1&quot;,
+  &quot;error&quot;: &quot;a cursor needs exactly one SELECT statement&quot;,
+  &quot;sqlstate&quot;: &quot;XX000&quot;
+}</code></pre>
+<h2 id="get-cursor">GET /cursor/&lt;id&gt;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">GET /cursor/&lt;id&gt;[?fetch=N]</code></pre>
+<p>Gives the next <code>N</code> rows of the cursor. It only reads rows that are already kept, so GET is right here.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;id&gt;</code></td><td>path</td><td>The id from <code>POST /cursor</code></td><td>required</td></tr><tr><td><code>fetch</code></td><td>URL</td><td>How many rows: 1 or more, at most 1,000,000</td><td>1,000</td></tr><tr><td><code>db</code></td><td>URL</td><td>The same database as <code>POST /cursor</code> (or the header <code>X-KDB-Database</code>)</td><td>the default database</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>cursor</code></td><td>The id</td></tr><tr><td><code>columns[]</code></td><td><code>name</code> and <code>type</code> of each column</td></tr><tr><td><code>dataset</code></td><td>The rows, in the same form as <a href="http-exec.html#get-exec">/exec</a></td></tr><tr><td><code>count</code></td><td>Number of rows in this answer</td></tr><tr><td><code>done</code></td><td><code>true</code> when no rows are left after these</td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200; 400 <code>fetch must be a number of rows, 1 or more</code>; 401/403 login or role; 404 no such cursor (closed, unused for 10 minutes, or another database).</li><li><strong>Notes:</strong> after <code>done</code> is <code>true</code>, the kept rows are freed, but the id stays until you close it (further GETs give 0 rows). Read in a loop until <code>done</code>.</li></ul>
+<p><strong>HTTP: Read until done</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /cursor
+
+SELECT symbol, name FROM securities ORDER BY symbol
+###
+GET /cursor/{{cursor}}?fetch=2
+###
+GET /cursor/{{cursor}}?fetch=2
+###
+GET /cursor/{{cursor}}?fetch=2
+###
+DELETE /cursor/{{cursor}}</code></pre>
+<p>Response:</p>
+<p><code>POST /cursor</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;8fe9f2c4b78babec&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;rows&quot;: 5
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=2</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;8fe9f2c4b78babec&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;ACME&quot;, &quot;Acme Investment Company&quot;],
+    [&quot;CITY&quot;, &quot;City Bank Limited&quot;]
+  ],
+  &quot;count&quot;: 2,
+  &quot;done&quot;: false
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=2</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;8fe9f2c4b78babec&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;COAST&quot;, &quot;Coastal Bank Limited&quot;],
+    [&quot;TELCO&quot;, &quot;Northwind Telecom Limited&quot;]
+  ],
+  &quot;count&quot;: 2,
+  &quot;done&quot;: false
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=2</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;8fe9f2c4b78babec&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
+    {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;dataset&quot;: [
+    [&quot;VOLT&quot;, &quot;Volt River Hydropower Limited&quot;]
+  ],
+  &quot;count&quot;: 1,
+  &quot;done&quot;: true
+}</code></pre>
+<p><code>DELETE /cursor/{{cursor}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;8fe9f2c4b78babec&quot;, &quot;closed&quot;: true}</code></pre>
+<p><strong>HTTP: fetch must be 1 or more</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /cursor
+
+SELECT symbol FROM securities
+###
+GET /cursor/{{cursor}}?fetch=0</code></pre>
+<p>Response:</p>
+<p><code>POST /cursor</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;4f20a62d581e9021&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;}
+  ],
+  &quot;rows&quot;: 5
+}</code></pre>
+<p><code>GET /cursor/{{cursor}}?fetch=0</code></p>
+<p>HTTP 400 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;fetch must be a number of rows, 1 or more&quot;}</code></pre>
+<p>Reading a big result in Python, 5,000 rows at a time:</p>
+<pre><code class="language-python">import requests
+
+KDB = &quot;http://127.0.0.1:9900&quot;
+params = {&quot;db&quot;: &quot;market&quot;}
+c = requests.post(f&quot;{KDB}/cursor&quot;, params=params,
+                  data=&quot;SELECT time, symbol, close FROM ochl_minutes ORDER BY time&quot;.encode(&quot;utf-8&quot;)).json()
+if &quot;error&quot; in c:
+    raise RuntimeError(c[&quot;error&quot;])
+print(&quot;rows:&quot;, c[&quot;rows&quot;])
+try:
+    while True:
+        page = requests.get(f&quot;{KDB}/cursor/{c[&#39;cursor&#39;]}&quot;, params={**params, &quot;fetch&quot;: 5000}).json()
+        for time, symbol, close in page[&quot;dataset&quot;]:
+            pass  # use the row
+        if page[&quot;done&quot;]:
+            break
+finally:
+    requests.delete(f&quot;{KDB}/cursor/{c[&#39;cursor&#39;]}&quot;, params=params)</code></pre>
+<pre><code class="language-csharp">using var http = new HttpClient { BaseAddress = new Uri(&quot;http://127.0.0.1:9900&quot;) };
+var open = await http.PostAsync(&quot;/cursor?db=market&quot;, new StringContent(&quot;SELECT time, close FROM ochl_minutes ORDER BY time&quot;, Encoding.UTF8, &quot;text/plain&quot;));
+var cursor = JsonDocument.Parse(await open.Content.ReadAsStringAsync()).RootElement.GetProperty(&quot;cursor&quot;).GetString();
+try
+{
+    while (true)
+    {
+        var page = JsonDocument.Parse(await http.GetStringAsync($&quot;/cursor/{cursor}?db=market&amp;fetch=5000&quot;)).RootElement;
+        foreach (var row in page.GetProperty(&quot;dataset&quot;).EnumerateArray()) { /* use row[0], row[1] */ }
+        if (page.GetProperty(&quot;done&quot;).GetBoolean()) break;
+    }
+}
+finally
+{
+    await http.DeleteAsync($&quot;/cursor/{cursor}?db=market&quot;);
+}</code></pre>
+<h2 id="delete-cursor">DELETE /cursor/&lt;id&gt;</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">DELETE /cursor/&lt;id&gt;</code></pre>
+<p>Closes a cursor and frees its rows.</p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td><code>&lt;id&gt;</code></td><td>path</td><td>The id from <code>POST /cursor</code></td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The same database as <code>POST /cursor</code></td><td>the default database</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>cursor</code></td><td>The id</td></tr><tr><td><code>closed</code></td><td><code>true</code></td></tr></tbody></table></div>
+<ul><li><strong>Status codes:</strong> 200; 401/403 login or role; 404 no such cursor.</li><li><strong>Notes:</strong> a cursor you forget closes by itself after 10 minutes, but until then it uses memory and one of the 16 places.</li></ul>
+<p><strong>HTTP: After closing, the cursor is gone</strong> (sample data: sample)</p>
+<pre><code class="language-http">POST /cursor
+
+SELECT id, name FROM brokers
+###
+DELETE /cursor/{{cursor}}
+###
+GET /cursor/{{cursor}}</code></pre>
+<p>Response:</p>
+<p><code>POST /cursor</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;cursor&quot;: &quot;ea3f12a0c29ef38e&quot;,
+  &quot;columns&quot;: [
+    {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
+    {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
+  ],
+  &quot;rows&quot;: 5
+}</code></pre>
+<p><code>DELETE /cursor/{{cursor}}</code></p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;ea3f12a0c29ef38e&quot;, &quot;closed&quot;: true}</code></pre>
+<p><code>GET /cursor/{{cursor}}</code></p>
+<p>HTTP 404 (application/json)</p>
+<pre><code class="language-text">{&quot;error&quot;: &quot;cursor &#39;ea3f12a0c29ef38e&#39; does not exist (an unused cursor closes after 10 minutes)&quot;}</code></pre>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/http-sessions-and-cursors.md">This page as markdown</a>.</footer>
+</body>
+</html>

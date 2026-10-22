@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INSERT - KDB (KARELA DataBase) docs</title>
+<meta name="description" content="Add rows with INSERT, decide what happens with duplicate keys, get new ids back with RETURNING, and write times correctly.">
+<link rel="canonical" href="https://amritshr.github.io/kdb-knowledge/docs/insert.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/insert.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kdb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kdb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="insert">INSERT</h1>
+<blockquote><p>Add rows with INSERT, decide what happens with duplicate keys, get new ids back with RETURNING, and write times correctly.</p></blockquote>
+<ul><li>Category: Writing data</li><li>Keywords: insert, add rows, new row, VALUES, INTO, column list, multi-row insert, upsert, INSERT OR REPLACE, REPLACE, INSERT OR IGNORE, IGNORE, ON CONFLICT, duplicate key, already exists, dedup, RETURNING, returning id, new id, last insert id, time zone, +05:45, Nepal time, UTC, INSERT SELECT, copy rows</li><li>See also: <a href="update-delete.html">UPDATE and DELETE</a>, <a href="loading-data.html">Loading many rows</a>, <a href="constraints.html">Constraints</a>, <a href="column-types.html">Column types</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="transactions.html">Transactions</a>, <a href="time-and-time-zones.html">Time and time zones</a></li></ul>
+<p><code>INSERT</code> adds rows to a table. One <code>INSERT</code> can add many rows, and it is <strong>all or nothing</strong>: when one row is bad, no row of that statement is saved. When KDB says <code>inserted</code>, the rows are already on the disk.</p>
+<div class="table-wrap"><table><thead><tr><th>Statement</th><th>The key is new</th><th>The key is already there</th></tr></thead><tbody><tr><td><a href="#insert"><code>INSERT</code></a></td><td>row added</td><td><strong>error</strong>, nothing saved</td></tr><tr><td><a href="#insert-or-replace"><code>INSERT OR REPLACE</code></a></td><td>row added</td><td>the old row is replaced by the new one</td></tr><tr><td><a href="#insert-or-ignore"><code>INSERT OR IGNORE</code></a></td><td>row added</td><td>the new row is skipped</td></tr></tbody></table></div>
+<p>A real example: today&#39;s market candles arrive; one of them was already loaded.</p>
+<p><strong>Example: Load daily candles; a repeated row is replaced, not doubled</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume DOUBLE)
+  TIMESERIES(time) PARTITION BY YEAR DEDUP KEY (symbol, time);
+INSERT INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 508.2, 91000);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO ochl_day (time, symbol, open, high, low, close, volume) VALUES
+  (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 507.6, 91000),
+  (&#39;2026-09-13&#39;, &#39;COAST&#39;,  376.0, 379.9, 374.0, 378.5, 120500),
+  (&#39;2026-09-13&#39;, &#39;VOLT&#39;, 191.0, 194.2, 190.1, 193.7, 64000);
+SELECT time, symbol, close FROM ochl_day ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO ochl_day (time, symbol, open, high, low, close, volume) VALUES (&#39;2026-09-13&#39;,</code></p>
+<pre><code class="language-text">2 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT time, symbol, close FROM ochl_day ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-13T00:00:00.000Z</td><td>CITY</td><td>507.6</td></tr><tr><td>2026-09-13T00:00:00.000Z</td><td>COAST</td><td>378.5</td></tr><tr><td>2026-09-13T00:00:00.000Z</td><td>VOLT</td><td>193.7</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="insert-2">INSERT INTO ... VALUES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT INTO table [(column, ...)] VALUES (value, ...) [, (value, ...) ...] [RETURNING ...]</code></pre>
+<p>Adds one row for each <code>(...)</code> after <code>VALUES</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>table</code></td><td>a table (not a view)</td></tr><tr><td><code>(column, ...)</code></td><td>optional. The columns the values are for, in any order. Columns you leave out get their <code>DEFAULT</code>, or <code>NULL</code>, or the next <a href="constraints.html#auto">AUTO</a> id</td></tr><tr><td>without a column list</td><td>give a value for <strong>every</strong> stored column, in table order; computed columns are skipped</td></tr><tr><td><code>value</code></td><td>a constant (<code>&#39;CITY&#39;</code>, <code>504.9</code>, <code>NULL</code>, <code>TRUE</code>) or an expression without columns (<code>1 + 1</code>, <code>now()</code>, <code>CAST(&#39;7&#39; AS INT)</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> <code>N row(s) inserted</code>.</li><li>Each value is converted to the column type; see <a href="column-types.html">column types</a>. Text goes in single quotes; a <code>&#39;</code> inside is written <code>&#39;&#39;</code>.</li><li><strong>Notes:</strong> many rows in one <code>INSERT</code> are <strong>much</strong> faster than one <code>INSERT</code> per row. A value cannot be a subquery or use a column. Every row needs the same number of values. The rules of the table (<a href="constraints.html">constraints</a>) are checked for every row.</li></ul>
+<p><strong>Example: Register two app users; the id and the time come by themselves</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE, name STRING, created TIMESTAMP DEFAULT now());</code></pre>
+<pre><code class="language-sql">INSERT INTO users (email, name) VALUES (&#39;ram@example.com&#39;, &#39;Ram Sharma&#39;), (&#39;sita@example.com&#39;, &#39;Sita Rai&#39;);
+SELECT id, email, name, created IS NOT NULL AS has_created FROM users;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO users (email, name) VALUES (&#39;ram@example.com&#39;, &#39;Ram Sharma&#39;), (&#39;sita@example.com&#39;, &#39;Sita</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, email, name, created IS NOT NULL AS has_created FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>name (STRING)</th><th>has_created (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>ram@example.com</td><td>Ram Sharma</td><td>true</td></tr><tr><td>2</td><td>sita@example.com</td><td>Sita Rai</td><td>true</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: A forum post with text in another language (Nepali) and a quote inside</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE posts (id LONG PRIMARY KEY AUTO, author STRING NOT NULL, body STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">INSERT INTO posts (author, body) VALUES
+  (&#39;ram&#39;, &#39;City&#39;&#39;s dividend looks good.&#39;),
+  (&#39;sita&#39;, &#39;नमस्ते, यो राम्रो छ।&#39;);
+SELECT id, author, body FROM posts;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO posts (author, body) VALUES (&#39;ram&#39;, &#39;City&#39;&#39;s dividend looks good.&#39;), (&#39;sita&#39;, &#39;नमस्ते, य</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT id, author, body FROM posts</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>author (STRING)</th><th>body (STRING)</th></tr></thead><tbody><tr><td>1</td><td>ram</td><td>City&#39;s dividend looks good.</td></tr><tr><td>2</td><td>sita</td><td>नमस्ते, यो राम्रो छ।</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Values can be expressions without columns</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ledger (id LONG PRIMARY KEY AUTO, amount DECIMAL(2) NOT NULL, fee DECIMAL(2), created TIMESTAMP);</code></pre>
+<pre><code class="language-sql">INSERT INTO ledger (amount, fee, created) VALUES (1000.00, round(1000.00 * 0.004, 2), now());
+SELECT id, amount, fee, created &gt; &#39;2026-01-01&#39; AS recent FROM ledger;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO ledger (amount, fee, created) VALUES (1000.00, round(1000.00 * 0.004, 2), now())</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT id, amount, fee, created &gt; &#39;2026-01-01&#39; AS recent FROM ledger</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>amount (DECIMAL(2))</th><th>fee (DECIMAL(2))</th><th>recent (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>1000.00</td><td>4.00</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: One bad row: no row of the statement is saved</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (2, NULL), (3, &#39;Vision Securities&#39;);</code></pre>
+<p>Result:</p>
+<p>Error: <code>row 2: column &#39;name&#39; (STRING): cannot be NULL</code></p>
+<p><strong>Example: The wrong number of values</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE brokers (id INT PRIMARY KEY, name STRING NOT NULL);</code></pre>
+<pre><code class="language-sql">INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (2);</code></pre>
+<p>Result:</p>
+<p>Error: <code>line 1, column 56: row 2 has 1 value; expected 2 like the first row</code></p>
+<h2 id="duplicates">Duplicate keys</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">PRIMARY KEY (column)            relational table
+DEDUP KEY (column, ..., time)   time-series table
+UNIQUE (column)                 any table</code></pre>
+<p>How KDB decides that a new row is &quot;already there&quot;:</p>
+<div class="table-wrap"><table><thead><tr><th>Table</th><th>Two rows are the same when</th></tr></thead><tbody><tr><td>relational with a <code>PRIMARY KEY</code></td><td>they have the same key value</td></tr><tr><td>time-series with a <code>DEDUP KEY</code></td><td>all <code>DEDUP KEY</code> columns are the same (after <code>ROUND</code> of the time)</td></tr><tr><td>without a key</td><td>never: every <code>INSERT</code> adds rows, also exact copies</td></tr></tbody></table></div>
+<ul><li>Duplicates <strong>inside one statement</strong> count too: with <code>INSERT</code> it is an error, with <code>INSERT OR REPLACE</code> the <strong>last</strong> one wins, with <code>INSERT OR IGNORE</code> the first one stays.</li><li><strong>Returns:</strong> <code>a row with symbol=&#39;CITY&#39;, time=&#39;...&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code>.</li><li><strong>Notes:</strong> a <code>UNIQUE</code> column is always an error on a clash, also with <code>OR REPLACE</code> and <code>OR IGNORE</code>: they only look at the primary key or dedup key. If you did not expect a duplicate, check the time zone (<code>+05:45</code> missing?) and <code>ROUND</code> on the time column.</li></ul>
+<p><strong>Example: A candle for the same symbol and day</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, close DOUBLE) TIMESERIES(time) DEDUP KEY (symbol, time);
+INSERT INTO ochl_day VALUES (&#39;2026-09-10&#39;, &#39;CITY&#39;, 504.9);</code></pre>
+<pre><code class="language-sql">INSERT INTO ochl_day VALUES (&#39;2026-09-10T14:00:00+05:45&#39;, &#39;CITY&#39;, 505.0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>a row with symbol=&#39;CITY&#39;, time=&#39;2026-09-10T00:00:00.000Z&#39; already exists in &#39;ochl_day&#39;. Use INSERT OR REPLACE to overwrite it, or INSERT OR IGNORE to skip it</code></p>
+<p><strong>Example: The same key twice in one INSERT OR REPLACE: the last row wins</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_data (timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(timestamp) DEDUP KEY (timestamp, symbol);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO live_data VALUES
+  (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.0),
+  (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.4);
+SELECT timestamp, symbol, ltp FROM live_data;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO live_data VALUES (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.0), (&#39;2026-09-10T1</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT timestamp, symbol, ltp FROM live_data</code></p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>513.4</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="insert-or-replace">INSERT OR REPLACE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT OR REPLACE INTO table [(column, ...)] VALUES (...), ... [RETURNING ...]</code></pre>
+<p>Adds rows with new keys, and <strong>replaces</strong> rows whose key is already there. This is an <strong>upsert</strong>. It is the best statement for imports: the same file can be loaded again and again without double rows.</p>
+<ul><li>The <strong>whole old row</strong> is replaced. Columns you do not give get their <code>DEFAULT</code> or <code>NULL</code>, <strong>not</strong> the old values. To change only some columns, use <a href="update-delete.html#update">UPDATE</a>.</li><li><strong>Returns:</strong> <code>N row(s) inserted, M replaced</code>.</li><li><strong>Notes:</strong> on a table without a key it works like <code>INSERT</code>. PostgreSQL writes <code>INSERT ... ON CONFLICT (key) DO UPDATE</code>; MySQL writes <code>REPLACE INTO</code>. QuestDB replaces rows by itself with <code>DEDUP UPSERT KEYS</code>; KDB does too on a table made with those words, and otherwise only when you write <code>OR REPLACE</code> (<a href="partitions-and-dedup.html#dedup-insert">dedup_insert</a>).</li></ul>
+<p><strong>Example: The CITY close price was wrong: send the full row again</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP ROUND 1d, symbol SYMBOL, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume DOUBLE) TIMESERIES(time) DEDUP KEY (symbol, time);
+INSERT INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 508.2, 91000);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 507.6, 91000);
+SELECT time, symbol, close, volume FROM ochl_day;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO ochl_day VALUES (&#39;2026-09-13&#39;, &#39;CITY&#39;, 505.0, 509.0, 503.1, 507.6, 91000)</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT time, symbol, close, volume FROM ochl_day</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-13T00:00:00.000Z</td><td>CITY</td><td>507.6</td><td>91000</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: Careful: columns you leave out lose their old values</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY, email STRING, phone STRING, verified BOOL DEFAULT FALSE);
+INSERT INTO users VALUES (1, &#39;ram@example.com&#39;, &#39;9800000000&#39;, TRUE);</code></pre>
+<pre><code class="language-sql">INSERT OR REPLACE INTO users (id, email) VALUES (1, &#39;ram.sharma@example.com&#39;);
+SELECT id, email, phone, verified FROM users;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR REPLACE INTO users (id, email) VALUES (1, &#39;ram.sharma@example.com&#39;)</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 replaced</code></pre>
+<p><code>SELECT id, email, phone, verified FROM users</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th><th>phone (STRING)</th><th>verified (BOOL)</th></tr></thead><tbody><tr><td>1</td><td>ram.sharma@example.com</td><td>NULL</td><td>false</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="insert-or-ignore">INSERT OR IGNORE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT OR IGNORE INTO table [(column, ...)] VALUES (...), ... [RETURNING ...]</code></pre>
+<p>Adds rows with new keys, and <strong>skips</strong> rows whose key is already there. The old row stays as it is.</p>
+<ul><li><strong>Returns:</strong> <code>N row(s) inserted, M skipped (already there)</code>.</li><li><strong>Notes:</strong> use it when the first value must win: an imported trade list where rows never change, or &quot;create the settings row if it is missing&quot;. <code>RETURNING</code> does not return skipped rows. PostgreSQL writes <code>ON CONFLICT DO NOTHING</code>.</li></ul>
+<p><strong>Example: Load a trade log file again: old trades stay, new ones are added</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE trade_log (date TIMESTAMP ROUND 1d, transaction_id LONG, symbol SYMBOL, quantity LONG, rate DOUBLE) TIMESERIES(date) PARTITION BY DAY DEDUP KEY (date, transaction_id);
+INSERT INTO trade_log VALUES (&#39;2026-09-10&#39;, 100009, &#39;COAST&#39;, 50, 400.0);</code></pre>
+<pre><code class="language-sql">INSERT OR IGNORE INTO trade_log VALUES
+  (&#39;2026-09-10&#39;, 100009, &#39;COAST&#39;, 1, 1.0),
+  (&#39;2026-09-10&#39;, 100010, &#39;CITY&#39;, 50, 517.0);
+SELECT transaction_id, symbol, quantity, rate FROM trade_log ORDER BY transaction_id;</code></pre>
+<p>Result:</p>
+<p><code>INSERT OR IGNORE INTO trade_log VALUES (&#39;2026-09-10&#39;, 100009, &#39;COAST&#39;, 1, 1.0), (&#39;2026-09-10&#39;, 10001</code></p>
+<pre><code class="language-text">1 row(s) inserted, 1 skipped (already there)</code></pre>
+<p><code>SELECT transaction_id, symbol, quantity, rate FROM trade_log ORDER BY transaction_id</code></p>
+<div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>symbol (SYMBOL)</th><th>quantity (LONG)</th><th>rate (DOUBLE)</th></tr></thead><tbody><tr><td>100009</td><td>COAST</td><td>50</td><td>400</td></tr><tr><td>100010</td><td>CITY</td><td>50</td><td>517</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="returning">RETURNING</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT ... VALUES (...) RETURNING expression [[AS] alias], ... | *</code></pre>
+<p>Gives the inserted rows back, like a <code>SELECT</code>, with <code>AUTO</code> ids and <code>DEFAULT</code> values filled in. Your app gets the new id in the same statement.</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>*</code></td><td>all columns, computed columns included</td></tr><tr><td><code>expression [AS alias]</code></td><td>columns of the new row, or expressions over them (<code>upper(email)</code>)</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the rows, and the message <code>N row(s) inserted</code>.</li><li><strong>Notes:</strong> also works with <code>UPDATE</code> and <code>DELETE</code> (<a href="update-delete.html#returning">update and delete</a>). With <code>INSERT OR IGNORE</code>, skipped rows are not returned. With <code>INSERT OR REPLACE</code>, every written row is returned, also one that a later row of the same statement replaced. If the <code>RETURNING</code> list has an error (an unknown column), nothing is written.</li></ul>
+<p><strong>Example: Register a user and get the new id</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE, created TIMESTAMP DEFAULT now());
+INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO users (email) VALUES (&#39;sita@example.com&#39;) RETURNING id, email;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>id (LONG)</th><th>email (STRING)</th></tr></thead><tbody><tr><td>2</td><td>sita@example.com</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><strong>Example: Open accounts and see the defaults</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (id INT PRIMARY KEY AUTO, user_id LONG NOT NULL, balance DECIMAL(2) NOT NULL DEFAULT 0, status STRING DEFAULT &#39;active&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO accounts (user_id, balance) VALUES (1, 1000);
+INSERT INTO accounts (user_id) VALUES (2) RETURNING *;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO accounts (user_id, balance) VALUES (1, 1000)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>INSERT INTO accounts (user_id) VALUES (2) RETURNING *</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>user_id (LONG)</th><th>balance (DECIMAL(2))</th><th>status (STRING)</th></tr></thead><tbody><tr><td>2</td><td>2</td><td>0.00</td><td>active</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><strong>Example: A mistake in RETURNING: nothing is written</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE users (id LONG PRIMARY KEY AUTO, email STRING NOT NULL UNIQUE);</code></pre>
+<pre><code class="language-sql">INSERT INTO users (email) VALUES (&#39;ram@example.com&#39;) RETURNING user_id;
+SELECT count(*) FROM users;</code></pre>
+<p>Result:</p>
+<p>Error: <code>RETURNING: line 1, column 8: unknown column &#39;user_id&#39; (table &#39;users&#39; has: id email)</code></p>
+<h2 id="time-zones">Times and time zones in values</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">&#39;YYYY-MM-DD[T| ]HH:MM[:SS[.fff]][Z | +HH:MM | +HHMM | -HH:MM]&#39;</code></pre>
+<p>KDB keeps every <code>TIMESTAMP</code> in <strong>UTC</strong>. The text you write is read like this:</p>
+<div class="table-wrap"><table><thead><tr><th>You write</th><th>KDB reads it as</th></tr></thead><tbody><tr><td><code>&#39;2026-09-10T11:00:00+05:45&#39;</code></td><td>11:00 Nepal time = 05:15 UTC</td></tr><tr><td><code>&#39;2026-09-10 11:00:00&#39;</code> (no zone)</td><td>11:00 <strong>UTC</strong></td></tr><tr><td><code>&#39;2026-09-10T05:15:00Z&#39;</code></td><td>05:15 UTC</td></tr><tr><td><code>&#39;2026-09-10&#39;</code></td><td>00:00 UTC</td></tr><tr><td><code>1789017300000</code></td><td>milliseconds since 1970-01-01 UTC</td></tr></tbody></table></div>
+<ul><li>A local time needs its zone offset, for example Nepal <strong>+05:45</strong> or New York <code>-04:00</code>. In the sample data the market opens at 11:00 local time (+05:45) = 05:15 UTC.</li><li><strong>Notes:</strong> the most common mistake is a local time <strong>without</strong> its zone offset (for example <code>+05:45</code>): the row is then 5 hours 45 minutes wrong. The date must be <code>YYYY-MM-DD</code> with two digits for month and day. More in <a href="time-and-time-zones.html">time and time zones</a> and <a href="column-types.html#timestamp">TIMESTAMP</a>.</li></ul>
+<p><strong>Example: Live prices written in Nepal time</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_data (timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(timestamp) DEDUP KEY (timestamp, symbol);</code></pre>
+<pre><code class="language-sql">INSERT INTO live_data VALUES
+  (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.0),
+  (&#39;2026-09-10T14:59:00+05:45&#39;, &#39;CITY&#39;, 527.1);
+SELECT timestamp, symbol, ltp FROM live_data;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO live_data VALUES (&#39;2026-09-10T11:05:00+05:45&#39;, &#39;CITY&#39;, 513.0), (&#39;2026-09-10T14:59:00+05:</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT timestamp, symbol, ltp FROM live_data</code></p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T05:20:00.000Z</td><td>CITY</td><td>513</td></tr><tr><td>2026-09-10T09:14:00.000Z</td><td>CITY</td><td>527.1</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Nepal time without +05:45 is stored 5:45 hours too late</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_data (timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(timestamp);</code></pre>
+<pre><code class="language-sql">INSERT INTO live_data VALUES (&#39;2026-09-10 11:05:00&#39;, &#39;CITY&#39;, 513.0);
+SELECT timestamp, symbol, ltp FROM live_data;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO live_data VALUES (&#39;2026-09-10 11:05:00&#39;, &#39;CITY&#39;, 513.0)</code></p>
+<pre><code class="language-text">1 row(s) inserted</code></pre>
+<p><code>SELECT timestamp, symbol, ltp FROM live_data</code></p>
+<div class="table-wrap"><table><thead><tr><th>timestamp (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T11:05:00.000Z</td><td>CITY</td><td>513</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A date in the wrong format</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE live_data (timestamp TIMESTAMP, symbol SYMBOL, ltp DOUBLE) TIMESERIES(timestamp);</code></pre>
+<pre><code class="language-sql">INSERT INTO live_data VALUES (&#39;10/09/2026 11:05&#39;, &#39;CITY&#39;, 513.0);</code></pre>
+<p>Result:</p>
+<p>Error: <code>column &#39;timestamp&#39; (TIMESTAMP): &#39;10/09/2026 11:05&#39; is not a time like &#39;2026-09-11 11:00:00&#39; (UTC) or &#39;2026-09-11T11:00:00+05:45&#39;</code></p>
+<h2 id="insert-select">INSERT ... SELECT, DEFAULT VALUES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT INTO table [(columns)] SELECT ...
+INSERT INTO table DEFAULT VALUES</code></pre>
+<p>Copies the rows of a query into a table in one statement.</p>
+<ul><li><strong>Returns:</strong> the number of rows written. <code>RETURNING</code> works too.</li><li><strong>Notes:</strong>
+<ul><li>The query must give one value for each target column, in order.</li><li><code>ON CONFLICT</code>, <code>OR REPLACE</code> and <code>OR IGNORE</code> work with it (see <a href="#on-conflict">ON CONFLICT</a>).</li><li><code>DEFAULT VALUES</code> writes one row with every column at its <code>DEFAULT</code> (or NULL).</li><li><strong>Big copies:</strong> when the query is a plain read of tables (a <code>WHERE</code> and expressions are fine, <code>UNION ALL</code> too; no <code>GROUP BY</code>, <code>DISTINCT</code>, window or <code>LIMIT</code>), the rows go into the table while they are read. An <code>ORDER BY</code> of one table is fine too: the rows are sorted in batches of a few MB that go to temporary files in <code>_tmp/</code> of the database folder (<code>max_spill_bytes</code>), then written in that order - the same rows as a sort in memory, so the <code>ORDER BY</code> still decides which of two rows with one key is kept. They are not held first as a query result, so <code>--max-result-memory</code> does not stop the copy; the rows count toward the <a href="limits.html">transaction limits</a> instead. It is still one statement: a bad row writes nothing, and the error names the row (<code>row 17000: ...</code>). This needs no <code>RETURNING</code>, no trigger on the table, and an <code>ON CONFLICT</code> only as <code>DO NOTHING</code> or a <code>DO UPDATE</code> that sets every other column from <code>EXCLUDED</code>. Any other query keeps its rows first, as before.</li><li><strong>Into a table without a key</strong> (no <code>DEDUP KEY</code>, no <code>PRIMARY KEY</code>, not split by <code>SYMBOL(...)</code>), such a copy is written as columns, the way <a href="http-import.html">/imp</a> writes: about 50 bytes a row in memory until the next checkpoint, not about 600. A loop copying 660k rows at a time stays near 80 MB of unsaved rows, not 750 MB.</li><li><strong>Into empty partitions of a table with a key</strong> (a <code>DEDUP KEY</code> or <code>PRIMARY KEY</code> that is the whole <code>SORT BY</code>): when no partition the rows go to held a row before (a new month, or partitions a <code>DELETE</code> of the same transaction emptied) and the rows come in key order - as a copy from a table with the same <code>SORT BY</code> gives them - such a copy is written as columns too, and no key is looked up. A plain copy of every column, <code>INSERT INTO t SELECT a, b, c FROM s</code>, where <code>s</code> has the same columns and types, the same <code>SORT BY</code> and <code>PARTITION BY</code>, copies the partitions of <code>s</code> whole. The rows and the messages are the same as row by row: a key that repeats, or one already stored, sends the copy the row way, which reports it as before. <code>KDB_NO_INSERT_KEY_RUNS=1</code> and <code>KDB_NO_INSERT_COPY=1</code> turn these off.</li><li>A subquery can also be a value: <code>VALUES ((SELECT max(id) FROM t) + 1, &#39;x&#39;)</code>.</li></ul></li></ul>
+<p><strong>Example: Copy the closes of one symbol into another table</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE ochl_day (time TIMESTAMP, symbol SYMBOL, close DOUBLE) TIMESERIES(time);
+CREATE TABLE city_close (time TIMESTAMP, close DOUBLE) TIMESERIES(time);
+INSERT INTO ochl_day VALUES (&#39;2026-09-09T09:00:00Z&#39;, &#39;CITY&#39;, 510), (&#39;2026-09-10T09:00:00Z&#39;, &#39;CITY&#39;, 513), (&#39;2026-09-10T09:00:00Z&#39;, &#39;COAST&#39;, 900);</code></pre>
+<pre><code class="language-sql">INSERT INTO city_close SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39;;
+SELECT * FROM city_close ORDER BY time;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO city_close SELECT time, close FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></p>
+<pre><code class="language-text">2 row(s) inserted</code></pre>
+<p><code>SELECT * FROM city_close ORDER BY time</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-09T09:00:00.000Z</td><td>510</td></tr><tr><td>2026-09-10T09:00:00.000Z</td><td>513</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<h2 id="on-conflict">ON CONFLICT (PostgreSQL upsert)</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">INSERT INTO table (columns) VALUES (...) | SELECT ...
+  ON CONFLICT [(key columns) [WHERE condition] | ON CONSTRAINT name]
+  DO NOTHING
+  | DO UPDATE SET column = EXCLUDED.column, ... [WHERE condition]
+  [RETURNING ..., (xmax = 0) AS inserted]</code></pre>
+<p>What to do when a new row has the same key as a row that is there.</p>
+<ul><li><strong>DO NOTHING:</strong> skip that row.</li><li><strong>DO UPDATE:</strong> change the row that is there. <code>EXCLUDED.column</code> is the value of the new row; <code>table.column</code> is the value that is there now.</li><li><strong>Key columns:</strong> the primary key, a <code>DEDUP KEY</code>, a <code>UNIQUE</code> column or constraint, or a <code>UNIQUE INDEX</code> with exactly these columns. <code>DO UPDATE</code> needs them; <code>DO NOTHING</code> without them means any unique key.</li><li><strong>Partial unique index</strong> (<code>CREATE UNIQUE INDEX ... WHERE ...</code>): <code>DO NOTHING</code> without key columns skips a clash in it too. To name it, write its columns and a <code>WHERE</code> that holds every <code>AND</code>-ed part of the index&#39;s own <code>WHERE</code> (in any order; more parts are fine). A <code>WHERE</code> that does not is an error, as in PostgreSQL.</li><li><strong>RETURNING:</strong> the rows that were inserted or updated. <code>xmax</code> is 0 for an inserted row and 1 for an updated one.</li><li><strong>NULL:</strong> a key with a NULL never clashes.</li><li><strong>Notes:</strong>
+<ul><li>Two new rows with the same key in one <code>DO UPDATE</code> statement are an error (as in PostgreSQL).</li><li><code>DO UPDATE SET</code> of every other column from <code>EXCLUDED</code> is as fast as <code>INSERT OR REPLACE</code>.</li><li>Write the table name before a column (<code>t.hits + 1</code>); a plain name is ambiguous in PostgreSQL.</li></ul></li></ul>
+<p><strong>Example: Count visits per page: insert the first, update the rest</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE page_hits (page STRING PRIMARY KEY, hits LONG NOT NULL);
+INSERT INTO page_hits VALUES (&#39;/chart&#39;, 1);</code></pre>
+<pre><code class="language-sql">INSERT INTO page_hits (page, hits) VALUES (&#39;/chart&#39;, 1), (&#39;/news&#39;, 1)
+ON CONFLICT (page) DO UPDATE SET hits = page_hits.hits + EXCLUDED.hits
+RETURNING page, hits, (xmax = 0) AS inserted;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>page (STRING)</th><th>hits (LONG)</th><th>inserted (BOOL)</th></tr></thead><tbody><tr><td>/chart</td><td>2</td><td>false</td></tr><tr><td>/news</td><td>1</td><td>true</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<pre><code class="language-text">1 row(s) inserted, 1 updated</code></pre>
+<p><strong>Example: One open job per key: a partial unique index</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE jobs (id INT, dedup_key STRING, status STRING);
+CREATE UNIQUE INDEX jobs_open ON jobs (dedup_key) WHERE status &lt;&gt; &#39;done&#39;;
+INSERT INTO jobs VALUES (1, &#39;report&#39;, &#39;queued&#39;);</code></pre>
+<pre><code class="language-sql">INSERT INTO jobs VALUES (2, &#39;report&#39;, &#39;queued&#39;) ON CONFLICT DO NOTHING;
+INSERT INTO jobs VALUES (3, &#39;report&#39;, &#39;queued&#39;) ON CONFLICT (dedup_key) WHERE status &lt;&gt; &#39;done&#39; DO NOTHING;
+SELECT id, status FROM jobs;</code></pre>
+<p>Result:</p>
+<p><code>INSERT INTO jobs VALUES (2, &#39;report&#39;, &#39;queued&#39;) ON CONFLICT DO NOTHING</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 skipped (already there)</code></pre>
+<p><code>INSERT INTO jobs VALUES (3, &#39;report&#39;, &#39;queued&#39;) ON CONFLICT (dedup_key) WHERE status != &#39;done&#39; DO NO</code></p>
+<pre><code class="language-text">0 row(s) inserted, 1 skipped (already there)</code></pre>
+<p><code>SELECT id, status FROM jobs</code></p>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>status (STRING)</th></tr></thead><tbody><tr><td>1</td><td>queued</td></tr></tbody></table></div>
+<p>(1 row)</p>
+</main>
+<footer>KDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kdb-knowledge/main/docs/insert.md">This page as markdown</a>.</footer>
+</body>
+</html>
