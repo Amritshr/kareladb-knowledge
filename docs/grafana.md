@@ -61,8 +61,8 @@ user 'grafana' created with role read
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-22T09:56:02.305Z | 2026-10-22T09:56:02.305Z | NULL | false | NULL | NULL |
-| grafana | read | NULL | 2026-10-22T09:56:02.358Z | 2026-10-22T09:56:02.358Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-22T11:02:58.810Z | 2026-10-22T11:02:58.810Z | NULL | false | NULL | NULL |
+| grafana | read | NULL | 2026-10-22T11:02:58.866Z | 2026-10-22T11:02:58.866Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -326,7 +326,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| prometheus | monitor | kdbt_78i_GZx9BSKrN0jrS_yA29Lohf66lkWWCk-_z7LF8YY | NULL |
+| prometheus | monitor | kdbt_F1upmXesArMOpm49CfQfqMGTXtG9MIhJrFUfcOzL_5A | NULL |
 
 (1 row)
 

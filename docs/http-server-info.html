@@ -32,7 +32,7 @@
   &quot;status&quot;: &quot;ok&quot;,
   &quot;version&quot;: &quot;0.2.0-dev&quot;,
   &quot;product&quot;: &quot;KarelaDB&quot;,
-  &quot;server_time_ms&quot;: 1792662966061,
+  &quot;server_time_ms&quot;: 1792666981895,
   &quot;auth_required&quot;: false,
   &quot;login&quot;: false,
   &quot;tls&quot;: false,
@@ -71,8 +71,8 @@ INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (34, &#39;Vision 
   &quot;dir&quot;: &quot;kdb-data/demo&quot;,
   &quot;version&quot;: &quot;0.2.0-dev&quot;,
   &quot;product&quot;: &quot;KarelaDB&quot;,
-  &quot;opened_ms&quot;: 1792662966072,
-  &quot;server_time_ms&quot;: 1792662966115,
+  &quot;opened_ms&quot;: 1792666981914,
+  &quot;server_time_ms&quot;: 1792666982000,
   &quot;last_lsn&quot;: 4,
   &quot;data_files&quot;: 1,
   &quot;data_bytes&quot;: 231,
@@ -106,7 +106,7 @@ INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (34, &#39;Vision 
     }
   ],
   &quot;damaged&quot;: [],
-  &quot;recovery_summary&quot;: &quot;manifest copy: -, last shutdown: clean\nreplayed 0 transactions after LSN 0, last LSN 0\nopened in 1 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms&quot;,
+  &quot;recovery_summary&quot;: &quot;manifest copy: -, last shutdown: clean\nreplayed 0 transactions after LSN 0, last LSN 0\nopened in 1 ms: manifest 0 ms, 0 files read 0 ms, log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms&quot;,
   &quot;warning&quot;: &quot;&quot;,
   &quot;backup_dir&quot;: &quot;./backups/demo&quot;,
   &quot;last_backup&quot;: null,
@@ -200,7 +200,19 @@ INSERT INTO trades VALUES (1, 10), (2, 20);</code></pre>
       &quot;refused_writes&quot;: 0
     }
   ],
-  &quot;jobs&quot;: []
+  &quot;jobs&quot;: [
+    {
+      &quot;id&quot;: 1,
+      &quot;trigger&quot;: &quot;copy_ids&quot;,
+      &quot;table&quot;: &quot;trades&quot;,
+      &quot;status&quot;: &quot;done&quot;,
+      &quot;rows&quot;: 2,
+      &quot;commit_lsn&quot;: 9,
+      &quot;made_ms&quot;: 1792666982047,
+      &quot;took_ms&quot;: 6,
+      &quot;error&quot;: &quot;&quot;
+    }
+  ]
 }</code></pre>
 <p><strong>HTTP: An unknown trigger</strong></p>
 <pre><code class="language-http">GET /api/trigger-queue?trigger=nope</code></pre>
@@ -224,7 +236,7 @@ INSERT INTO trades VALUES (1, 10), (2, 20);</code></pre>
   &quot;bytes_checked&quot;: 77929,
   &quot;wal_segments_checked&quot;: 1,
   &quot;problems&quot;: [],
-  &quot;elapsed_us&quot;: 761
+  &quot;elapsed_us&quot;: 1610
 }</code></pre>
 <p><strong>HTTP: GET is not allowed: checking is work for the server</strong></p>
 <pre><code class="language-http">GET /api/check</code></pre>
@@ -246,10 +258,10 @@ GET /api/backups</code></pre>
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261022-095606-205&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261022-095606-205&quot;,
-  &quot;created_ms&quot;: 1792662966205,
-  &quot;created&quot;: &quot;2026-10-22T09:56:06.205Z&quot;,
+  &quot;name&quot;: &quot;20261022-110302-111&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261022-110302-111&quot;,
+  &quot;created_ms&quot;: 1792666982111,
+  &quot;created&quot;: &quot;2026-10-22T11:03:02.111Z&quot;,
   &quot;end_lsn&quot;: 30,
   &quot;checkpoint_lsn&quot;: 30,
   &quot;files&quot;: 9,
@@ -260,10 +272,10 @@ GET /api/backups</code></pre>
 <pre><code class="language-text">{
   &quot;backups&quot;: [
     {
-      &quot;name&quot;: &quot;20261022-095606-205&quot;,
-      &quot;dir&quot;: &quot;./backups/demo/20261022-095606-205&quot;,
-      &quot;created_ms&quot;: 1792662966205,
-      &quot;created&quot;: &quot;2026-10-22T09:56:06.205Z&quot;,
+      &quot;name&quot;: &quot;20261022-110302-111&quot;,
+      &quot;dir&quot;: &quot;./backups/demo/20261022-110302-111&quot;,
+      &quot;created_ms&quot;: 1792666982111,
+      &quot;created&quot;: &quot;2026-10-22T11:03:02.111Z&quot;,
       &quot;end_lsn&quot;: 30,
       &quot;checkpoint_lsn&quot;: 30,
       &quot;files&quot;: 9,
@@ -273,9 +285,9 @@ GET /api/backups</code></pre>
   &quot;backup_dir&quot;: &quot;./backups/demo&quot;,
   &quot;point_in_time&quot;: {
     &quot;possible&quot;: true,
-    &quot;from_ms&quot;: 1792662966205,
-    &quot;from&quot;: &quot;2026-10-22T09:56:06.205Z&quot;,
-    &quot;from_backup&quot;: &quot;20261022-095606-205&quot;,
+    &quot;from_ms&quot;: 1792666982111,
+    &quot;from&quot;: &quot;2026-10-22T11:03:02.111Z&quot;,
+    &quot;from_backup&quot;: &quot;20261022-110302-111&quot;,
     &quot;log_first_lsn&quot;: 1,
     &quot;why&quot;: &quot;&quot;,
     &quot;wal_archive_max_bytes&quot;: 1073741824
@@ -338,10 +350,10 @@ DELETE /api/databases/demo_restored</code></pre>
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261022-095606-375&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261022-095606-375&quot;,
-  &quot;created_ms&quot;: 1792662966375,
-  &quot;created&quot;: &quot;2026-10-22T09:56:06.375Z&quot;,
+  &quot;name&quot;: &quot;20261022-110302-302&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261022-110302-302&quot;,
+  &quot;created_ms&quot;: 1792666982302,
+  &quot;created&quot;: &quot;2026-10-22T11:03:02.302Z&quot;,
   &quot;end_lsn&quot;: 30,
   &quot;checkpoint_lsn&quot;: 30,
   &quot;files&quot;: 9,
@@ -353,10 +365,10 @@ DELETE /api/databases/demo_restored</code></pre>
   &quot;database&quot;: &quot;demo_restored&quot;,
   &quot;source&quot;: &quot;demo&quot;,
   &quot;backup&quot;: {
-    &quot;name&quot;: &quot;20261022-095606-375&quot;,
-    &quot;dir&quot;: &quot;./backups/demo/20261022-095606-375&quot;,
-    &quot;created_ms&quot;: 1792662966375,
-    &quot;created&quot;: &quot;2026-10-22T09:56:06.375Z&quot;,
+    &quot;name&quot;: &quot;20261022-110302-302&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261022-110302-302&quot;,
+    &quot;created_ms&quot;: 1792666982302,
+    &quot;created&quot;: &quot;2026-10-22T11:03:02.302Z&quot;,
     &quot;end_lsn&quot;: 30,
     &quot;checkpoint_lsn&quot;: 30,
     &quot;files&quot;: 9,
@@ -367,9 +379,9 @@ DELETE /api/databases/demo_restored</code></pre>
   &quot;opened&quot;: true,
   &quot;open_error&quot;: &quot;&quot;,
   &quot;notes&quot;: [
-    &quot;restored 9 data files from ./backups/demo/20261022-095606-375; the log (up to LSN 30) is replayed on first open&quot;
+    &quot;restored 9 data files from ./backups/demo/20261022-110302-302; the log (up to LSN 30) is replayed on first open&quot;
   ],
-  &quot;took_ms&quot;: 72,
+  &quot;took_ms&quot;: 149,
   &quot;next&quot;: &quot;check &#39;demo_restored&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;demo_restored\&quot;} to put it in place, or DROP DATABASE demo_restored&quot;
 }</code></pre>
 <p><code>DELETE /api/databases/demo_restored</code></p>
@@ -377,7 +389,7 @@ DELETE /api/databases/demo_restored</code></pre>
 <pre><code class="language-text">{
   &quot;name&quot;: &quot;demo_restored&quot;,
   &quot;dropped&quot;: true,
-  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792662966569-demo_restored&quot;
+  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792666982712-demo_restored&quot;
 }</code></pre>
 <p><strong>HTTP: The name is taken</strong></p>
 <pre><code class="language-http">POST /api/backup
@@ -395,10 +407,10 @@ Content-Type: application/json
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261022-095606-391&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261022-095606-391&quot;,
-  &quot;created_ms&quot;: 1792662966391,
-  &quot;created&quot;: &quot;2026-10-22T09:56:06.391Z&quot;,
+  &quot;name&quot;: &quot;20261022-110302-339&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261022-110302-339&quot;,
+  &quot;created_ms&quot;: 1792666982339,
+  &quot;created&quot;: &quot;2026-10-22T11:03:02.339Z&quot;,
   &quot;end_lsn&quot;: 0,
   &quot;checkpoint_lsn&quot;: 0,
   &quot;files&quot;: 0,
@@ -410,10 +422,10 @@ Content-Type: application/json
   &quot;database&quot;: &quot;demo_twice&quot;,
   &quot;source&quot;: &quot;demo&quot;,
   &quot;backup&quot;: {
-    &quot;name&quot;: &quot;20261022-095606-391&quot;,
-    &quot;dir&quot;: &quot;./backups/demo/20261022-095606-391&quot;,
-    &quot;created_ms&quot;: 1792662966391,
-    &quot;created&quot;: &quot;2026-10-22T09:56:06.391Z&quot;,
+    &quot;name&quot;: &quot;20261022-110302-339&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261022-110302-339&quot;,
+    &quot;created_ms&quot;: 1792666982339,
+    &quot;created&quot;: &quot;2026-10-22T11:03:02.339Z&quot;,
     &quot;end_lsn&quot;: 0,
     &quot;checkpoint_lsn&quot;: 0,
     &quot;files&quot;: 0,
@@ -424,9 +436,9 @@ Content-Type: application/json
   &quot;opened&quot;: true,
   &quot;open_error&quot;: &quot;&quot;,
   &quot;notes&quot;: [
-    &quot;restored 0 data files from ./backups/demo/20261022-095606-391; the log (up to LSN 0) is replayed on first open&quot;
+    &quot;restored 0 data files from ./backups/demo/20261022-110302-339; the log (up to LSN 0) is replayed on first open&quot;
   ],
-  &quot;took_ms&quot;: 35,
+  &quot;took_ms&quot;: 76,
   &quot;next&quot;: &quot;check &#39;demo_twice&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;demo_twice\&quot;} to put it in place, or DROP DATABASE demo_twice&quot;
 }</code></pre>
 <p><code>POST /api/restore</code></p>
@@ -486,7 +498,7 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;t&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 16743}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 34, &quot;execute_us&quot;: 36008}
     },
     {
       &quot;statement&quot;: &quot;INSERT INTO t VALUES (1)&quot;,
@@ -496,21 +508,21 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 1956}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 34, &quot;execute_us&quot;: 4747}
     }
   ],
   &quot;columns&quot;: [],
   &quot;dataset&quot;: [],
   &quot;count&quot;: 0,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 18699}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 68, &quot;execute_us&quot;: 40755}
 }</code></pre>
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261022-095606-468&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261022-095606-468&quot;,
-  &quot;created_ms&quot;: 1792662966468,
-  &quot;created&quot;: &quot;2026-10-22T09:56:06.468Z&quot;,
+  &quot;name&quot;: &quot;20261022-110302-624&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261022-110302-624&quot;,
+  &quot;created_ms&quot;: 1792666982624,
+  &quot;created&quot;: &quot;2026-10-22T11:03:02.624Z&quot;,
   &quot;end_lsn&quot;: 4,
   &quot;checkpoint_lsn&quot;: 4,
   &quot;files&quot;: 2,
@@ -529,13 +541,13 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 12}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 29}
     }
   ],
   &quot;columns&quot;: [],
   &quot;dataset&quot;: [],
   &quot;count&quot;: 0,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 12}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 29}
 }</code></pre>
 <p><code>POST /api/restore</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -543,10 +555,10 @@ DELETE /api/databases/demo_old</code></pre>
   &quot;database&quot;: &quot;demo_old&quot;,
   &quot;source&quot;: &quot;demo&quot;,
   &quot;backup&quot;: {
-    &quot;name&quot;: &quot;20261022-095606-468&quot;,
-    &quot;dir&quot;: &quot;./backups/demo/20261022-095606-468&quot;,
-    &quot;created_ms&quot;: 1792662966468,
-    &quot;created&quot;: &quot;2026-10-22T09:56:06.468Z&quot;,
+    &quot;name&quot;: &quot;20261022-110302-624&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261022-110302-624&quot;,
+    &quot;created_ms&quot;: 1792666982624,
+    &quot;created&quot;: &quot;2026-10-22T11:03:02.624Z&quot;,
     &quot;end_lsn&quot;: 4,
     &quot;checkpoint_lsn&quot;: 4,
     &quot;files&quot;: 2,
@@ -557,9 +569,9 @@ DELETE /api/databases/demo_old</code></pre>
   &quot;opened&quot;: true,
   &quot;open_error&quot;: &quot;&quot;,
   &quot;notes&quot;: [
-    &quot;restored 2 data files from ./backups/demo/20261022-095606-468; the log (up to LSN 4) is replayed on first open&quot;
+    &quot;restored 2 data files from ./backups/demo/20261022-110302-624; the log (up to LSN 4) is replayed on first open&quot;
   ],
-  &quot;took_ms&quot;: 38,
+  &quot;took_ms&quot;: 72,
   &quot;next&quot;: &quot;check &#39;demo_old&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;demo_old\&quot;} to put it in place, or DROP DATABASE demo_old&quot;
 }</code></pre>
 <p><code>POST /api/databases/swap</code></p>
@@ -582,7 +594,7 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 138}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 37, &quot;execute_us&quot;: 233}
     }
   ],
   &quot;columns&quot;: [
@@ -592,7 +604,7 @@ DELETE /api/databases/demo_old</code></pre>
     [1]
   ],
   &quot;count&quot;: 1,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 138}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 37, &quot;execute_us&quot;: 233}
 }</code></pre>
 <p><code>POST /api/databases/swap</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -602,7 +614,7 @@ DELETE /api/databases/demo_old</code></pre>
 <pre><code class="language-text">{
   &quot;name&quot;: &quot;demo_old&quot;,
   &quot;dropped&quot;: true,
-  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792662966704-demo_old&quot;
+  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792666982960-demo_old&quot;
 }</code></pre>
 <h2 id="api-stats">GET /api/stats</h2>
 <p>Syntax:</p>

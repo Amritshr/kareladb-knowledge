@@ -217,10 +217,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 24, "execute_us": 59}
+      "timings": {"parse_us": 37, "execute_us": 80}
     }
   ],
-  "timings": {"parse_us": 24, "execute_us": 59}
+  "timings": {"parse_us": 37, "execute_us": 80}
 }
 ```
 
@@ -235,7 +235,7 @@ HTTP 200 (application/json)
   "events": [
     {
       "seq": 2,
-      "ms": 1792662901027,
+      "ms": 1792666922907,
       "kind": "query",
       "level": "ok",
       "user": "",
@@ -243,12 +243,12 @@ HTTP 200 (application/json)
       "database": "h119",
       "text": "CREATE TABLE acct (id INT PRIMARY KEY, name STRING, bal DOUBLE); INSERT INTO acct VALUES (1, 'Asha', 10);",
       "rows": 1,
-      "took_ms": 33,
+      "took_ms": 42,
       "error": ""
     },
     {
       "seq": 3,
-      "ms": 1792662907906,
+      "ms": 1792666929139,
       "kind": "query",
       "level": "ok",
       "user": "",

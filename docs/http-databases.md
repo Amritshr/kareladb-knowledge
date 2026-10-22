@@ -281,7 +281,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'items' created",
-      "timings": {"parse_us": 11, "execute_us": 14864}
+      "timings": {"parse_us": 11, "execute_us": 21862}
     },
     {
       "statement": "SHOW TABLES",
@@ -302,7 +302,7 @@ HTTP 200 (application/json)
       "timings": {"parse_us": 11, "execute_us": 14}
     }
   ],
-  "timings": {"parse_us": 22, "execute_us": 14878}
+  "timings": {"parse_us": 22, "execute_us": 21876}
 }
 ```
 
@@ -419,7 +419,7 @@ HTTP 200 (application/json)
 {
   "name": "help_scratch",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792662964248-help_scratch"
+  "moved_to": "kdb-data/_trash/1792666979904-help_scratch"
 }
 ```
 

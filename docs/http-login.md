@@ -120,10 +120,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 135289}
+      "timings": {"parse_us": 0, "execute_us": 176663}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 135289}
+  "timings": {"parse_us": 0, "execute_us": 176663}
 }
 ```
 
@@ -147,9 +147,9 @@ HTTP 200 (application/json)
   "user": "boss",
   "role": "admin",
   "grants": {},
-  "expires_ms": 1792706165360,
-  "csrf": "7c1a699e8d942242d9b47d42ea27527f",
-  "token": "h9xyPFE-Io7JxFuZbKf9A-t-KRa8WOMeKbGQR7jJSHw"
+  "expires_ms": 1792710181063,
+  "csrf": "aa6e58f7bd54374a42207a6e26dd2d11",
+  "token": "6iCgxeFJKFSzXa9MsdiV8xCo5UbIkMARsnMkHKkZ7EY"
 }
 ```
 
@@ -173,10 +173,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 55}
+      "timings": {"parse_us": 15, "execute_us": 64}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 55}
+  "timings": {"parse_us": 15, "execute_us": 64}
 }
 ```
 
@@ -252,10 +252,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 126869}
+      "timings": {"parse_us": 0, "execute_us": 191827}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 126869}
+  "timings": {"parse_us": 0, "execute_us": 191827}
 }
 ```
 
@@ -540,7 +540,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 139447}
+      "timings": {"parse_us": 0, "execute_us": 184187}
     },
     {
       "statement": "CREATE USER shop_app WITH PASSWORD '***'",
@@ -550,7 +550,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'shop_app' created with role none",
-      "timings": {"parse_us": 0, "execute_us": 52525}
+      "timings": {"parse_us": 0, "execute_us": 60342}
     },
     {
       "statement": "CREATE DATABASE shop",
@@ -560,7 +560,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "database 'shop' created",
-      "timings": {"parse_us": 0, "execute_us": 12538}
+      "timings": {"parse_us": 0, "execute_us": 17354}
     },
     {
       "statement": "GRANT write ON DATABASE shop TO shop_app",
@@ -570,10 +570,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'shop_app' has role write on database 'shop'",
-      "timings": {"parse_us": 0, "execute_us": 2685}
+      "timings": {"parse_us": 0, "execute_us": 4050}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 207195}
+  "timings": {"parse_us": 0, "execute_us": 265933}
 }
 ```
 
@@ -586,9 +586,9 @@ HTTP 200 (application/json)
   "user": "shop_app",
   "role": "none",
   "grants": {"shop": "write"},
-  "expires_ms": 1792706165523,
-  "csrf": "7eb7b9a080f30df061b823995d8c3c6e",
-  "token": "bLghcUM-srLtr1B12hebVbcksIBWBSyjH-7DbJv2VHs"
+  "expires_ms": 1792710181220,
+  "csrf": "80ca44871b7e83df1005b0925508b183",
+  "token": "fhJ525ugl2v1Vx0hL6B1-AddysugxL942Qk8qG4AUKg"
 }
 ```
 
@@ -663,7 +663,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792662965258,
+  "server_time_ms": 1792666980903,
   "auth_required": true,
   "login": false,
   "tls": false,
@@ -708,10 +708,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 17, "execute_us": 53}
+      "timings": {"parse_us": 35, "execute_us": 86}
     }
   ],
-  "timings": {"parse_us": 17, "execute_us": 53}
+  "timings": {"parse_us": 35, "execute_us": 86}
 }
 ```
 
@@ -782,7 +782,7 @@ HTTP 200 (application/json)
   "role": "admin",
   "full_access": true,
   "remember": false,
-  "csrf": "818860815fc75e60b8241ae4d0da6fc1"
+  "csrf": "e1cda0be47c69557ad298ce66b4f4794"
 }
 ```
 
@@ -834,7 +834,7 @@ HTTP 200 (application/json)
   "role": "admin",
   "full_access": true,
   "remember": false,
-  "csrf": "2f4ff4df9cb903c089bc5599bb37f941"
+  "csrf": "301a4863439de8fd2be9bd6978390b64"
 }
 ```
 
@@ -909,7 +909,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 134650}
+      "timings": {"parse_us": 0, "execute_us": 168377}
     },
     {
       "statement": "CREATE USER reader WITH PASSWORD '***' ROLE read",
@@ -919,10 +919,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'reader' created with role read",
-      "timings": {"parse_us": 0, "execute_us": 52784}
+      "timings": {"parse_us": 0, "execute_us": 58688}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 187434}
+  "timings": {"parse_us": 0, "execute_us": 227065}
 }
 ```
 
@@ -948,10 +948,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 20, "execute_us": 407}
+      "timings": {"parse_us": 24, "execute_us": 266}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 407}
+  "timings": {"parse_us": 24, "execute_us": 266}
 }
 ```
 

@@ -76,7 +76,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 8, "execute_us": 4}
+      "timings": {"parse_us": 10, "execute_us": 4}
     },
     {
       "statement": "INSERT INTO brokers VALUES (72, 'Never Saved Securities')",
@@ -86,7 +86,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 8, "execute_us": 90}
+      "timings": {"parse_us": 10, "execute_us": 142}
     }
   ],
   "saved": 0,
@@ -116,10 +116,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 82}
+      "timings": {"parse_us": 17, "execute_us": 100}
     }
   ],
-  "timings": {"parse_us": 13, "execute_us": 82}
+  "timings": {"parse_us": 17, "execute_us": 100}
 }
 ```
 
@@ -153,7 +153,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "e23d04d7ddbf8267a081f7b45e7f429b", "idle_timeout_ms": 600000}
+{"session": "f56a928d9799dffc7328a5b06fe74b92", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec?compat=0`
@@ -172,7 +172,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 27, "execute_us": 3}
+      "timings": {"parse_us": 9, "execute_us": 4}
     },
     {
       "statement": "INSERT INTO brokers VALUES (70, 'Transaction Test Securities')",
@@ -182,10 +182,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 27, "execute_us": 91}
+      "timings": {"parse_us": 9, "execute_us": 92}
     }
   ],
-  "timings": {"parse_us": 54, "execute_us": 94}
+  "timings": {"parse_us": 18, "execute_us": 96}
 }
 ```
 
@@ -209,10 +209,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 9, "execute_us": 65}
+      "timings": {"parse_us": 16, "execute_us": 91}
     }
   ],
-  "timings": {"parse_us": 9, "execute_us": 65}
+  "timings": {"parse_us": 16, "execute_us": 91}
 }
 ```
 
@@ -232,10 +232,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 1 change(s) saved",
-      "timings": {"parse_us": 11, "execute_us": 413}
+      "timings": {"parse_us": 5, "execute_us": 427}
     }
   ],
-  "timings": {"parse_us": 11, "execute_us": 413}
+  "timings": {"parse_us": 5, "execute_us": 427}
 }
 ```
 
@@ -259,10 +259,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 11, "execute_us": 94}
+      "timings": {"parse_us": 14, "execute_us": 104}
     }
   ],
-  "timings": {"parse_us": 11, "execute_us": 94}
+  "timings": {"parse_us": 14, "execute_us": 104}
 }
 ```
 
@@ -271,7 +271,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "e23d04d7ddbf8267a081f7b45e7f429b", "closed": true}
+{"session": "f56a928d9799dffc7328a5b06fe74b92", "closed": true}
 ```
 
 **HTTP: ROLLBACK undoes the changes of the session** (sample data: sample)
@@ -301,7 +301,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "0f78e91d489387b64f0db80f90cd2256", "idle_timeout_ms": 600000}
+{"session": "b2d37b3b1764b887c364a73b3ffa45c5", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec?compat=0`
@@ -320,7 +320,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 10, "execute_us": 3}
+      "timings": {"parse_us": 15, "execute_us": 4}
     },
     {
       "statement": "UPDATE ochl_day SET close = 0 WHERE symbol = 'CITY'",
@@ -330,7 +330,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 19,
       "message": "19 row(s) updated",
-      "timings": {"parse_us": 10, "execute_us": 252}
+      "timings": {"parse_us": 15, "execute_us": 198}
     },
     {
       "statement": "SELECT max(close) AS inside_the_transaction FROM ochl_day WHERE symbol = 'CITY'",
@@ -344,10 +344,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 10, "execute_us": 125}
+      "timings": {"parse_us": 15, "execute_us": 165}
     }
   ],
-  "timings": {"parse_us": 30, "execute_us": 380}
+  "timings": {"parse_us": 45, "execute_us": 367}
 }
 ```
 
@@ -367,7 +367,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction rolled back: 1 change(s) undone",
-      "timings": {"parse_us": 14, "execute_us": 30}
+      "timings": {"parse_us": 26, "execute_us": 30}
     },
     {
       "statement": "SELECT max(close) AS after_rollback FROM ochl_day WHERE symbol = 'CITY'",
@@ -381,10 +381,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 14, "execute_us": 89}
+      "timings": {"parse_us": 26, "execute_us": 92}
     }
   ],
-  "timings": {"parse_us": 28, "execute_us": 119}
+  "timings": {"parse_us": 52, "execute_us": 122}
 }
 ```
 
@@ -393,7 +393,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "0f78e91d489387b64f0db80f90cd2256", "closed": true}
+{"session": "b2d37b3b1764b887c364a73b3ffa45c5", "closed": true}
 ```
 
 A transfer between two accounts in Python, with the `requests` library:
@@ -502,7 +502,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "039cfc1369e0a9d6f926175c57eb760d", "idle_timeout_ms": 600000}
+{"session": "b7e72e247679995aa223265a229f98f5", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec?compat=0`
@@ -521,7 +521,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 10, "execute_us": 4}
+      "timings": {"parse_us": 11, "execute_us": 4}
     },
     {
       "statement": "DELETE FROM ochl_day WHERE symbol = 'CITY'",
@@ -531,10 +531,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 19,
       "message": "19 row(s) deleted",
-      "timings": {"parse_us": 10, "execute_us": 274}
+      "timings": {"parse_us": 11, "execute_us": 451}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 278}
+  "timings": {"parse_us": 22, "execute_us": 455}
 }
 ```
 
@@ -543,7 +543,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "039cfc1369e0a9d6f926175c57eb760d", "closed": true}
+{"session": "b7e72e247679995aa223265a229f98f5", "closed": true}
 ```
 
 `GET /exec?compat=0&query=SELECT count(*) AS city_days_still_there FROM ochl_day WHERE symbol = 'CITY'`
@@ -566,10 +566,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 24, "execute_us": 117}
+      "timings": {"parse_us": 16, "execute_us": 133}
     }
   ],
-  "timings": {"parse_us": 24, "execute_us": 117}
+  "timings": {"parse_us": 16, "execute_us": 133}
 }
 ```
 
@@ -593,7 +593,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "9af99da70956fee64ea226e57d039c8e", "idle_timeout_ms": 600000}
+{"session": "a430306ecc1d81afea5d7f0747fb01a6", "idle_timeout_ms": 600000}
 ```
 
 `DELETE /session/{{session}}`
@@ -601,7 +601,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "9af99da70956fee64ea226e57d039c8e", "closed": true}
+{"session": "a430306ecc1d81afea5d7f0747fb01a6", "closed": true}
 ```
 
 `POST /exec?compat=0`
@@ -610,7 +610,7 @@ HTTP 404 (application/json)
 
 ```text
 {
-  "error": "session '9af99da70956fee64ea226e57d039c8e' does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session"
+  "error": "session 'a430306ecc1d81afea5d7f0747fb01a6' does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session"
 }
 ```
 
@@ -665,7 +665,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "2517c62a235cc3b5",
+  "cursor": "5b48b1691fb3cc61",
   "columns": [
     {"name": "time", "type": "TIMESTAMP"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -681,7 +681,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "2517c62a235cc3b5",
+  "cursor": "5b48b1691fb3cc61",
   "columns": [
     {"name": "time", "type": "TIMESTAMP"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -703,7 +703,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "2517c62a235cc3b5",
+  "cursor": "5b48b1691fb3cc61",
   "columns": [
     {"name": "time", "type": "TIMESTAMP"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -724,7 +724,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "2517c62a235cc3b5", "closed": true}
+{"cursor": "5b48b1691fb3cc61", "closed": true}
 ```
 
 **HTTP: A cursor needs exactly one SELECT** (sample data: sample)
@@ -800,7 +800,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "bb70b5b5c5ca2679",
+  "cursor": "542985c894698fac",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -815,7 +815,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "bb70b5b5c5ca2679",
+  "cursor": "542985c894698fac",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -835,7 +835,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "bb70b5b5c5ca2679",
+  "cursor": "542985c894698fac",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -855,7 +855,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "bb70b5b5c5ca2679",
+  "cursor": "542985c894698fac",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -873,7 +873,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "bb70b5b5c5ca2679", "closed": true}
+{"cursor": "542985c894698fac", "closed": true}
 ```
 
 **HTTP: fetch must be 1 or more** (sample data: sample)
@@ -894,7 +894,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "6f6641359672b181",
+  "cursor": "5547f56c7c2dd78b",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"}
   ],
@@ -997,7 +997,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "df70a76db6756dc4",
+  "cursor": "8b88b64420885101",
   "columns": [
     {"name": "id", "type": "INT"},
     {"name": "name", "type": "STRING"}
@@ -1011,7 +1011,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "df70a76db6756dc4", "closed": true}
+{"cursor": "8b88b64420885101", "closed": true}
 ```
 
 `GET /cursor/{{cursor}}`
@@ -1019,5 +1019,5 @@ HTTP 200 (application/json)
 HTTP 404 (application/json)
 
 ```text
-{"error": "cursor 'df70a76db6756dc4' does not exist (an unused cursor closes after 10 minutes)"}
+{"error": "cursor '8b88b64420885101' does not exist (an unused cursor closes after 10 minutes)"}
 ```

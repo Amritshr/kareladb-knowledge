@@ -271,6 +271,32 @@ CREATE TABLE news (...) TIMESERIES(time)
 - New tables only: an existing table cannot be converted yet, and relational
   tables (`PRIMARY KEY`, no `TIMESERIES`) cannot be partitioned.
 
+## Old partitions in S3, MinIO, R2 or B2 (cold storage)
+
+Sealed partitions of a time-series table can move to object storage and are still
+read by every query (only the column files a query needs are fetched, into a local
+cache). Help: `cold-storage`.
+
+```sql
+-- the store is defined by settings, never in SQL: KARELADB_COLD_<NAME>_URL, _BUCKET,
+-- _REGION, _ACCESS_KEY, _SECRET_KEY (MinIO: _PATH_STYLE=on); cache KARELADB_COLD_CACHE_MB
+ALTER TABLE ticks SET (cold_storage = 'archive', cold_after = '90 days');  -- moves by itself
+ALTER TABLE ticks MOVE PARTITION '2025-01' TO COLD;                         -- or now
+ALTER TABLE ticks MOVE PARTITION '2025-01' FROM COLD;                       -- back to local
+SELECT * FROM cold_partitions();                                            -- what is where
+```
+
+- The newest partition never moves. A query whose time range has no cold partition costs nothing extra; one that reads a cold partition pays a fetch the first time.
+- Writes into a cold partition work: the write fetches it first, so an unreachable store fails that statement.
+- Not for a database encrypted at rest. `/metrics` counts it as `kdb_cold_*`.
+
+## Grafana and Prometheus
+
+- **Grafana**: add a built-in **PostgreSQL** data source at port 8832 (database = the KarelaDB database, a read-only user). `$__timeFilter`, `$__timeGroupAlias`, `$__timeGroup` and template variables work; `SAMPLE BY` gives fast candles.
+- **Prometheus**: scrape `GET /metrics` (counter names `kdb_*`).
+- Two ready dashboards (server health; candles, volume and trades), provisioning files and a `docker-compose.yml` are in `integrations/grafana` in the source. Help: `grafana`.
+- Telegraf and other line-protocol senders write to `POST /write`.
+
 ## Writing fast queries
 
 - **Always pass `db=`.** Tables live in a named database; without it you query

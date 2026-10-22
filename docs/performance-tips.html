@@ -30,7 +30,7 @@ EXPLAIN SELECT ...                -- how KarelaDB will read the data</code></pre
 -------+----------
 CITY   |    504.24
 COAST  |    378.36
-(2 rows, 0.4 ms)</code></pre>
+(2 rows, 0.5 ms)</code></pre>
 <p><strong>Example: EXPLAIN: a time filter and a symbol read only one key range</strong> (sample data: sample)</p>
 <pre><code class="language-sql">EXPLAIN SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
 <p>Result:</p>
@@ -88,7 +88,7 @@ CALL minutes_of(&#39;2026-09-10&#39;) WITH DEBUG;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>minutes (LONG)</th></tr></thead><tbody><tr><td>476</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>debug</code></p>
-<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL minutes_of(&#39;2026-09-10&#39;) WITH DEBUG</td><td>0</td><td>1253</td><td>partitions read: 1</td></tr><tr><td>2</td><td>minutes_of</td><td>SELECT count(*) AS minutes FROM ochl_minutes WHERE time &gt;= day AND time &lt; dateadd(&#39;d&#39;, 1, day)</td><td>1</td><td>1224</td><td>partitions read: 1</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL minutes_of(&#39;2026-09-10&#39;) WITH DEBUG</td><td>0</td><td>487</td><td>partitions read: 1</td></tr><tr><td>2</td><td>minutes_of</td><td>SELECT count(*) AS minutes FROM ochl_minutes WHERE time &gt;= day AND time &lt; dateadd(&#39;d&#39;, 1, day)</td><td>1</td><td>454</td><td>partitions read: 1</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <h2 id="limit">LIMIT</h2>
 <p>Syntax:</p>
@@ -156,7 +156,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h3 id="synchronous-commit">One session only: SET synchronous_commit = off</h3>
@@ -221,7 +221,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h3 id="memory-per-database">Memory per database and resident tables</h3>
@@ -290,7 +290,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h2 id="column-engine">What the column engine takes</h2>
