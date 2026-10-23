@@ -313,8 +313,8 @@ SELECT symbol, close FROM ochl_day WHERE time IN @day AND symbol = @sym;</code><
 <h2 id="ilike">ILIKE, NOT ILIKE</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">text [NOT] ILIKE &#39;pattern&#39;</code></pre>
-<p>Like <a href="where.html#like">LIKE</a>, but English letters match in any case: <code>&#39;City&#39; ILIKE &#39;CIT%&#39;</code> is true.</p>
-<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT ILIKE</code> gives the opposite.</li><li><strong>NULL:</strong> <code>NULL</code> when the text or the pattern is <code>NULL</code>.</li><li><strong>Notes:</strong> only the English letters A-Z are changed. Languages without upper and lower case (like Nepali) work the same as with <code>LIKE</code>.</li><li>In PostgreSQL <code>ILIKE</code> works the same way.</li></ul>
+<p>Like <a href="where.html#like">LIKE</a>, but letters match in any case, in any language: <code>&#39;City&#39; ILIKE &#39;CIT%&#39;</code> and <code>&#39;École&#39; ILIKE &#39;é%&#39;</code> are true.</p>
+<ul><li><strong>Returns:</strong> <code>true</code> or <code>false</code>. <code>NOT ILIKE</code> gives the opposite.</li><li><strong>NULL:</strong> <code>NULL</code> when the text or the pattern is <code>NULL</code>.</li><li><strong>Notes:</strong> only the English letters A-Z are changed. Languages without upper and lower case (like Nepali) work the same as with <code>LIKE</code>.</li><li>Letters fold as <code>lower()</code> folds them, as in PostgreSQL. Before 2026-10-23 only English letters did.</li></ul>
 <p><strong>Example: Gmail users in any case</strong> (sample data: query-app)</p>
 <pre><code class="language-sql">SELECT username, email FROM app_users WHERE email ILIKE &#39;%@gmail.com&#39;;</code></pre>
 <p>Result:</p>

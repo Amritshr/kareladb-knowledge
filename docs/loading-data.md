@@ -278,7 +278,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'ochl_day' created",
-      "timings": {"parse_us": 20, "execute_us": 16539}
+      "timings": {"parse_us": 21, "execute_us": 21521}
     },
     {
       "statement": "INSERT OR REPLACE INTO ochl_day VALUES ('2026-09-10', 'CITY', 504.9, 183040), ('2026-09-10', 'COAST', 376.1, 186200)",
@@ -288,13 +288,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 2,
       "message": "2 row(s) inserted",
-      "timings": {"parse_us": 20, "execute_us": 2887}
+      "timings": {"parse_us": 21, "execute_us": 2965}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 40, "execute_us": 19426}
+  "timings": {"parse_us": 42, "execute_us": 24486}
 }
 ```
 
@@ -361,7 +361,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 10, "execute_us": 70}
+      "timings": {"parse_us": 10, "execute_us": 52}
     }
   ],
   "columns": [
@@ -375,7 +375,7 @@ HTTP 200 (application/json)
     ["2026-09-10T05:20:00.000Z", "COAST", 380.2, 900]
   ],
   "count": 2,
-  "timings": {"parse_us": 10, "execute_us": 70}
+  "timings": {"parse_us": 10, "execute_us": 52}
 }
 ```
 

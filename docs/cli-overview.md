@@ -440,7 +440,7 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-23 10:31:50
+newest change   2026-10-24 00:14:40
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   8
 
@@ -457,7 +457,7 @@ t/1/all                                         2      388 B            4  ok
 ```text
 name | kind | partition | columns | rows
 -----+------+-----------+---------+-----
-(0 rows, 0.0 ms)
+(0 rows, 0.3 ms)
 ```
 
 In this example the data folder is `./kdb-data`. `kareladb info reports` opens `./kdb-data/reports`. `./reports` is a new, empty database in the current folder, so it has no tables.

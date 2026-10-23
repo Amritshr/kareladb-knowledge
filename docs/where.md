@@ -837,12 +837,12 @@ Syntax:
 text [NOT] ILIKE 'pattern'
 ```
 
-Like [LIKE](where.md#like), but English letters match in any case: `'City' ILIKE 'CIT%'` is true.
+Like [LIKE](where.md#like), but letters match in any case, in any language: `'City' ILIKE 'CIT%'` and `'École' ILIKE 'é%'` are true.
 
 - **Returns:** `true` or `false`. `NOT ILIKE` gives the opposite.
 - **NULL:** `NULL` when the text or the pattern is `NULL`.
 - **Notes:** only the English letters A-Z are changed. Languages without upper and lower case (like Nepali) work the same as with `LIKE`.
-- In PostgreSQL `ILIKE` works the same way.
+- Letters fold as `lower()` folds them, as in PostgreSQL. Before 2026-10-23 only English letters did.
 
 **Example: Gmail users in any case** (sample data: query-app)
 

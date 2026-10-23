@@ -2361,7 +2361,7 @@ Result:
 
 | utc_day (DATE) | nepal_day (DATE) | same_as_now (BOOL) |
 |---|---|---|
-| 2026-10-23 | 2026-10-23 | true |
+| 2026-10-23 | 2026-10-24 | true |
 
 (1 row)
 
@@ -2396,7 +2396,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 04:47:13.018 | 10:32 | true |
+| 18:30:00.351 | 00:15 | true |
 
 (1 row)
 

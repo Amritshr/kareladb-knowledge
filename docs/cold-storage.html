@@ -104,13 +104,13 @@ kareladb&gt; partition | result                        | bytes
 ----------+-------------------------------+------
 2025-01   | moved to cold store &#39;archive&#39; |   692
 2025-02   | moved to cold store &#39;archive&#39; |   692
-(2 rows, 15.3 ms)
+(2 rows, 10.7 ms)
 2 partition(s) of table &#39;ticks&#39; moved to cold store &#39;archive&#39; (they stay there: cold_after is not set)
 kareladb&gt; symbol | days | avg_price | volume
 -------+------+-----------+-------
 BANK   |    3 |     211.5 |   1730
 CITY   |    3 |     506.5 |    630
-(2 rows, 0.7 ms)
+(2 rows, 0.5 ms)
 kareladb&gt;</code></pre>
 <p><strong>Example: The newest partition stays</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -137,12 +137,12 @@ kareladb&gt; partition | result                        | bytes
 ----------+-------------------------------+------
 2025-01   | moved to cold store &#39;archive&#39; |   692
 2025-02   | moved to cold store &#39;archive&#39; |   692
-(2 rows, 17.0 ms)
+(2 rows, 10.1 ms)
 2 partition(s) of table &#39;ticks&#39; moved to cold store &#39;archive&#39; (they stay there: cold_after is not set)
 kareladb&gt; partition | result                       | bytes
 ----------+------------------------------+------
 2025-02   | written back as a local file |     0
-(1 row, 3.6 ms)
+(1 row, 2.9 ms)
 1 partition(s) of table &#39;ticks&#39; are local files again
 kareladb&gt;</code></pre>
 <h2 id="cost">What a query costs</h2>
@@ -171,14 +171,14 @@ kareladb&gt; partition | result                        | bytes
 2025-01   | moved to cold store &#39;archive&#39; |   692
 2025-02   | moved to cold store &#39;archive&#39; |   692
 2025-03   | moved to cold store &#39;archive&#39; |   692
-(3 rows, 19.4 ms)
+(3 rows, 18.2 ms)
 3 partition(s) of table &#39;ticks&#39; moved to cold store &#39;archive&#39; (they stay there: cold_after is not set)
 kareladb&gt; table_name | partition | store   | bytes
 -----------+-----------+---------+------
 ticks      | 2025-01   | archive |   692
 ticks      | 2025-02   | archive |   692
 ticks      | 2025-03   | archive |   692
-(3 rows, 0.2 ms)
+(3 rows, 0.1 ms)
 kareladb&gt;</code></pre>
 <p><code>GET /api/stats</code> has an object <code>cold</code>, and <code>GET /metrics</code> has the same counts as <code>kdb_cold_*</code> (since the server started):</p>
 <div class="table-wrap"><table><thead><tr><th>/api/stats <code>cold.</code></th><th>/metrics</th><th>Meaning</th></tr></thead><tbody><tr><td><code>partitions</code></td><td><code>kdb_cold_partitions</code></td><td>cold partitions of the open databases now</td></tr><tr><td><code>remote_bytes</code></td><td><code>kdb_cold_remote_bytes</code></td><td>their bytes in object storage</td></tr><tr><td><code>moved</code>, <code>moved_bytes</code></td><td><code>kdb_cold_moved_total</code>, <code>kdb_cold_moved_bytes_total</code></td><td>partitions moved, and bytes uploaded</td></tr><tr><td><code>returned</code></td><td><code>kdb_cold_returned_total</code></td><td>partitions written back with <code>FROM COLD</code></td></tr><tr><td><code>fetches</code>, <code>fetched_bytes</code></td><td><code>kdb_cold_fetches_total</code>, <code>kdb_cold_fetched_bytes_total</code></td><td>ranged reads from the store, and their bytes</td></tr><tr><td><code>cache_hits</code>, <code>cache_misses</code></td><td><code>kdb_cold_cache_hits_total</code>, <code>kdb_cold_cache_misses_total</code></td><td>1 MiB pieces read from the cache, and fetched</td></tr><tr><td><code>cache_bytes</code>, <code>cache_cap_bytes</code></td><td><code>kdb_cold_cache_bytes</code></td><td>the cache now, and its size limit</td></tr><tr><td><code>cache_evictions</code></td><td><code>kdb_cold_cache_evictions_total</code></td><td>pieces the cache let go</td></tr><tr><td><code>deleted_objects</code></td><td><code>kdb_cold_deleted_objects_total</code></td><td>objects deleted once no partition named them</td></tr><tr><td><code>errors</code></td><td><code>kdb_cold_errors_total</code></td><td>moves, reads and deletes that failed (the server log says which)</td></tr><tr><td><code>stores</code></td><td></td><td>each store defined here: its name and where it is</td></tr></tbody></table></div>

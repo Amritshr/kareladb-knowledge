@@ -54,9 +54,9 @@ user 'report' created with role read
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:05.894Z | 2026-10-23T04:48:05.894Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-23T04:48:06.022Z | 2026-10-23T04:48:06.022Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-23T04:48:05.955Z | 2026-10-23T04:48:05.958Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:42.612Z | 2026-10-23T18:30:42.612Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-23T18:30:42.718Z | 2026-10-23T18:30:42.718Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-23T18:30:42.663Z | 2026-10-23T18:30:42.664Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -217,8 +217,8 @@ user 'report' changed: role write
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:06.322Z | 2026-10-23T04:48:06.322Z | NULL | false | NULL | NULL |
-| report | write | NULL | 2026-10-23T04:48:06.380Z | 2026-10-23T04:48:06.573Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:42.951Z | 2026-10-23T18:30:42.951Z | NULL | false | NULL | NULL |
+| report | write | NULL | 2026-10-23T18:30:43.006Z | 2026-10-23T18:30:43.184Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -316,9 +316,9 @@ statement_timeout of user 'report' is 10 min (from their next statement)
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:06.619Z | 2026-10-23T04:48:06.619Z | NULL | false | NULL | NULL |
-| charts | read | NULL | 2026-10-23T04:48:06.675Z | 2026-10-23T04:48:06.849Z | NULL | false | 2 s | NULL |
-| report | read | NULL | 2026-10-23T04:48:06.731Z | 2026-10-23T04:48:06.852Z | NULL | false | 10 min | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:43.259Z | 2026-10-23T18:30:43.259Z | NULL | false | NULL | NULL |
+| charts | read | NULL | 2026-10-23T18:30:43.312Z | 2026-10-23T18:30:43.464Z | NULL | false | 2 s | NULL |
+| report | read | NULL | 2026-10-23T18:30:43.370Z | 2026-10-23T18:30:43.465Z | NULL | false | 10 min | NULL |
 
 (3 rows)
 
@@ -449,7 +449,7 @@ user 'report' does not exist
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:07.126Z | 2026-10-23T04:48:07.126Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:43.638Z | 2026-10-23T18:30:43.638Z | NULL | false | NULL | NULL |
 
 (1 row)
 
@@ -518,9 +518,9 @@ Result:
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:07.193Z | 2026-10-23T04:48:07.193Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-23T04:48:07.306Z | 2026-10-23T04:48:07.306Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=read, shop=write | 2026-10-23T04:48:07.249Z | 2026-10-23T04:48:07.332Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:43.697Z | 2026-10-23T18:30:43.697Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-23T18:30:43.807Z | 2026-10-23T18:30:43.807Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=read, shop=write | 2026-10-23T18:30:43.751Z | 2026-10-23T18:30:43.812Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -583,8 +583,8 @@ user 'shop_app' has role admin on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:07.301Z | 2026-10-23T04:48:07.301Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=admin, shop=write | 2026-10-23T04:48:07.356Z | 2026-10-23T04:48:07.522Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:43.746Z | 2026-10-23T18:30:43.746Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=admin, shop=write | 2026-10-23T18:30:43.802Z | 2026-10-23T18:30:43.905Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -609,15 +609,15 @@ Result:
 `DROP DATABASE shop`
 
 ```text
-database 'shop' dropped; its folder was moved to kdb-data/_trash/1792730887790-shop
+database 'shop' dropped; its folder was moved to kdb-data/_trash/1792780244149-shop
 ```
 
 `SHOW USERS`
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:07.583Z | 2026-10-23T04:48:07.583Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-23T04:48:07.642Z | 2026-10-23T04:48:07.796Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:43.982Z | 2026-10-23T18:30:43.982Z | NULL | false | NULL | NULL |
+| shop_app | none | NULL | 2026-10-23T18:30:44.040Z | 2026-10-23T18:30:44.150Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -704,8 +704,8 @@ user 'shop_app' has no grant on database 'demo' now
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:07.820Z | 2026-10-23T04:48:07.820Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-23T04:48:07.877Z | 2026-10-23T04:48:08.016Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:44.118Z | 2026-10-23T18:30:44.118Z | NULL | false | NULL | NULL |
+| shop_app | none | NULL | 2026-10-23T18:30:44.180Z | 2026-10-23T18:30:44.275Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -736,8 +736,8 @@ user 'report' keeps role write on database 'demo': REVOKE read takes away only a
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:08.065Z | 2026-10-23T04:48:08.065Z | NULL | false | NULL | NULL |
-| report | read | demo=write | 2026-10-23T04:48:08.119Z | 2026-10-23T04:48:08.121Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:44.350Z | 2026-10-23T18:30:44.350Z | NULL | false | NULL | NULL |
+| report | read | demo=write | 2026-10-23T18:30:44.404Z | 2026-10-23T18:30:44.405Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -914,9 +914,9 @@ user 'shop_app' has role write on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-23T04:48:08.282Z | 2026-10-23T04:48:08.282Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-23T04:48:08.472Z | 2026-10-23T04:48:08.472Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-23T04:48:08.529Z | 2026-10-23T04:48:08.531Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-23T18:30:44.463Z | 2026-10-23T18:30:44.463Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-23T18:30:44.616Z | 2026-10-23T18:30:44.616Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-23T18:30:44.674Z | 2026-10-23T18:30:44.674Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -1054,7 +1054,7 @@ user 'admin' added with role admin in ./kdb-data
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-23 10:33:08
+admin                    admin  -                              2026-10-24 00:15:44
 1 user in ./kdb-data
 ```
 
@@ -1071,8 +1071,8 @@ user 'report' created with role read
 
 name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority
 -------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+---------
-admin  | admin | NULL   | 2026-10-23T04:48:08.674Z | 2026-10-23T04:48:08.674Z | NULL         | false      | NULL              | NULL    
-report | read  | NULL   | 2026-10-23T04:48:09.282Z | 2026-10-23T04:48:09.282Z | NULL         | false      | NULL              | NULL    
+admin  | admin | NULL   | 2026-10-23T18:30:44.789Z | 2026-10-23T18:30:44.789Z | NULL         | false      | NULL              | NULL    
+report | read  | NULL   | 2026-10-23T18:30:45.095Z | 2026-10-23T18:30:45.095Z | NULL         | false      | NULL              | NULL    
 (2 rows, 0.0 ms)
 ```
 

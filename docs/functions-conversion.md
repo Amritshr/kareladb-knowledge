@@ -239,8 +239,67 @@ Makes a `TIMESTAMP` (a moment in time, stored in UTC) from time text, a `DATE` o
 - **Notes:**
   - A number means **seconds**, as in PostgreSQL and Unix time: `to_timestamp(1789020900)`. A fraction keeps the milliseconds: `to_timestamp(1789020900.25)`. Before 2026-09-25 a number meant milliseconds.
   - Milliseconds, like JavaScript's `Date.now()`: divide by 1000.0 first, or cast: `CAST(ms AS TIMESTAMP)`.
-  - There is no second "format" argument. The text must look like `YYYY-MM-DD`, then optional `T` or space and `HH:MM:SS.fff`, then optional `Z` or `+05:45`. Text without a zone is UTC.
+  - With one argument the text must look like `YYYY-MM-DD`, then optional `T` or space and `HH:MM:SS.fff`, then optional `Z` or `+05:45`. Text without a zone is UTC. For any other shape, give a format (below).
   - A `DATE` becomes midnight UTC of that day.
+
+<a id="to_timestamp-format"></a>
+
+### to_timestamp(text, format)
+
+Syntax:
+
+```sql
+to_timestamp(text, format)
+```
+
+Reads a time from text written in any shape, such as `'23/10/2026 14:05'`. The format says where each part is. Two styles of format work:
+
+| Part | PostgreSQL words | QuestDB letters |
+|---|---|---|
+| year | `YYYY`, `YY` | `yyyy`, `yy` |
+| month | `MM`, `Mon` (Oct), `Month` (October) | `MM`, `MMM`, `MMMM` |
+| day | `DD`, `DDD` (day of the year) | `dd` |
+| hour | `HH24` (0-23), `HH12` or `HH` (1-12) | `HH` (0-23), `hh` (1-12) |
+| minute, second | `MI`, `SS` | `mm`, `ss` |
+| after the point | `MS` (3 digits), `US` (6), `FF1`-`FF6` | `SSS` (milliseconds) |
+| AM / PM | `AM`, `PM`, `A.M.` | `a` |
+| zone | `TZH:TZM`, `OF` | `Z`, `z` |
+| text as it is | `"T"` | `'T'` or a letter with no meaning, like `T` |
+
+- **Returns:** `TIMESTAMP`. **NULL:** `NULL` in, `NULL` out.
+- **Which style:** in a database with the QuestDB dialect, QuestDB letters. Anywhere else, a format with lower-case `y` and upper-case `MM` (`'yyyy-MM-dd'`) or `HH:mm` is QuestDB letters; everything else is PostgreSQL words, in any case (`'yyyy-mm-dd'` is PostgreSQL: `mm` is the month).
+- **Clock:** PostgreSQL words without a zone read the time on the session's clock (`SET TIME ZONE`), as PostgreSQL does. QuestDB letters without a zone read UTC, as QuestDB does.
+- **PostgreSQL words are lenient:** any separator stands for another (`'YYYY-MM-DD'` reads `'2026/10/23'`). **QuestDB letters are exact:** every character must match.
+- A day that does not exist, like 30 February, is an error, not 2 March.
+- A constant format is read once for the whole query, not once per row.
+
+**Example: Times written by people and by other systems**
+
+```sql
+SELECT to_timestamp('23/10/2026 14:05', 'DD/MM/YYYY HH24:MI') AS pg_words,
+       to_timestamp('23/10/2026 14:05', 'dd/MM/yyyy HH:mm') AS questdb_letters,
+       to_timestamp('05 Oct 2026 02:15 PM', 'DD Mon YYYY HH12:MI AM') AS with_pm,
+       to_timestamp('2026-10-23 11:00 +05:45', 'YYYY-MM-DD HH24:MI TZH:TZM') AS nepal_time,
+       to_timestamp('20261023143005', 'YYYYMMDDHH24MISS') AS no_separators;
+```
+
+Result:
+
+| pg_words (TIMESTAMP) | questdb_letters (TIMESTAMP) | with_pm (TIMESTAMP) | nepal_time (TIMESTAMP) | no_separators (TIMESTAMP) |
+|---|---|---|---|---|
+| 2026-10-23T14:05:00.000Z | 2026-10-23T14:05:00.000Z | 2026-10-05T14:15:00.000Z | 2026-10-23T05:15:00.000Z | 2026-10-23T14:30:05.000Z |
+
+(1 row)
+
+**Example: A day that does not exist** (shows an error)
+
+```sql
+SELECT to_timestamp('2026-02-30', 'YYYY-MM-DD');
+```
+
+Result:
+
+Error: `line 1, column 8: to_timestamp: date/time field value out of range: "2026-02-30"`
 
 **Example**
 

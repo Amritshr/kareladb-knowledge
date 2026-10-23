@@ -56,8 +56,8 @@ It works in <code>kareladb serve</code> (console, <code>POST /exec</code>), in <
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
 kareladb&gt; backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261023-044647-941 |     9 | 194519 |      30
-(1 row, 24.1 ms)
+backups/20261023-182938-745 |     9 | 194519 |      30
+(1 row, 17.5 ms)
 backup created and verified
 kareladb&gt;</code></pre>
 <p><strong>Example: No backup folder was given</strong> (sample data: sample; shows an error)</p>
@@ -96,11 +96,11 @@ kareladb&gt;</code></pre>
 kareladb backups backups</code></pre>
 <p>Output:</p>
 <p><code>&gt; kareladb backup market backups --keep-daily 7 --keep-weekly 4</code></p>
-<pre><code class="language-text">backup created and verified: backups/20261023-044648-082
+<pre><code class="language-text">backup created and verified: backups/20261023-182938-857
   9 files, 190.0 KB, log up to 30</code></pre>
 <p><code>&gt; kareladb backups backups</code></p>
 <pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261023-044648-082    2026-10-23 10:31:48       9   190.0 KB           30
+20261023-182938-857    2026-10-24 00:14:38       9   190.0 KB           30
 1 backups</code></pre>
 <p><strong>Command line: Three backups, but keep only the newest of today</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb backup market backups
@@ -109,24 +109,24 @@ kareladb backup market backups --keep-daily 1 --keep-weekly 1
 kareladb backups backups</code></pre>
 <p>Output:</p>
 <p><code>&gt; kareladb backup market backups</code></p>
-<pre><code class="language-text">backup created and verified: backups/20261023-044648-110
+<pre><code class="language-text">backup created and verified: backups/20261023-182938-880
   9 files, 190.0 KB, log up to 30</code></pre>
 <p><code>&gt; kareladb backup market backups</code></p>
-<pre><code class="language-text">backup created and verified: backups/20261023-044648-158
+<pre><code class="language-text">backup created and verified: backups/20261023-182938-925
   9 files, 190.0 KB, log up to 30</code></pre>
 <p><code>&gt; kareladb backup market backups --keep-daily 1 --keep-weekly 1</code></p>
-<pre><code class="language-text">backup created and verified: backups/20261023-044648-249
+<pre><code class="language-text">backup created and verified: backups/20261023-182938-968
   9 files, 190.0 KB, log up to 30
-removed old backup backups/20261023-044648-158
-removed old backup backups/20261023-044648-110</code></pre>
+removed old backup backups/20261023-182938-925
+removed old backup backups/20261023-182938-880</code></pre>
 <p><code>&gt; kareladb backups backups</code></p>
 <pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261023-044648-249    2026-10-23 10:31:48       9   190.0 KB           30
+20261023-182938-968    2026-10-24 00:14:38       9   190.0 KB           30
 1 backups</code></pre>
 <p><strong>Command line: Hard links: a fast undo point before a big import</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb backup market before-import --hard-links</code></pre>
 <p>Output:</p>
-<pre><code class="language-text">backup created and verified: before-import/20261023-044648-134
+<pre><code class="language-text">backup created and verified: before-import/20261023-182938-900
   9 files, 190.0 KB, log up to 30</code></pre>
 <p><strong>Command line: A database name in the data folder backs up into a sub-folder</strong></p>
 <pre><code class="language-bash">kareladb shell
@@ -144,11 +144,11 @@ kareladb&gt; using database &#39;reports&#39;
 kareladb&gt; table &#39;daily&#39; created
 kareladb&gt;</code></pre>
 <p><code>&gt; kareladb backup reports backups</code></p>
-<pre><code class="language-text">backup created and verified: backups/reports/20261023-044648-244
+<pre><code class="language-text">backup created and verified: backups/reports/20261023-182938-965
   1 files, 427 B, log up to 2</code></pre>
 <p><code>&gt; kareladb backups backups/reports</code></p>
 <pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261023-044648-244    2026-10-23 10:31:48       1      427 B            2
+20261023-182938-965    2026-10-24 00:14:38       1      427 B            2
 1 backups</code></pre>
 <h2 id="kareladb-backups"><span class="old-id" id="kdb-backups"></span>kareladb backups</h2>
 <p>Syntax:</p>
@@ -161,11 +161,11 @@ kareladb&gt;</code></pre>
 kareladb backups backups</code></pre>
 <p>Output:</p>
 <p><code>&gt; kareladb backup market backups</code></p>
-<pre><code class="language-text">backup created and verified: backups/20261023-044648-200
+<pre><code class="language-text">backup created and verified: backups/20261023-182938-942
   9 files, 190.0 KB, log up to 30</code></pre>
 <p><code>&gt; kareladb backups backups</code></p>
 <pre><code class="language-text">BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261023-044648-200    2026-10-23 10:31:48       9   190.0 KB           30
+20261023-182938-942    2026-10-24 00:14:38       9   190.0 KB           30
 1 backups</code></pre>
 <p><strong>Command line: A folder that does not exist</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb backups no-such-folder</code></pre>
@@ -188,7 +188,7 @@ exit code: 0</code></pre>
 kareladb verify-backup backups</code></pre>
 <p>Output:</p>
 <p><code>&gt; kareladb backup market backups</code></p>
-<pre><code class="language-text">backup created and verified: backups/20261023-044648-295
+<pre><code class="language-text">backup created and verified: backups/20261023-182938-995
   9 files, 190.0 KB, log up to 30</code></pre>
 <p><code>&gt; kareladb verify-backup backups</code></p>
 <pre><code class="language-text">PROBLEM: backup.kdb: open &#39;backups/backup.kdb&#39;: Windows error 2
@@ -266,10 +266,10 @@ DELETE /api/databases/drill_check</code></pre>
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261023-044648-570&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261023-044648-570&quot;,
-  &quot;created_ms&quot;: 1792730808570,
-  &quot;created&quot;: &quot;2026-10-23T04:46:48.570Z&quot;,
+  &quot;name&quot;: &quot;20261023-182939-186&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261023-182939-186&quot;,
+  &quot;created_ms&quot;: 1792780179186,
+  &quot;created&quot;: &quot;2026-10-23T18:29:39.186Z&quot;,
   &quot;end_lsn&quot;: 30,
   &quot;checkpoint_lsn&quot;: 30,
   &quot;files&quot;: 9,
@@ -281,10 +281,10 @@ DELETE /api/databases/drill_check</code></pre>
   &quot;database&quot;: &quot;drill_check&quot;,
   &quot;source&quot;: &quot;demo&quot;,
   &quot;backup&quot;: {
-    &quot;name&quot;: &quot;20261023-044648-570&quot;,
-    &quot;dir&quot;: &quot;./backups/demo/20261023-044648-570&quot;,
-    &quot;created_ms&quot;: 1792730808570,
-    &quot;created&quot;: &quot;2026-10-23T04:46:48.570Z&quot;,
+    &quot;name&quot;: &quot;20261023-182939-186&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261023-182939-186&quot;,
+    &quot;created_ms&quot;: 1792780179186,
+    &quot;created&quot;: &quot;2026-10-23T18:29:39.186Z&quot;,
     &quot;end_lsn&quot;: 30,
     &quot;checkpoint_lsn&quot;: 30,
     &quot;files&quot;: 9,
@@ -295,9 +295,9 @@ DELETE /api/databases/drill_check</code></pre>
   &quot;opened&quot;: true,
   &quot;open_error&quot;: &quot;&quot;,
   &quot;notes&quot;: [
-    &quot;restored 9 data files from ./backups/demo/20261023-044648-570; the log (up to LSN 30) is replayed on first open&quot;
+    &quot;restored 9 data files from ./backups/demo/20261023-182939-186; the log (up to LSN 30) is replayed on first open&quot;
   ],
-  &quot;took_ms&quot;: 28,
+  &quot;took_ms&quot;: 24,
   &quot;next&quot;: &quot;check &#39;drill_check&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;drill_check\&quot;} to put it in place, or DROP DATABASE drill_check&quot;
 }</code></pre>
 <p><code>POST /exec?db=drill_check</code></p>
@@ -317,7 +317,7 @@ DELETE /api/databases/drill_check</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 45, &quot;execute_us&quot;: 182}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 165}
     }
   ],
   &quot;columns&quot;: [
@@ -327,14 +327,14 @@ DELETE /api/databases/drill_check</code></pre>
     [57]
   ],
   &quot;count&quot;: 1,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 45, &quot;execute_us&quot;: 182}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 165}
 }</code></pre>
 <p><code>DELETE /api/databases/drill_check</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
   &quot;name&quot;: &quot;drill_check&quot;,
   &quot;dropped&quot;: true,
-  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792730808674-drill_check&quot;
+  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792780179245-drill_check&quot;
 }</code></pre>
 <h2 id="daily-plan">A daily backup plan</h2>
 <p>Syntax:</p>

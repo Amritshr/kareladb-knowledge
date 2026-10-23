@@ -410,6 +410,8 @@ Errors carry a **SQLSTATE**: a five-character code that drivers show (`pgErr.Cod
 | `25006` | The database or the server is read-only |
 | `53100` | **The disk is full**: nothing of the statement was saved. It works again once space is freed ([disk full](backup-and-safety.md#disk-full)). |
 | `22P02`, `22001`, `22003`, `22012` | A value that does not fit: bad text for the type, too long, a number too big, division by zero |
+| `22021` | Text that is not UTF-8, or holds a NUL byte, in the SQL or a parameter: nothing of the message runs |
+| `54001` | The statement is nested too deeply: too many brackets or subqueries inside each other |
 | `42883` | Unknown function |
 | `XX001` | A damaged data file ([after damage](backup-and-safety.md#after-damage)) |
 | `0A000` | Not supported: data of a newer KarelaDB, or a changed prepared statement |

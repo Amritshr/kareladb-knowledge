@@ -73,7 +73,7 @@ one query (kareladb serve)   1 GB of rows in memory, 5,000,000 groups</code></pr
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.4 ms)</code></pre>
+(2 rows, more not shown, 0.3 ms)</code></pre>
 <p><strong>HTTP: HTTP: limit=2, and truncated is true</strong> (sample data: sample)</p>
 <pre><code class="language-http">GET /exec?query=SELECT%20time,%20symbol,%20close%20FROM%20ochl_minutes&amp;limit=2</code></pre>
 <p>Response:</p>
@@ -96,7 +96,7 @@ one query (kareladb serve)   1 GB of rows in memory, 5,000,000 groups</code></pr
       &quot;truncated&quot;: true,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 298}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 170}
     }
   ],
   &quot;columns&quot;: [
@@ -109,7 +109,7 @@ one query (kareladb serve)   1 GB of rows in memory, 5,000,000 groups</code></pr
     [&quot;2026-09-09T05:16:00.000Z&quot;, &quot;CITY&quot;, 511.9]
   ],
   &quot;count&quot;: 2,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 298}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 170}
 }</code></pre>
 <h2 id="cursors-transactions">Writers, readers and transactions</h2>
 <p>Syntax:</p>
@@ -207,7 +207,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h2 id="disk-memory">Disk and memory</h2>
@@ -225,7 +225,7 @@ memory for data     --memory, default 512 MB for all open databases together</co
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-23 10:31:45
+newest change   2026-10-24 00:14:36
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -250,7 +250,7 @@ t/6/2026-09-10                                 14     2.7 KB           30  ok
 <p>Syntax:</p>
 <pre><code class="language-sql">NATURAL JOIN   DDL in a transaction</code></pre>
 <p>Short list. The details, and the ways around each one, are in <a href="../tutorial/known-limitations.html">known limitations</a>.</p>
-<div class="table-wrap"><table><thead><tr><th>Area</th><th>Not there yet</th></tr></thead><tbody><tr><td>Statements</td><td><code>CREATE</code>/<code>DROP</code>/<code>ALTER</code> inside a transaction or procedure; <code>SELECT ... INTO</code></td></tr><tr><td>Changing a table</td><td><code>PARTITION BY</code> and <code>SORT BY</code> of an existing table; the type of the time column or of a <code>SORT BY</code> / <code>DEDUP KEY</code> column; dropping the <code>PRIMARY KEY</code></td></tr><tr><td>Queries</td><td><code>NATURAL JOIN</code> (write <code>JOIN ... USING (columns)</code>); <code>ASOF JOIN ... TOLERANCE</code>; a series function inside another (<code>lag(sma(x, 3))</code>); <code>GROUPS</code> frames, named windows, <code>IGNORE NULLS</code></td></tr><tr><td>Procedures and triggers</td><td>exception handlers, <code>LOOP</code>, <code>OUT</code> parameters, functions that return tables, <code>INSTEAD OF</code> triggers; row triggers (<code>FOR EACH ROW</code>) only as a PostgreSQL <code>BEFORE UPDATE</code> trigger</td></tr><tr><td>Transactions</td><td>Only <code>SELECT ... FOR UPDATE</code> on one table with a primary key locks rows; a change (<code>UPDATE</code>, <code>DELETE</code>, <code>INSERT</code>) still locks its whole table until <code>COMMIT</code>, so <code>SKIP LOCKED</code> inside <code>BEGIN</code> returns no rows (and <code>NOWAIT</code> fails) while another transaction has changed that table, unless <code>kareladb serve --skip-locked-beside on</code>. <code>FOR SHARE</code>, <code>FOR NO KEY UPDATE</code> and <code>FOR KEY SHARE</code> take the same lock as <code>FOR UPDATE</code>: two sessions cannot share a row lock, the second one waits (stricter than PostgreSQL, never looser; see <a href="transactions.html#for-update">FOR UPDATE</a>).</td></tr><tr><td>Text and JSON</td><td>regular expression back references and look-around, JSON path wildcards (<code>$.items[*]</code>), <code>json_each</code>, the <code>jsonb</code> operator <code>?</code></td></tr><tr><td>Time</td><td>summer time in <code>ROUND ... TIME ZONE</code>, <code>time IN ... TIME ZONE</code> and the zone argument of <code>date_trunc</code> / <code>to_char</code> (fixed offsets only there)</td></tr><tr><td>Server</td><td>CORS, compressed replies, a Windows service mode; TLS certificates are read at start (restart after renewing one)</td></tr><tr><td>PostgreSQL port</td><td>pgAdmin&#39;s own catalog queries (psql <code>\d</code> and DBeaver work); API tokens as passwords</td></tr><tr><td>Users</td><td>rights per column or row (rights are per database, and per table with <code>GRANT ... ON TABLE</code>); <code>kareladb sql</code> and <code>kareladb shell</code> never ask for a login</td></tr><tr><td>Other databases</td><td>writing into another database (<code>INSERT INTO otherdb.t</code> is refused; reading it works, see <a href="cross-database-queries.html">queries across databases</a>)</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Area</th><th>Not there yet</th></tr></thead><tbody><tr><td>Statements</td><td><code>CREATE</code>/<code>DROP</code>/<code>ALTER</code> inside a transaction or procedure; <code>SELECT ... INTO</code></td></tr><tr><td>Changing a table</td><td><code>PARTITION BY</code> and <code>SORT BY</code> of an existing table; the type of the time column or of a <code>SORT BY</code> / <code>DEDUP KEY</code> column; dropping the <code>PRIMARY KEY</code></td></tr><tr><td>Queries</td><td><code>NATURAL JOIN</code> (write <code>JOIN ... USING (columns)</code>); <code>ASOF JOIN ... TOLERANCE</code>; a series function inside another (<code>lag(sma(x, 3))</code>); <code>GROUPS</code> frames, named windows, <code>IGNORE NULLS</code></td></tr><tr><td>Procedures and triggers</td><td>exception handlers, <code>LOOP</code>, <code>OUT</code> parameters, functions that return tables, <code>INSTEAD OF</code> triggers; row triggers (<code>FOR EACH ROW</code>) only as a PostgreSQL <code>BEFORE UPDATE</code> trigger</td></tr><tr><td>Transactions</td><td>Row-level locks cover <code>UPDATE</code> / <code>DELETE</code> by primary key and <code>SELECT ... FOR UPDATE</code> on one table; an <code>INSERT</code>, or a change of a table without a primary key or with a secondary <code>UNIQUE</code> or a <code>FOREIGN KEY</code>, still locks its whole table until <code>COMMIT</code>, so <code>SKIP LOCKED</code> inside <code>BEGIN</code> returns no rows (and <code>NOWAIT</code> fails) while another transaction holds that table that way, unless <code>kareladb serve --skip-locked-beside on</code>. <code>FOR SHARE</code>, <code>FOR NO KEY UPDATE</code> and <code>FOR KEY SHARE</code> take the same lock as <code>FOR UPDATE</code>: two sessions cannot share a row lock, the second one waits (stricter than PostgreSQL, never looser; see <a href="transactions.html#for-update">FOR UPDATE</a>).</td></tr><tr><td>Text and JSON</td><td>regular expression back references and look-around, JSON path wildcards (<code>$.items[*]</code>), <code>json_each</code>, the <code>jsonb</code> operator <code>?</code></td></tr><tr><td>Time</td><td>summer time in <code>ROUND ... TIME ZONE</code>, <code>time IN ... TIME ZONE</code> and the zone argument of <code>date_trunc</code> / <code>to_char</code> (fixed offsets only there)</td></tr><tr><td>Server</td><td>CORS, compressed replies, a Windows service mode; TLS certificates are read at start (restart after renewing one)</td></tr><tr><td>PostgreSQL port</td><td>pgAdmin&#39;s own catalog queries (psql <code>\d</code> and DBeaver work); API tokens as passwords</td></tr><tr><td>Users</td><td><code>CALL</code> and triggers do not check table rights (rights per database, table, column and row work: <a href="table-rights.html">table rights</a>); <code>kareladb sql</code> and <code>kareladb shell</code> never ask for a login</td></tr><tr><td>Other databases</td><td>writing into another database (<code>INSERT INTO otherdb.t</code> is refused; reading it works, see <a href="cross-database-queries.html">queries across databases</a>)</td></tr></tbody></table></div>
 <p><strong>Example: NATURAL JOIN is not there yet</strong> (sample data: sample; shows an error)</p>
 <pre><code class="language-sql">SELECT * FROM brokers b NATURAL JOIN brokers c;</code></pre>
 <p>Result:</p>

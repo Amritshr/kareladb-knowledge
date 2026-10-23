@@ -446,10 +446,12 @@ SELECT * FROM cold_partitions();                                            -- w
   `BEGIN; SELECT ... ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED` on a table
   with a primary key: it locks only the rows it returns (until COMMIT), so
   several workers take different jobs at the same time; `NOWAIT` fails at once
-  (503 / `55P03`) only on a locked row. A table another transaction has
-  *changed* (UPDATE/DELETE/INSERT) stays locked whole until its COMMIT: send the
-  worker's UPDATE just before COMMIT. Without a primary key FOR UPDATE locks
-  the whole table.
+  (503 / `55P03`) only on a locked row. An UPDATE / DELETE by primary key
+  inside BEGIN locks only its rows too; an INSERT, or a change of a table with
+  a secondary UNIQUE or a FOREIGN KEY, keeps the whole table until COMMIT:
+  send such a statement just before COMMIT. Without a primary key FOR UPDATE
+  locks the whole table. A transaction that read a row another one was
+  changing and then changes it gets `40001`: run it again.
 
 ## Cluster: automatic failover
 

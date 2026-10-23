@@ -2,7 +2,7 @@
 
 - Category: Tutorial
 
-This page lists what is missing, or works differently from QuestDB, in KarelaDB `0.2.0-dev` (September 2026). Please check again after you update KarelaDB.
+This page lists what is missing, or works differently from QuestDB and PostgreSQL, in KarelaDB `0.2.0-dev` (checked against the program on 2026-10-24). Please check again after you update KarelaDB.
 
 ## Problems found while writing this tutorial (all fixed)
 
@@ -27,18 +27,18 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 
 ### Connecting
 
-- **PostgreSQL protocol** (port 8832, chapter 14) works for SQL and `COPY` (pgx `CopyFrom`, psql `\copy`), with TLS when `kareladb serve --tls-cert` is set (`sslmode=require`), but: only the common parts of the Postgres catalog (`\l`, `\dt` and `\di` in psql work; a full `\d <table>` still fails on one of its queries, and ORMs that read the schema may too), no `SAVEPOINT`, no two-factor users. You write KarelaDB SQL, not Postgres SQL. `TIMESTAMP` is sent as `timestamp` without time zone: send UTC times from Go, or start with `--pg-timestamptz`.
+- **PostgreSQL protocol** (port 8832, chapter 14) works for SQL and `COPY` (pgx `CopyFrom`, psql `\copy`), with TLS when `kareladb serve --tls-cert` is set (`sslmode=require`), but: only the common parts of the Postgres catalog (psql's `\l`, `\dt`, `\di` and `\d <table>` work; pgAdmin's own catalog queries do not, and ORMs that read the schema may not), no two-factor users. Most PostgreSQL SQL works (chapter 22); KarelaDB's own SQL adds time-series forms. A `TIMESTAMPTZ` column goes out as `timestamptz`, a plain `TIMESTAMP` as `timestamp` (start with `--pg-timestamptz` to send those as `timestamptz` too).
 - **ILP** (InfluxDB line protocol) works over HTTP only (`POST /write`, like QuestDB's HTTP ILP). The separate TCP ILP port (QuestDB 9009) is not available.
 - **`/imp` CSV upload**: works like QuestDB's (chapter 8). The `schema` part may only give column types (no date patterns).
 - **One PostgreSQL port per machine.** Every `kareladb serve` opens port 8832 as well as its HTTP port. A second `kareladb serve` on the same machine stops with `port 8832 on 127.0.0.1 is already in use`; start it with `--pg-port 0` (off) or another port.
 - **HTTPS**: `kareladb serve --tls-cert` (docs/help/topics/tls.md), or a reverse proxy. Certificates are read at start: restart after renewing one.
-- **Users and roles** (chapter 16): rights are per database (read, write, admin) and per table (`GRANT SELECT ON TABLE`, chapter 21), not per column or row. `CALL` and triggers ignore table rights. `kareladb shell` and `kareladb sql` do not check users.
+- **Users and roles** (chapter 16): rights per database (read, write, admin), per table (`GRANT SELECT ON TABLE`), per column (`GRANT SELECT (id, name) ON TABLE ...`) and per row (`CREATE POLICY`, row-level security): see the help topic `table-rights`. `CALL` and triggers ignore table rights. `kareladb shell` and `kareladb sql` do not check users.
 - **CORS**: web pages on other sites cannot call KarelaDB. Call it from your backend.
-- `kareladb.conf` holds only a few settings: `data_dir`, `wal_archive_mb`, `keep_versions`, `trash_keep_hours`, `web_dir`, `help_dir` and `skill_dir`. Everything else is a command-line option of `kareladb serve`.
+- `kareladb.conf` holds the main server settings (data folder, log archive, result cache, file versions, trash, slow-query log, HTTP threads, PostgreSQL connections, the web, help and skill folders: help topic `cli-serve`). The rest are command-line options of `kareladb serve`.
 - No Windows service mode (the Linux package has a systemd unit, `kdb.service`). Stop the server with Ctrl+C; killing it is safe but is an unclean shutdown.
 - **Replies are not compressed.** Request bodies may be sent with `Content-Encoding: gzip` or `deflate`.
 - `/exec` answers **10,000 rows** unless the request passes `limit`; a cut answer says `"truncated": true`.
-- The HTTP server has **8 worker threads**. More slow statements than that at once make every other request wait for a free worker (in a test, a `SELECT 1` waited 18.6 s behind 12 slow scans).
+- The HTTP server has one worker thread per CPU thread (at least 8, at most 64; `--http-threads N`). More slow statements than that at once make other requests wait for a free worker.
 - **Other databases can be read, not written**: `SELECT ... FROM otherdb.t` works, `INSERT INTO otherdb.t` is refused. A transaction does not span databases.
 
 ### SQL statements
@@ -51,7 +51,7 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 - Changing `PARTITION BY` or `SORT BY` of an existing table. (A column's type can change with `ALTER COLUMN ... TYPE`, chapter 22, but not the type of the time column or of a `SORT BY` / `DEDUP KEY` column. The dedup key itself changes with `ALTER TABLE ... DEDUP ENABLE UPSERT KEYS (...)`.)
 - `NATURAL JOIN` (write `JOIN ... USING (columns)`). QuestDB's `ASOF JOIN ... TOLERANCE`.
 - A recursive `WITH` query stops with an error after 100,000 rounds or 10 million rows. `WITH` queries that change data run before the main query, which sees their changes (chapter 23).
-- Advisory locks wait at most 30 seconds (PostgreSQL waits forever). `AT TIME ZONE` takes fixed offsets and zones without daylight saving time only.
+- Advisory locks wait at most 30 seconds (PostgreSQL waits forever); `SET statement_timeout` ends the wait sooner.
 - Arrays are sent in binary form with one dimension only; nested arrays go as text.
 - A series function inside another (`lag(sma(x, 3))`). Use a subquery. (A window function over `GROUP BY`, `SAMPLE BY` or aggregates works: `lag(sum(v)) OVER (ORDER BY time)`.)
 - `DROP PARTITION LIST`, `LATEST BY`, `'2026-09-10;1d'` intervals (QuestDB forms). `DROP PARTITION OLDER THAN 6 MONTHS` works.
@@ -62,26 +62,26 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 
 - A `WHERE` on a view goes into the view's query only for the parts that are safe to move; the rest is applied after the view's query has run.
 - **FILL** uses one rule for all columns (for example, `FILL(PREV)` also copies the volume).
-- `TIME ZONE` accepts only zones without daylight saving time (a fixed zone such as Nepal, +05:45, is fine).
-- `hour()`, `day()`, `date_trunc()`, `is_trading_day()` and `time IN '...'` work in **UTC**. For a local clock, add its offset (for example `20700000` ms for Nepal, +05:45).
+- Zones with summer time (`Europe/London`) work in `SET TIME ZONE` and `AT TIME ZONE`. `ROUND ... TIME ZONE`, `time IN ... TIME ZONE` and the zone argument of `date_trunc` / `to_char` take fixed offsets only (Nepal, +05:45, is fine).
+- `hour()`, `day()`, `date_trunc()`, `is_trading_day()` and `::date` follow the session's clock (`SET TIME ZONE`, or the server's `--timezone`); without one they work in **UTC**.
 - `is_trading_day()` does not know market holidays.
-- `upper()`, `lower()`, `ILIKE` and the regular expression flag `'i'` change English letters only (many scripts, such as Nepali, have no upper case, so this is fine for them). `length()` counts characters; `octet_length()` counts bytes.
+- `upper()`, `lower()` and `ILIKE` work for every letter that has a case (`'École' ILIKE 'é%'`); the regular expression flag `'i'` still folds English letters only. `length()` counts characters; `octet_length()` counts bytes.
 - A STRING, JSON or BYTES value can be at most 16 MB. Keep PDF files and images outside the database; store their path or URL and a hash (chapter 18).
 - JSON keeps the order of keys and the spelling of numbers (`1.0` stays `1.0`). Two JSON values are equal only when their text is equal (after spaces are removed), so `{"a":1,"b":2}` is not equal to `{"b":2,"a":1}`.
-- Times are stored in **milliseconds**. QuestDB microseconds are cut.
-- KarelaDB runs **one change at a time per table** (reads run together, and writers of different tables run at the same time). A long change makes the other writers of its tables wait.
+- Times and intervals are stored in **milliseconds**. Microseconds (PostgreSQL, QuestDB) are cut.
+- Plain statements that change the same table run one after the other (reads run together, and writers of different tables run at the same time). Inside `BEGIN` ... `COMMIT`, an `UPDATE` or `DELETE` of rows by their primary key locks only those rows (below).
 - Only **one program** can open a database. `kareladb backup` and `kareladb check` need the database closed, or the server's API.
 - `kareladb sql` table format cuts text after 48 characters; use `--format csv`. With several SELECTs, CSV output has several header lines one after another.
 - **Transactions** (`BEGIN` ... `COMMIT`, `CALL`, a statement with triggers) keep the old version of every changed row in memory until they end: at most 10 million changed rows. A statement that fails rolls back the whole transaction.
-- **One writer per table** (chapter 15): while a session has an open `BEGIN`, every other change of the tables it used (statements, `CALL`, line protocol, `InsertRows`) **waits**, at most 5 seconds (fixed; no option changes it), then fails with `table 'x' is busy: ...`. Changes of other tables go on. Reads do not wait: they see the rows as they were before the open transaction. Keep transactions short. There are no row locks: two transactions on different accounts of the same table still run one after the other.
+- **Row-level locks** (help topic `transactions`): inside `BEGIN`, an `UPDATE` or `DELETE` of rows of a table with a primary key locks those rows, and other transactions change other rows of the table meanwhile. An `INSERT`, a change of a table without a primary key, or of a table with a secondary `UNIQUE` or a `FOREIGN KEY`, still holds the whole table until `COMMIT`: other writers of it wait (the lock timeout, 5 s unless `SET lock_timeout`) and then get `table 'x' is busy`. Reads never wait for row locks. Keep transactions short.
 - A transaction with no statement for 30 seconds (`idle_transaction_timeout_ms`) is rolled back. After an error or this timeout, the session must send `ROLLBACK` before anything else.
 - While another session's transaction is open, a read takes that transaction's changes out of memory for a moment, and its next statement puts them back. For a transaction with very many changed rows (millions), this makes its statements slower when many reads come in between.
-- `SELECT ... FOR UPDATE` locks whole tables, not single rows. `FOR SHARE` and `FOR UPDATE OF t` work exactly as `FOR UPDATE`. `NOWAIT` fails at once when another transaction holds a table it needs, and `SKIP LOCKED` then returns no rows at once: every row of a held table counts as locked, so two job-queue workers never take two different jobs at the same moment.
-- `SAVEPOINT`, `SET TRANSACTION ISOLATION LEVEL` and `READ ONLY` transactions are not supported (every transaction is serializable).
+- `SELECT ... FOR UPDATE` on one table with a primary key locks the rows it returns; `SKIP LOCKED` skips rows others locked, so job-queue workers take different jobs at once. With a join, `GROUP BY` or a view it locks the tables. `FOR SHARE` and `FOR UPDATE OF t` work exactly as `FOR UPDATE`. Two transactions waiting for each other's rows get `40P01` at once.
+- Isolation: `SERIALIZABLE` (the default) and `READ COMMITTED`; `REPEATABLE READ` runs as `SERIALIZABLE`. `SAVEPOINT`, `SET TRANSACTION ISOLATION LEVEL` and `READ ONLY` transactions work. A transaction that read a row another one was changing, and then changes it, gets `40001` (run it again), so no update is lost. `CREATE`, `DROP` and `ALTER` are refused inside a transaction.
 - `CHECK` constraints look at **one row**: no subqueries, aggregates, window functions, saved functions or computed columns in them. A `CHECK` cannot compare with other rows (for example "the sum of all balances"). A `NULL` value passes a `CHECK`; use `NOT NULL` too.
 - `ALTER TABLE ... ADD CHECK` reads every row of the table once (slow for very big time-series tables).
 - `AUTO` ids only go up, like a PostgreSQL sequence: the id of a deleted row, or of an insert that was rolled back, is **never used again**, so there can be gaps (1, 2, 4, ...). Do not use AUTO ids as a count of rows.
-- `DECIMAL` arithmetic (`balance - 12.50`) is worked out with a double and rounded back to the column's scale. Values up to about 90 billion (2 decimal places) are exact; a result that cannot be made exact is refused with an error, never stored wrong.
+- `DECIMAL` / `NUMERIC(p,s)` arithmetic is exact (fixed point, up to 38 digits; `sum` adds exactly). A result that does not fit is refused with an error, never stored wrong. `NUMERIC` without precision is a `DOUBLE` unless `kdb.pg_compat` is on: give money columns a precision.
 - `RETURNING` gives the rows as they are written (for `DELETE`: as they were). With `INSERT OR IGNORE`, skipped rows are not returned.
 - In a procedure, a **column name wins over a variable** with the same name. Name variables so they are not column names.
 - KarelaDB checks procedure and trigger bodies for syntax when they are created; unknown tables, columns and procedures are found only when they run. `DROP FUNCTION`, `DROP PROCEDURE` and `DROP VIEW` do not check who uses them.
@@ -91,7 +91,7 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 - A `WHILE` loop stops with an error after 10 million rounds.
 - **Indexes live in memory** (chapter 17) and are built from the rows after every open: about 0.2 seconds per million rows for a plain index, about 1 second per 200 MB of text for a FULLTEXT index. `kareladb serve` builds them on a background thread right after the open (`--warm-indexes`, on by default); a query that comes first builds the index itself, and `kareladb sql` always builds on first use. A FULLTEXT index of a table with one partition makes writers of that table wait while it is built. A plain or FULLTEXT index bigger than `index_memory_bytes` (default 2 GB) is not built and queries read the table instead; `SHOW INDEXES` shows `built = false` then.
 - Expression and partial indexes are built and used, but only in these shapes: an expression key part needs `expr = constant` with exactly the index's expression (no ranges, no `IN (...)`, no `ORDER BY` on it), and a partial index is used only when every part of its `WHERE` is also a condition of the query. `INCLUDE` columns are ignored.
-- A query uses an index only for the **first table** in `FROM`, not for the tables of a `JOIN`. It does not use one for `OR`, `!=`, `NOT LIKE`, FLOAT columns, or text compared with a number. A function around the column (`lower(email) = ...`) needs an expression index on exactly that expression. When an index would read more than a quarter of the table, KarelaDB reads the table instead. Use `EXPLAIN` to see what happens.
+- A join reads a joined table through its index when the join key has one (`EXPLAIN` shows `index lookup`). A query does not use an index for `OR`, `!=`, `NOT LIKE`, FLOAT columns, or text compared with a number. A function around the column (`lower(email) = ...`) needs an expression index on exactly that expression. When an index would read more than a quarter of the table, KarelaDB reads the table instead. Use `EXPLAIN` to see what happens.
 - Tables with an index are slower to write in big line-protocol batches: every row looks up the row it replaces. A table with a `UNIQUE` index cannot use the fast column-wise path for `InsertRows` at all.
 - **Full-text search** finds whole words. There is no stemming: `bank` does not find `banks`, and `बैंक` does not find `बैंकले`. Use a prefix (`bank*`, `बैंक*`). There are no stop words, no `OR` inside the search text, no fuzzy search, and no synonyms.
 - `search_rank` on a table without a FULLTEXT index on the same columns reads the whole table once per query. (A phrase such as `'"city bank"'` is answered from the index since 2026-09-23: it keeps every word's positions.)
@@ -105,13 +105,12 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 - plpgsql runs only as a row trigger: `CREATE FUNCTION f() RETURNS trigger ... LANGUAGE plpgsql` used by a `BEFORE UPDATE ... FOR EACH ROW` trigger. `INSERT` and `AFTER` row triggers are refused. Any other plpgsql function is recorded with a warning and **never runs**. Write KarelaDB triggers and procedures (chapter 13).
 - `DO $$ ... $$` blocks may use only `IF`, `RAISE`, `NULL` and SQL statements (no `DECLARE`, loops, `PERFORM`, `EXECUTE`, `EXCEPTION`). A DO block is **not one transaction**: statements before an error stay.
 - `SERIAL` / `IDENTITY` only for the single-column `PRIMARY KEY`. Use a sequence for other columns.
-- `NUMERIC` without precision is a `DOUBLE`. `NUMERIC(p,s)`: at most 18 decimal places and about 18 digits in total. `FLOAT` alone is 4 bytes. `CHAR(n)` is not padded. `CITEXT` is not case-insensitive. `INTERVAL` is milliseconds (a month is 30 days). `INET`, `CIDR`, `MACADDR`, `XML` are not checked.
-- `GENERATED ALWAYS AS (...) STORED` columns are worked out when read, not stored.
-- The `PRIMARY KEY` cannot be dropped. `DROP TABLE ... CASCADE` is accepted but drops nothing else: a table that another table `REFERENCES` still cannot be dropped. `DEFERRABLE` constraints, `INHERITS`, `PARTITION BY RANGE`, `EXCLUDE` constraints and schemas other than `public` are not supported. Table constraints must come after the columns.
+- `NUMERIC` without precision is a `DOUBLE` (exact with `kdb.pg_compat = on`). `NUMERIC(p,s)`: up to 38 digits (more than 18 use 128 bits). `FLOAT` alone is 4 bytes. `CHAR(n)` is not padded. `CITEXT` is not case-insensitive. `INTERVAL` is milliseconds (a month is 30 days). `INET`, `CIDR`, `MACADDR`, `XML` are not checked.
+- The `PRIMARY KEY` cannot be dropped. `DROP TABLE ... CASCADE` is refused while another table `REFERENCES` the table: drop that foreign key first. `DEFERRABLE` constraints, `INHERITS`, `PARTITION BY RANGE`, `EXCLUDE` constraints and schemas other than `public` are not supported. Table constraints must come after the columns.
 - In one `INSERT` of many rows, a row may refer (REFERENCES) only to rows before it, not to rows after it.
 - A foreign key action reads the whole child table for each changed parent row when the child column has no key or index. Add an index on foreign key columns of big tables.
 - `ALTER COLUMN ... TYPE` and `ADD PRIMARY KEY` write every row again (slow for very big tables).
-- The catalog views have the common columns only. `TIMESTAMPTZ` columns are sent over the PostgreSQL protocol as `timestamp` unless the server runs with `--pg-timestamptz`.
+- The catalog views have the common columns only.
 - Older KarelaDB programs refuse databases that use these features (`needs a newer KarelaDB`, or `needs a newer KDB` from a build before the name) or cannot replay their log (sequences). Update every `kareladb` program first.
 
 ### Analysis functions (chapter 19)
@@ -130,7 +129,7 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 
 ### Users, passwords and security
 
-- **Logins live in memory.** A server restart logs everyone out (web console, `POST /api/login` tokens).
+- Logins are kept across a server restart (only their hashes are stored, in `_system.login_sessions`).
 - **HTTPS** inside KarelaDB needs `--tls-cert` (docs/help/topics/tls.md); otherwise use a reverse proxy (Caddy, nginx) or an SSH tunnel. Over plain HTTP, passwords and tokens can be read on the network.
 - The failed-login limit counts per address. Behind a reverse proxy every client has the address `127.0.0.1`, so wrong passwords from one person also slow down others who log in as the **same** user.
 - The **SCRAM-SHA-256** secret of a database user uses 4,096 rounds (like PostgreSQL); the password hash uses 600,000. Use long random passwords for database users.
@@ -138,9 +137,9 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 - `password_hash` in `UPDATE ... SET password_hash = password_hash('x')` gives every changed row the same hash (one salt). Change passwords one row at a time.
 - `ADD COLUMN id STRING DEFAULT gen_random_uuid()` gives all **old** rows one and the same value; new rows get their own. Do not use random functions in computed columns (`AS (...)`): the value changes each time the row is read.
 - The HTTP cursors (`/cursor/<id>`) are not tied to a user: another user with `read` on the same database who knows the id can read the rows. The id is long and random; do not share it.
-- **The audit log** (chapter 21) writes security events every 200 ms: a crash can lose the events of that last moment (data-change audit rows are in the same transaction and are never lost). It is not signed: whoever can change the data files can change it. A server on one folder path (`kareladb serve D:\kdb\market`) has no security audit log.
+- **The audit log** (chapter 21) writes security events every 200 ms: a crash can lose the events of that last moment (data-change audit rows are in the same transaction and are never lost). Its rows are hash-chained: `kareladb check` finds a changed or removed row. A server on one folder path (`kareladb serve D:\kdb\market`) has no security audit log.
 - **Two-factor login** works only for HTTP logins (console, `POST /api/login`). HTTP Basic and the PostgreSQL port refuse users with two-factor login.
-- **No encryption of the files** (data, log, backups). Protect them with file permissions. The plan is in `docs/design/encryption-at-rest.md`.
+- Files can be encrypted at rest (help topic `encryption`); without it, protect the data folder with file permissions.
 - Older KarelaDB programs refuse databases with audited tables and data folders with table rights or two-factor users (they would ignore them). Update every `kareladb` program first.
 - User names and passwords go through `kareladb user add` from stdin or a prompt, never the command line. The console history masks `PASSWORD '...'`, but your own scripts and logs may still contain passwords you typed into SQL.
 

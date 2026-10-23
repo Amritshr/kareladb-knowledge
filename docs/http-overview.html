@@ -53,10 +53,10 @@ SELECT symbol, name FROM securities ORDER BY symbol LIMIT 2</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 60}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 67}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 60}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 67}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -77,10 +77,10 @@ SELECT symbol, name FROM securities ORDER BY symbol LIMIT 2</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 26, &quot;execute_us&quot;: 138}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 124}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 26, &quot;execute_us&quot;: 138}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 124}
 }</code></pre>
 <p><strong>HTTP: A database that does not exist</strong></p>
 <pre><code class="language-http">GET /exec?db=no_such_db&amp;query=SELECT 1</code></pre>
@@ -162,10 +162,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;idem_orders&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 2635}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 2659}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 2635}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 2659}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -180,10 +180,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 13}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 18}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 13}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 18}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -198,10 +198,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 13}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 18}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 13}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 18}
 }</code></pre>
 <p><code>GET /exec?query=SELECT count(*) FROM idem_orders</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -220,7 +220,7 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 91}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 120}
     }
   ],
   &quot;columns&quot;: [
@@ -230,7 +230,7 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
     [1]
   ],
   &quot;count&quot;: 1,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 91}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 120}
 }</code></pre>
 <div class="table-wrap"><table><thead><tr><th>Case</th><th>Answer</th></tr></thead><tbody><tr><td>the same key and the same request again</td><td>the first answer, with the header <code>Idempotent-Replayed: true</code></td></tr><tr><td>the same key while the first request still runs</td><td>waits for it, then its answer</td></tr><tr><td>the same key with a different request (another body or query string)</td><td><code>422</code>: a new request needs a new key</td></tr><tr><td>the first answer was over 1 MB (a big <code>SELECT</code>)</td><td><code>409</code>: it was done already, the answer was not kept</td></tr><tr><td>the first answer was <code>500</code> or more (busy, stopping)</td><td>not kept: the retry runs for real</td></tr></tbody></table></div>
 <ul><li><strong>Where:</strong> <code>POST /exec</code>, <code>POST /write</code>, <code>POST /api/v2/write</code> and <code>POST /imp</code>. A request without the header runs as always.</li><li><strong>Whose:</strong> a key belongs to the user (or token) and the database (<code>?db=</code>), so two users never share one.</li><li><strong>How long:</strong> keys are kept 24 hours, in memory, at most 64 MB of answers (the oldest go first). A restart forgets them.</li></ul>

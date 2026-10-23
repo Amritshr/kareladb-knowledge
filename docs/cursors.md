@@ -540,7 +540,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "af1c297333057539c81d803f01a8e4dc", "idle_timeout_ms": 600000}
+{"session": "eacc53e27b58bf69d0d9b304a5ea8452", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -559,13 +559,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "cursor 'b' declared: 5 row(s)",
-      "timings": {"parse_us": 35, "execute_us": 308}
+      "timings": {"parse_us": 25, "execute_us": 160}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 35, "execute_us": 308}
+  "timings": {"parse_us": 25, "execute_us": 160}
 }
 ```
 
@@ -592,7 +592,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "3 row(s) fetched, 2 left",
-      "timings": {"parse_us": 16, "execute_us": 9}
+      "timings": {"parse_us": 12, "execute_us": 5}
     }
   ],
   "columns": [
@@ -605,7 +605,7 @@ HTTP 200 (application/json)
     [45, "Imperial Securities"]
   ],
   "count": 3,
-  "timings": {"parse_us": 16, "execute_us": 9}
+  "timings": {"parse_us": 12, "execute_us": 5}
 }
 ```
 
@@ -614,7 +614,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "af1c297333057539c81d803f01a8e4dc", "closed": true}
+{"session": "eacc53e27b58bf69d0d9b304a5ea8452", "closed": true}
 ```
 
 <a id="http"></a>
@@ -663,7 +663,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "fd0d69b8e9bdb401",
+  "cursor": "e78ccaaa1c3d2268",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -680,7 +680,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "fd0d69b8e9bdb401",
+  "cursor": "e78ccaaa1c3d2268",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -703,7 +703,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "fd0d69b8e9bdb401",
+  "cursor": "e78ccaaa1c3d2268",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -725,7 +725,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "fd0d69b8e9bdb401", "closed": true}
+{"cursor": "e78ccaaa1c3d2268", "closed": true}
 ```
 
 `GET /cursor/{{cursor}}?fetch=3`
@@ -733,7 +733,7 @@ HTTP 200 (application/json)
 HTTP 404 (application/json)
 
 ```text
-{"error": "cursor 'fd0d69b8e9bdb401' does not exist (an unused cursor closes after 10 minutes)"}
+{"error": "cursor 'e78ccaaa1c3d2268' does not exist (an unused cursor closes after 10 minutes)"}
 ```
 
 <a id="limits"></a>

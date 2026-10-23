@@ -888,14 +888,14 @@ procedure 'transfer' done: 3 row(s) changed
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL transfer(1, 2, 600) WITH DEBUG | 3 | 2844 |  |
-| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 97 | have=1000.00 |
+| 1 |  | CALL transfer(1, 2, 600) WITH DEBUG | 3 | 660 |  |
+| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 80 | have=1000.00 |
 | 3 | transfer | IF have < amt THEN | 0 | 7 | false |
-| 4 | transfer | ELSIF amt >= 500 THEN | 0 | 1 | true |
-| 5 | transfer | PRINT 'big transfer: check it by hand' | 0 | 1 | big transfer: check it by hand |
+| 4 | transfer | ELSIF amt >= 500 THEN | 0 | 2 | true |
+| 5 | transfer | PRINT 'big transfer: check it by hand' | 0 | 0 | big transfer: check it by hand |
 | 6 | transfer | UPDATE accounts SET balance = balance - amt WHERE id = from_id | 1 | 49 |  |
 | 7 | transfer | UPDATE accounts SET balance = balance + amt WHERE id = to_id | 1 | 9 |  |
-| 8 | transfer | INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt) | 1 | 67 |  |
+| 8 | transfer | INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt) | 1 | 69 |  |
 
 (8 rows)
 
@@ -925,10 +925,10 @@ procedure 'transfer' created
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL transfer(2, 1, 50) WITH DEBUG | 0 | 186 | failed |
-| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 92 | have=0.00 |
-| 3 | transfer | IF have < amt THEN | 0 | 4 | true |
-| 4 | transfer | RAISE concat('not enough money in account ', from_id, ': it has ', have) | 0 | 55 | failed: not enough money in account 2: it has 0.00 |
+| 1 |  | CALL transfer(2, 1, 50) WITH DEBUG | 0 | 175 | failed |
+| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 83 | have=0.00 |
+| 3 | transfer | IF have < amt THEN | 0 | 5 | true |
+| 4 | transfer | RAISE concat('not enough money in account ', from_id, ': it has ', have) | 0 | 53 | failed: not enough money in account 2: it has 0.00 |
 
 (4 rows)
 
