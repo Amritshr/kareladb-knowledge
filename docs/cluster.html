@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cluster: automatic failover (--cluster-peers, kareladb witness) - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="Two or three KarelaDB servers and a witness elect a leader; when the leader&#39;s computer dies, another takes over by itself in about 5 to 10 seconds.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/cluster.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cluster.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="cluster-automatic-failover-cluster-peers-kareladb-witness"><span class="old-id" id="cluster-automatic-failover-cluster-peers-kdb-witness"></span>Cluster: automatic failover (--cluster-peers, kareladb witness)</h1>
+<blockquote><p>Two or three KarelaDB servers and a witness elect a leader; when the leader&#39;s computer dies, another takes over by itself in about 5 to 10 seconds.</p></blockquote>
+<ul><li>Category: Backup, check, repair, restore</li><li>Keywords: cluster, failover, automatic failover, high availability, ha, leader, follower, election, raft, term, witness, kareladb witness, quorum, majority, lease, fencing, split brain, --cluster-peers, --node-id, --cluster-token, KARELADB_CLUSTER_PEERS, KARELADB_NODE_ID, KARELADB_CLUSTER_TOKEN, KARELADB_ELECTION_TIMEOUT_MS, KARELADB_LEASE_MS, KARELADB_CLUSTER_HEARTBEAT_MS, GET /api/cluster, api/cluster, 421, 25006, 08007, _diverged, kareladb cluster diverged, DELETE /api/cluster/diverged, copy id</li><li>See also: <a href="standby.html">Standby server: a live read-only copy (--standby-of, kareladb promote)</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-serve.html">kareladb serve</a></li></ul>
+<p>A <strong>cluster</strong> is three voters that choose one <strong>leader</strong> among them. The leader is a primary: it takes every change. The other data nodes are its <a href="standby.html">standbys</a>: they copy its log and serve reads. When the leader&#39;s computer dies, the others notice within about 5 seconds and elect a new leader, which takes changes from then on. Nobody has to run <code>kareladb promote</code>.</p>
+<p>Two leaders never both write: a leader that loses touch with the others stops taking changes <strong>before</strong> anyone else can be elected (see <a href="#fencing">Fencing</a>).</p>
+<h2 id="shape">The shape</h2>
+<div class="table-wrap"><table><thead><tr><th>Layout</th><th>Computers</th><th>Good</th><th>Not so good</th></tr></thead><tbody><tr><td>2 data nodes + 1 witness</td><td>2 big, 1 tiny</td><td>cheap: the witness holds no data, only votes (a few MB of memory)</td><td>after one data node dies there is one copy until it is back</td></tr><tr><td>3 data nodes</td><td>3 big</td><td>still two copies after one dies</td><td>3 times the disk and memory</td></tr></tbody></table></div>
+<p>Two voters alone are not safe: when they lose contact, neither can tell &quot;the other is dead&quot; from &quot;the cable is cut&quot;. A third voter breaks the tie, so <code>--cluster-peers</code> needs at least 3.</p>
+<h2 id="start">Start a cluster</h2>
+<p>Every node gets the same list of voters, each as <code>id=http://host:port</code>, and its own <code>--node-id</code>:</p>
+<pre><code class="language-bash">PEERS=a=http://10.0.0.1:9900,b=http://10.0.0.2:9900,w=http://10.0.0.3:9900
+
+# data node a
+kareladb serve --data-dir /data --bind 0.0.0.0 --token &lt;secret&gt; --node-id a --cluster-peers $PEERS
+# data node b
+kareladb serve --data-dir /data --bind 0.0.0.0 --token &lt;secret&gt; --node-id b --cluster-peers $PEERS
+# the witness (no data)
+kareladb witness --data-dir /witness --bind 0.0.0.0 --port 9900 --token &lt;secret&gt; --node-id w --cluster-peers $PEERS</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Meaning</th></tr></thead><tbody><tr><td><code>--cluster-peers LIST</code> (<code>KARELADB_CLUSTER_PEERS</code>)</td><td>every voter, this one too: <code>id=http://host:port</code>, comma-separated. An entry without <code>id=</code> uses <code>host:port</code> as its id</td></tr><tr><td><code>--node-id ID</code> (<code>KARELADB_NODE_ID</code>)</td><td>this node&#39;s id in the list</td></tr><tr><td><code>--cluster-token T</code> (<code>KARELADB_CLUSTER_TOKEN</code>)</td><td>what the nodes send each other. Default: <code>--token</code>. Every node must accept it as an admin&#39;s token, because followers read the leader&#39;s log with it</td></tr><tr><td><code>KARELADB_ELECTION_TIMEOUT_MS</code></td><td>how long a node waits without hearing the leader before it asks to be elected (default 5000, random +-20%)</td></tr><tr><td><code>KARELADB_LEASE_MS</code></td><td>how long a leader may write after a majority last answered it (default 3000)</td></tr><tr><td><code>KARELADB_CLUSTER_HEARTBEAT_MS</code></td><td>how often the leader says &quot;I am here&quot; (default 500)</td></tr><tr><td><code>KARELADB_SYNC_STANDBYS</code></td><td><code>1</code> (default): a commit is confirmed once a standby holds it too; <code>0</code>: the leader alone (<a href="#sync">sync commit</a>)</td></tr><tr><td><code>KARELADB_ON_LEADER</code>, <code>KARELADB_ON_FOLLOWER</code></td><td>a command run on each role change (<a href="#clients">clients</a>)</td></tr><tr><td><code>KARELADB_ROLE_SCRIPT_TIMEOUT_MS</code></td><td><code>30000</code> (default): a role script that runs longer is killed and logged</td></tr></tbody></table></div>
+<p>The lease plus one heartbeat must end before the shortest election timeout (3000 + 500 &lt; 4000 with the defaults). A node refuses to start otherwise, because then two leaders could write at once. Give every node the same three settings: each message carries the sender&#39;s lease and shortest timeout, and a node refuses votes and heartbeats from a node whose settings do not fit beside its own (its log says why).</p>
+<p>A node starts as a follower that copies nothing. Within the election timeout one data node is elected; it says so in its log (<code>cluster: this node is the leader in term 1</code>), and the others start copying it.</p>
+<p>A list of two voters is refused, because two nodes alone cannot fail over safely:</p>
+<p><strong>Command line: Two voters are not enough</strong></p>
+<pre><code class="language-bash">kareladb serve --data-dir data --token T --node-id a --cluster-peers a=http://10.0.0.1:9900,b=http://10.0.0.2:9900</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: --cluster-peers needs at least 3 voters (two data nodes and a witness, or three data nodes): two alone cannot tell a dead node from a cut cable</code></pre>
+<p>exit code 1</p>
+<p>A witness needs the same list of voters as the data nodes:</p>
+<p><strong>Command line: A witness without --cluster-peers</strong></p>
+<pre><code class="language-bash">kareladb witness --data-dir witness --node-id w --token T</code></pre>
+<p>Output:</p>
+<pre><code class="language-text">error: kareladb witness needs --cluster-peers (every voter, this one too; env KARELADB_CLUSTER_PEERS)</code></pre>
+<p>exit code 1</p>
+<h2 id="connect">Connection strings</h2>
+<p>Give clients <strong>both data nodes</strong> (not the witness: it holds no data). The driver tries them in order and keeps the one that takes writes.</p>
+<div class="table-wrap"><table><thead><tr><th>Client</th><th>Connection string</th></tr></thead><tbody><tr><td>psql, libpq, Python psycopg</td><td><code>postgresql://user:pass@10.0.0.1:8832,10.0.0.2:8832/default?target_session_attrs=read-write</code></td></tr><tr><td>Go pgx</td><td><code>postgres://user:pass@10.0.0.1:8832,10.0.0.2:8832/default?target_session_attrs=read-write</code></td></tr><tr><td>Java JDBC</td><td><code>jdbc:postgresql://10.0.0.1:8832,10.0.0.2:8832/default?targetServerType=primary</code></td></tr><tr><td>Node <code>pg</code></td><td>one host per pool; on error <code>25006</code> or a closed connection, connect to the other node</td></tr><tr><td>HTTP (<code>/exec</code>, <code>/write</code>)</td><td>send to either node; a follower answers <code>421</code> with <code>X-KarelaDB-Leader: &lt;url&gt;</code>: send it again there</td></tr><tr><td>A load balancer</td><td>health check <code>GET /health?role=leader</code> (writes) or <code>?role=follower</code> (reads)</td></tr><tr><td>Reads only</td><td><code>target_session_attrs=any</code> (or <code>prefer-standby</code>): any node answers reads. A follower says true to <code>pg_is_in_recovery()</code> and on to <code>in_hot_standby</code> and <code>transaction_read_only</code>, as a PostgreSQL standby does, so every driver tells it from the leader</td></tr></tbody></table></div>
+<p>After a failover the driver&#39;s open connections to the old leader break. A
+connection pool opens new ones and finds the new leader by itself; a client
+that keeps one connection should connect again on error and send the write
+again only if it was not confirmed (see <a href="#sync">what a commit does</a>).</p>
+<p>Any server answers <code>/health</code> without a token. A plain server (no cluster) says it leads:</p>
+<p><strong>HTTP: The role check a load balancer uses</strong></p>
+<pre><code class="language-http">GET /health?role=leader</code></pre>
+<p>Response:</p>
+<p>HTTP 200 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;ok&quot;,
+  &quot;version&quot;: &quot;0.2.0-dev&quot;,
+  &quot;product&quot;: &quot;KarelaDB&quot;,
+  &quot;server_time_ms&quot;: 1792730812183,
+  &quot;auth_required&quot;: false,
+  &quot;login&quot;: false,
+  &quot;tls&quot;: false,
+  &quot;ready&quot;: true,
+  &quot;standby&quot;: false,
+  &quot;role&quot;: &quot;leader&quot;
+}</code></pre>
+<p><strong>HTTP: Asked for a follower, the leader answers 503</strong></p>
+<pre><code class="language-http">GET /health?role=follower</code></pre>
+<p>Response:</p>
+<p>HTTP 503 (application/json)</p>
+<pre><code class="language-text">{
+  &quot;status&quot;: &quot;ok&quot;,
+  &quot;version&quot;: &quot;0.2.0-dev&quot;,
+  &quot;product&quot;: &quot;KarelaDB&quot;,
+  &quot;server_time_ms&quot;: 1792730812198,
+  &quot;auth_required&quot;: false,
+  &quot;login&quot;: false,
+  &quot;tls&quot;: false,
+  &quot;ready&quot;: true,
+  &quot;standby&quot;: false,
+  &quot;role&quot;: &quot;leader&quot;
+}</code></pre>
+<h2 id="election">How the leader is chosen</h2>
+<div class="table-wrap"><table><thead><tr><th>Step</th><th>What happens</th></tr></thead><tbody><tr><td>1</td><td>The leader sends a heartbeat to every other voter every 500 ms (<code>POST /api/cluster/heartbeat</code>, on the same port).</td></tr><tr><td>2</td><td>A node that hears nothing for its election timeout first asks the others whether they <strong>would</strong> vote for it. A voter that heard a leader, or gave a vote, less than 4 s ago says no, to this question and to a real vote. So a node that was only cut off cannot disturb a working cluster when it comes back, and no second leader is elected while the first may still write.</td></tr><tr><td>3</td><td>If a majority would, it adds 1 to the <strong>term</strong> (an election counter), votes for itself and asks for real votes (<code>POST /api/cluster/vote</code>).</td></tr><tr><td>4</td><td>A voter gives one vote per term, and only to a candidate whose log is at least as far as its own <strong>for every database</strong>, and as far as what the leader last said a majority holds. The witness keeps that list. A log&#39;s end is the term of the leader that wrote its last entry, then its LSN: a newer term wins over a longer log from an older term. So the most up-to-date node wins. Before both comes the database&#39;s <strong>copy id</strong>, which making of the database the log belongs to: a database dropped and made again (even within one term) starts its LSNs again from 1, and a node that only holds the dropped one never wins over a node holding the new one, however long its old log is.</td></tr><tr><td>5</td><td>With a majority (2 of 3) the candidate is the leader. Every database becomes a primary&#39;s, in place, and its log goes on in a new history named by the term. Timers start.</td></tr><tr><td>6</td><td>The other data node becomes its follower and copies its log.</td></tr></tbody></table></div>
+<p>The term, the vote and the last leader are in <code>&lt;data&gt;/_cluster/state</code>. A node writes and syncs this file <strong>before</strong> it answers a vote, so it never votes twice in one term, even across a crash. If the file is damaged, the node refuses to start rather than guess.</p>
+<p>A node that replays a long log after a crash still votes: nothing is applied to a database while it opens, so the end its open&#39;s log check read (before the replay starts) is its log end, and the node answers votes with it. Only until that check has read the log does it say <code>this voter&#39;s own log ends are still being read</code>.</p>
+<h2 id="fencing">Fencing: two leaders never write</h2>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>How</th></tr></thead><tbody><tr><td>Lease</td><td>The leader may write only while a majority answered a heartbeat it sent in the last 3 s (a steady clock, not the time of day). When the lease runs out, every database refuses commits at once, with SQLSTATE <code>25006</code>, and the node steps down. Others can be elected only after 4 s without a heartbeat, which is after the lease ended.</td></tr><tr><td>Term on every log request</td><td>A follower sends its term with each request for the log (<code>GET /api/wal?term=</code>). A leader that sees a higher term steps down at once and answers <code>421</code>. A follower never applies a log from an older term.</td></tr></tbody></table></div>
+<p>A follower that was the leader before (it lost its lease, or the cluster moved on while it was away) becomes a follower in place: its databases turn into copies again and it copies from the new leader. Nothing has to be copied by hand, even when its log no longer fits the new leader&#39;s (next section).</p>
+<h2 id="rejoin">When the old leader comes back</h2>
+<p>A leader that was cut off, or whose computer stopped, may have logged commits the new leader never got. In async mode some of them may have been confirmed to a client. When it comes back, it takes the new leader&#39;s history by itself, database by database:</p>
+<div class="table-wrap"><table><thead><tr><th>Its copy</th><th>What it does</th></tr></thead><tbody><tr><td>Fits the new leader&#39;s log</td><td>copies on from where it is.</td></tr><tr><td>Has commits after the point where the two logs part (the fork)</td><td>cuts its log back to the fork and copies on from there. Its data files are linked, not copied, so this takes a moment even for a big database.</td></tr><tr><td>Its files no longer hold the data as it was at the fork (a checkpoint ran after it), or the new leader no longer keeps the log it needs</td><td>copies the database again: <code>GET /api/snapshot?db=</code> on the leader sends a consistent copy while writes go on there; the node checks every file, restores it and follows from its end.</td></tr></tbody></table></div>
+<p>The fork is found from the log terms of both nodes (which leader wrote which part of the log) and checked with the commit at the fork and the database&#39;s copy id, so a database made again under the same name is never taken for the same one: it is copied again, and the old copy is kept whole in <code>_diverged</code>.</p>
+<p>Nothing is deleted. When the old copy held commits the leader never got, its whole folder (its log too) moves to <code>&lt;data&gt;/_diverged/&lt;database&gt;-&lt;time&gt;</code>, with:</p>
+<div class="table-wrap"><table><thead><tr><th>File</th><th>What it holds</th></tr></thead><tbody><tr><td><code>diverged.txt</code></td><td>the database, the fork LSN, how many commits only this node had, and when it moved</td></tr><tr><td><code>diverged.kdbwal</code></td><td>those commits, in the form <code>GET /api/wal</code> sends</td></tr><tr><td>the rest</td><td>the database as this node held it: open it with <code>kareladb sql --data-dir</code> to look at the rows</td></tr></tbody></table></div>
+<p>Look at them, and delete one when you no longer need it, with the node running or stopped:</p>
+<pre><code class="language-bash">kareladb cluster diverged list --data-dir /data
+# folder                                   database                 fork_lsn      end_lsn     txns  how          moved
+# default-20261023-021530                  default                     98012        98140      128  cut back     2026-10-23 02:15:30
+kareladb cluster diverged drop default-20261023-021530 --data-dir /data
+# deleted /data/_diverged/default-20261023-021530</code></pre>
+<p>On a running node the same is <code>DELETE /api/cluster/diverged?folder=&lt;folder&gt;</code> with the cluster token (<code>404</code> when <code>_diverged</code> holds no such folder; a path is refused). KarelaDB never deletes a <code>_diverged</code> folder by itself.</p>
+<p>A copy that only fell behind (nothing of its own, and the leader confirmed the last transaction they share) goes to <code>&lt;data&gt;/_trash</code> instead, as a dropped database does. When the leader cannot confirm it (it no longer keeps that part of its log), the whole old copy is kept in <code>_diverged</code>. A rejoin that fails (no disk space for the leader&#39;s snapshot, the leader busy sending one) is tried again after 5 seconds, then twice as long each time, up to 10 minutes. <code>GET /api/cluster</code> lists every <code>_diverged</code> folder under <code>diverged</code>.</p>
+<p>A power cut at any step leaves a usable node: the old folder stays in place until the new copy is complete, and a swap that was under way is finished at the next start. The users database (<code>_system</code>) is not copied again while the server runs: if it went apart, <code>GET /api/standby</code> says so; stop the node, move <code>&lt;data&gt;/_system</code> away and start it again.</p>
+<h2 id="status">Watch it</h2>
+<p><code>GET /api/cluster</code> (with the cluster token) on any node:</p>
+<pre><code class="language-json">{&quot;node&quot;:&quot;a&quot;,&quot;witness&quot;:false,&quot;role&quot;:&quot;leader&quot;,&quot;term&quot;:3,&quot;leader&quot;:&quot;a&quot;,&quot;leader_url&quot;:&quot;http://10.0.0.1:9900&quot;,
+ &quot;voted_for&quot;:&quot;a&quot;,&quot;lease_left_ms&quot;:2950,
+ &quot;peers&quot;:[{&quot;id&quot;:&quot;b&quot;,&quot;url&quot;:&quot;http://10.0.0.2:9900&quot;,&quot;reachable&quot;:true,&quot;last_answer_ms_ago&quot;:40,&quot;error&quot;:null},
+          {&quot;id&quot;:&quot;w&quot;,&quot;url&quot;:&quot;http://10.0.0.3:9900&quot;,&quot;reachable&quot;:true,&quot;last_answer_ms_ago&quot;:41,&quot;error&quot;:null}],
+ &quot;log_ends&quot;:{&quot;_system&quot;:{&quot;term&quot;:3,&quot;lsn&quot;:120},&quot;default&quot;:{&quot;term&quot;:2,&quot;lsn&quot;:7},&quot;trades&quot;:{&quot;term&quot;:3,&quot;lsn&quot;:98012}},
+ &quot;majority_holds&quot;:{&quot;_system&quot;:{&quot;term&quot;:3,&quot;lsn&quot;:120},&quot;default&quot;:{&quot;term&quot;:2,&quot;lsn&quot;:7},&quot;trades&quot;:{&quot;term&quot;:3,&quot;lsn&quot;:98012}},
+ &quot;lag&quot;:{&quot;_system&quot;:0,&quot;default&quot;:0,&quot;trades&quot;:0},
+ &quot;sync_commit&quot;:{&quot;wanted&quot;:true,&quot;on&quot;:true,&quot;waits&quot;:51200,&quot;wait_us&quot;:40960000,&quot;acks&quot;:9800,&quot;fallbacks&quot;:0}}</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>role</code></td><td><code>leader</code>, <code>follower</code>, <code>pre-candidate</code> (asking whether it could win) or <code>candidate</code></td></tr><tr><td><code>term</code></td><td>the election counter; it goes up by one for each election</td></tr><tr><td><code>lease_left_ms</code></td><td>the leader: how much longer it may write without another answer from a majority</td></tr><tr><td><code>log_ends</code></td><td>where each database&#39;s log ends on this node: its last LSN and the term of the leader that wrote it (0: before the cluster)</td></tr><tr><td><code>majority_holds</code></td><td>per database, the log a majority of the voters holds (the leader works it out; others show what it last said)</td></tr><tr><td><code>lag</code></td><td>per database, log entries not yet on the standby (on the leader) or not yet on this node (on a follower)</td></tr><tr><td><code>sync_commit</code></td><td><code>wanted</code>: <code>KARELADB_SYNC_STANDBYS=1</code>; <code>on</code>: commits wait for a standby now (this node leads); how many waited, for how long in all, the standby acks, and the <code>fallbacks</code> (commits confirmed without a standby)</td></tr><tr><td><code>diverged</code></td><td>a data node: the copies kept in <code>&lt;data&gt;/_diverged</code> because they held commits the leader never got (<a href="#rejoin">rejoin</a>); <code>folder</code> is the name <code>DELETE /api/cluster/diverged?folder=</code> takes, <code>path</code> where it is</td></tr><tr><td><code>unopenable</code></td><td>a data node: databases that could not be opened (a damaged manifest, a missing key), with the error. They are left out of this node&#39;s log ends, so they never keep it out of an election; the open is tried again now and then</td></tr><tr><td><code>followers</code></td><td>the followers that do not vote, from <code>KARELADB_CLUSTER_FOLLOWERS</code> (<a href="#reads">reading from followers</a>)</td></tr></tbody></table></div>
+<p>Without a token:</p>
+<div class="table-wrap"><table><thead><tr><th>Request</th><th>Answer</th></tr></thead><tbody><tr><td><code>GET /health</code></td><td>adds <code>&quot;role&quot;:&quot;leader&quot;</code> or <code>&quot;follower&quot;</code> and <code>&quot;cluster&quot;:{&quot;node&quot;,&quot;term&quot;,&quot;leader&quot;}</code>; the console&#39;s status bar shows it (<code>Leader - term 3</code>, <code>Follower - term 3 - leader a</code>)</td></tr><tr><td><code>GET /health?role=leader</code></td><td><code>200</code> only on the leader, else <code>503</code>: point a load balancer&#39;s health check at it to send writes to the leader alone. <code>?role=follower</code> is the opposite.</td></tr></tbody></table></div>
+<p><code>/metrics</code> adds <code>kdb_cluster_leader</code> (1 on the leader), <code>kdb_cluster_term</code>, <code>kdb_cluster_lag_lsn{db=&quot;...&quot;}</code>, <code>kdb_cluster_sync_on</code>, <code>kdb_cluster_sync_acks_total</code>, <code>kdb_cluster_sync_waits_total</code>, <code>kdb_cluster_sync_wait_seconds_total</code> and <code>kdb_cluster_sync_fallback_total</code>.</p>
+<p>A follower&#39;s copy and its lag show in <code>GET /api/standby</code>, <code>/api/stats</code> and <code>/metrics</code>, as on any <a href="standby.html#status">standby</a>.</p>
+<h2 id="sync">Sync commit: nothing confirmed is lost</h2>
+<div class="table-wrap"><table><thead><tr><th><code>KARELADB_SYNC_STANDBYS</code></th><th>A commit is confirmed once</th><th>Lost when the leader&#39;s computer dies</th></tr></thead><tbody><tr><td><code>1</code> (the default in a cluster)</td><td>it is on the leader&#39;s disk <strong>and</strong> on a standby&#39;s disk</td><td>nothing that was confirmed</td></tr><tr><td><code>0</code></td><td>it is on the leader&#39;s disk</td><td>when its computer dies: what the standby had not copied yet, usually the last few ms. When it is only cut off from the network: everything it confirmed until its lease ran out, up to 3 s of commits</td></tr></tbody></table></div>
+<p>A session can still say <code>SET synchronous_commit = off</code>: its commits are then confirmed at once, without waiting for any disk, as in PostgreSQL.</p>
+<p>How it works: a standby syncs its log before it asks the leader for more, so its next request says &quot;I hold everything before this&quot;. A commit waits for that. Writers that commit at the same time share one wait, so many writers pay it once together. Measured on one computer (2 data nodes and a witness, one INSERT per commit over the PostgreSQL port):</p>
+<div class="table-wrap"><table><thead><tr><th></th><th><code>KARELADB_SYNC_STANDBYS=0</code></th><th><code>1</code></th></tr></thead><tbody><tr><td>1 client, time per commit (median)</td><td>0.67 ms</td><td>1.47 ms</td></tr><tr><td>32 clients, commits per second</td><td>15,700</td><td>9,300</td></tr></tbody></table></div>
+<p>When no standby copies - only the witness is reachable, or the standby is down - waiting would stop every write. The leader then confirms commits without a standby (async), writes <code>WARNING: sync commit: no standby is copying ...</code> in its log (at most every 10 s) and counts each in <code>kdb_cluster_sync_fallback_total</code>. The first commit after a standby dies waits up to the lease (3 s) before that, and so does the first commit of each database after a node becomes leader, after <code>CREATE DATABASE</code> and after a database is opened again: the standby gets that long to find it. Sync commit comes back by itself as soon as a standby copies again.</p>
+<p>Only a voting standby confirms a commit. A follower that does not vote (<code>KARELADB_CLUSTER_FOLLOWERS</code>) copies the same log, but an election never looks at it, so its copy does not count.</p>
+<div class="table-wrap"><table><thead><tr><th>Case</th><th>What the commit does</th></tr></thead><tbody><tr><td>The standby is up but its copy makes no progress (its disk is full, every apply fails)</td><td>counts as &quot;no standby copies&quot;: async after the lease, with the warning</td></tr><tr><td>The leader still reaches the witness</td><td>async: the commits are confirmed by the leader alone. No second leader can write meanwhile (the witness still backs this one), but if the leader&#39;s computer is lost before a standby copies them, they are lost - the same as <code>KARELADB_SYNC_STANDBYS=0</code> for that time. The warning in the log says so</td></tr><tr><td>The leader reaches no one</td><td>waits; when the lease ends the node steps down and the commit fails</td></tr><tr><td>The leader steps down while a commit waits</td><td>the commit fails with <code>committed on this node&#39;s disk but not confirmed by a standby ... may be lost</code> (HTTP <code>500</code>, SQLSTATE <code>08007</code>, &quot;transaction resolution unknown&quot;). It is on the old leader&#39;s disk only: check on the new leader whether it is there before you send it again. The old leader itself goes on: it becomes a follower, and if the new leader never got that commit, the old leader&#39;s copy goes to <a href="#rejoin"><code>_diverged</code></a> and it takes the new leader&#39;s history.</td></tr></tbody></table></div>
+<p>Reads never wait for a standby. A node that stepped down with a commit no standby confirmed refuses reads of that database (<code>503</code>, try again) until it follows the new leader again (a few seconds): its rows are not shown to other clients while the cluster may still drop them. A node that restarts in between does not know this any more.</p>
+<p><code>CREATE DATABASE</code> and <code>DROP DATABASE</code> are not covered by sync commit: the leader confirms them alone, and a standby makes or drops its copy on its next look at the leader&#39;s list (within a second). If the leader&#39;s computer dies in that second, the new leader may still have a dropped database (with its rows) or lack a new one. Check after a failover, or wait a second after either before you count on it.</p>
+<h2 id="clients">Clients</h2>
+<div class="table-wrap"><table><thead><tr><th>Client</th><th>How it finds the leader</th></tr></thead><tbody><tr><td>PostgreSQL drivers</td><td>list every data node: <code>host=10.0.0.1,10.0.0.2 target_session_attrs=read-write</code> (libpq, pgx, JDBC). A follower says <code>in_hot_standby = on</code> and <code>transaction_read_only = on</code>, so the driver skips it.</td></tr><tr><td>HTTP</td><td>a write sent to a follower is answered <code>421 Misdirected Request</code> with the leader&#39;s address in the header <code>X-KarelaDB-Leader</code>; the body is the same <code>25006</code> error as before. Send the request again there.</td></tr><tr><td>The console</td><td>on a <code>421</code> it offers once to open the leader&#39;s console</td></tr><tr><td><code>kareladb exec</code></td><td><code>kareladb exec --url http://10.0.0.2:9900 --token T &quot;INSERT ...&quot;</code> follows a <code>421</code> once to the leader</td></tr><tr><td>A virtual address</td><td><code>KARELADB_ON_LEADER</code> and <code>KARELADB_ON_FOLLOWER</code> name a command the node runs on each role change, with the role, the term and the leader&#39;s id: <code>move-ip.sh leader 3 a</code>. Use it to move a keepalived or cloud floating IP address to the leader. The scripts run one at a time, in order, and never hold up the election. Only the newest role&#39;s script runs when several changes come at once; one that runs longer than <code>KARELADB_ROLE_SCRIPT_TIMEOUT_MS</code> (30 s) is killed with everything it started.</td></tr></tbody></table></div>
+<h2 id="reads">Reading from followers</h2>
+<p>Every follower answers reads, so reads can be spread over the nodes. Add as
+many more read copies as you like: a <strong>learner</strong> copies the leader like any
+follower but never votes, so the election stays the same with or without it.</p>
+<pre><code class="language-bash"># a learner: its --node-id is not in --cluster-peers
+kareladb serve --data-dir /data/f1 --token T --node-id f1 \
+  --cluster-peers a=http://10.0.0.1:9900,b=http://10.0.0.2:9900,w=http://10.0.0.3:9900 --cluster-learner</code></pre>
+<p>Or list the learners on every node with <code>KARELADB_CLUSTER_FOLLOWERS=f1=http://10.0.0.4:9900,f2=http://10.0.0.5:9900</code>:
+a node whose id is there is a learner, and <code>GET /api/cluster</code> on a voter lists them.
+A learner asks the voters who leads every heartbeat and follows the newest
+leader; <code>GET /api/cluster</code> on it says <code>&quot;role&quot;:&quot;learner&quot;</code>, the leader and <code>lag_ms</code>.</p>
+<p><strong>Read your own write.</strong> A copy is a few ms behind the leader, so a read sent
+there right after a write may not see it yet. The cluster leader answers every
+write that changed something (<code>POST /exec</code>, <code>/write</code>, <code>/imp</code>, <code>/api/v2/write</code>)
+with <code>X-KarelaDB-Lsn</code>: where that database&#39;s log ends with the write in it.
+Send it back as <code>X-KarelaDB-Min-Lsn</code> with the read (same database), and the
+follower waits until it has applied that far. Only a cluster leader sends it:
+a plain primary with <a href="standby.html">standbys</a> does not.</p>
+<p>The key-value store (<code>/kv</code>, <code>kv_get()</code> and the other <code>kv_*</code> functions) answers
+on the leader only. It keeps its keys in memory, and a follower copies the
+leader&#39;s <code>_kv</code> rows into the table, not into that memory, so a follower
+refuses every key command, reads too: <code>/kv</code> answers <code>421</code> with the leader&#39;s
+address in <code>X-KarelaDB-Leader</code>, as a write does. When a follower becomes the
+leader it reads its keys again from <code>_kv</code> before it takes a command, so it
+goes on from the keys the old leader had, not from the ones it held when it
+started.</p>
+<pre><code class="language-bash">curl -si -X POST http://leader:9900/exec -H &quot;Authorization: Bearer T&quot; -d &quot;INSERT INTO trades VALUES (...)&quot; | grep -i x-kareladb-lsn
+# X-KarelaDB-Lsn: 98012
+curl -s &quot;http://follower:9900/exec?query=SELECT%20count(*)%20FROM%20trades&quot; -H &quot;Authorization: Bearer T&quot; -H &quot;X-KarelaDB-Min-Lsn: 98012&quot;</code></pre>
+<div class="table-wrap"><table><thead><tr><th>Setting</th><th>Default</th><th>What it does on a follower or standby</th></tr></thead><tbody><tr><td><code>KARELADB_READ_WAIT_MS</code></td><td>2000 (10000 at most)</td><td>the longest a read with <code>X-KarelaDB-Min-Lsn</code> waits; after that it answers <code>503</code> (with <code>Retry-After</code>) so the client reads from the leader. At most 64 reads wait at once on a node; the next is told <code>503</code> at once</td></tr><tr><td><code>KARELADB_MAX_READ_LAG_MS</code></td><td>0 (no limit)</td><td>a node further behind than this answers HTTP reads with <code>503</code>, so clients and load balancers go to another node. A node copying from nobody (during an election, or before it has reached a leader) counts as too far behind</td></tr></tbody></table></div>
+<p>Both apply to HTTP reads only (<code>/exec</code>, <code>/v/...</code>, <code>/exp</code> and <code>POST /cursor</code>),
+after the token check; the leader ignores them. The PostgreSQL port does not
+read them: a lagging follower still answers there. The lag is the one
+<code>GET /api/standby</code> shows.</p>
+<p>A follower applies the leader&#39;s log a run of transactions at a time, with one
+disk sync per run. Measured on one machine (two writers committing small
+transactions as fast as they could): the copy stayed a median of 96 log
+entries behind and caught up 15 ms after the load stopped (one sync per
+transaction: 5,700 entries behind, 2.5 s to catch up). A read on the follower
+waits only while a run is applied: p99 20 us during that load (1.1-1.7 ms
+before).</p>
+<h2 id="failures">What happens when something breaks</h2>
+<p>Each row was tested on one computer with two data nodes and a witness, with
+four clients writing all the time (<code>tools/cluster_check</code> in the source; it cuts
+links with its own proxies). With sync commit (the default) not one confirmed
+row was lost in any of them, both data nodes always ended with the same rows,
+and no term ever had two leaders.</p>
+<div class="table-wrap"><table><thead><tr><th>What broke</th><th>What the cluster did</th></tr></thead><tbody><tr><td>The leader&#39;s computer died (<code>kill -9</code>)</td><td>the other data node led and took writes again 3.6 to 6 s later (90 failovers in a 22-minute run)</td></tr><tr><td>The leader died in the middle of a big transaction (200,000 rows), a <code>CHECKPOINT</code> or an <code>ALTER TABLE</code></td><td>the same; the transaction or the new column is there whole or not at all</td></tr><tr><td>The leader died while the <code>COMMIT</code> of a spilled transaction (past <code>--txn-spill-mb</code>) wrote it into the log</td><td>the same: the transaction is there whole or not at all</td></tr><tr><td>The leader was cut off from both others</td><td>it stopped confirming writes at once (they waited, then failed); the other data node led 3.9 s later. When the cable came back, the old leader followed the new one</td></tr><tr><td>The witness was cut off</td><td>nothing changed: same leader, same term, writes went on</td></tr><tr><td>A link that went down and up every 0.2 to 1.5 s, for 40 s</td><td>no election at all (the term stayed the same)</td></tr><tr><td>A slow link to the follower (20 ms more per packet)</td><td>sync commits got slower (1,600 to 225 rows a second for four clients), none failed</td></tr><tr><td>All three stopped (power cut or clean stop), then started in any order</td><td>the same history; writes were taken again 1 to 4.4 s after the last node started</td></tr></tbody></table></div>
+<p>With <code>KARELADB_SYNC_STANDBYS=0</code> (async) the same tests lose confirmed rows, as expected:</p>
+<div class="table-wrap"><table><thead><tr><th>What broke</th><th>Lost with async (four clients)</th></tr></thead><tbody><tr><td>The leader&#39;s computer died</td><td>100 rows: what the follower had not copied yet</td></tr><tr><td>The leader was cut off from both others</td><td>29,635 and 74,704 rows in two runs: everything it confirmed in the 3 s until its lease ran out. They are in its <code>_diverged</code> folder</td></tr></tbody></table></div>
+<p>Use sync commit (the default) when a confirmed row must never be lost.</p>
+<h2 id="limits">What it does not do yet</h2>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><code>KARELADB_SYNC_STANDBYS=0</code>, or only the witness reachable</td><td>a commit the follower had not copied when the leader&#39;s computer died is lost from the cluster (usually the last few ms). A leader that is only cut off goes on confirming until its lease ends: those commits (up to 3 s of them) are kept in its <code>_diverged</code> folder when it comes back, not in the cluster.</td></tr><tr><td>An old leader&#39;s users database (<code>_system</code>) with commits the new one never got</td><td>it stops copying <code>_system</code> and says so; move <code>&lt;data&gt;/_system</code> away while the node is stopped. Every other database takes the leader&#39;s history by itself (<a href="#rejoin">rejoin</a>).</td></tr><tr><td><code>kareladb promote</code></td><td>refused on a cluster node: the leader is elected.</td></tr><tr><td>Reads during an apply</td><td>a read on a follower waits while a run of the leader&#39;s transactions is applied (usually microseconds, at most a few ms): it does not read a snapshot there, which could show half a transaction.</td></tr></tbody></table></div>
+<h2 id="see-also">See also</h2>
+<ul><li><a href="standby.html">Standby server</a>: how a follower copies the leader&#39;s log.</li><li><a href="backup-and-safety.html">Backups and safety</a>.</li></ul>
+</main>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/cluster.md">This page as markdown</a>.</footer>
+</body>
+</html>

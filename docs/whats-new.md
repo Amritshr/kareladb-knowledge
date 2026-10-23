@@ -12,6 +12,39 @@ This page lists what was added to KarelaDB from 2026-09-12 to 2026-09-24. Each l
 - "A -> B" means before -> after, on the same machine in the same minutes.
 - A switch like `KARELADB_NO_ZONE_MAPS=1` turns a new speed-up off. It is there so an answer can be checked against the old path, not for normal use.
 
+<a id="2026-10-23-views"></a>
+
+## 2026-10-23: a daily view refreshes a third faster; views catch up sooner after a bulk load
+
+| What changed | Measured (WSL Ubuntu, the server on 2 CPUs, the builds before and after interleaved) | Read more |
+|---|---|---|
+| `GROUP BY time, symbol` over a table sorted by symbol: the sums of four symbols are added side by side, whole-number sums no longer wait on each row, and `max(x)` with `min(x)` of the same column read it once. Every total is the same to the last bit. | `REFRESH VIEW` of a daily view over 34.6M trades (count, two sums, high, low): 202 -> 134 ms | [views](views.md) |
+| After a bulk load, a view's new rows go straight into its columns, and the refresh round saves to disk once, after its last view. A load waiting for a checkpoint still counts as a load, so no refresh starts in the middle of it. | 10M trades by `/write` into a table with 5 materialized views, until every view holds them: 5.7 -> 4.4 s (the views part 2.2 -> 1.1 s) | [materialized views](views.md) |
+| A column read of a partition that already holds some of the columns it needs reads only the missing ones from the file and copies the rest. | `REFRESH MATERIALIZED VIEW ... FULL` of a broker view (34.6M trades) right after the views before it, data on a Windows drive: 2.0 -> 0.9 s | [materialized views](views.md) |
+| A checkpoint writes several partition files at once even at 2 CPUs (writing is mostly waiting for the disk). | the same load with the data folder on a Windows drive mounted into WSL (as a Docker bind mount): 17.6 -> 10.3 s | [kareladb serve](cli-serve.md) |
+
+<a id="2026-10-22-cluster"></a>
+
+## 2026-10-22: automatic failover with a cluster of two servers and a witness
+
+| What changed | Measured | Read more |
+|---|---|---|
+| `kareladb serve --node-id a --cluster-peers a=...,b=...,w=...` and `kareladb witness`: three voters elect a leader; the leader takes writes, the other data node copies it. When the leader dies, the other is elected and takes over by itself. | `kill -9` of the leader: the other data node led after 4.3 to 4.6 s, 3 rounds, the old leader back as a follower each time with every row (three processes in WSL, ASan build) | [cluster](cluster.md#election) |
+| A leader that no longer hears a majority stops writing (`25006`) within its 3 s lease, before anyone can be elected (4 s at the soonest), and a follower never applies the log of a leader from an older term. | - | [fencing](cluster.md#fencing) |
+| A leader that steps down becomes a follower of the new one in place; each new leader's log goes on in a new history named by its term. | - | [cluster](cluster.md#fencing) |
+| An old leader that comes back with commits the new leader never got takes the new leader's history by itself: it cuts its log back to the fork, or copies the database again (`GET /api/snapshot`). Its own commits are kept in `<data>/_diverged`, listed in `GET /api/cluster`. (2026-10-23) | a split with 10 commits only on the old leader: back in step with the new leader by itself, the 10 kept; a power cut at each of the 52 steps of a copy-again: the node opened every time; three nodes down and up in 3 orders: one history | [rejoin](cluster.md#rejoin) |
+
+<a id="2026-10-22-standby-streaming"></a>
+
+## 2026-10-22: a standby follows its primary within milliseconds
+
+| What changed | Measured (WSL, primary and standby on 2 CPUs each, the builds before and after side by side; median / p99 from the primary's confirmed commit to the row on the standby) | Read more |
+|---|---|---|
+| The standby waits at the primary for the next commit (`wait=`), and the commit wakes the waiting request the moment it is on disk, instead of the standby asking every 100 ms. | no other load: 69 / 110 ms -> 3.2 / 5.0 ms | [streaming](standby.md#streaming) |
+| Each database is copied by a thread of its own, so a bulk load in one database no longer holds up the others. | bulk load in another database: 1,435 / 1,945 ms -> 1.1 / 7.6 ms; in the same database: 855 / 1,405 ms -> 150 / 278 ms | [streaming](standby.md#streaming) |
+| A waiting request takes no HTTP worker from `/exec` (another thread serves in its place, kept from one wait to the next) and does not keep its database open, so `DROP DATABASE` works while a standby waits. | primary write speed: the same before and after (about 3,800-3,900 one-row commits/s) | [streaming](standby.md#streaming) |
+| The standby streams only from a primary of this version or newer, which says so on its list of databases. An older primary is asked every 100 ms as before, so its change subscribers keep their waiting places. | - | [streaming](standby.md#streaming) |
+
 <a id="2026-10-22-grafana"></a>
 
 ## 2026-10-22: Grafana and Prometheus, with two ready dashboards

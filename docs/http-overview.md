@@ -111,10 +111,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 30, "execute_us": 97}
+      "timings": {"parse_us": 30, "execute_us": 60}
     }
   ],
-  "timings": {"parse_us": 30, "execute_us": 97}
+  "timings": {"parse_us": 30, "execute_us": 60}
 }
 ```
 
@@ -140,10 +140,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 33, "execute_us": 190}
+      "timings": {"parse_us": 26, "execute_us": 138}
     }
   ],
-  "timings": {"parse_us": 33, "execute_us": 190}
+  "timings": {"parse_us": 26, "execute_us": 138}
 }
 ```
 
@@ -317,10 +317,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'idem_orders' created",
-      "timings": {"parse_us": 28, "execute_us": 4510}
+      "timings": {"parse_us": 16, "execute_us": 2635}
     }
   ],
-  "timings": {"parse_us": 28, "execute_us": 4510}
+  "timings": {"parse_us": 16, "execute_us": 2635}
 }
 ```
 
@@ -340,10 +340,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 27, "execute_us": 26}
+      "timings": {"parse_us": 25, "execute_us": 13}
     }
   ],
-  "timings": {"parse_us": 27, "execute_us": 26}
+  "timings": {"parse_us": 25, "execute_us": 13}
 }
 ```
 
@@ -363,10 +363,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 27, "execute_us": 26}
+      "timings": {"parse_us": 25, "execute_us": 13}
     }
   ],
-  "timings": {"parse_us": 27, "execute_us": 26}
+  "timings": {"parse_us": 25, "execute_us": 13}
 }
 ```
 
@@ -390,7 +390,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 99}
+      "timings": {"parse_us": 25, "execute_us": 91}
     }
   ],
   "columns": [
@@ -400,7 +400,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 27, "execute_us": 99}
+  "timings": {"parse_us": 25, "execute_us": 91}
 }
 ```
 

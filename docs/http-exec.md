@@ -41,10 +41,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 37, "execute_us": 271}
+      "timings": {"parse_us": 26, "execute_us": 259}
     }
   ],
-  "timings": {"parse_us": 37, "execute_us": 271}
+  "timings": {"parse_us": 26, "execute_us": 259}
 }
 ```
 
@@ -134,7 +134,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 31, "execute_us": 188}
+      "timings": {"parse_us": 21, "execute_us": 177}
     }
   ],
   "columns": [
@@ -146,7 +146,7 @@ HTTP 200 (application/json)
     ["CITY", "Banking"]
   ],
   "count": 2,
-  "timings": {"parse_us": 31, "execute_us": 188}
+  "timings": {"parse_us": 21, "execute_us": 177}
 }
 ```
 
@@ -178,10 +178,10 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 47, "execute_us": 334}
+      "timings": {"parse_us": 23, "execute_us": 229}
     }
   ],
-  "timings": {"parse_us": 47, "execute_us": 334}
+  "timings": {"parse_us": 23, "execute_us": 229}
 }
 ```
 
@@ -214,10 +214,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 45, "execute_us": 1371}
+      "timings": {"parse_us": 25, "execute_us": 268}
     }
   ],
-  "timings": {"parse_us": 45, "execute_us": 1371}
+  "timings": {"parse_us": 25, "execute_us": 268}
 }
 ```
 
@@ -254,10 +254,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 203, "execute_us": 117}
+      "timings": {"parse_us": 38, "execute_us": 58}
     }
   ],
-  "timings": {"parse_us": 203, "execute_us": 117}
+  "timings": {"parse_us": 38, "execute_us": 58}
 }
 ```
 
@@ -289,10 +289,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 29, "execute_us": 635}
+      "timings": {"parse_us": 32, "execute_us": 261}
     }
   ],
-  "timings": {"parse_us": 29, "execute_us": 635}
+  "timings": {"parse_us": 32, "execute_us": 261}
 }
 ```
 
@@ -415,7 +415,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 16, "execute_us": 657}
+      "timings": {"parse_us": 11, "execute_us": 527}
     },
     {
       "statement": "SELECT id, name FROM brokers WHERE id >= 58 ORDER BY id",
@@ -431,10 +431,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 165}
+      "timings": {"parse_us": 11, "execute_us": 148}
     }
   ],
-  "timings": {"parse_us": 32, "execute_us": 822}
+  "timings": {"parse_us": 22, "execute_us": 675}
 }
 ```
 
@@ -468,7 +468,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 9, "execute_us": 537}
+      "timings": {"parse_us": 12, "execute_us": 510}
     }
   ],
   "saved": 1,
@@ -502,10 +502,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 15, "execute_us": 67}
+      "timings": {"parse_us": 10, "execute_us": 67}
     }
   ],
-  "timings": {"parse_us": 15, "execute_us": 67}
+  "timings": {"parse_us": 10, "execute_us": 67}
 }
 ```
 
@@ -536,7 +536,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'notes' created",
-      "timings": {"parse_us": 5, "execute_us": 24802}
+      "timings": {"parse_us": 6, "execute_us": 15911}
     },
     {
       "statement": "INSERT INTO notes VALUES (1, 'first')",
@@ -546,7 +546,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 5, "execute_us": 3375}
+      "timings": {"parse_us": 6, "execute_us": 1742}
     }
   ],
   "saved": 2,
@@ -606,10 +606,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 19, "execute_us": 152}
+      "timings": {"parse_us": 12, "execute_us": 119}
     }
   ],
-  "timings": {"parse_us": 19, "execute_us": 152}
+  "timings": {"parse_us": 12, "execute_us": 119}
 }
 ```
 
@@ -644,7 +644,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 6, "execute_us": 953}
+      "timings": {"parse_us": 4, "execute_us": 377}
     },
     {
       "statement": "BEGIN",
@@ -654,7 +654,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 6, "execute_us": 5}
+      "timings": {"parse_us": 4, "execute_us": 4}
     },
     {
       "statement": "INSERT INTO brokers VALUES (94, 'Valley Capital')",
@@ -664,7 +664,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 6, "execute_us": 31}
+      "timings": {"parse_us": 4, "execute_us": 19}
     }
   ],
   "saved": 1,
@@ -697,10 +697,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 9, "execute_us": 45}
+      "timings": {"parse_us": 8, "execute_us": 36}
     }
   ],
-  "timings": {"parse_us": 9, "execute_us": 45}
+  "timings": {"parse_us": 8, "execute_us": 36}
 }
 ```
 
@@ -738,10 +738,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 30, "execute_us": 251}
+      "timings": {"parse_us": 20, "execute_us": 170}
     }
   ],
-  "timings": {"parse_us": 30, "execute_us": 251}
+  "timings": {"parse_us": 20, "execute_us": 170}
 }
 ```
 
@@ -789,10 +789,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 30, "execute_us": 41}
+      "timings": {"parse_us": 26, "execute_us": 55}
     }
   ],
-  "timings": {"parse_us": 30, "execute_us": 41}
+  "timings": {"parse_us": 26, "execute_us": 55}
 }
 ```
 
@@ -819,10 +819,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 3, "execute_us": 36}
+      "timings": {"parse_us": 3, "execute_us": 33}
     }
   ],
-  "timings": {"parse_us": 3, "execute_us": 36}
+  "timings": {"parse_us": 3, "execute_us": 33}
 }
 ```
 
@@ -897,7 +897,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 3, "execute_us": 117}
+      "timings": {"parse_us": 2, "execute_us": 88}
     }
   ],
   "saved": 0,
@@ -930,10 +930,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 11, "execute_us": 130}
+      "timings": {"parse_us": 11, "execute_us": 57}
     }
   ],
-  "timings": {"parse_us": 11, "execute_us": 130}
+  "timings": {"parse_us": 11, "execute_us": 57}
 }
 ```
 
@@ -963,7 +963,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 3, "execute_us": 87}
+      "timings": {"parse_us": 3, "execute_us": 75}
     },
     {
       "statement": "UPDATE brokers SET name = 'Delta Securities Ltd' WHERE id = 93",
@@ -973,7 +973,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 3, "execute_us": 25}
+      "timings": {"parse_us": 3, "execute_us": 24}
     },
     {
       "statement": "SELECT id, name FROM brokers WHERE id = 93",
@@ -988,10 +988,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 3, "execute_us": 28}
+      "timings": {"parse_us": 3, "execute_us": 30}
     }
   ],
-  "timings": {"parse_us": 9, "execute_us": 140}
+  "timings": {"parse_us": 9, "execute_us": 129}
 }
 ```
 
@@ -1051,10 +1051,10 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 42, "execute_us": 208}
+      "timings": {"parse_us": 24, "execute_us": 139}
     }
   ],
-  "timings": {"parse_us": 42, "execute_us": 208}
+  "timings": {"parse_us": 24, "execute_us": 139}
 }
 ```
 
@@ -1084,7 +1084,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'ticks' created",
-      "timings": {"parse_us": 13, "execute_us": 60545}
+      "timings": {"parse_us": 10, "execute_us": 16322}
     },
     {
       "statement": "INSERT INTO ticks VALUES ('2026-09-10T05:15:00Z', 'CITY', 512.4), ('2026-09-10T05:15:01Z', 'COAST', 380.1)",
@@ -1094,7 +1094,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 2,
       "message": "2 row(s) inserted",
-      "timings": {"parse_us": 13, "execute_us": 10240}
+      "timings": {"parse_us": 10, "execute_us": 1812}
     },
     {
       "statement": "SELECT * FROM ticks",
@@ -1111,10 +1111,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 61}
+      "timings": {"parse_us": 10, "execute_us": 49}
     }
   ],
-  "timings": {"parse_us": 39, "execute_us": 70846}
+  "timings": {"parse_us": 30, "execute_us": 18183}
 }
 ```
 

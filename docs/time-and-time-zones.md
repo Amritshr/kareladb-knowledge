@@ -473,7 +473,7 @@ the time zone of this session is Asia/Kathmandu; times are still stored as UTC
 
 | today_in_nepal (DATE) | nepal_clock (TIMESTAMP) | utc_now (TIMESTAMP) | as_text (STRING) | zone (STRING) |
 |---|---|---|---|---|
-| 2026-10-22 | 2026-10-22T16:48:24.383Z | 2026-10-22T11:03:24.383Z | 2026-10-22 16:48:24.383+05:45 | Asia/Kathmandu |
+| 2026-10-23 | 2026-10-23T10:32:57.804Z | 2026-10-23T04:47:57.804Z | 2026-10-23 10:32:57.804+05:45 | Asia/Kathmandu |
 
 (1 row)
 

@@ -451,6 +451,31 @@ SELECT * FROM cold_partitions();                                            -- w
   worker's UPDATE just before COMMIT. Without a primary key FOR UPDATE locks
   the whole table.
 
+## Cluster: automatic failover
+
+Two data nodes and a witness (`kareladb witness`, no data) elect a leader;
+when the leader's computer dies the other data node takes writes within
+about 6 s (3.6-6 s measured). Each node: `--node-id a --cluster-peers a=http://h1:9900,b=http://h2:9900,w=http://h3:9900`
+(the same list everywhere) and the same token. Help topic: `cluster`.
+
+- Writes go to the leader. Give PostgreSQL clients both data nodes:
+  `postgresql://u:p@h1:8832,h2:8832/default?target_session_attrs=read-write`.
+  Over HTTP a follower answers a write with `421` and `X-KarelaDB-Leader: <url>`:
+  send it again there. `GET /health?role=leader` is 200 only on the leader.
+- `KARELADB_SYNC_STANDBYS=1` (default): a commit is confirmed once the other
+  data node holds it too, so a dead leader loses nothing confirmed. While no
+  standby copies (it is down, or only the witness is reachable), commits are
+  confirmed without one (`kdb_cluster_sync_fallback_total` counts them).
+  `0`: faster, but a dead leader loses what the follower had not copied, and a
+  leader that is only cut off keeps confirming for up to 3 s (its lease):
+  those rows end up in its `_diverged` folder, not in the cluster.
+- A commit that fails during a failover (`25006`, `421`, "may be lost", a
+  closed connection) may or may not be there: check on the new leader before
+  sending it again (or write rows with a key, so a repeat does no harm).
+- Followers serve reads; to read your own write there, send the leader's
+  `X-KarelaDB-Lsn` back as `X-KarelaDB-Min-Lsn`.
+- `GET /api/cluster` (token) shows role, term, leader, lag; `/metrics` has `kdb_cluster_*`.
+
 ## Server options
 
 `kareladb serve` reads its settings when it starts, from three places. The first

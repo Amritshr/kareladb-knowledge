@@ -184,7 +184,7 @@ Output:
 KarelaDB 0.2.0-dev, database market
 saved feature list: batched_log_sync, block_stats, compressed_log, partition_format_2
 1/3 verified backup into backups ...
-    backups/20261022-110337-679 (9 files, 190.0 KB)
+    backups/20261023-044808-723 (9 files, 190.0 KB)
 2/3 saving the feature list ...
     features used: batched_log_sync, block_stats, compressed_log, partition_format_2
     (no files need to be written again for this KarelaDB version)
@@ -265,7 +265,7 @@ KarelaDB 0.2.0-dev: downgrade to 2026-09-24
 
 database market
 1/3 verified backup into backups ...
-    backups/20261022-110337-901 (9 files, 190.0 KB)
+    backups/20261023-044809-067 (9 files, 190.0 KB)
 2/3 checkpoint, then the feature list ...
     list before: batched_log_sync, block_stats, compressed_log, partition_format_2
     list now:    batched_log_sync, block_stats, partition_format_2

@@ -521,7 +521,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "5ba62913807af1cfadaf33df91361613", "idle_timeout_ms": 600000}
+{"session": "cb0d3ed988575402de4e672e7fbc7dba", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -540,7 +540,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 7, "execute_us": 4}
+      "timings": {"parse_us": 12, "execute_us": 5}
     },
     {
       "statement": "INSERT INTO users VALUES (2, 'sita@example.np')",
@@ -550,7 +550,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 7, "execute_us": 29}
+      "timings": {"parse_us": 12, "execute_us": 38}
     },
     {
       "statement": "SAVEPOINT before_hari",
@@ -560,13 +560,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "savepoint before_hari set",
-      "timings": {"parse_us": 7, "execute_us": 9}
+      "timings": {"parse_us": 12, "execute_us": 13}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 21, "execute_us": 42}
+  "timings": {"parse_us": 36, "execute_us": 56}
 }
 ```
 
@@ -604,7 +604,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "rolled back to savepoint before_hari: 0 row change(s) undone",
-      "timings": {"parse_us": 6, "execute_us": 5}
+      "timings": {"parse_us": 6, "execute_us": 6}
     },
     {
       "statement": "INSERT INTO users VALUES (3, 'hari@example.np')",
@@ -614,7 +614,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 6, "execute_us": 31}
+      "timings": {"parse_us": 6, "execute_us": 30}
     },
     {
       "statement": "COMMIT",
@@ -624,13 +624,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 2 change(s) saved",
-      "timings": {"parse_us": 6, "execute_us": 12}
+      "timings": {"parse_us": 6, "execute_us": 7}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 18, "execute_us": 48}
+  "timings": {"parse_us": 18, "execute_us": 43}
 }
 ```
 
@@ -657,7 +657,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 32, "execute_us": 87}
+      "timings": {"parse_us": 25, "execute_us": 57}
     }
   ],
   "columns": [
@@ -670,7 +670,7 @@ HTTP 200 (application/json)
     [3, "hari@example.np"]
   ],
   "count": 3,
-  "timings": {"parse_us": 32, "execute_us": 87}
+  "timings": {"parse_us": 25, "execute_us": 57}
 }
 ```
 
@@ -730,7 +730,7 @@ exit code 1
 id | name               
 ---+--------------------
  1 | Keystone Securities
-(1 row, 0.3 ms)
+(1 row, 0.2 ms)
 ```
 
 **Command line: Without BEGIN, the statements before the error stay saved** (shows an error)
@@ -1101,7 +1101,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "25122830d244e4b3e7168a37e63d1937", "idle_timeout_ms": 600000}
+{"session": "7daddf48ab03f913020bb7cdc69e1a38", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1120,7 +1120,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 27, "execute_us": 3}
+      "timings": {"parse_us": 12, "execute_us": 3}
     },
     {
       "statement": "SELECT id FROM jobs WHERE state = 'new' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
@@ -1134,7 +1134,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 83}
+      "timings": {"parse_us": 12, "execute_us": 91}
     }
   ],
   "columns": [
@@ -1144,7 +1144,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 54, "execute_us": 86}
+  "timings": {"parse_us": 24, "execute_us": 94}
 }
 ```
 
@@ -1169,7 +1169,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 62, "execute_us": 108}
+      "timings": {"parse_us": 14, "execute_us": 31}
     }
   ],
   "columns": [
@@ -1180,7 +1180,7 @@ HTTP 200 (application/json)
     [2, "new"]
   ],
   "count": 1,
-  "timings": {"parse_us": 62, "execute_us": 108}
+  "timings": {"parse_us": 14, "execute_us": 31}
 }
 ```
 
@@ -1214,7 +1214,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "502c2de0310464f7a9868d4866fa1897", "idle_timeout_ms": 600000}
+{"session": "9800e6a520b03ebc0388d9b0a0e0176b", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1233,7 +1233,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 14, "execute_us": 5}
+      "timings": {"parse_us": 11, "execute_us": 3}
     },
     {
       "statement": "SELECT id FROM jobs WHERE id = 1 FOR UPDATE",
@@ -1247,7 +1247,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 14, "execute_us": 126}
+      "timings": {"parse_us": 11, "execute_us": 106}
     }
   ],
   "columns": [
@@ -1257,7 +1257,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 28, "execute_us": 131}
+  "timings": {"parse_us": 22, "execute_us": 109}
 }
 ```
 
@@ -1306,7 +1306,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "f6b4f3e687e1aaef054e278f231167c6", "idle_timeout_ms": 600000}
+{"session": "6b4b6653ef59b05bb3502791a20da6c0", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1325,7 +1325,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 13, "execute_us": 4}
+      "timings": {"parse_us": 11, "execute_us": 4}
     },
     {
       "statement": "SELECT id FROM jobs WHERE id = 1 FOR UPDATE",
@@ -1339,7 +1339,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 78}
+      "timings": {"parse_us": 11, "execute_us": 54}
     }
   ],
   "columns": [
@@ -1349,7 +1349,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 26, "execute_us": 82}
+  "timings": {"parse_us": 22, "execute_us": 58}
 }
 ```
 
@@ -1373,7 +1373,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 26, "execute_us": 60}
+      "timings": {"parse_us": 15, "execute_us": 34}
     }
   ],
   "columns": [
@@ -1383,7 +1383,7 @@ HTTP 200 (application/json)
     [2]
   ],
   "count": 1,
-  "timings": {"parse_us": 26, "execute_us": 60}
+  "timings": {"parse_us": 15, "execute_us": 34}
 }
 ```
 
@@ -1547,7 +1547,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "9bb29fe5d43546e8c8ebec6d6e988b1c", "idle_timeout_ms": 600000}
+{"session": "2dd901c6c25625ab505b05ba40e0a4fa", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1566,7 +1566,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 15, "execute_us": 4}
+      "timings": {"parse_us": 11, "execute_us": 4}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -1576,13 +1576,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 15, "execute_us": 54}
+      "timings": {"parse_us": 11, "execute_us": 35}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 30, "execute_us": 58}
+  "timings": {"parse_us": 22, "execute_us": 39}
 }
 ```
 
@@ -1608,7 +1608,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 65}
+      "timings": {"parse_us": 20, "execute_us": 52}
     }
   ],
   "columns": [
@@ -1620,7 +1620,7 @@ HTTP 200 (application/json)
     [2, "0.00"]
   ],
   "count": 2,
-  "timings": {"parse_us": 27, "execute_us": 65}
+  "timings": {"parse_us": 20, "execute_us": 52}
 }
 ```
 
@@ -1640,7 +1640,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 10, "execute_us": 35}
+      "timings": {"parse_us": 7, "execute_us": 17}
     },
     {
       "statement": "COMMIT",
@@ -1650,13 +1650,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 2 change(s) saved",
-      "timings": {"parse_us": 10, "execute_us": 10}
+      "timings": {"parse_us": 7, "execute_us": 5}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 20, "execute_us": 45}
+  "timings": {"parse_us": 14, "execute_us": 22}
 }
 ```
 
@@ -1682,7 +1682,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 2, "execute_us": 77}
+      "timings": {"parse_us": 2, "execute_us": 76}
     }
   ],
   "columns": [
@@ -1694,7 +1694,7 @@ HTTP 200 (application/json)
     [2, "100.00"]
   ],
   "count": 2,
-  "timings": {"parse_us": 2, "execute_us": 77}
+  "timings": {"parse_us": 2, "execute_us": 76}
 }
 ```
 
@@ -1703,7 +1703,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "9bb29fe5d43546e8c8ebec6d6e988b1c", "closed": true}
+{"session": "2dd901c6c25625ab505b05ba40e0a4fa", "closed": true}
 ```
 
 <a id="one-writer"></a>
@@ -1784,7 +1784,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "5caddd62d0e8e8ae7e40b4e8505f7b1c", "idle_timeout_ms": 600000}
+{"session": "46d25328250bd3ff7a0c725e25d4bc0f", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1803,7 +1803,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 13, "execute_us": 4}
+      "timings": {"parse_us": 8, "execute_us": 3}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -1813,13 +1813,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 13, "execute_us": 43}
+      "timings": {"parse_us": 8, "execute_us": 35}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 26, "execute_us": 47}
+  "timings": {"parse_us": 16, "execute_us": 38}
 }
 ```
 
@@ -1839,13 +1839,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 12, "execute_us": 21}
+      "timings": {"parse_us": 11, "execute_us": 16}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 12, "execute_us": 21}
+  "timings": {"parse_us": 11, "execute_us": 16}
 }
 ```
 
@@ -1879,7 +1879,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "f7a8be4121c32adb57ab71bd19035fa8", "idle_timeout_ms": 600000}
+{"session": "1abe2144b776c0496b185c02af0bde8e", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1898,7 +1898,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 17, "execute_us": 6}
+      "timings": {"parse_us": 9, "execute_us": 3}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -1908,13 +1908,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 17, "execute_us": 53}
+      "timings": {"parse_us": 9, "execute_us": 34}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 34, "execute_us": 59}
+  "timings": {"parse_us": 18, "execute_us": 37}
 }
 ```
 
@@ -1934,13 +1934,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 36, "execute_us": 33}
+      "timings": {"parse_us": 13, "execute_us": 70}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 36, "execute_us": 33}
+  "timings": {"parse_us": 13, "execute_us": 70}
 }
 ```
 
@@ -1974,7 +1974,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "d15933470bb2a372277f5ec87986e1f7", "idle_timeout_ms": 600000}
+{"session": "11eda9c9529eaae5f49604bea0811510", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -1993,7 +1993,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 10, "execute_us": 5}
+      "timings": {"parse_us": 7, "execute_us": 2}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -2003,13 +2003,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 10, "execute_us": 41}
+      "timings": {"parse_us": 7, "execute_us": 23}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 20, "execute_us": 46}
+  "timings": {"parse_us": 14, "execute_us": 25}
 }
 ```
 
@@ -2023,7 +2023,7 @@ HTTP 503 (application/json)
   "results": [],
   "saved": 0,
   "rolled_back": false,
-  "error": "a row of table 'accounts' is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5015 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
+  "error": "a row of table 'accounts' is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5005 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
   "sqlstate": "55P03"
 }
 ```
@@ -2058,7 +2058,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "b50de7051e183eed11c011ef3cadffcf", "idle_timeout_ms": 600000}
+{"session": "4d0721a146abdc762c2f1fad10bfb226", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2077,7 +2077,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 6, "execute_us": 3}
+      "timings": {"parse_us": 5, "execute_us": 2}
     },
     {
       "statement": "INSERT INTO accounts VALUES (3, 'Hari', 0)",
@@ -2087,13 +2087,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 6, "execute_us": 20}
+      "timings": {"parse_us": 5, "execute_us": 17}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 12, "execute_us": 23}
+  "timings": {"parse_us": 10, "execute_us": 19}
 }
 ```
 
@@ -2107,7 +2107,7 @@ HTTP 503 (application/json)
   "results": [],
   "saved": 0,
   "rolled_back": false,
-  "error": "table 'accounts' is busy: another transaction has held it for 5036 ms; waited 5015 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
+  "error": "table 'accounts' is busy: another transaction has held it for 5008 ms; waited 5005 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
   "sqlstate": "55P03"
 }
 ```
@@ -2142,7 +2142,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "c497a9f40e9afb0448157e2044a9ebfb", "idle_timeout_ms": 600000}
+{"session": "0184128b23bd7b13bdd7a84335439056", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2161,7 +2161,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 13, "execute_us": 4}
+      "timings": {"parse_us": 12, "execute_us": 4}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -2171,13 +2171,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 13, "execute_us": 45}
+      "timings": {"parse_us": 12, "execute_us": 38}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 26, "execute_us": 49}
+  "timings": {"parse_us": 24, "execute_us": 42}
 }
 ```
 
@@ -2230,7 +2230,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "2e80d327f4ef2ca31bbf8aae42316e92", "idle_timeout_ms": 600000}
+{"session": "52e8998a4302f7e69ed9796830626845", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2249,7 +2249,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 17, "execute_us": 5}
+      "timings": {"parse_us": 9, "execute_us": 3}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -2259,13 +2259,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 17, "execute_us": 64}
+      "timings": {"parse_us": 9, "execute_us": 43}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 34, "execute_us": 69}
+  "timings": {"parse_us": 18, "execute_us": 46}
 }
 ```
 
@@ -2285,7 +2285,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'accounts' already exists",
-      "timings": {"parse_us": 12, "execute_us": 1}
+      "timings": {"parse_us": 13, "execute_us": 1}
     },
     {
       "statement": "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS owner STRING",
@@ -2295,13 +2295,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'accounts' not changed (already as asked)",
-      "timings": {"parse_us": 12, "execute_us": 1}
+      "timings": {"parse_us": 13, "execute_us": 0}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 24, "execute_us": 2}
+  "timings": {"parse_us": 26, "execute_us": 1}
 }
 ```
 
@@ -2388,7 +2388,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "23a42d807a03a60b4f934c6338e69fa1", "idle_timeout_ms": 600000}
+{"session": "3c790f6298b22cdbef1518fd46f22681", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2407,13 +2407,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 9, "execute_us": 16}
+      "timings": {"parse_us": 9, "execute_us": 10}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 9, "execute_us": 16}
+  "timings": {"parse_us": 9, "execute_us": 10}
 }
 ```
 
@@ -2437,7 +2437,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 36, "execute_us": 484}
+      "timings": {"parse_us": 19, "execute_us": 51}
     }
   ],
   "columns": [
@@ -2447,7 +2447,7 @@ HTTP 200 (application/json)
     [10]
   ],
   "count": 1,
-  "timings": {"parse_us": 36, "execute_us": 484}
+  "timings": {"parse_us": 19, "execute_us": 51}
 }
 ```
 
@@ -2467,13 +2467,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 48, "execute_us": 42}
+      "timings": {"parse_us": 30, "execute_us": 23}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 48, "execute_us": 42}
+  "timings": {"parse_us": 30, "execute_us": 23}
 }
 ```
 
@@ -2497,7 +2497,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 3, "execute_us": 73}
+      "timings": {"parse_us": 3, "execute_us": 89}
     }
   ],
   "columns": [
@@ -2507,7 +2507,7 @@ HTTP 200 (application/json)
     [11]
   ],
   "count": 1,
-  "timings": {"parse_us": 3, "execute_us": 73}
+  "timings": {"parse_us": 3, "execute_us": 89}
 }
 ```
 
@@ -2527,13 +2527,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 0 change(s) saved",
-      "timings": {"parse_us": 4, "execute_us": 3}
+      "timings": {"parse_us": 6, "execute_us": 4}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 4, "execute_us": 3}
+  "timings": {"parse_us": 6, "execute_us": 4}
 }
 ```
 
@@ -2607,7 +2607,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 7, "execute_us": 3}
+      "timings": {"parse_us": 8, "execute_us": 4}
     },
     {
       "statement": "SELECT v FROM report_src",
@@ -2621,7 +2621,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 7, "execute_us": 38}
+      "timings": {"parse_us": 8, "execute_us": 42}
     },
     {
       "statement": "COMMIT",
@@ -2631,13 +2631,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 0 change(s) saved",
-      "timings": {"parse_us": 7, "execute_us": 2}
+      "timings": {"parse_us": 8, "execute_us": 2}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 21, "execute_us": 43}
+  "timings": {"parse_us": 24, "execute_us": 48}
 }
 ```
 
@@ -2657,7 +2657,7 @@ HTTP 403 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 9, "execute_us": 2}
+      "timings": {"parse_us": 8, "execute_us": 2}
     }
   ],
   "saved": 0,
@@ -2766,7 +2766,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "ee59be04e41f6f0fba7d9da0484f6b99", "idle_timeout_ms": 600000}
+{"session": "36049d87687db913dd883d13c1845a56", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2785,7 +2785,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 6, "execute_us": 4}
+      "timings": {"parse_us": 9, "execute_us": 4}
     },
     {
       "statement": "LOCK TABLE accounts IN SHARE MODE",
@@ -2795,13 +2795,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "LOCK TABLE",
-      "timings": {"parse_us": 6, "execute_us": 3}
+      "timings": {"parse_us": 9, "execute_us": 10}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 12, "execute_us": 7}
+  "timings": {"parse_us": 18, "execute_us": 14}
 }
 ```
 
@@ -2827,7 +2827,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 19, "execute_us": 64}
+      "timings": {"parse_us": 19, "execute_us": 59}
     },
     {
       "statement": "SELECT c.relname, l.mode, l.granted FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation",
@@ -2843,7 +2843,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 19, "execute_us": 119}
+      "timings": {"parse_us": 19, "execute_us": 105}
     }
   ],
   "columns": [
@@ -2855,7 +2855,7 @@ HTTP 200 (application/json)
     ["accounts", "ShareLock", true]
   ],
   "count": 1,
-  "timings": {"parse_us": 38, "execute_us": 183}
+  "timings": {"parse_us": 38, "execute_us": 164}
 }
 ```
 
@@ -2889,7 +2889,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "609ac4de2324d95a9e42123b93f0a23c", "idle_timeout_ms": 600000}
+{"session": "930472f3d7b8406116731e2c7bd7ae34", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -2908,7 +2908,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 8, "execute_us": 5}
+      "timings": {"parse_us": 4, "execute_us": 2}
     },
     {
       "statement": "LOCK TABLE accounts IN SHARE MODE",
@@ -2918,13 +2918,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "LOCK TABLE",
-      "timings": {"parse_us": 8, "execute_us": 1}
+      "timings": {"parse_us": 4, "execute_us": 29}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 16, "execute_us": 6}
+  "timings": {"parse_us": 8, "execute_us": 31}
 }
 ```
 
@@ -3089,10 +3089,10 @@ With `many`, several users change **one table at the same time**, as long as eac
 The table must be a plain table with a one-column `PRIMARY KEY`, no foreign key either way, no other `UNIQUE` column or index, no `AUTO` column, no `FOR EACH ROW` trigger and no materialized view built from it (statement triggers are fine). Other tables of the same request are not affected: each is held shared or whole on its own.
 
 - **What you get:** eight users running a bank-transfer `CALL` no longer take turns on the accounts table; their statements overlap and more of their commits share one disk sync.
-- **The same row:** a second writer of a row waits for the first one's end (the lock timeout applies), then reads the row as that writer left it, committed or rolled back: `balance = balance - 10` twice gives the same balance as one after the other, as PostgreSQL's row locks do. Two inserts of one key give one row and one `already exists` (`23505`). A read of a row another writer is changing waits for it: a request never sees a change that is not committed.
+- **The same row:** a second writer of a row waits for the first one's end (the lock timeout applies), then reads the row as that writer left it, committed or rolled back: `balance = balance - 10` twice gives the same balance as one after the other, as PostgreSQL's row locks do. Two inserts of one key give one row and one `already exists` (`23505`). A read of a row by its key (`SET v = (SELECT ... WHERE id = x)`) waits for another writer of the row and then keeps the row until its own request ends, as an `UPDATE` does: a request never sees a change that is not committed, and a procedure that checks what it read before it changes the row (`IF bal < amt THEN RAISE ...; UPDATE ...`) is as exact as with one writer per table - two calls cannot both pass on the same old balance. The row is kept even when the request only reads it: calls that all read one busy row by its key (a rate looked up by `SET r = (SELECT rate FROM fx WHERE ccy = x)`) take turns on that row until each one commits, as they would with one writer per table. The disk sync is not part of that wait.
 - **Deadlock:** two writers that wait for each other's rows get `deadlock: ...` (`40P01`) at once, like two transactions that wait for each other's tables. Run the request again.
 - **Readers:** a `SELECT` of the table waits for all of its writers, or reads a snapshot with [snapshot reads](#snapshot-reads) on; it never sees half a statement.
-- **The escape hatch:** a request that turns out to need more of the table than its statements showed (rare) takes the whole table for itself, waiting for the other writers to end; `GET /api/stats` counts it in `shared_writer_upgrades`, next to `shared_writers` (requests that held a table shared) and `shared_row_waits`.
+- **The escape hatch:** a request that turns out to need more of the table than its statements showed (rare) takes the whole table for itself, waiting for the other writers to end; `GET /api/stats` counts it in `shared_writer_upgrades`, next to `shared_writers` (requests that held a table shared) and `shared_row_waits`. The rows it read by key stay kept while it waits, so if another writer is changing one of them, one of the two gets `deadlock` at once. Run it again.
 
 <a id="txn-spill"></a>
 

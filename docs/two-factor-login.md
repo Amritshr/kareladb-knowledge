@@ -49,7 +49,7 @@ user 'boss' created with role admin
 
 | user (STRING) | otpauth_uri (STRING) | secret (STRING) |
 |---|---|---|
-| boss | otpauth://totp/KarelaDB:boss?secret=BODTVPIJCVTGCS4WPEWYQIP4VN6XSGN4&issuer=KarelaDB&algorithm=SHA1&digits=6&period=30 | BODTVPIJCVTGCS4WPEWYQIP4VN6XSGN4 |
+| boss | otpauth://totp/KarelaDB:boss?secret=EOKMM4XA4WUIVD3DRDVH4DGBG5LJ3GMH&issuer=KarelaDB&algorithm=SHA1&digits=6&period=30 | EOKMM4XA4WUIVD3DRDVH4DGBG5LJ3GMH |
 
 (1 row)
 

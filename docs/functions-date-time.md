@@ -1132,7 +1132,7 @@ Result:
 
 | rows_today (LONG) | tomorrow_starts (TIMESTAMP) |
 |---|---|
-| 0 | 2026-10-23T00:00:00.000Z |
+| 0 | 2026-10-24T00:00:00.000Z |
 
 (1 row)
 
@@ -2361,7 +2361,7 @@ Result:
 
 | utc_day (DATE) | nepal_day (DATE) | same_as_now (BOOL) |
 |---|---|---|
-| 2026-10-22 | 2026-10-22 | true |
+| 2026-10-23 | 2026-10-23 | true |
 
 (1 row)
 
@@ -2396,7 +2396,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 11:02:30.350 | 16:47 | true |
+| 04:47:13.018 | 10:32 | true |
 
 (1 row)
 

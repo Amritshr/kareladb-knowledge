@@ -72,8 +72,15 @@ Usage:
               [--sync-commits always|batch] [--threads N]  HTTP API, line protocol (POST /write) and web console
               [--pg-port 8832] [--pg-timestamptz] PostgreSQL protocol for Postgres drivers and tools (0 = off)
                                                  (Ctrl+C stops). Without <db>: every database in the data folder
+  kareladb exec [--url http://localhost:9900] [--token <t>] [--db <name>] "SQL"
+              run SQL on a running server and print its JSON answer; a cluster follower's 421 is followed
+              once to the leader it names
   kareladb promote [--url http://localhost:9900] [--token <t>]  make the standby at --url a primary: it stops
                                                  copying and takes changes (when the primary is lost)
+  kareladb witness --data-dir <dir> --node-id <id> --cluster-peers <list> [--port 9900] [--bind 127.0.0.1]
+              [--token <t>]                      a cluster voter that holds no data: it only votes (docs: cluster)
+  kareladb cluster diverged list|drop <folder> [--data-dir <dir>]
+              the copies a cluster node kept in _diverged when it took the leader's history; drop deletes one
   kareladb shell   [<db>] [--backups <dir>] [--memory <MB>]  interactive SQL prompt (end statements with ;)
   kareladb sql     <db> "SQL" [--format table|csv|json] [--max-rows N]
                                                  run SQL and print results (use - to read SQL from stdin)
@@ -220,6 +227,20 @@ Protection of kareladb serve (docs/tutorial/21-protection.md):
                                (http://host:9900) from its log, and only reads (env KARELADB_STANDBY_OF)
   --standby-token T            the token the standby sends to the primary: its --token or an admin's API
                                token (env KARELADB_STANDBY_TOKEN)
+  --cluster-peers LIST         this server is a cluster node: id=http://host:port of every voter, this one too
+                               (a=http://a:9900,b=http://b:9900,w=http://w:9900); the leader is elected and
+                               takes over by itself when it dies (env KARELADB_CLUSTER_PEERS)
+  --node-id ID                 this node's id in --cluster-peers (env KARELADB_NODE_ID)
+  --cluster-token T            the token the nodes send each other (default --token; every node must accept
+                               it as an admin's) (env KARELADB_CLUSTER_TOKEN)
+                               a cluster node also reads KARELADB_SYNC_STANDBYS=0|1 (1: a commit is confirmed
+                               once a standby holds it; default 1) and KARELADB_ON_LEADER / KARELADB_ON_FOLLOWER
+                               (a command run on each role change: <cmd> leader|follower <term> <leader-id>)
+  --cluster-learner            a cluster follower that does not vote: one more copy to read from; its
+                               --node-id is not in --cluster-peers (env KARELADB_CLUSTER_LEARNER=on, or list
+                               it in KARELADB_CLUSTER_FOLLOWERS=f1=http://h4:9900,...). Reads on any follower:
+                               KARELADB_MAX_READ_LAG_MS (answer 503 when further behind), KARELADB_READ_WAIT_MS
+                               (how long X-KarelaDB-Min-Lsn waits; default 2000)
   --trash-days N               DROP TABLE keeps the table N days for UNDROP TABLE (default 7; also sql, shell)
   --audit on|off               audit log of logins, users, DDL, backups in _system (default on)
   --audit-keep-days N          remove audit rows older than N days (default 0 = keep forever)
@@ -419,9 +440,9 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-22 16:47:03
+newest change   2026-10-23 10:31:50
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
-manifest keys   7
+manifest keys   8
 
 FILE                                      VERSION       SIZE          LSN  STATUS
 catalog                                         1      232 B            4  ok

@@ -285,7 +285,7 @@ Result:
 `DROP DATABASE test_2025`
 
 ```text
-database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792666934850-test_2025
+database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792730817792-test_2025
 ```
 
 `DROP DATABASE IF EXISTS test_2025`
@@ -318,7 +318,7 @@ SHOW TABLES;
 Result:
 
 ```text
-database 'demo' dropped; its folder was moved to kdb-data/_trash/1792666934901-demo; no database is selected now (USE <name>)
+database 'demo' dropped; its folder was moved to kdb-data/_trash/1792730817789-demo; no database is selected now (USE <name>)
 ```
 
 Error: `no database is selected; choose one with USE <name>`
@@ -406,13 +406,13 @@ Result:
 `DROP DATABASE old_test`
 
 ```text
-database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792666935086-old_test
+database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792730817931-old_test
 ```
 
 `PURGE TRASH ALL`
 
 ```text
-removed 1 folder(s) from the trash, freed 604 bytes
+removed 1 folder(s) from the trash, freed 680 bytes
 ```
 
 <a id="purge-versions"></a>

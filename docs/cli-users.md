@@ -96,9 +96,9 @@ user 'shop_app' added with role none in ./kdb-data
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 16:47:04
-report                   read   -                              2026-10-22 16:47:04
-shop_app                 none   -                              2026-10-22 16:47:05
+admin                    admin  -                              2026-10-23 10:31:51
+report                   read   -                              2026-10-23 10:31:51
+shop_app                 none   -                              2026-10-23 10:31:51
 3 users in ./kdb-data
 ```
 
@@ -257,8 +257,8 @@ user 'shop_app' now has role write
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 16:47:04
-shop_app                 write  -                              2026-10-22 16:47:05
+admin                    admin  -                              2026-10-23 10:31:51
+shop_app                 write  -                              2026-10-23 10:31:51
 2 users in ./kdb-data
 ```
 
@@ -385,8 +385,8 @@ kareladb>
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 16:47:05
-shop_app                 none   shop=write                     2026-10-22 16:47:05
+admin                    admin  -                              2026-10-23 10:31:52
+shop_app                 none   shop=write                     2026-10-23 10:31:52
 2 users in ./kdb-data
 ```
 
@@ -440,7 +440,7 @@ user 'report' removed
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-22 16:47:05
+admin                    admin  -                              2026-10-23 10:31:52
 1 user in ./kdb-data
 ```
 
