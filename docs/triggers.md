@@ -998,7 +998,7 @@ exit code 1
 accounts | audit_rows
 ---------+-----------
        0 |          0
-(1 row, 0.3 ms)
+(1 row, 0.2 ms)
 ```
 
 **Example: A trigger that fires itself** (shows an error)
@@ -1189,12 +1189,14 @@ Syntax:
 ```sql
 RETRY TRIGGER QUEUE trigger_name
 SKIP TRIGGER JOB trigger_name job_id
+SKIP TRIGGER JOB trigger_name ALL
 ```
 
 | Statement | What it does |
 |---|---|
 | `RETRY TRIGGER QUEUE name` | runs the failed job again, then the jobs behind it. Fix the cause first (the data, or the trigger with `CREATE OR REPLACE TRIGGER`). |
 | `SKIP TRIGGER JOB name id` | removes one job without running it. Its rows stay in the table, but the trigger never sees them. The next job runs. |
+| `SKIP TRIGGER JOB name ALL` | removes every job of the queue the same way, one by one. `DROP TRIGGER` of a deferred trigger is refused while jobs wait (its writes would never be worked); this is the one statement that clears them first. |
 
 - **Notes:**
   - Both need the admin role. They cannot be used inside `BEGIN ... COMMIT`.

@@ -37,7 +37,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| chart_app | charts | kdbt_wqx-s8ktpEfgDeZWmTVyo8_RHnPHScIocBtsaxMy_GU | 2027-01-22T05:51:49.604Z |
+| chart_app | charts | kdbt_ldRrx-53itbKjFzTlM6dgh3aJ_ypgE0El9E_LnN8pNM | 2027-01-22T06:18:44.626Z |
 
 (1 row)
 
@@ -49,7 +49,7 @@ token 'chart_app' for user 'charts' created: copy it now, it is shown only this 
 
 | name (STRING) | user (STRING) | prefix (STRING) | created (TIMESTAMP) | expires (TIMESTAMP) | expired (BOOL) | created_by (STRING) | last_used (TIMESTAMP) |
 |---|---|---|---|---|---|---|---|
-| chart_app | charts | kdbt_wqx-... | 2026-10-24T05:51:49.616Z | 2027-01-22T05:51:49.604Z | false | NULL | NULL |
+| chart_app | charts | kdbt_ldRr... | 2026-10-24T06:18:44.630Z | 2027-01-22T06:18:44.626Z | false | NULL | NULL |
 
 (1 row)
 
@@ -97,7 +97,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| price_feed | loader | kdbt_hzcdonHPYpuWoMsAPN3J_6S8arqXSLUYiHpDetwHYYk | NULL |
+| price_feed | loader | kdbt_PZF-2vtd9GEZZ2lsSFMgqYWFOhHX_wc8qCQAoauhLww | NULL |
 
 (1 row)
 
@@ -109,7 +109,7 @@ token 'price_feed' for user 'loader' created: copy it now, it is shown only this
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| backfill | loader | kdbt_OGE0yixntK12ZLOca4Tt7eRuhPjttWeijM7qM81uQFg | 2026-10-31T05:51:49.715Z |
+| backfill | loader | kdbt_t8yav6WSkclo9teXXdQkqF9Q-xxYDctXFGUsQu-87es | 2026-10-31T06:18:44.715Z |
 
 (1 row)
 
@@ -229,7 +229,7 @@ Result:
 
 | name (STRING) | user (STRING) | prefix (STRING) | created (TIMESTAMP) | expires (TIMESTAMP) | expired (BOOL) | created_by (STRING) | last_used (TIMESTAMP) |
 |---|---|---|---|---|---|---|---|
-| price_feed | admin | kdbt_PVVW... | 2026-10-24T05:51:49.858Z | 2026-11-23T05:51:49.853Z | false | NULL | NULL |
+| price_feed | admin | kdbt_JI05... | 2026-10-24T06:18:44.862Z | 2026-11-23T06:18:44.857Z | false | NULL | NULL |
 
 (1 row)
 

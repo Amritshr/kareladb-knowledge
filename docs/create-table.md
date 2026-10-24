@@ -251,7 +251,8 @@ Makes a new table from the result of a query, and copies the rows in. The column
 
 - **Returns:** `table 'name' created with N row(s)`.
 - **Notes:**
-  - A `SYMBOL` column of the query becomes `STRING`. Keys, `NOT NULL`, defaults, `CHECK` rules and indexes are **not** copied. Add them with [ALTER TABLE](alter-table.md) afterwards, or make the table first and `INSERT INTO t SELECT ...` (see [INSERT ... SELECT](insert.md#insert-select)).
+  - A `SYMBOL` column of the query stays `SYMBOL` (as QuestDB copies it). Keys, `NOT NULL`, defaults, `CHECK` rules and indexes are **not** copied.
+  - A plain read (`SELECT ... FROM one_table [WHERE ...]`, no join, `GROUP BY`, `DISTINCT`, window, `ORDER BY` or `LIMIT`) is copied in batches while the source is read, as `INSERT ... SELECT` writes, so a copy of millions of rows fits the memory limits (5M rows of 10 columns: about 2.4 GB at the peak instead of 9.7 GB, and twice as fast). Other queries keep their whole result first, under `max_result_memory`. Add them with [ALTER TABLE](alter-table.md) afterwards, or make the table first and `INSERT INTO t SELECT ...` (see [INSERT ... SELECT](insert.md#insert-select)).
   - `PARTITION BY ..., SYMBOL(col)` is not accepted here.
   - Two query columns with the same name are refused: name them with `AS`.
 
@@ -313,7 +314,7 @@ table 'turnover' created with 2 row(s)
 
 `SELECT * FROM turnover ORDER BY symbol`
 
-| symbol (STRING) | amount (DOUBLE) |
+| symbol (SYMBOL) | amount (DOUBLE) |
 |---|---|
 | CITY | 15470 |
 | COAST | 1880 |
