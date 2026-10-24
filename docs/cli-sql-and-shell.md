@@ -214,7 +214,7 @@ symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.3 ms)
+(3 rows, 0.6 ms)
 ```
 
 ```powershell
@@ -255,8 +255,8 @@ Output:
 ```text
 backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-061846-992 |     9 | 194519 |      30
-(1 row, 17.3 ms)
+backups/20261024-063937-201 |     9 | 194519 |      30
+(1 row, 20.2 ms)
 backup created and verified
 ```
 
@@ -334,7 +334,7 @@ kareladb> ...> ...> symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.4 ms)
+(3 rows, 0.3 ms)
 kareladb> kareladb> id,name
 1,Keystone Securities
 34,Vision Securities
@@ -364,7 +364,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false  
 reports |      1 |   229 | true   
-(2 rows, 0.1 ms)
+(2 rows, 0.2 ms)
 kareladb>
 ```
 
@@ -409,7 +409,7 @@ End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> ...> days
 ----
   57
-(1 row, 0.2 ms)
+(1 row, 0.3 ms)
 kareladb> a
 -
 1
@@ -742,7 +742,7 @@ kareladb> kareladb> id | name
 ---+--------------------
  1 | Keystone Securities
 34 | Vision Securities  
-(2 rows, 0.1 ms)
+(2 rows, 0.0 ms)
 kareladb>
 ```
 
@@ -805,7 +805,7 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> problem
 -------
-(0 rows, 0.7 ms)
+(0 rows, 0.6 ms)
 OK: no damage found in 14 files
 kareladb>
 ```
@@ -835,8 +835,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-061847-311 |     9 | 194519 |      30
-(1 row, 16.7 ms)
+backups/20261024-063937-566 |     9 | 194519 |      30
+(1 row, 34.6 ms)
 backup created and verified
 kareladb>
 ```

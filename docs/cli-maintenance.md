@@ -55,7 +55,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 12:03:43
+newest change   2026-10-24 12:24:33
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -291,9 +291,9 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           9
-created      2026-10-24 12:03:43
+created      2026-10-24 12:24:33
 blocks       1
-digest       c9d2b3c1
+digest       5b07ece2
 OK: all blocks match their checksums
 ```
 
@@ -313,7 +313,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 12:03:43
+newest change   2026-10-24 12:24:33
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -342,7 +342,7 @@ data         693 B
 block size   65536
 LSN          30
 id           1
-created      2026-10-24 12:03:43
+created      2026-10-24 12:24:33
 blocks       1
 digest       1d198644
 OK: all blocks match their checksums

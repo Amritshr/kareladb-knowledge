@@ -2484,7 +2484,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 06:19:01.254 | 12:04 | true |
+| 06:39:52.841 | 12:24 | true |
 
 (1 row)
 

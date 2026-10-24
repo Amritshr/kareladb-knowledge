@@ -849,7 +849,7 @@ It stays up to date by itself. After each commit that changes rows of its table,
 | `REFRESH ON INSERT`, `REFRESH IMMEDIATE` | optional; every materialized view is refreshed after inserts, updates and deletes. `REFRESH MANUAL`, `EVERY` and `PERIOD` are not supported |
 | `WITH BASE table` | QuestDB: the table the view is refreshed from. It must be the table the query reads |
 | `TIMESTAMP(time)` | QuestDB: the view's time column. It must be the time bucket |
-| time bucket | with `GROUP BY`: the table's time column, `to_date(time)`, or `date_trunc('year' \| 'quarter' \| 'month' \| 'day' \| 'hour' \| 'minute' \| 'second', time)`. With `SAMPLE BY`: the table's time column in `SELECT`, which holds the start of each bucket |
+| time bucket | with `GROUP BY`: the table's time column, `to_date(time)`, `date_trunc('year' \| 'quarter' \| 'month' \| 'day' \| 'hour' \| 'minute' \| 'second', time)`, `time_bucket('5 minutes', time)` or `timestamp_floor('5m', time)` with a width that divides a day (or 1, 2, 3, 4, 6 or 12 months). With `SAMPLE BY`: the table's time column in `SELECT`, which holds the start of each bucket |
 
 | Refresh | What it does |
 |---|---|

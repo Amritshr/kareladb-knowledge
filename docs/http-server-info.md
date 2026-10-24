@@ -55,7 +55,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792822761317,
+  "server_time_ms": 1792824013407,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -150,8 +150,8 @@ HTTP 200 (application/json)
   "dir": "kdb-data/demo",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "opened_ms": 1792822761321,
-  "server_time_ms": 1792822761339,
+  "opened_ms": 1792824013416,
+  "server_time_ms": 1792824013461,
   "last_lsn": 4,
   "data_files": 1,
   "data_bytes": 231,
@@ -427,7 +427,7 @@ HTTP 200 (application/json)
   "bytes_checked": 77929,
   "wal_segments_checked": 1,
   "problems": [],
-  "elapsed_us": 1220
+  "elapsed_us": 764
 }
 ```
 
@@ -487,10 +487,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-061921-378",
-  "dir": "./backups/demo/20261024-061921-378",
-  "created_ms": 1792822761378,
-  "created": "2026-10-24T06:19:21.378Z",
+  "name": "20261024-064013-540",
+  "dir": "./backups/demo/20261024-064013-540",
+  "created_ms": 1792824013540,
+  "created": "2026-10-24T06:40:13.540Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -506,10 +506,10 @@ HTTP 200 (application/json)
 {
   "backups": [
     {
-      "name": "20261024-061921-378",
-      "dir": "./backups/demo/20261024-061921-378",
-      "created_ms": 1792822761378,
-      "created": "2026-10-24T06:19:21.378Z",
+      "name": "20261024-064013-540",
+      "dir": "./backups/demo/20261024-064013-540",
+      "created_ms": 1792824013540,
+      "created": "2026-10-24T06:40:13.540Z",
       "end_lsn": 30,
       "checkpoint_lsn": 30,
       "files": 9,
@@ -519,9 +519,9 @@ HTTP 200 (application/json)
   "backup_dir": "./backups/demo",
   "point_in_time": {
     "possible": true,
-    "from_ms": 1792822761378,
-    "from": "2026-10-24T06:19:21.378Z",
-    "from_backup": "20261024-061921-378",
+    "from_ms": 1792824013540,
+    "from": "2026-10-24T06:40:13.540Z",
+    "from_backup": "20261024-064013-540",
     "log_first_lsn": 1,
     "why": "",
     "wal_archive_max_bytes": 1073741824
@@ -660,10 +660,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-061921-554",
-  "dir": "./backups/demo/20261024-061921-554",
-  "created_ms": 1792822761554,
-  "created": "2026-10-24T06:19:21.554Z",
+  "name": "20261024-064013-715",
+  "dir": "./backups/demo/20261024-064013-715",
+  "created_ms": 1792824013715,
+  "created": "2026-10-24T06:40:13.715Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -680,10 +680,10 @@ HTTP 200 (application/json)
   "database": "demo_restored",
   "source": "demo",
   "backup": {
-    "name": "20261024-061921-554",
-    "dir": "./backups/demo/20261024-061921-554",
-    "created_ms": 1792822761554,
-    "created": "2026-10-24T06:19:21.554Z",
+    "name": "20261024-064013-715",
+    "dir": "./backups/demo/20261024-064013-715",
+    "created_ms": 1792824013715,
+    "created": "2026-10-24T06:40:13.715Z",
     "end_lsn": 30,
     "checkpoint_lsn": 30,
     "files": 9,
@@ -694,9 +694,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 9 data files from ./backups/demo/20261024-061921-554; the log (up to LSN 30) is replayed on first open"
+    "restored 9 data files from ./backups/demo/20261024-064013-715; the log (up to LSN 30) is replayed on first open"
   ],
-  "took_ms": 25,
+  "took_ms": 86,
   "next": "check 'demo_restored', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_restored\"} to put it in place, or DROP DATABASE demo_restored"
 }
 ```
@@ -709,7 +709,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_restored",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792822761604-demo_restored"
+  "moved_to": "kdb-data/_trash/1792824013927-demo_restored"
 }
 ```
 
@@ -737,10 +737,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-061921-563",
-  "dir": "./backups/demo/20261024-061921-563",
-  "created_ms": 1792822761563,
-  "created": "2026-10-24T06:19:21.563Z",
+  "name": "20261024-064013-741",
+  "dir": "./backups/demo/20261024-064013-741",
+  "created_ms": 1792824013741,
+  "created": "2026-10-24T06:40:13.741Z",
   "end_lsn": 0,
   "checkpoint_lsn": 0,
   "files": 0,
@@ -757,10 +757,10 @@ HTTP 200 (application/json)
   "database": "demo_twice",
   "source": "demo",
   "backup": {
-    "name": "20261024-061921-563",
-    "dir": "./backups/demo/20261024-061921-563",
-    "created_ms": 1792822761563,
-    "created": "2026-10-24T06:19:21.563Z",
+    "name": "20261024-064013-741",
+    "dir": "./backups/demo/20261024-064013-741",
+    "created_ms": 1792824013741,
+    "created": "2026-10-24T06:40:13.741Z",
     "end_lsn": 0,
     "checkpoint_lsn": 0,
     "files": 0,
@@ -771,9 +771,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 0 data files from ./backups/demo/20261024-061921-563; the log (up to LSN 0) is replayed on first open"
+    "restored 0 data files from ./backups/demo/20261024-064013-741; the log (up to LSN 0) is replayed on first open"
   ],
-  "took_ms": 9,
+  "took_ms": 37,
   "next": "check 'demo_twice', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_twice\"} to put it in place, or DROP DATABASE demo_twice"
 }
 ```
@@ -859,7 +859,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 't' created",
-      "timings": {"parse_us": 16, "execute_us": 3910}
+      "timings": {"parse_us": 17, "execute_us": 18047}
     },
     {
       "statement": "INSERT INTO t VALUES (1)",
@@ -869,13 +869,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 16, "execute_us": 351}
+      "timings": {"parse_us": 17, "execute_us": 3068}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 32, "execute_us": 4261}
+  "timings": {"parse_us": 34, "execute_us": 21115}
 }
 ```
 
@@ -885,10 +885,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-061921-586",
-  "dir": "./backups/demo/20261024-061921-586",
-  "created_ms": 1792822761586,
-  "created": "2026-10-24T06:19:21.586Z",
+  "name": "20261024-064013-834",
+  "dir": "./backups/demo/20261024-064013-834",
+  "created_ms": 1792824013834,
+  "created": "2026-10-24T06:40:13.834Z",
   "end_lsn": 4,
   "checkpoint_lsn": 4,
   "files": 2,
@@ -912,13 +912,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 16, "execute_us": 22}
+      "timings": {"parse_us": 17, "execute_us": 27}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 16, "execute_us": 22}
+  "timings": {"parse_us": 17, "execute_us": 27}
 }
 ```
 
@@ -931,10 +931,10 @@ HTTP 200 (application/json)
   "database": "demo_old",
   "source": "demo",
   "backup": {
-    "name": "20261024-061921-586",
-    "dir": "./backups/demo/20261024-061921-586",
-    "created_ms": 1792822761586,
-    "created": "2026-10-24T06:19:21.586Z",
+    "name": "20261024-064013-834",
+    "dir": "./backups/demo/20261024-064013-834",
+    "created_ms": 1792824013834,
+    "created": "2026-10-24T06:40:13.834Z",
     "end_lsn": 4,
     "checkpoint_lsn": 4,
     "files": 2,
@@ -945,9 +945,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 2 data files from ./backups/demo/20261024-061921-586; the log (up to LSN 4) is replayed on first open"
+    "restored 2 data files from ./backups/demo/20261024-064013-834; the log (up to LSN 4) is replayed on first open"
   ],
-  "took_ms": 13,
+  "took_ms": 51,
   "next": "check 'demo_old', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_old\"} to put it in place, or DROP DATABASE demo_old"
 }
 ```
@@ -980,7 +980,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 30, "execute_us": 150}
+      "timings": {"parse_us": 30, "execute_us": 148}
     }
   ],
   "columns": [
@@ -990,7 +990,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 30, "execute_us": 150}
+  "timings": {"parse_us": 30, "execute_us": 148}
 }
 ```
 
@@ -1010,7 +1010,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_old",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792822761688-demo_old"
+  "moved_to": "kdb-data/_trash/1792824014157-demo_old"
 }
 ```
 
