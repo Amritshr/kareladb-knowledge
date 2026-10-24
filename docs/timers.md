@@ -156,10 +156,10 @@ HTTP 200 (application/json)
   "schedule": "every 5m",
   "sql": "CALL refresh_shop_totals()",
   "enabled": true,
-  "created_ms": 1792820752240,
-  "updated_ms": 1792820752240,
+  "created_ms": 1792821175922,
+  "updated_ms": 1792821175922,
   "created_by": "",
-  "next_run_ms": 1792821000000,
+  "next_run_ms": 1792821300000,
   "last_run_ms": 0,
   "last_due_ms": 0,
   "last_late_ms": 0,
@@ -209,10 +209,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 34, "execute_us": 173}
+      "timings": {"parse_us": 35, "execute_us": 92}
     }
   ],
-  "timings": {"parse_us": 34, "execute_us": 173}
+  "timings": {"parse_us": 35, "execute_us": 92}
 }
 ```
 
@@ -286,8 +286,8 @@ HTTP 200 (application/json)
   "schedule": "daily 02:00",
   "sql": "SELECT 1",
   "enabled": true,
-  "created_ms": 1792820752186,
-  "updated_ms": 1792820752186,
+  "created_ms": 1792821175904,
+  "updated_ms": 1792821175904,
   "created_by": "",
   "next_run_ms": 1792872900000,
   "last_run_ms": 0,
@@ -320,8 +320,8 @@ HTTP 200 (application/json)
   "schedule": "daily 02:00",
   "sql": "SELECT 1",
   "enabled": false,
-  "created_ms": 1792820752186,
-  "updated_ms": 1792820752220,
+  "created_ms": 1792821175904,
+  "updated_ms": 1792821175936,
   "created_by": "",
   "next_run_ms": 0,
   "last_run_ms": 0,
@@ -357,7 +357,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792820752243,
+  "now_ms": 1792821175977,
   "timers": []
 }
 ```

@@ -55,7 +55,7 @@ symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.4 ms)
+(3 rows, 0.5 ms)
 ```
 
 **Command line: Many statements: one result each** (sample data: sample)
@@ -90,7 +90,7 @@ Output:
 before
 ------
      5
-(1 row, 0.1 ms)
+(1 row, 0.2 ms)
 error: line 1, column 48: unknown column 'nope' (table 'brokers' has: id name)
 ```
 
@@ -255,8 +255,8 @@ Output:
 ```text
 backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-054457-721 |     9 | 194519 |      30
-(1 row, 18.7 ms)
+backups/20261024-055152-461 |     9 | 194519 |      30
+(1 row, 20.7 ms)
 backup created and verified
 ```
 
@@ -526,7 +526,7 @@ kareladb> 1 row(s) inserted
 kareladb> inside_the_transaction
 ----------------------
                      6
-(1 row, 0.2 ms)
+(1 row, 0.3 ms)
 kareladb> 
 the open transaction was rolled back (it had no COMMIT)
 ```
@@ -775,7 +775,7 @@ kareladb> kareladb> time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.4 ms)
+(2 rows, more not shown, 0.5 ms)
 kareladb>
 ```
 
@@ -805,7 +805,7 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> problem
 -------
-(0 rows, 1.0 ms)
+(0 rows, 1.2 ms)
 OK: no damage found in 14 files
 kareladb>
 ```
@@ -835,8 +835,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-054458-024 |     9 | 194519 |      30
-(1 row, 18.0 ms)
+backups/20261024-055152-836 |     9 | 194519 |      30
+(1 row, 19.6 ms)
 backup created and verified
 kareladb>
 ```

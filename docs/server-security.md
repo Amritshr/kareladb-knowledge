@@ -37,7 +37,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792820733671,
+  "server_time_ms": 1792821155102,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -156,7 +156,7 @@ Result:
 
 | token_for_kdb_serve (STRING) | password_for_a_program (STRING) |
 |---|---|
-| Pr_GcHWBOiwooXpgHKcHlCYCyFayn9EmXAc5Q9tkzac | x8a3JEwuRx9cTBpsc1VGZa9GioHXh7Vo |
+| oKAhkn4YXYsX0rk2Y3oteBQc8y2qjv4CQ_wVzpAhesM | tGlrVYr5ujvXxAB3ONF09-yQbqpxpZqF |
 
 (1 row)
 
@@ -374,7 +374,7 @@ A small Linux VPS with your app and KarelaDB on the same machine. [Chapter 16](.
 
 | Check | Why |
 |---|---|
-| KarelaDB runs as its own system user; data and backups are `chmod 700` | a file copy needs no login |
+| KarelaDB runs as its own system user; data and backups are `chmod 700` (on Linux and macOS KarelaDB makes new files `0600` and new folders `0700` itself; folders made by an older version keep their rights, so `chmod -R go-rwx` them once) | a file copy needs no login |
 | `--bind 127.0.0.1` (the default); ports 9900 and 8832 closed in the firewall | strangers can not even connect |
 | an `admin` user with a long random password; each app has its own user with the smallest role | one leaked password does not open everything |
 | [TLS](tls.md), HTTPS (Caddy or nginx) or an SSH tunnel for the console and the PostgreSQL port | passwords are not sent in plain text |

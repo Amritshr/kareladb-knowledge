@@ -141,13 +141,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 5.098,
-    "lock_wait_ms": 0.012,
-    "wal_ms": 0.527,
-    "apply_ms": 1.534,
+    "parse_ms": 22.085,
+    "lock_wait_ms": 0.013,
+    "wal_ms": 3.312,
+    "apply_ms": 6.542,
     "trigger_ms": 0,
-    "durable_ms": 7.171,
-    "total_ms": 7.171
+    "durable_ms": 31.952,
+    "total_ms": 31.952
   }
 }
 ```
@@ -177,10 +177,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 21, "execute_us": 62}
+      "timings": {"parse_us": 28, "execute_us": 69}
     }
   ],
-  "timings": {"parse_us": 21, "execute_us": 62}
+  "timings": {"parse_us": 28, "execute_us": 69}
 }
 ```
 
@@ -216,13 +216,13 @@ HTTP 200 (application/json)
     {"name": "sector", "type": "STRING", "size": 0, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 0.199,
-    "lock_wait_ms": 0.016,
-    "wal_ms": 1.554,
-    "apply_ms": 1.187,
+    "parse_ms": 0.197,
+    "lock_wait_ms": 0.014,
+    "wal_ms": 3.352,
+    "apply_ms": 3.763,
     "trigger_ms": 0,
-    "durable_ms": 2.956,
-    "total_ms": 2.956
+    "durable_ms": 7.326,
+    "total_ms": 7.326
   }
 }
 ```
@@ -253,10 +253,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 14, "execute_us": 346}
+      "timings": {"parse_us": 13, "execute_us": 193}
     }
   ],
-  "timings": {"parse_us": 14, "execute_us": 346}
+  "timings": {"parse_us": 13, "execute_us": 193}
 }
 ```
 
@@ -321,13 +321,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 1}
   ],
   "timings": {
-    "parse_ms": 0.055,
+    "parse_ms": 0.066,
     "lock_wait_ms": 0.01,
-    "wal_ms": 0.356,
-    "apply_ms": 1.471,
+    "wal_ms": 3.199,
+    "apply_ms": 4.386,
     "trigger_ms": 0,
-    "durable_ms": 1.892,
-    "total_ms": 1.892
+    "durable_ms": 7.661,
+    "total_ms": 7.661
   }
 }
 ```
@@ -354,10 +354,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 10, "execute_us": 63}
+      "timings": {"parse_us": 28, "execute_us": 92}
     }
   ],
-  "timings": {"parse_us": 10, "execute_us": 63}
+  "timings": {"parse_us": 28, "execute_us": 92}
 }
 ```
 
@@ -399,13 +399,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 1}
   ],
   "timings": {
-    "parse_ms": 0.087,
+    "parse_ms": 0.07,
     "lock_wait_ms": 0.014,
-    "wal_ms": 0.479,
-    "apply_ms": 1.395,
+    "wal_ms": 3.33,
+    "apply_ms": 6.785,
     "trigger_ms": 0,
-    "durable_ms": 1.975,
-    "total_ms": 1.975
+    "durable_ms": 10.199,
+    "total_ms": 10.199
   }
 }
 ```
@@ -431,10 +431,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 28, "execute_us": 75}
+      "timings": {"parse_us": 10, "execute_us": 37}
     }
   ],
-  "timings": {"parse_us": 28, "execute_us": 75}
+  "timings": {"parse_us": 10, "execute_us": 37}
 }
 ```
 
@@ -492,13 +492,13 @@ HTTP 200 (application/json)
     {"name": "note", "type": "STRING", "size": 0, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 4.094,
+    "parse_ms": 14.091,
     "lock_wait_ms": 0.013,
-    "wal_ms": 0.461,
-    "apply_ms": 2.317,
+    "wal_ms": 3.372,
+    "apply_ms": 3.14,
     "trigger_ms": 0,
-    "durable_ms": 6.885,
-    "total_ms": 6.885
+    "durable_ms": 20.616,
+    "total_ms": 20.616
   }
 }
 ```

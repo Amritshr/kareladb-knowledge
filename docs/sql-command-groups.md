@@ -237,9 +237,9 @@ user 'shop_app' has role write on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T05:45:50.407Z | 2026-10-24T05:45:50.407Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T05:45:50.585Z | 2026-10-24T05:45:50.585Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-24T05:45:50.644Z | 2026-10-24T05:45:50.647Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T05:52:53.895Z | 2026-10-24T05:52:53.895Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-24T05:52:54.095Z | 2026-10-24T05:52:54.095Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-24T05:52:54.163Z | 2026-10-24T05:52:54.165Z | NULL | false | NULL | NULL |
 
 (3 rows)
 

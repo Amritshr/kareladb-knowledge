@@ -93,6 +93,7 @@ Syntax:
 ```sql
 round(x)
 round(x, digits)
+round(x, digits, 'binary')
 ```
 
 Rounds `x` to `digits` places after the decimal point. Halves go away from zero: `round(2.5)` is `3` and `round(-2.5)` is `-3`.
@@ -101,11 +102,13 @@ Rounds `x` to `digits` places after the decimal point. Halves go away from zero:
 |---|---|---|
 | `x` | any number | the value to round |
 | `digits` | whole number | places after the point; default `0`. A negative number rounds to tens, hundreds, ... |
+| `'binary'` | text | round the exact value the `DOUBLE` holds, as printf's `%f` does (Go `fmt`, C, Python `'%.6f'`). `'decimal'` is the default |
 
 - **Returns:** `DOUBLE`. An `INT` or `LONG` with `digits` 0 or more comes back unchanged. A `DECIMAL` stays an exact `DECIMAL` with `digits` places: `round(2.345::NUMERIC(10,3), 2)` is `2.35`.
 - **NULL:** `NULL` in, `NULL` out.
 - **Notes:** a `DOUBLE` can not hold every decimal exactly. `round` goes by the decimal a `DOUBLE` is written as, so `round(1.005, 2)` is `1.01` and `round(2.675, 2)` is `2.68`, as in PostgreSQL. For money that must be exact, use a `DECIMAL(2)` column.
 - **Notes:** to store the same numbers as a program that rounds (for example to 6 places), round in the procedure too: [matching another system's rounding](procedures.md#rounding).
+- **Notes:** `'binary'` differs only at a tie written in decimal. `0.1553125` is held as `0.155312499999...`, so `round(0.1553125, 6)` is `0.155313` but `round(0.1553125, 6, 'binary')` is `0.155312`, the digits `%.6f` prints.
 
 **Example**
 
@@ -118,6 +121,20 @@ Result:
 | two_places (DOUBLE) | whole (DOUBLE) | negative (DOUBLE) | hundreds (DOUBLE) | int_value (LONG) | half_cent (DOUBLE) |
 |---|---|---|---|---|---|
 | 512.46 | 513 | -3 | 1200 | 7 | 1.01 |
+
+(1 row)
+
+**Example: The same digits as printf's %.6f**
+
+```sql
+SELECT round(0.1553125, 6) AS decimal_tie, round(0.1553125, 6, 'binary') AS printf_digits, round(191298.5 / 320, 6, 'binary') AS rate;
+```
+
+Result:
+
+| decimal_tie (DOUBLE) | printf_digits (DOUBLE) | rate (DOUBLE) |
+|---|---|---|
+| 0.155313 | 0.155312 | 597.807812 |
 
 (1 row)
 

@@ -276,7 +276,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792820755801,
+  "now_ms": 1792821180685,
   "timers": []
 }
 ```

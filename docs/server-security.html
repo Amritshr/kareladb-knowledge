@@ -27,7 +27,7 @@
   &quot;status&quot;: &quot;ok&quot;,
   &quot;version&quot;: &quot;0.2.0-dev&quot;,
   &quot;product&quot;: &quot;KarelaDB&quot;,
-  &quot;server_time_ms&quot;: 1792820733671,
+  &quot;server_time_ms&quot;: 1792821155102,
   &quot;auth_required&quot;: false,
   &quot;login&quot;: false,
   &quot;tls&quot;: false,
@@ -75,7 +75,7 @@ Origin: http://evil.example.com</code></pre>
 <p><strong>Example: Make a strong token or password</strong></p>
 <pre><code class="language-sql">SELECT random_token() AS token_for_kdb_serve, random_token(24) AS password_for_a_program;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>token_for_kdb_serve (STRING)</th><th>password_for_a_program (STRING)</th></tr></thead><tbody><tr><td>Pr_GcHWBOiwooXpgHKcHlCYCyFayn9EmXAc5Q9tkzac</td><td>x8a3JEwuRx9cTBpsc1VGZa9GioHXh7Vo</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>token_for_kdb_serve (STRING)</th><th>password_for_a_program (STRING)</th></tr></thead><tbody><tr><td>oKAhkn4YXYsX0rk2Y3oteBQc8y2qjv4CQ_wVzpAhesM</td><td>tGlrVYr5ujvXxAB3ONF09-yQbqpxpZqF</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Command line: A server with a token</strong></p>
 <pre><code class="language-bash">kareladb serve --token 3kD9vQx7LmN2pR8sT4wY6zA1bC5eF0gH</code></pre>
@@ -182,7 +182,7 @@ Content-Type: application/json
 <p>Syntax:</p>
 <pre><code class="language-sql">bind 127.0.0.1  +  users  +  HTTPS or SSH tunnel  +  firewall  +  private data and backups</code></pre>
 <p>A small Linux VPS with your app and KarelaDB on the same machine. <a href="../tutorial/16-users-passwords-security.html">Chapter 16</a> shows each step with commands.</p>
-<div class="table-wrap"><table><thead><tr><th>Check</th><th>Why</th></tr></thead><tbody><tr><td>KarelaDB runs as its own system user; data and backups are <code>chmod 700</code></td><td>a file copy needs no login</td></tr><tr><td><code>--bind 127.0.0.1</code> (the default); ports 9900 and 8832 closed in the firewall</td><td>strangers can not even connect</td></tr><tr><td>an <code>admin</code> user with a long random password; each app has its own user with the smallest role</td><td>one leaked password does not open everything</td></tr><tr><td><a href="tls.html">TLS</a>, HTTPS (Caddy or nginx) or an SSH tunnel for the console and the PostgreSQL port</td><td>passwords are not sent in plain text</td></tr><tr><td>every <code>kareladb</code> program updated before the first user was created</td><td>old versions do not know users and would serve without a login</td></tr><tr><td>app passwords stored with <code>password_hash</code>; session tokens random and stored as <code>sha256</code></td><td>a stolen table does not give the passwords</td></tr><tr><td>nightly backup copied to another place, restore tested</td><td>backups hold the password hashes: keep them private too</td></tr><tr><td>server output checked for <code>login failed</code> now and then</td><td>see who tries to guess</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>Why</th></tr></thead><tbody><tr><td>KarelaDB runs as its own system user; data and backups are <code>chmod 700</code> (on Linux and macOS KarelaDB makes new files <code>0600</code> and new folders <code>0700</code> itself; folders made by an older version keep their rights, so <code>chmod -R go-rwx</code> them once)</td><td>a file copy needs no login</td></tr><tr><td><code>--bind 127.0.0.1</code> (the default); ports 9900 and 8832 closed in the firewall</td><td>strangers can not even connect</td></tr><tr><td>an <code>admin</code> user with a long random password; each app has its own user with the smallest role</td><td>one leaked password does not open everything</td></tr><tr><td><a href="tls.html">TLS</a>, HTTPS (Caddy or nginx) or an SSH tunnel for the console and the PostgreSQL port</td><td>passwords are not sent in plain text</td></tr><tr><td>every <code>kareladb</code> program updated before the first user was created</td><td>old versions do not know users and would serve without a login</td></tr><tr><td>app passwords stored with <code>password_hash</code>; session tokens random and stored as <code>sha256</code></td><td>a stolen table does not give the passwords</td></tr><tr><td>nightly backup copied to another place, restore tested</td><td>backups hold the password hashes: keep them private too</td></tr><tr><td>server output checked for <code>login failed</code> now and then</td><td>see who tries to guess</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> not a statement.</li><li><strong>Notes:</strong> rights are per database; <a href="table-rights.html">table rights</a> change them for single tables (no column or row rights). Logins are kept in the data folder (hashes only), so a restart logs nobody out. Give each app its own <a href="api-tokens.html">API token</a>. More protection (timeouts, audit log, scheduled backups): <a href="protection.html">protection</a>.</li></ul>
 </main>
 <footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/server-security.md">This page as markdown</a>.</footer>

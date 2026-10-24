@@ -336,7 +336,7 @@ Compare two values and give `true` or `false`. They are mostly used in [WHERE](w
 
 - **Returns:** `BOOL`.
 - **NULL:** `NULL` on either side gives `NULL`.
-- **Notes:** a text compared with a `TIMESTAMP` or `DATE` is read as a time. A number compared with a text that holds a number is compared as numbers. Other mixes (text with a number, a BOOL with a number) are an error.
+- **Notes:** a text compared with a `TIMESTAMP` or `DATE` is read as a time. A whole number compared with a `TIMESTAMP` or `DATE` is read as **milliseconds since 1970-01-01 UTC** (as QuestDB reads a number beside a timestamp, in its own unit), so `time > 1790000000000` works; PostgreSQL refuses that mix. A number compared with a text that holds a number is compared as numbers. Other mixes (text with a number, a BOOL with a number) are an error.
 - `IS NULL`, `IN`, `BETWEEN`, `LIKE` and `ILIKE` are on the same level; see [WHERE](where.md).
 
 **Example: Up day or down day, as a true/false column** (sample data: sample)

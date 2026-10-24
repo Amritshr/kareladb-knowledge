@@ -442,7 +442,7 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-24 11:29:57
+newest change   2026-10-24 11:36:51
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   8
 
@@ -524,7 +524,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 shop    |      0 |     0 | false  
-(2 rows, 0.2 ms)
+(2 rows, 0.3 ms)
 kareladb>
 ```
 
@@ -550,7 +550,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
   logs      slow queries >= 1000 ms to my-data/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 1 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 0 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -611,7 +611,7 @@ Output:
 n
 -
 5
-(1 row, 0.5 ms)
+(1 row, 0.3 ms)
 ```
 
 `> kareladb sql market "SELECT count(*) FROM brokerz"`
