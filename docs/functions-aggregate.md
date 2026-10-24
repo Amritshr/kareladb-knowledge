@@ -3,7 +3,7 @@
 > Make one value from many rows: count, sum, avg, min, max, first, last, median, percentile, vwap, twap, conditional counts and sums, the row of the maximum, and lists of text.
 
 - Category: Functions — aggregate
-- Keywords: aggregate, group, total, average, mean, count rows, how many, number of rows, biggest, smallest, highest, lowest, open high low close, candle, turnover, count(), distinct count, uniq, quantile, p90, p95, volume weighted average price, implicit GROUP BY, HAVING, aggregate in WHERE, conditional count, countif, COUNT FILTER, sumif, SUM FILTER, averageif, multiply all, all true, any true, bool\_all, row of the maximum, day of the highest close, row of the minimum, group\_concat, join text, comma list, collect list, JSON array, jsonb\_agg, JSON object, jsonb\_object\_agg, weighted average, SUMPRODUCT, time weighted average price, TWAP
+- Keywords: aggregate, group, total, average, mean, count rows, how many, number of rows, biggest, smallest, highest, lowest, open high low close, candle, turnover, count(), distinct count, uniq, quantile, p90, p95, volume weighted average price, implicit GROUP BY, HAVING, aggregate in WHERE, conditional count, countif, COUNT FILTER, sumif, SUM FILTER, averageif, multiply all, all true, any true, bool\_all, row of the maximum, day of the highest close, row of the minimum, group\_concat, join text, comma list, collect list, JSON array, jsonb\_agg, JSON object, jsonb\_object\_agg, weighted average, SUMPRODUCT, time weighted average price, TWAP, any\_value, arbitrary
 - See also: [GROUP BY and HAVING](group-by.md), [SAMPLE BY](sample-by.md), [Statistics functions](functions-statistics.md), [Window and series functions (aggregates)](functions-window.md#aggregates), [Conditional and NULL functions (coalesce)](functions-conditional.md#coalesce), [Candles cookbook](candles-cookbook.md), [PIVOT](pivot.md)
 
 An **aggregate** function reads many rows and gives back one value. For example, `sum(quantity)` adds up the quantity of every row.
@@ -711,6 +711,7 @@ The value of `x` in the earliest / latest row where `x` is **not** NULL (QuestDB
 - **Returns:** the type of `x`.
 - **NULL:** rows where `x` is NULL are skipped. When every value is NULL (or there are no rows), the result is `NULL`.
 - **Notes:** same order rules as [first](#first). They work with `GROUP BY`, `SAMPLE BY` and `OVER (...)`.
+- **`any_value(x)`, `arbitrary(x)`:** the names PostgreSQL 16, DuckDB and Trino use for "some non-NULL value of the group". KarelaDB reads them as `first_not_null(x)`, so the answer is the earliest non-NULL value, never a random one.
 
 **Example: first keeps a NULL first row, first_not_null skips it**
 

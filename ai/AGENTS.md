@@ -185,7 +185,7 @@ connection pools to fit.
   work as in PostgreSQL; the argument must be a value, not a column of another
   FROM table (no LATERAL call yet).
 - `first(x)` / `last(x)` give the first / last row's value even when it is NULL
-  (QuestDB); `first_not_null` / `last_not_null` skip NULLs.
+  (QuestDB); `first_not_null` / `last_not_null` skip NULLs (`any_value` and `arbitrary` are read as `first_not_null`).
 - `sha256(text)` gives hex text; `sha256(bytes)` gives bytes, and
   `encode(sha256(convert_to(t, 'UTF8')), 'hex')` works as in PostgreSQL. A NaN is
   stored as NaN (not NULL) in a relational table, as NULL in a time-series table
@@ -302,6 +302,9 @@ SELECT * FROM cold_partitions();                                            -- w
   '2026-10-01'`, or `time IN '2026-09'`): whole partitions are skipped. A filter
   on a `DATE` text column or on `to_char(time, ...)` skips nothing.
 - **Bucket by time with `SAMPLE BY 1d`**, or group by `date_trunc('day', time)`.
+  `timestamp_floor('15m', time)` (QuestDB), `time_bucket(INTERVAL '15 minutes', time)`
+  (TimescaleDB), `date_bin('15 minutes', time, origin)` (PostgreSQL) and
+  `extract(hour FROM time)` are just as fast as GROUP BY keys (column engine).
   Candles read often belong in a materialized view, kept up to date after
   every write, one bucket at a time: `CREATE MATERIALIZED VIEW mv1m AS (SELECT
   time, symbol, first(price) o, max(price) h, min(price) l, last(price) c,
@@ -465,6 +468,11 @@ about 6 s (3.6-6 s measured). Each node: `--node-id a --cluster-peers a=http://h
   data node holds it too, so a dead leader loses nothing confirmed. While no
   standby copies (it is down, or only the witness is reachable), commits are
   confirmed without one (`kdb_cluster_sync_fallback_total` counts them).
+  `KARELADB_SYNC_STANDBYS=required`: never confirmed without a standby. While
+  none copies, a write is refused before it is written (`25006`, nothing to
+  undo: send it again later); a write whose standby left while it waited fails
+  after `KARELADB_SYNC_WAIT_MS` (10 s) or its statement_timeout (`25006`, "no
+  standby holds this commit": it is on the leader, check before resending).
   `0`: faster, but a dead leader loses what the follower had not copied, and a
   leader that is only cut off keeps confirming for up to 3 s (its lease):
   those rows end up in its `_diverged` folder, not in the cluster.

@@ -439,6 +439,8 @@ SELECT DISTINCT item, ... FROM ...
 - **NULL:** `NULL` values count as equal, so many `NULL` rows become one.
 - **Notes:** to count different values, use `count(DISTINCT x)` (see [aggregate functions](functions-aggregate.md)). `DISTINCT` works on the output columns, after `GROUP BY`.
 - `SELECT DISTINCT day` on a table with one partition per day is answered from the list of partitions, without reading rows (see [answers without reading rows](explain.md#saved-stats)).
+- **Speed:** `SELECT DISTINCT a, b` runs as `GROUP BY a, b`, so the column engine groups the columns on all threads. The rows and their order are the same. Over 2 million rows: `DISTINCT a, b` 415 -> 23 ms, `DISTINCT symbol` 260 -> 5 ms. `EXPLAIN` starts with `distinct: run as a GROUP BY of every column`.
+- It runs as written (row by row) with `DISTINCT ON`, `*`, an aggregate or window function, a subquery, `random()` or another function that gives a new value on each call, `WITH`, or an `ORDER BY` that is not a result column (name, alias or position). Also with a `LIMIT` and no `ORDER BY`: then `DISTINCT` stops at the n-th new row, which is faster. `KARELADB_NO_DISTINCT_GROUP=1` turns it off.
 
 **Example** (sample data: sample)
 

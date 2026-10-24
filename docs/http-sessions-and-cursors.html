@@ -50,7 +50,7 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS saved FROM brokers WHERE id = 72
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;transaction started&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 4}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 9}
     },
     {
       &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (72, &#39;Never Saved Securities&#39;)&quot;,
@@ -60,7 +60,7 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS saved FROM brokers WHERE id = 72
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 89}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 209}
     }
   ],
   &quot;saved&quot;: 0,
@@ -85,10 +85,10 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS saved FROM brokers WHERE id = 72
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 72}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 85}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 72}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 85}
 }</code></pre>
 <p><strong>HTTP: A transaction over four requests</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /session
@@ -112,7 +112,7 @@ DELETE /session/{{session}}</code></pre>
 <p>Response:</p>
 <p><code>POST /session</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;7e3111c959d2a5cdd57598e6749d5d53&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;422c124e1c17dcd50da0542e6bb637e0&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
@@ -126,7 +126,7 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;transaction started&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 4}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 6}
     },
     {
       &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (70, &#39;Transaction Test Securities&#39;)&quot;,
@@ -136,10 +136,10 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 98}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 176}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 18, &quot;execute_us&quot;: 102}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 24, &quot;execute_us&quot;: 182}
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS others_see FROM brokers WHERE id = 70</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -158,10 +158,10 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 91}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 127}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 91}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 127}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -176,10 +176,10 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;transaction committed: 1 change(s) saved&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 440}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 876}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 440}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 876}
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS after_commit FROM brokers WHERE id = 70</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -198,14 +198,14 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 113}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 161}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 113}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 161}
 }</code></pre>
 <p><code>DELETE /session/{{session}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;7e3111c959d2a5cdd57598e6749d5d53&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;422c124e1c17dcd50da0542e6bb637e0&quot;, &quot;closed&quot;: true}</code></pre>
 <p><strong>HTTP: ROLLBACK undoes the changes of the session</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /session
 ###
@@ -225,7 +225,7 @@ DELETE /session/{{session}}</code></pre>
 <p>Response:</p>
 <p><code>POST /session</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;bca7eb0846996b79391ac25a4756166b&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;376fed4f48df1c137c3becf0f5c5934a&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
@@ -239,7 +239,7 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;transaction started&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 5}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 10}
     },
     {
       &quot;statement&quot;: &quot;UPDATE ochl_day SET close = 0 WHERE symbol = &#39;CITY&#39;&quot;,
@@ -249,7 +249,7 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 19,
       &quot;message&quot;: &quot;19 row(s) updated&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 348}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 475}
     },
     {
       &quot;statement&quot;: &quot;SELECT max(close) AS inside_the_transaction FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
@@ -263,10 +263,10 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 187}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 190}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 45, &quot;execute_us&quot;: 540}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 675}
 }</code></pre>
 <p><code>POST /exec?compat=0&amp;session={{session}}</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -281,7 +281,7 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;transaction rolled back: 1 change(s) undone&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 25}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 35}
     },
     {
       &quot;statement&quot;: &quot;SELECT max(close) AS after_rollback FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
@@ -295,14 +295,14 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 114}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 141}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 139}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 34, &quot;execute_us&quot;: 176}
 }</code></pre>
 <p><code>DELETE /session/{{session}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;bca7eb0846996b79391ac25a4756166b&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;376fed4f48df1c137c3becf0f5c5934a&quot;, &quot;closed&quot;: true}</code></pre>
 <p>A transfer between two accounts in Python, with the <code>requests</code> library:</p>
 <pre><code class="language-python">import requests
 
@@ -374,7 +374,7 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS city_days_still_there FROM ochl_
 <p>Response:</p>
 <p><code>POST /session</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;e0fde0f03e1f1989d93ea6254af8615a&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;9c51087281d1b4f8a291ccf13c2f9732&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
@@ -388,7 +388,7 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS city_days_still_there FROM ochl_
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;transaction started&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 7}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 6}
     },
     {
       &quot;statement&quot;: &quot;DELETE FROM ochl_day WHERE symbol = &#39;CITY&#39;&quot;,
@@ -398,14 +398,14 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS city_days_still_there FROM ochl_
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 19,
       &quot;message&quot;: &quot;19 row(s) deleted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 348}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 14, &quot;execute_us&quot;: 642}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 28, &quot;execute_us&quot;: 355}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 28, &quot;execute_us&quot;: 648}
 }</code></pre>
 <p><code>DELETE /session/{{session}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;e0fde0f03e1f1989d93ea6254af8615a&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;9c51087281d1b4f8a291ccf13c2f9732&quot;, &quot;closed&quot;: true}</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS city_days_still_there FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
@@ -423,10 +423,10 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS city_days_still_there FROM ochl_
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 163}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 146}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 163}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 146}
 }</code></pre>
 <p><strong>HTTP: A closed session cannot be used</strong></p>
 <pre><code class="language-http">POST /session
@@ -440,14 +440,14 @@ SELECT 1</code></pre>
 <p>Response:</p>
 <p><code>POST /session</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;8edc551161508c4ca7edfffb131edce8&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;df246c10e7d74b014b45082cd300e7dc&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
 <p><code>DELETE /session/{{session}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;8edc551161508c4ca7edfffb131edce8&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;df246c10e7d74b014b45082cd300e7dc&quot;, &quot;closed&quot;: true}</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 404 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;error&quot;: &quot;session &#39;8edc551161508c4ca7edfffb131edce8&#39; does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session&quot;
+  &quot;error&quot;: &quot;session &#39;df246c10e7d74b014b45082cd300e7dc&#39; does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session&quot;
 }</code></pre>
 <h2 id="post-cursor">POST /cursor</h2>
 <p>Syntax:</p>
@@ -472,7 +472,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 <p><code>POST /cursor</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;36a80b5cca6d9384&quot;,
+  &quot;cursor&quot;: &quot;a6cc93c4fed6b965&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
@@ -483,7 +483,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;36a80b5cca6d9384&quot;,
+  &quot;cursor&quot;: &quot;a6cc93c4fed6b965&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
@@ -500,7 +500,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;36a80b5cca6d9384&quot;,
+  &quot;cursor&quot;: &quot;a6cc93c4fed6b965&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;time&quot;, &quot;type&quot;: &quot;TIMESTAMP&quot;},
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
@@ -516,7 +516,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 }</code></pre>
 <p><code>DELETE /cursor/{{cursor}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;cursor&quot;: &quot;36a80b5cca6d9384&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;a6cc93c4fed6b965&quot;, &quot;closed&quot;: true}</code></pre>
 <p><strong>HTTP: A cursor needs exactly one SELECT</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /cursor
 
@@ -551,7 +551,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 <p><code>POST /cursor</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;fd81d111a57ff2e7&quot;,
+  &quot;cursor&quot;: &quot;6c718a5311948365&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
     {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
@@ -561,7 +561,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=2</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;fd81d111a57ff2e7&quot;,
+  &quot;cursor&quot;: &quot;6c718a5311948365&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
     {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
@@ -576,7 +576,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=2</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;fd81d111a57ff2e7&quot;,
+  &quot;cursor&quot;: &quot;6c718a5311948365&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
     {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
@@ -591,7 +591,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=2</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;fd81d111a57ff2e7&quot;,
+  &quot;cursor&quot;: &quot;6c718a5311948365&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
     {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
@@ -604,7 +604,7 @@ DELETE /cursor/{{cursor}}</code></pre>
 }</code></pre>
 <p><code>DELETE /cursor/{{cursor}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;cursor&quot;: &quot;fd81d111a57ff2e7&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;6c718a5311948365&quot;, &quot;closed&quot;: true}</code></pre>
 <p><strong>HTTP: fetch must be 1 or more</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /cursor
 
@@ -615,7 +615,7 @@ GET /cursor/{{cursor}}?fetch=0</code></pre>
 <p><code>POST /cursor</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;18a31579e88292de&quot;,
+  &quot;cursor&quot;: &quot;8d5666120ee65c49&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;}
   ],
@@ -678,7 +678,7 @@ GET /cursor/{{cursor}}</code></pre>
 <p><code>POST /cursor</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;20c058b6a39b4b56&quot;,
+  &quot;cursor&quot;: &quot;66ecbc941e324828&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;id&quot;, &quot;type&quot;: &quot;INT&quot;},
     {&quot;name&quot;: &quot;name&quot;, &quot;type&quot;: &quot;STRING&quot;}
@@ -687,10 +687,10 @@ GET /cursor/{{cursor}}</code></pre>
 }</code></pre>
 <p><code>DELETE /cursor/{{cursor}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;cursor&quot;: &quot;20c058b6a39b4b56&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;66ecbc941e324828&quot;, &quot;closed&quot;: true}</code></pre>
 <p><code>GET /cursor/{{cursor}}</code></p>
 <p>HTTP 404 (application/json)</p>
-<pre><code class="language-text">{&quot;error&quot;: &quot;cursor &#39;20c058b6a39b4b56&#39; does not exist (an unused cursor closes after 10 minutes)&quot;}</code></pre>
+<pre><code class="language-text">{&quot;error&quot;: &quot;cursor &#39;66ecbc941e324828&#39; does not exist (an unused cursor closes after 10 minutes)&quot;}</code></pre>
 </main>
 <footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/http-sessions-and-cursors.md">This page as markdown</a>.</footer>
 </body>

@@ -451,6 +451,48 @@ A condition like `rn <= 5` (also `rn < 6`, `rn = 1`, `5 >= rn`) on a `row_number
 
 **Only the sums you read.** When a view or `FROM (SELECT ...)` subquery has `GROUP BY`, a `sum`, `count` or `avg` column of it that your query never names is not worked out at all. A daily view with six sums, read for two of them, adds up two: less time, and less memory for the groups.
 
+**A UNION ALL view** (since 2026-10-24). A view whose query is a `UNION ALL` is read the same way as that query written in `FROM (...)`:
+
+- A `GROUP BY` (or a `sum`, `count`, `min`, `max`) over it is grouped **part by part**: each part groups its own table, and your `WHERE` goes into every part (see [UNION ALL](union-subqueries.md#union-all)). `EXPLAIN` says `aggregates pushed into the N UNION ALL parts`.
+- A part written `SELECT * FROM t` is read as the columns `t` has **now** (a column added to the tables later shows up through the view), so a `WHERE` goes into it like into a part with a column list.
+
+A one-day sum over a view of two 2-million-row tables took 660 ms and now 3 ms; `SELECT * FROM v WHERE ...` over two `SELECT *` parts 1,130 ms and now 4.5 ms. A cached view keeps handing out its kept rows, and a materialized view is a table, as before.
+
+**Example: A GROUP BY over a UNION ALL view of SELECT * parts: each part groups its own table** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE VIEW two_symbols AS SELECT * FROM ochl_day WHERE symbol = 'CITY' UNION ALL SELECT * FROM ochl_day WHERE symbol = 'VOLT';
+```
+
+```sql
+SELECT symbol, count(*) AS days, max(close) AS high FROM two_symbols GROUP BY symbol ORDER BY symbol;
+EXPLAIN SELECT symbol, count(*) AS days, max(close) AS high FROM two_symbols GROUP BY symbol;
+```
+
+Result:
+
+`SELECT symbol, count(*) AS days, max(close) AS high FROM two_symbols GROUP BY symbol ORDER BY symbol`
+
+| symbol (SYMBOL) | days (LONG) | high (DOUBLE) |
+|---|---|---|
+| CITY | 19 | 542.4 |
+| VOLT | 19 | 196.4 |
+
+(2 rows)
+
+`EXPLAIN SELECT symbol, count(*) AS days, max(close) AS high FROM two_symbols GROUP BY symbol`
+
+| plan (STRING) |
+|---|
+| aggregates pushed into the 2 UNION ALL parts: each part groups its own table first |
+| scan result of two_symbols (0 rows) |
+| group by 1 key(s), 2 aggregate(s) |
+| engine: column (the UNION ALL parts grouped as one) |
+
+(4 rows)
+
 The result is always the same as without moving; only the time changes.
 
 **A long time range in parts** (since 2026-10-16). A `GROUP BY` over a view (or a `FROM (SELECT ...)` subquery) for many days, such as a year of a window view summed per symbol, runs the view **a few days at a time** when the time column passes through every step of the view: it is a key of every `GROUP BY`, in the `PARTITION BY` of every window, and comes from the time column of a time-series table partitioned by time. Each part is the view with `time >= a AND time < b` moved inside as above, and its rows go straight into your `GROUP BY`; no window partition and no group can reach across two parts, so the answer is the same. A part holds whole partitions, as many as keep it well under `--max-result-memory` (about 8 KB of memory per row for a view with windows or joins, 512 bytes without); a partition bigger than that (a month of a materialized view) is cut into parts of whole days. A view that joins (since 2026-10-17) is split too when the time is a column of one of its sources (`d.time AS time`) and reaches each other source through an `ON d.time = t.time`, or that source is a small table without a time column (a sector map); after its first part such a view's parts are sized by what that part held. So a range far bigger than the memory limit is answered: 006's pump-and-dump filter over 5 months of 10M trades took 18 s where it stopped at `max_result_memory` before, and its OTM filter (the daily filter joined with a sum of itself) over a year 4.4 s where it ran out of memory. With 2 or more CPUs, two parts run at the same time (since 2026-10-17): the next part is worked out while this one runs or hands its rows on, and the rows still go on in time order, so the answer is the same to the last digit. At 2 CPUs a year of 006's OTM filter over materialized views took 2.0 s instead of 4.3 s, and two years of its Mkt hit view 32 s instead of 63 s. `KARELADB_NO_SPLIT_LANES=1` runs one part at a time. A range that fits in one part runs as before. `KARELADB_NO_TIME_SPLIT=1` turns it off.

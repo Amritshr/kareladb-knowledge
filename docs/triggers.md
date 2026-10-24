@@ -998,7 +998,7 @@ exit code 1
 accounts | audit_rows
 ---------+-----------
        0 |          0
-(1 row, 0.2 ms)
+(1 row, 0.4 ms)
 ```
 
 **Example: A trigger that fires itself** (shows an error)

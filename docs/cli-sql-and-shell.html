@@ -34,26 +34,26 @@ kareladb sql &lt;db&gt; - [options]        -- read the SQL from stdin (a pipe or
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.3 ms)</code></pre>
+(3 rows, 0.5 ms)</code></pre>
 <p><strong>Command line: Many statements: one result each</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb sql market &quot;SELECT count(*) AS securities FROM securities; SELECT count(*) AS brokers FROM brokers&quot;</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">securities
 ----------
          5
-(1 row, 0.1 ms)
+(1 row, 0.3 ms)
 
 brokers
 -------
       5
-(1 row, 0.0 ms)</code></pre>
+(1 row, 0.1 ms)</code></pre>
 <p><strong>Command line: A script stops at the first error</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb sql market &quot;SELECT count(*) AS before FROM brokers; SELECT nope FROM brokers; SELECT 1 AS never_runs&quot;</code></pre>
 <p>Output:</p>
 <pre><code class="language-text">before
 ------
      5
-(1 row, 0.2 ms)
+(1 row, 0.3 ms)
 error: line 1, column 48: unknown column &#39;nope&#39; (table &#39;brokers&#39; has: id name)</code></pre>
 <p>exit code 1</p>
 <h2 id="formats">Output formats: table, CSV, JSON</h2>
@@ -82,7 +82,7 @@ VOLT,184,-0.86</code></pre>
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
 2026-09-09T05:17:00.000Z | CITY   | 511.9
-(3 rows, more not shown, 0.3 ms)</code></pre>
+(3 rows, more not shown, 0.6 ms)</code></pre>
 <p><code>--max-rows</code> is a safety net for big results. When you want fewer rows, write <code>LIMIT</code> in the SQL: it says clearly what you want, and it works the same in the console and over HTTP.</p>
 <pre><code class="language-powershell"># PowerShell (not run here): CSV to objects. Every CSV value is text, so use [double] for numbers.
 $rows = kareladb sql market &quot;SELECT symbol, ltp, pct_change FROM live_data LATEST ON timestamp PARTITION BY symbol&quot; --format csv | ConvertFrom-Csv
@@ -111,7 +111,7 @@ kareladb sql &lt;db&gt; - &lt;&lt;&#39;SQL&#39; ... SQL                    -- ba
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.3 ms)</code></pre>
+(3 rows, 0.4 ms)</code></pre>
 <pre><code class="language-powershell"># The same from a real file (not run here)
 Get-Content report.sql -Raw -Encoding UTF8 | kareladb sql market -</code></pre>
 <pre><code class="language-bash"># bash (not run here)
@@ -130,8 +130,8 @@ See <a href="backup-and-safety.html#backup-database">BACKUP DATABASE</a> and <a 
 <p>Output:</p>
 <pre><code class="language-text">backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261023-182940-464 |     9 | 194519 |      30
-(1 row, 17.0 ms)
+backups/20261024-030140-899 |     9 | 194519 |      30
+(1 row, 97.3 ms)
 backup created and verified</code></pre>
 <p><strong>Command line: Without --backups</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb sql market &quot;BACKUP DATABASE&quot;</code></pre>
@@ -172,7 +172,7 @@ kareladb&gt; ...&gt; ...&gt; symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.2 ms)
+(3 rows, 0.5 ms)
 kareladb&gt; kareladb&gt; id,name
 1,Keystone Securities
 34,Vision Securities
@@ -194,7 +194,7 @@ kareladb&gt; name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false  
 reports |      1 |   229 | true   
-(2 rows, 0.1 ms)
+(2 rows, 0.3 ms)
 kareladb&gt;</code></pre>
 <pre><code class="language-powershell"># Run a few lines through the shell from PowerShell (not run here)
 &quot;.tables`nSELECT count(*) FROM ochl_day;&quot; | kareladb shell market</code></pre>
@@ -216,7 +216,7 @@ End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
 kareladb&gt; ...&gt; days
 ----
   57
-(1 row, 0.2 ms)
+(1 row, 0.3 ms)
 kareladb&gt; a
 -
 1
@@ -243,7 +243,7 @@ kareladb&gt; procedure &#39;hello&#39; done: 0 row(s) changed
 shout 
 ------
 MARKET
-(1 row, 0.1 ms)
+(1 row, 0.6 ms)
 
 output
 ------
@@ -275,7 +275,7 @@ kareladb&gt;</code></pre>
 <pre><code class="language-text">brokers
 -------
       6
-(1 row, 0.2 ms)</code></pre>
+(1 row, 0.3 ms)</code></pre>
 <p><strong>Command line: No COMMIT: the change is rolled back when the shell ends</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb shell market
 &gt; BEGIN;
@@ -291,14 +291,14 @@ kareladb&gt; 1 row(s) inserted
 kareladb&gt; inside_the_transaction
 ----------------------
                      6
-(1 row, 0.1 ms)
+(1 row, 0.3 ms)
 kareladb&gt; 
 the open transaction was rolled back (it had no COMMIT)</code></pre>
 <p><code>&gt; kareladb sql market &quot;SELECT count(*) AS after_the_shell FROM brokers&quot;</code></p>
 <pre><code class="language-text">after_the_shell
 ---------------
               5
-(1 row, 0.2 ms)</code></pre>
+(1 row, 0.3 ms)</code></pre>
 <p><strong>Command line: kareladb sql: BEGIN and COMMIT must be in the same command</strong> (sample data: sample)</p>
 <pre><code class="language-bash">kareladb sql market &quot;BEGIN; INSERT INTO brokers VALUES (60, &#39;Test Broker&#39;); COMMIT&quot;
 kareladb sql market &quot;BEGIN; INSERT INTO brokers VALUES (61, &#39;No Commit Broker&#39;)&quot;</code></pre>
@@ -365,7 +365,7 @@ ochl_day     | timeseries | YEAR      |       7 |   57
 ochl_minutes | timeseries | MONTH     |       7 |  956
 securities   | relational | NONE      |       3 |    5
 trade_log    | timeseries | DAY       |       8 |   32
-(6 rows, 0.0 ms)
+(6 rows, 0.1 ms)
 kareladb&gt;</code></pre>
 <h2 id="schema">.schema</h2>
 <p>Syntax:</p>
@@ -430,7 +430,7 @@ kareladb&gt; kareladb&gt; time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.4 ms)
+(2 rows, more not shown, 0.5 ms)
 kareladb&gt;</code></pre>
 <h2 id="check">.check</h2>
 <p>Syntax:</p>
@@ -446,7 +446,7 @@ For a closed database, <a href="cli-maintenance.html#kareladb-check">kareladb ch
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
 kareladb&gt; problem
 -------
-(0 rows, 0.6 ms)
+(0 rows, 0.9 ms)
 OK: no damage found in 14 files
 kareladb&gt;</code></pre>
 <h2 id="backup-2">.backup</h2>
@@ -462,8 +462,8 @@ It also deletes old backups: it keeps the newest backup of each of the last 7 da
 End statements with &#39;;&#39;. Type .help for commands, .exit to quit.
 kareladb&gt; backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261023-182940-757 |     9 | 194519 |      30
-(1 row, 17.2 ms)
+backups/20261024-030141-485 |     9 | 194519 |      30
+(1 row, 141.4 ms)
 backup created and verified
 kareladb&gt;</code></pre>
 <p><strong>Command line: Without --backups</strong> (sample data: sample)</p>

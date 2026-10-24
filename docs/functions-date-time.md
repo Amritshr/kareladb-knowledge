@@ -3,7 +3,7 @@
 > Take a time apart, find the weekday, quarter and week, cut, add and build times, count days or months between times, fiscal years (also Nepal's), and write a time as text.
 
 - Category: Functions — date and time
-- Keywords: date, time, timestamp, UTC, milliseconds, weekday, weekday, trading day, holiday, truncate time, timestamp\_floor, timestamp floor, local midnight, start of month, start of week, add days, add months, date\_add, timestampadd, interval, month end, difference between dates, age, date\_diff, timestampdiff, format date, strftime, date\_format, format, time zone, timezone, Nepal time, NPT, Asia/Kathmandu, +05:45, 20700000, current\_timestamp, getdate, EXTRACT, datepart, date part, epoch, ISO week, week number, weekofyear, dayofyear, day of year, quarter of the year, end of month, EOMONTH, last day of month, build a date, date from parts, datefromparts, how old, time between, financial year, FY, fiscal year, Nepal fiscal year, Nepali fiscal year, Shrawan, Bikram Sambat, BS year, arthik barsa, to\_timezone, to\_utc, AT TIME ZONE, timestamp\_ceil, round up time, timestamp\_floor\_utc, today, yesterday, tomorrow, interval\_start, interval\_end, days\_in\_month, is\_leap\_year, leap year, is\_end\_of\_month, day\_of\_week\_sunday\_first, millis, to\_pg\_date, sysdate, timestamp\_sequence, timestamp\_shuffle, QuestDB
+- Keywords: date, time, timestamp, UTC, milliseconds, weekday, weekday, trading day, holiday, truncate time, timestamp\_floor, timestamp floor, local midnight, start of month, start of week, add days, add months, date\_add, timestampadd, interval, month end, difference between dates, age, date\_diff, timestampdiff, format date, strftime, date\_format, format, time zone, timezone, Nepal time, NPT, Asia/Kathmandu, +05:45, 20700000, current\_timestamp, getdate, EXTRACT, datepart, date part, epoch, ISO week, week number, weekofyear, dayofyear, day of year, quarter of the year, end of month, EOMONTH, last day of month, build a date, date from parts, datefromparts, how old, time between, financial year, FY, fiscal year, Nepal fiscal year, Nepali fiscal year, Shrawan, Bikram Sambat, BS year, arthik barsa, to\_timezone, to\_utc, AT TIME ZONE, timestamp\_ceil, round up time, timestamp\_floor\_utc, time\_bucket, date\_bin, bucket, TimescaleDB, today, yesterday, tomorrow, interval\_start, interval\_end, days\_in\_month, is\_leap\_year, leap year, is\_end\_of\_month, day\_of\_week\_sunday\_first, millis, to\_pg\_date, sysdate, timestamp\_sequence, timestamp\_shuffle, QuestDB
 - See also: [Conversion functions (to_timestamp)](functions-conversion.md#to_timestamp), [Conversion functions (cast)](functions-conversion.md#cast), [Time and time zones](time-and-time-zones.md), [SAMPLE BY](sample-by.md), [SAMPLE BY (time-zone)](sample-by.md#time-zone), [WHERE (in-interval)](where.md#in-interval), [Aggregate functions](functions-aggregate.md), [Finance and price functions](functions-finance.md)
 
 KarelaDB keeps a `TIMESTAMP` as the number of **milliseconds** (1/1000 of a second) since 1970-01-01, in **UTC**. UTC is the world clock time with no time zone. A local time is UTC plus its zone offset: Nepal is `+05:45` (11:00 in Kathmandu is 05:15 UTC), New York is `-04:00` in summer (07:00 there is 11:00 UTC).
@@ -572,6 +572,7 @@ Takes one part of a time: the year, the month, the hour, the weekday, the week n
 - **Returns:** `LONG`; `DOUBLE` for `second` and `epoch`.
 - **NULL:** `NULL` when `field` or `t` is `NULL`.
 - **Notes:** UTC, like every function on this page: add `20700000` for Nepal time. An unknown field is an error that lists the fields. `extract(field FROM t)` is PostgreSQL style; `date_part` has the same result.
+- **Speed:** `GROUP BY extract(hour FROM t)` (any field above) on a `TIMESTAMP` column is read by the column engine: 3 million rows by hour of the day take about 5 ms (400 ms before 2026-10-24).
 
 **Example**
 
@@ -1057,6 +1058,93 @@ Error: `line 1, column 8: timestamp_floor: unit must be T, s, m, h, d, w, M or y
 
 `timestamp_floor_utc(unit, t [, zone])` is QuestDB's name for the same function: its answer is in UTC, and KarelaDB's always is.
 
+**Speed:** `GROUP BY timestamp_floor(...)` on a `TIMESTAMP` column is read by the column engine, as fast as [date_trunc](#date_trunc): 3 million rows in 1-minute groups take about 18 ms (it was 1.7 s before 2026-10-24). Only `M` and `y` counted from an origin of your own are worked out row by row.
+
+<a id="time_bucket"></a>
+
+## time_bucket, date_bin
+
+Syntax:
+
+```sql
+time_bucket(width, t)
+time_bucket(width, t, offset)
+time_bucket(width, t, origin)
+date_bin(stride, t, origin)
+```
+
+Puts a time into a bucket of a fixed width and gives the bucket's start. `time_bucket` is the TimescaleDB function; `date_bin` is the PostgreSQL 14 one. `time_bucket(INTERVAL '15 minutes', '2026-10-24T10:37:12Z')` is `2026-10-24T10:30:00.000Z`.
+
+| Argument | Type | Meaning |
+|---|---|---|
+| `width`, `stride` | interval: `INTERVAL '15 minutes'` or text like `'1 day'` | the size of a bucket. `time_bucket` also takes months and years (`'1 month'`, `'3 months'`, `'1 year'`); `date_bin` does not, as in PostgreSQL |
+| `t` | `TIMESTAMP`, `DATE` or time text | the time |
+| `offset` | interval | optional: move every bucket by this much, like `INTERVAL '5 hours 45 minutes'` for Nepal days |
+| `origin` | a time | a bucket starts here, and every `width` before and after it. Needed for `date_bin` |
+
+- **Returns:** `TIMESTAMP`, in UTC. `time_bucket` of a `DATE` gives a `DATE`. `time_bucket(10, n)` on whole numbers gives `n` rounded down to a multiple of 10.
+- **NULL:** `NULL` when any argument is `NULL`.
+- **Notes:**
+  - Without an origin, `time_bucket` counts from Monday 2000-01-03 (so `'1 week'` starts on Monday) and month widths from 2000-01-01, as TimescaleDB does.
+  - A width mixing months with days or hours (`'1 month 2 days'`) is an error, so is a width of zero or less.
+  - Buckets are cut on UTC's clock, not the session's. For local days give an offset or an origin at local midnight.
+  - **Speed:** as a `GROUP BY` key on a `TIMESTAMP` column both are read by the column engine, as fast as [date_trunc](#date_trunc). Month widths from an origin that is not the first of a month at midnight are worked out row by row.
+
+**Example: Buckets of one moment**
+
+```sql
+SELECT time_bucket(INTERVAL '15 minutes', TIMESTAMP '2026-10-24 10:37:12') AS quarter_hour,
+       time_bucket('1 week', TIMESTAMP '2026-10-24 10:00') AS monday,
+       time_bucket('3 months', TIMESTAMP '2026-11-24') AS quarter,
+       time_bucket(INTERVAL '1 day', TIMESTAMP '2026-10-24 03:00', INTERVAL '5 hours 45 minutes') AS day_from_0545,
+       date_bin('15 minutes', TIMESTAMP '2020-02-11 15:44:17', TIMESTAMP '2001-01-01 00:02:30') AS from_origin;
+```
+
+Result:
+
+| quarter_hour (TIMESTAMP) | monday (TIMESTAMP) | quarter (TIMESTAMP) | day_from_0545 (TIMESTAMP) | from_origin (TIMESTAMP) |
+|---|---|---|---|---|
+| 2026-10-24T10:30:00.000Z | 2026-10-19T00:00:00.000Z | 2026-10-01T00:00:00.000Z | 2026-10-23T05:45:00.000Z | 2020-02-11T15:32:30.000Z |
+
+(1 row)
+
+**Example: Half-hour candles of CITY with time_bucket** (sample data: sample)
+
+```sql
+SELECT time_bucket(INTERVAL '30 minutes', time) AS bucket, first(open) AS open, max(high) AS high, min(low) AS low,
+       last(close) AS close
+FROM ochl_minutes
+WHERE symbol = 'CITY' AND time IN '2026-09-10'
+GROUP BY bucket
+ORDER BY bucket;
+```
+
+Result:
+
+| bucket (TIMESTAMP) | open (DOUBLE) | high (DOUBLE) | low (DOUBLE) | close (DOUBLE) |
+|---|---|---|---|---|
+| 2026-09-10T05:00:00.000Z | 504.6 | 505.3 | 503.9 | 504.4 |
+| 2026-09-10T05:30:00.000Z | 504.4 | 507 | 503.8 | 506.4 |
+| 2026-09-10T06:00:00.000Z | 506.4 | 506.6 | 504.9 | 505.4 |
+| 2026-09-10T06:30:00.000Z | 505.4 | 505.9 | 500.7 | 501.2 |
+| 2026-09-10T07:00:00.000Z | 501.2 | 503.3 | 500.7 | 502.5 |
+| 2026-09-10T07:30:00.000Z | 502.5 | 504.1 | 502.1 | 502.6 |
+| 2026-09-10T08:00:00.000Z | 502.6 | 505.4 | 501.9 | 504.8 |
+| 2026-09-10T08:30:00.000Z | 504.8 | 507 | 503.9 | 505 |
+| 2026-09-10T09:00:00.000Z | 505 | 506.1 | 504.3 | 504.9 |
+
+(9 rows)
+
+**Example: date_bin takes no months** (shows an error)
+
+```sql
+SELECT date_bin('1 month', TIMESTAMP '2026-10-24', TIMESTAMP '2000-01-01');
+```
+
+Result:
+
+Error: `line 1, column 8: date_bin: timestamps cannot be binned into intervals containing months or years`
+
 <a id="timestamp_ceil"></a>
 
 ## timestamp_ceil
@@ -1132,7 +1220,7 @@ Result:
 
 | rows_today (LONG) | tomorrow_starts (TIMESTAMP) |
 |---|---|
-| 0 | 2026-10-24T00:00:00.000Z |
+| 0 | 2026-10-25T00:00:00.000Z |
 
 (1 row)
 
@@ -2361,7 +2449,7 @@ Result:
 
 | utc_day (DATE) | nepal_day (DATE) | same_as_now (BOOL) |
 |---|---|---|
-| 2026-10-23 | 2026-10-24 | true |
+| 2026-10-24 | 2026-10-24 | true |
 
 (1 row)
 
@@ -2396,7 +2484,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 18:30:00.351 | 00:15 | true |
+| 03:02:13.468 | 08:47 | true |
 
 (1 row)
 

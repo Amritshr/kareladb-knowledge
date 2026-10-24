@@ -69,7 +69,7 @@ table 'live_data' dropped; UNDROP TABLE live_data brings it back within 7 days
 
 | name (STRING) | dropped (TIMESTAMP) | removed_after (TIMESTAMP) | rows (LONG) | stored_as (STRING) |
 |---|---|---|---|---|
-| live_data | 2026-10-23T18:30:37.635Z | 2026-10-30T18:30:37.635Z | 12 | _dropped_1792780237635_live_data |
+| live_data | 2026-10-24T03:03:17.843Z | 2026-10-31T03:03:17.843Z | 12 | _dropped_1792810997843_live_data |
 
 (1 row)
 

@@ -46,7 +46,8 @@ kareladb witness --data-dir /witness --bind 0.0.0.0 --port 9900 --token <secret>
 | `KARELADB_ELECTION_TIMEOUT_MS` | how long a node waits without hearing the leader before it asks to be elected (default 5000, random +-20%) |
 | `KARELADB_LEASE_MS` | how long a leader may write after a majority last answered it (default 3000) |
 | `KARELADB_CLUSTER_HEARTBEAT_MS` | how often the leader says "I am here" (default 500) |
-| `KARELADB_SYNC_STANDBYS` | `1` (default): a commit is confirmed once a standby holds it too; `0`: the leader alone ([sync commit](#sync)) |
+| `KARELADB_SYNC_STANDBYS` | `1` or `prefer` (default): a commit is confirmed once a standby holds it too, or by the leader alone while no standby copies; `required`: never by the leader alone; `0`: the leader alone ([sync commit](#sync)) |
+| `KARELADB_SYNC_WAIT_MS` | with `required`: how long a written commit waits for a standby before it fails (default 10000) |
 | `KARELADB_ON_LEADER`, `KARELADB_ON_FOLLOWER` | a command run on each role change ([clients](#clients)) |
 | `KARELADB_ROLE_SCRIPT_TIMEOUT_MS` | `30000` (default): a role script that runs longer is killed and logged |
 
@@ -124,7 +125,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792780181579,
+  "server_time_ms": 1792810903196,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -149,7 +150,7 @@ HTTP 503 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792780181595,
+  "server_time_ms": 1792810903243,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -250,7 +251,7 @@ A power cut at any step leaves a usable node: the old folder stays in place unti
 | `log_ends` | where each database's log ends on this node: its last LSN and the term of the leader that wrote it (0: before the cluster) |
 | `majority_holds` | per database, the log a majority of the voters holds (the leader works it out; others show what it last said) |
 | `lag` | per database, log entries not yet on the standby (on the leader) or not yet on this node (on a follower) |
-| `sync_commit` | `wanted`: `KARELADB_SYNC_STANDBYS=1`; `on`: commits wait for a standby now (this node leads); how many waited, for how long in all, the standby acks, and the `fallbacks` (commits confirmed without a standby) |
+| `sync_commit` | `wanted`: `KARELADB_SYNC_STANDBYS` is not `0`; `on`: commits wait for a standby now (this node leads); `mode`: `off`, `prefer` or `required`; how many waited, for how long in all, the standby acks, the `fallbacks` (commits confirmed without a standby) and the `refused` (commits refused or failed with `required`) |
 | `diverged` | a data node: the copies kept in `<data>/_diverged` because they held commits the leader never got ([rejoin](#rejoin)); `folder` is the name `DELETE /api/cluster/diverged?folder=` takes, `path` where it is |
 | `unopenable` | a data node: databases that could not be opened (a damaged manifest, a missing key), with the error. They are left out of this node's log ends, so they never keep it out of an election; the open is tried again now and then |
 | `followers` | the followers that do not vote, from `KARELADB_CLUSTER_FOLLOWERS` ([reading from followers](#reads)) |
@@ -262,17 +263,18 @@ Without a token:
 | `GET /health` | adds `"role":"leader"` or `"follower"` and `"cluster":{"node","term","leader"}`; the console's status bar shows it (`Leader - term 3`, `Follower - term 3 - leader a`) |
 | `GET /health?role=leader` | `200` only on the leader, else `503`: point a load balancer's health check at it to send writes to the leader alone. `?role=follower` is the opposite. |
 
-`/metrics` adds `kdb_cluster_leader` (1 on the leader), `kdb_cluster_term`, `kdb_cluster_lag_lsn{db="..."}`, `kdb_cluster_sync_on`, `kdb_cluster_sync_acks_total`, `kdb_cluster_sync_waits_total`, `kdb_cluster_sync_wait_seconds_total` and `kdb_cluster_sync_fallback_total`.
+`/metrics` adds `kdb_cluster_leader` (1 on the leader), `kdb_cluster_term`, `kdb_cluster_lag_lsn{db="..."}`, `kdb_cluster_sync_on`, `kdb_cluster_sync_acks_total`, `kdb_cluster_sync_waits_total`, `kdb_cluster_sync_wait_seconds_total`, `kdb_cluster_sync_fallback_total`, `kdb_cluster_sync_required` (1 with `required`) and `kdb_cluster_sync_refused_total`.
 
 A follower's copy and its lag show in `GET /api/standby`, `/api/stats` and `/metrics`, as on any [standby](standby.md#status).
 
 <a id="sync"></a>
 
-## Sync commit: nothing confirmed is lost
+## Sync commit: a confirmed commit is on two disks
 
 | `KARELADB_SYNC_STANDBYS` | A commit is confirmed once | Lost when the leader's computer dies |
 |---|---|---|
-| `1` (the default in a cluster) | it is on the leader's disk **and** on a standby's disk | nothing that was confirmed |
+| `required` | it is on the leader's disk **and** on a standby's disk. Never by the leader alone: with no standby copying, writes are refused | nothing that was confirmed |
+| `1` or `prefer` (the default in a cluster) | it is on the leader's disk **and** on a standby's disk, while a standby copies. While none copies, by the leader alone (below) | nothing confirmed while a standby copies. Commits confirmed while none copied: lost if the leader's disk dies before a standby copies them |
 | `0` | it is on the leader's disk | when its computer dies: what the standby had not copied yet, usually the last few ms. When it is only cut off from the network: everything it confirmed until its lease ran out, up to 3 s of commits |
 
 A session can still say `SET synchronous_commit = off`: its commits are then confirmed at once, without waiting for any disk, as in PostgreSQL.
@@ -284,7 +286,22 @@ How it works: a standby syncs its log before it asks the leader for more, so its
 | 1 client, time per commit (median) | 0.67 ms | 1.47 ms |
 | 32 clients, commits per second | 15,700 | 9,300 |
 
-When no standby copies - only the witness is reachable, or the standby is down - waiting would stop every write. The leader then confirms commits without a standby (async), writes `WARNING: sync commit: no standby is copying ...` in its log (at most every 10 s) and counts each in `kdb_cluster_sync_fallback_total`. The first commit after a standby dies waits up to the lease (3 s) before that, and so does the first commit of each database after a node becomes leader, after `CREATE DATABASE` and after a database is opened again: the standby gets that long to find it. Sync commit comes back by itself as soon as a standby copies again.
+When no standby copies - only the witness is reachable, or the standby is down - waiting would stop every write. With `1` (`prefer`) the leader then confirms commits without a standby (async), writes `WARNING: sync commit: no standby is copying ...` in its log (at most every 10 s) and counts each in `kdb_cluster_sync_fallback_total`. The first commit after a standby dies waits up to the lease (3 s) before that, and so does the first commit of each database after a node becomes leader, after `CREATE DATABASE` and after a database is opened again: the standby gets that long to find it. Sync commit comes back by itself as soon as a standby copies again. With `required` it refuses them instead ([below](#sync-required)).
+
+<a id="sync-required"></a>
+
+### `required`: never confirmed alone
+
+Use `KARELADB_SYNC_STANDBYS=required` for data where a refused write is better than a confirmed write that may vanish (orders, payments).
+
+| Case | What the commit does |
+|---|---|
+| A standby copies | the same as `1`: confirmed once the standby holds it |
+| No standby copies (for longer than the lease) | refused **before it is written**: SQLSTATE `25006`, HTTP `500`, `no standby holds this database's log now ... nothing of it was written`. Send it again once a standby copies (`GET /api/cluster`) |
+| The standby goes away while the commit waits | the commit waits up to `KARELADB_SYNC_WAIT_MS` (10 s) or its `statement_timeout`, then fails: `25006`, `no standby holds this commit ... it is on the leader's disk ... not confirmed`. It stays on the leader and the standby copies it when it comes back. Check whether it is there before you send it again |
+| `SET synchronous_commit = off` | not refused and not waited for, as with `1`: the session asked for no wait |
+
+Each refused or failed commit counts in `kdb_cluster_sync_refused_total`, and the log says `WARNING: sync commit: ... required: commits are refused` at most every 10 s. Reads always go on. PostgreSQL's synchronous standby makes a commit wait forever (or, cancelled, keeps it with a warning); MySQL's semi-sync falls back to async after a timeout. `required` instead refuses up front once it knows no standby copies, so a client never hangs and never hears "done" for a commit only one disk holds.
 
 Only a voting standby confirms a commit. A follower that does not vote (`KARELADB_CLUSTER_FOLLOWERS`) copies the same log, but an election never looks at it, so its copy does not count.
 
@@ -407,7 +424,7 @@ Use sync commit (the default) when a confirmed row must never be lost.
 
 | | |
 |---|---|
-| `KARELADB_SYNC_STANDBYS=0`, or only the witness reachable | a commit the follower had not copied when the leader's computer died is lost from the cluster (usually the last few ms). A leader that is only cut off goes on confirming until its lease ends: those commits (up to 3 s of them) are kept in its `_diverged` folder when it comes back, not in the cluster. |
+| `KARELADB_SYNC_STANDBYS=0`, or `1` with only the witness reachable (`required` refuses instead) | a commit the follower had not copied when the leader's computer died is lost from the cluster (usually the last few ms). A leader that is only cut off goes on confirming until its lease ends: those commits (up to 3 s of them) are kept in its `_diverged` folder when it comes back, not in the cluster. |
 | An old leader's users database (`_system`) with commits the new one never got | it stops copying `_system` and says so; move `<data>/_system` away while the node is stopped. Every other database takes the leader's history by itself ([rejoin](#rejoin)). |
 | `kareladb promote` | refused on a cluster node: the leader is elected. |
 | Reads during an apply | a read on a follower waits while a run of the leader's transactions is applied (usually microseconds, at most a few ms): it does not read a snapshot there, which could show half a transaction. |

@@ -790,6 +790,39 @@ Result:
 
 (1 row)
 
+<a id="pg_typeof"></a>
+
+## pg_typeof
+
+Syntax:
+
+```sql
+pg_typeof(value)
+```
+
+The PostgreSQL name of a value's type, as text: `integer`, `bigint`, `numeric`, `double precision`, `text`, `character varying`, `timestamp with time zone`, `jsonb`, `text[]` ...
+
+- **Returns:** text.
+- **Notes:**
+  - The name comes from what the value is: a column gives its declared type (`VARCHAR(10)` is `character varying`), a cast its target, `now()` is `timestamp with time zone`. Arithmetic widens as in PostgreSQL: `integer * integer` is `integer`, `integer + 1.5` is `numeric`.
+  - A whole number that fits 32 bits is `integer`, as in PostgreSQL, although KarelaDB keeps every whole number in 64 bits. A text constant alone is `unknown`, as in PostgreSQL.
+  - Anything else is named from its value (`text`, `bigint`, `double precision`, ...).
+
+**Example: What PostgreSQL type does each value have?**
+
+```sql
+SELECT pg_typeof(1) AS one, pg_typeof(3000000000) AS big, pg_typeof(1.5) AS decimal_literal,
+       pg_typeof(1 + 1) AS sum, pg_typeof(now()) AS now, pg_typeof(CAST(1 AS DOUBLE)) AS float8;
+```
+
+Result:
+
+| one (STRING) | big (STRING) | decimal_literal (STRING) | sum (STRING) | now (STRING) | float8 (STRING) |
+|---|---|---|---|---|---|
+| integer | bigint | numeric | integer | timestamp with time zone | double precision |
+
+(1 row)
+
 <a id="privileges"></a>
 
 ## Rights: has_table_privilege and friends

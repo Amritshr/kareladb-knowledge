@@ -69,7 +69,7 @@ For each row of the left side, KarelaDB finds the rows of the right table where 
 - **Notes:** `ON` (or [`USING`](#using)) is required. The `a = b` parts of `ON` are used to find matches fast (a hash join); a join without any `=` between the two tables checks every pair (slow for big tables).
 - A join on **one** `=` between number columns (ids, `DATE` or `TIMESTAMP` values) is the fastest kind: the numbers themselves are the keys of the hash join. Joining on a text column, or on two `=`, works the same way but makes a text key for every row.
 - The first table in `FROM` is read with its time and symbol filters. A **joined** table is either looked up by key for each left row, or read completely into memory (see [join speed](#join-speed)). Put the big time-series table first and join small tables to it.
-- The comma form `FROM a, b` is a `CROSS JOIN`; an `a.x = b.x` in `WHERE` makes it a hash join. `JOIN ... ON` says the same more clearly.
+- The comma form `FROM a, b` (and `CROSS JOIN`) with an `a.x = b.x` in `WHERE` runs exactly as `JOIN ... ON a.x = b.x`, as fast, on the same engines (since 2026-10-24). The `WHERE` conditions that link the new table to the tables before it move into its `ON`; a condition on one table alone stays in `WHERE`. Without an `=` between them it stays a cross join. `KARELADB_NO_COMMA_JOIN=1` turns this off, for comparing.
 - A `RIGHT`, `FULL` or `SPLICE JOIN` after a comma is refused: PostgreSQL reads `FROM a, b RIGHT JOIN c` as `a, (b RIGHT JOIN c)`, and joining left to right would give other rows. Write `CROSS JOIN` for the comma (left to right), or put the joins after the comma in a subquery.
 - At most 63 tables in one query.
 
@@ -215,7 +215,7 @@ It is used when all of these hold:
 
 | What | Allowed |
 |---|---|
-| Tables | two stored tables (not a subquery or view), `JOIN` or `LEFT JOIN` |
+| Tables | two stored tables (not a subquery or view), `JOIN` or `LEFT JOIN`, or `FROM a, b WHERE a.x = b.y` |
 | `ON` | one `a.x = b.y` of whole-number columns (`BYTE` .. `LONG`) or of text columns (`SYMBOL`, `STRING`), plus conditions on the joined table alone |
 | `WHERE` | conditions the column engine does (see [WHERE: fast conditions](where.md#fast-conditions)) on either table; with `LEFT JOIN`, on the first table only |
 | `GROUP BY` | up to 4 plain columns of either table; no `SAMPLE BY` |

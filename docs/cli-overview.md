@@ -233,8 +233,10 @@ Protection of kareladb serve (docs/tutorial/21-protection.md):
   --node-id ID                 this node's id in --cluster-peers (env KARELADB_NODE_ID)
   --cluster-token T            the token the nodes send each other (default --token; every node must accept
                                it as an admin's) (env KARELADB_CLUSTER_TOKEN)
-                               a cluster node also reads KARELADB_SYNC_STANDBYS=0|1 (1: a commit is confirmed
-                               once a standby holds it; default 1) and KARELADB_ON_LEADER / KARELADB_ON_FOLLOWER
+                               a cluster node also reads KARELADB_SYNC_STANDBYS=0|1|required (1: a commit is
+                               confirmed once a standby holds it, or alone when none copies; default 1;
+                               required: never alone, refused when no standby copies, failed after
+                               KARELADB_SYNC_WAIT_MS, 10000) and KARELADB_ON_LEADER / KARELADB_ON_FOLLOWER
                                (a command run on each role change: <cmd> leader|follower <term> <leader-id>)
   --cluster-learner            a cluster follower that does not vote: one more copy to read from; its
                                --node-id is not in --cluster-peers (env KARELADB_CLUSTER_LEARNER=on, or list
@@ -440,7 +442,7 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-24 00:14:40
+newest change   2026-10-24 08:46:40
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   8
 
@@ -457,7 +459,7 @@ t/1/all                                         2      388 B            4  ok
 ```text
 name | kind | partition | columns | rows
 -----+------+-----------+---------+-----
-(0 rows, 0.3 ms)
+(0 rows, 0.0 ms)
 ```
 
 In this example the data folder is `./kdb-data`. `kareladb info reports` opens `./kdb-data/reports`. `./reports` is a new, empty database in the current folder, so it has no tables.
@@ -522,7 +524,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 shop    |      0 |     0 | false  
-(2 rows, 0.2 ms)
+(2 rows, 0.4 ms)
 kareladb>
 ```
 
@@ -609,7 +611,7 @@ Output:
 n
 -
 5
-(1 row, 0.2 ms)
+(1 row, 0.4 ms)
 ```
 
 `> kareladb sql market "SELECT count(*) FROM brokerz"`

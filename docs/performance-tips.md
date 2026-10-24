@@ -43,7 +43,7 @@ symbol | avg_close
 -------+----------
 CITY   |    504.24
 COAST  |    378.36
-(2 rows, 0.5 ms)
+(2 rows, 0.7 ms)
 ```
 
 **Example: EXPLAIN: a time filter and a symbol read only one key range** (sample data: sample)
@@ -232,8 +232,8 @@ procedure 'minutes_of' done: 0 row(s) changed
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 680 | partitions read: 1 |
-| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 615 | partitions read: 1 |
+| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 584 | partitions read: 1 |
+| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 544 | partitions read: 1 |
 
 (2 rows)
 
@@ -397,7 +397,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -550,7 +550,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 2 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -625,7 +625,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -692,7 +692,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -952,6 +952,7 @@ KarelaDB has two ways to run a query: the **column engine** (whole columns at a 
 | Result columns | the keys, the aggregates, and expressions of aggregates only: `sum(a) - sum(b)`, `round(sum(a) / sum(b), 2)`, `coalesce(sum(a), 0)`, `CASE WHEN sum(q) > 0 THEN sum(a) / sum(q) ELSE 0 END` |
 | `ORDER BY` | result columns, by name, alias or position, and an aggregate that is also a result column (`ORDER BY sum(q) DESC`) |
 | `WHERE` | the [column engine shapes](#column-engine): a column against a value, `IN`, `BETWEEN`, `LIKE`, `IS NULL`, a column against a column of the same kind (`buyer = seller`, `close > open`), a `JSON` member against text (`extra->>'category' = 'auth'`), and `NOT` / `OR` / `AND` of them |
+| `SELECT DISTINCT`, `UNION` | run as a `GROUP BY` of every column, so the same keys apply ([DISTINCT](select.md#distinct)) |
 
 These send the query, or its last step, back to the row engine:
 
@@ -972,7 +973,7 @@ FROM (SELECT symbol, buyer AS broker, quantity AS bq, 0 AS sq FROM trades WHERE 
 GROUP BY symbol, broker
 ```
 
-`EXPLAIN` starts with `aggregates pushed into the 2 UNION ALL parts` when it applies. It applies to `sum`, `count`, `min` and `max` (with `sum(a) - sum(b)`, `HAVING`, `ORDER BY` and `LIMIT` on the outer query, and an outer `WHERE`, which moves into every part) over parts that are plain `SELECT ... FROM one_table [WHERE ...]`. With `avg`, `first`, `last`, `DISTINCT`, a window function, or a part that joins, groups or limits by itself, the query runs as written.
+A view whose query is such a `UNION ALL` is grouped the same way, also when its parts say `SELECT *` (see [views](views.md#where-pushdown)). `EXPLAIN` starts with `aggregates pushed into the 2 UNION ALL parts` when it applies. It applies to `sum`, `count`, `min` and `max` (with `sum(a) - sum(b)`, `HAVING`, `ORDER BY` and `LIMIT` on the outer query, and an outer `WHERE`, which moves into every part) over parts that are plain `SELECT ... FROM one_table [WHERE ...]`. With `avg`, `first`, `last`, `DISTINCT`, a window function, or a part that joins, groups or limits by itself, the query runs as written.
 
 Both engines give the same rows. Two small differences exist, and neither changes a stored value:
 

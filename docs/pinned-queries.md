@@ -95,12 +95,12 @@ HTTP 200 (application/json)
   "sql": "SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol",
   "max_rows": 10000,
   "enabled": true,
-  "created_ms": 1792780228987,
+  "created_ms": 1792810982352,
   "created_by": "",
   "open": true,
   "cached": false,
   "cached_bytes": 0,
-  "last_run_ms": 1792780228987,
+  "last_run_ms": 1792810982352,
   "last_ok": true,
   "last_error": "",
   "error": ""
@@ -113,19 +113,19 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792780229000,
+  "now_ms": 1792810982403,
   "pins": [
     {
       "database": "demo",
       "sql": "SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol",
       "max_rows": 10000,
       "enabled": true,
-      "created_ms": 1792780228987,
+      "created_ms": 1792810982352,
       "created_by": "",
       "open": true,
       "cached": false,
       "cached_bytes": 0,
-      "last_run_ms": 1792780228987,
+      "last_run_ms": 1792810982352,
       "last_ok": true,
       "last_error": "",
       "error": ""
@@ -198,12 +198,12 @@ HTTP 200 (application/json)
   "sql": "SELECT symbol, sum(qty) FROM trades GROUP BY symbol",
   "max_rows": 10000,
   "enabled": true,
-  "created_ms": 1792780228999,
+  "created_ms": 1792810982361,
   "created_by": "",
   "open": true,
   "cached": false,
   "cached_bytes": 0,
-  "last_run_ms": 1792780228999,
+  "last_run_ms": 1792810982361,
   "last_ok": true,
   "last_error": "",
   "error": ""

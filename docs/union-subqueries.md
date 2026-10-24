@@ -66,6 +66,7 @@ Runs each `SELECT` and puts all their rows into one result. Rows that are the sa
   - `ORDER BY` after `UNION ALL` can only use a result column name, an alias of the first part, or a position (`ORDER BY 2`). An expression like `ORDER BY amount * 2` is an error.
   - One part cannot have its own `ORDER BY` or `LIMIT`. Wrap that part in `FROM (SELECT ... LIMIT n) t` (example below).
   - `UNION` (without ALL) removes rows that are the same. `INTERSECT` keeps rows found in both parts, `EXCEPT` rows of the first part that are not in the second. With `ALL` they count copies. `INTERSECT` goes before `UNION` and `EXCEPT`.
+  - A `UNION` whose parts are plain `SELECT`s of one table (columns with names, no `GROUP BY` or `LIMIT` inside) runs as a `GROUP BY` of every column over the `UNION ALL` of the parts: each part groups its own table in the column engine first. A `UNION` of two tables of 2 and 1 million rows: 539 -> 8 ms. `EXPLAIN` starts with `union: run as a GROUP BY of every column`. A `UNION ALL` after the last `UNION`, or an `INTERSECT` / `EXCEPT`, runs as written.
 
 **Example: Broker 58: what it bought and sold, per symbol** (sample data: sample)
 
@@ -114,7 +115,7 @@ Result:
 
 (5 rows)
 
-A `GROUP BY` over a `UNION ALL` like the one above is grouped part by part: each part sums its own rows in the column engine and the outer query adds up one row per broker and part, so it costs about as much as the two parts on their own. `EXPLAIN` shows it as `aggregates pushed into the 2 UNION ALL parts`. See [GROUP BY with many groups](performance-tips.md#many-groups) for what it covers.
+A `GROUP BY` over a `UNION ALL` like the one above is grouped part by part: each part sums its own rows in the column engine and the outer query adds up one row per broker and part, so it costs about as much as the two parts on their own. `EXPLAIN` shows it as `aggregates pushed into the 2 UNION ALL parts`. A view made of such a `UNION ALL` (`CREATE VIEW trades AS SELECT * FROM buys UNION ALL SELECT * FROM sells`) is grouped the same way, `SELECT *` parts too (see [views](views.md#where-pushdown)). See [GROUP BY with many groups](performance-tips.md#many-groups) for what it covers.
 
 Only `sum`, `count`, `min` and `max` can be added up part by part. With `avg`, `first`, `last` or `count(DISTINCT ...)` the parts are not grouped first, but their rows still go straight into the groups without being kept: `EXPLAIN` says `read part by part into the grouping (not kept)`.
 
@@ -589,7 +590,8 @@ NOT EXISTS (SELECT ... FROM ... [WHERE ...])
 
 - **Returns:** `TRUE` or `FALSE`, never `NULL`.
 - **NULL:** a row full of NULL values still counts as a row.
-- **Notes:** because the subquery cannot use outer columns, `EXISTS` is the **same for every row**: all rows are kept or none. It is useful as an on/off switch ("only if there is any big trade today"). To test each row ("securities that have trades"), use [IN (SELECT ...)](union-subqueries.md#in-subquery) or a join.
+- **Speed:** the subquery stops at its first row, as in PostgreSQL, so you do not need `LIMIT 1`. An `ORDER BY` inside it is skipped when it only names select-list columns and there is no `OFFSET` (any other `ORDER BY` is still checked, then read as a top-1 pass). `GROUP BY` and `HAVING` still run in full before the first group is taken. A `NOT EXISTS` that finds nothing still reads every row it filters.
+- **Notes:** the subquery may use the outer row's columns (a correlated `EXISTS`: "securities that have trades"); KarelaDB then runs it as one keyed pass where it can. Without outer columns `EXISTS` is the **same for every row**: all rows are kept or none, an on/off switch ("only if there is any big trade today").
 
 **Example: Show today's candles only if today's trade log is loaded** (sample data: sample)
 
@@ -812,7 +814,29 @@ A **correlated** subquery uses a column of the outer query (`t1.col` above).
 
 - **Speed:** KarelaDB does not run it again for every outer row. When the subquery joins the outer row with `=` (`t2.col = t1.col`), it runs once per **different** outer value first, with that value as a constant, so an index on `t2.col` answers it. Once the outer query has asked for more values than that pays for (one value per 256 rows of `t2` when `col` has an index or is the primary key, at least 8; 8 without an index), KarelaDB reads `t2` once, builds a hash table by `col` and looks every further outer row up in it. So a page about one user costs a few index lookups (0.4 ms where the old plan took 930 ms on 300,000 logins), and a report over every user costs one pass over `t2`. Other subqueries run once per different outer value.
 - **Returns:** a value subquery gives NULL when no row matches (`count(*)` gives 0). It is an error when it finds more than one row; add `LIMIT 1` or an aggregate.
+- **Names:** an alias hides the table's own name, as in PostgreSQL. In `FROM ochl_day e`, the name `ochl_day.close` does not mean `e`: it means an **outer** `ochl_day`. So a subquery over the same table as the outer query works when you give the inner one an alias. With no outer `ochl_day`, `ochl_day.close` is an error that names the alias to write (`42P01` on the PostgreSQL port).
 - **Notes:** a join with `GROUP BY` or a window function (`lag(x) OVER (PARTITION BY ...)`) gives the same answers and is often easier to read.
+
+**Example: The same table inside and outside: how many days closed higher than this one** (sample data: sample)
+
+```sql
+SELECT symbol, close,
+       (SELECT count(*) FROM ochl_day e
+        WHERE e.symbol = ochl_day.symbol AND e.close > ochl_day.close) AS higher_days
+FROM ochl_day
+WHERE time IN '2026-09-10'
+ORDER BY symbol;
+```
+
+Result:
+
+| symbol (SYMBOL) | close (DOUBLE) | higher_days (LONG) |
+|---|---|---|
+| CITY | 504.9 | 10 |
+| COAST | 376.1 | 10 |
+| VOLT | 191.2 | 4 |
+
+(3 rows)
 
 **Example: The best close of each symbol, as a subquery per row** (sample data: sample)
 

@@ -12,6 +12,14 @@ This page lists what was added to KarelaDB from 2026-09-12 to 2026-09-24. Each l
 - "A -> B" means before -> after, on the same machine in the same minutes.
 - A switch like `KARELADB_NO_ZONE_MAPS=1` turns a new speed-up off. It is there so an answer can be checked against the old path, not for normal use.
 
+<a id="2026-10-24-charts"></a>
+
+## 2026-10-24: a chart over a table sorted by (symbol, time) is as fast as over one sorted by time
+
+| What changed | Measured (`kareladb sql`, best of 5, the program before and after on the same data) | Read more |
+|---|---|---|
+| `SAMPLE BY` with no other key over a table stored `SORT BY (symbol, time)` (the default) finds each bucket's group by its number, in any order, and reads a partition in stretches of time, so a bucket is made once and its numbers stay in the CPU's cache. Every answer is the same to the last bit. | one day, 2M trades of 500 symbols, `1s`: 1,630 -> 52 ms (sorted by time: 44 ms); `100ms`: 69 s -> 0.21 s; `1s FILL(PREV)`: 1,679 -> 101 ms; one day of a month partition at `1s`: 343 -> 60 ms (warm: 299 -> 19 ms); a month at `1m`: 409 -> 49 ms | [SAMPLE BY](sample-by.md) |
+
 <a id="2026-10-23-views"></a>
 
 ## 2026-10-23: a daily view refreshes a third faster; views catch up sooner after a bulk load
@@ -272,6 +280,7 @@ Queries now read less: partitions are skipped by their saved minimum and maximum
 | **Warm at open.** Indexes are built on a background thread right after a database opens, so the first query after a restart finds them ready. `--warm-indexes on\|off`, on by default. | first request after a restart, 200k posts: author lookup 89.7 -> 1.5 ms; common-word search count 774 -> 3.1 ms | [kareladb serve](cli-serve.md), [indexes](indexes.md), report |
 | **Pinned queries.** An admin pins a query with `POST /api/pins`; its answer stays in the result cache, is never pushed out, and is made again after writes. | a pinned dashboard query answers from memory after every restart | [pinned queries](pinned-queries.md) |
 | **GROUP BY with many groups.** Tens of thousands of groups, `buyer = seller`, `date_trunc` keys, `count(DISTINCT)` and `CASE` inside `sum` run in the column engine. | 30 days of trades by symbol and broker: 84 -> 14 ms | [GROUP BY](group-by.md), [performance tips](performance-tips.md#many-groups), report |
+| **DISTINCT and UNION in the column engine (2026-10-24).** `SELECT DISTINCT a, b` runs as `GROUP BY a, b`, and `UNION` as a `GROUP BY` over the `UNION ALL` of its parts. The same rows in the same order. Off: `KARELADB_NO_DISTINCT_GROUP=1`. | 2M rows: `DISTINCT a, b` 415 -> 23 ms; `DISTINCT symbol` 260 -> 5 ms; a join's `DISTINCT` 387 -> 22 ms; `UNION` of a 2M and a 1M table 539 -> 8 ms | [DISTINCT](select.md#distinct), [UNION](union-subqueries.md) |
 | **GROUP BY over UNION ALL** groups each part by itself first. | buy side + sell side in one query: 1,750 -> 29 ms | [UNION](union-subqueries.md), [performance tips](performance-tips.md#big-group-by) |
 | **Integer hash join.** A join on one equality of numbers no longer makes a text key for every row. | | [joins](joins.md) |
 | **Procedure parameters prune partitions.** `WHERE date = d` inside a procedure reads only that day. | 1 of 1,060 partitions read; 16 ms cold, 0.2 ms warm | [procedures](procedures.md), report |

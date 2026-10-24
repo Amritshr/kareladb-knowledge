@@ -498,8 +498,8 @@ CREATE TABLE posts_old (id LONG PRIMARY KEY);</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">DROP TABLE [IF EXISTS] table [CASCADE | RESTRICT]</code></pre>
 <p>Deletes a table with all its rows and its indexes. With <code>IF EXISTS</code>, a table that is not there is not an error.</p>
-<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; dropped</code>, or <code>table &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong> the table goes to the <a href="trash.html">trash</a> for some days, and <code>UNDROP TABLE</code> brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while another table <code>REFERENCES</code> it, and while it has triggers. To remove all rows and keep the table, use <a href="update-delete.html#truncate">TRUNCATE</a>.</li><li><strong>CASCADE and RESTRICT:</strong> PostgreSQL writes <code>DROP TABLE t CASCADE</code> (drop what depends on it too) or <code>DROP TABLE t RESTRICT</code> (refuse while something depends on it). KarelaDB always works like <code>RESTRICT</code>: it never drops anything but the table.
-<ul><li><code>RESTRICT</code> is read and changes nothing.</li><li><code>CASCADE</code> works when nothing uses the table, so a PostgreSQL script with <code>DROP TABLE IF EXISTS t CASCADE</code> runs.</li><li><code>CASCADE</code> is <strong>refused</strong> while a view, a materialized view or another table&#39;s foreign key uses the table: <code>DROP TABLE ... CASCADE is not supported</code> (PostgreSQL <code>0A000</code>). The message names what uses it. Drop those first, then the table.</li><li>Without <code>CASCADE</code>, a plain view that reads the table does not stop the drop: the view stays and fails when it is read (see <a href="views.html">views</a>).</li><li><code>DROP FUNCTION</code>, <code>DROP PROCEDURE</code> and <code>DROP TRIGGER</code> read both words and ignore them.</li></ul></li></ul>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; dropped</code>, or <code>table &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong> the table goes to the <a href="trash.html">trash</a> for some days, and <code>UNDROP TABLE</code> brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while another table <code>REFERENCES</code> it, and while it has triggers. To remove all rows and keep the table, use <a href="update-delete.html#truncate">TRUNCATE</a>.</li><li><strong>CASCADE and RESTRICT:</strong> as in PostgreSQL. <code>DROP TABLE t RESTRICT</code> (or no word) refuses while another table&#39;s foreign key or a materialized view uses <code>t</code>. <code>DROP TABLE t CASCADE</code> drops what uses it first, then <code>t</code>:
+<ul><li>the foreign keys of other tables that point at <code>t</code> (<code>ALTER TABLE other DROP CONSTRAINT ...</code>; the other tables and their rows stay),</li><li>the views and materialized views that read <code>t</code>.</li><li>The reply names them: <code>table &#39;t&#39; dropped; drop cascades to constraint orders_customer_fkey on table orders, view big_orders</code>.</li><li>A table with triggers is still refused before anything is dropped: <code>DROP TRIGGER</code> them first.</li><li>Without <code>CASCADE</code>, a plain view that reads the table does not stop the drop: the view stays and fails when it is read (see <a href="views.html">views</a>).</li><li><code>DROP FUNCTION</code>, <code>DROP PROCEDURE</code> and <code>DROP TRIGGER</code> read both words and ignore them.</li></ul></li></ul>
 <p><strong>Example: Remove a test table; safe to run twice</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE test_ticks (time TIMESTAMP, price DOUBLE) TIMESERIES(time);</code></pre>
@@ -540,13 +540,19 @@ SHOW TABLES;</code></pre>
 <p><code>SHOW TABLES</code></p>
 <div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody></tbody></table></div>
 <p>(0 rows)</p>
-<p><strong>Example: CASCADE would have to drop a view: refused</strong> (shows an error)</p>
+<p><strong>Example: CASCADE drops the view and the foreign key that use the table</strong></p>
 <p>Setup:</p>
-<pre><code class="language-sql">CREATE TABLE test_prices (symbol SYMBOL, price DOUBLE);
+<pre><code class="language-sql">CREATE TABLE test_prices (id INT PRIMARY KEY, symbol SYMBOL, price DOUBLE);
+CREATE TABLE test_alerts (id INT PRIMARY KEY, price_id INT REFERENCES test_prices(id));
 CREATE VIEW test_expensive AS SELECT symbol FROM test_prices WHERE price &gt; 1000;</code></pre>
-<pre><code class="language-sql">DROP TABLE test_prices CASCADE;</code></pre>
+<pre><code class="language-sql">DROP TABLE test_prices CASCADE;
+SHOW TABLES;</code></pre>
 <p>Result:</p>
-<p>Error: <code>DROP TABLE ... CASCADE is not supported: it would not drop view &#39;test_expensive&#39;, which uses table &#39;test_prices&#39;. Drop the dependent views first (DROP VIEW test_expensive), then DROP TABLE test_prices</code></p>
+<p><code>DROP TABLE test_prices</code></p>
+<pre><code class="language-text">table &#39;test_prices&#39; dropped; UNDROP TABLE test_prices brings it back within 7 days; drop cascades to constraint test_alerts_price_id_fkey on table test_alerts, view test_expensive</code></pre>
+<p><code>SHOW TABLES</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>test_alerts</td><td>relational</td><td>NONE</td><td>2</td><td>0</td></tr></tbody></table></div>
+<p>(1 row)</p>
 <h2 id="resident">SET (resident = on): keep a table in memory</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">ALTER TABLE &lt;t&gt; SET (resident = on | off)

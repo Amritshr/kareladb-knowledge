@@ -84,9 +84,9 @@ HTTP 200 (application/json)
   "database": "demo",
   "table": "candles",
   "column": "symbol",
-  "boot": "3eb31036810d",
-  "table_rev": "3eb31036810d.0",
-  "revs": {"NABIL": "3eb31036810d.0", "NEPSE": "3eb31036810d.0"}
+  "boot": "d80d8ec379e8",
+  "table_rev": "d80d8ec379e8.0",
+  "revs": {"NABIL": "d80d8ec379e8.0", "NEPSE": "d80d8ec379e8.0"}
 }
 ```
 

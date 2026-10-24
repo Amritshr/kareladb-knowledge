@@ -55,7 +55,7 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 - Arrays are sent in binary form with one dimension only; nested arrays go as text.
 - A series function inside another (`lag(sma(x, 3))`). Use a subquery. (A window function over `GROUP BY`, `SAMPLE BY` or aggregates works: `lag(sum(v)) OVER (ORDER BY time)`.)
 - `DROP PARTITION LIST`, `LATEST BY`, `'2026-09-10;1d'` intervals (QuestDB forms). `DROP PARTITION OLDER THAN 6 MONTHS` works.
-- JSON path wildcards (`$.items[*]`), JSON arrays as SQL rows (`json_each`; `unnest` works for arrays), the `jsonb` operator `?`.
+- JSON path wildcards (`$.items[*]`), the `jsonb` operator `?`. (JSON arrays and objects as SQL rows work: `json_each`, `json_array_elements`, `json_object_keys`.)
 - Regular expression back references (`\1` inside a pattern) and look-around (`(?=...)`). `\1` works in the replacement text of `regexp_replace`.
 
 ### Behaviour to know
@@ -106,7 +106,7 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 - `DO $$ ... $$` blocks may use only `IF`, `RAISE`, `NULL` and SQL statements (no `DECLARE`, loops, `PERFORM`, `EXECUTE`, `EXCEPTION`). A DO block is **not one transaction**: statements before an error stay.
 - `SERIAL` / `IDENTITY` only for the single-column `PRIMARY KEY`. Use a sequence for other columns.
 - `NUMERIC` without precision is a `DOUBLE` (exact with `kdb.pg_compat = on`). `NUMERIC(p,s)`: up to 38 digits (more than 18 use 128 bits). `FLOAT` alone is 4 bytes. `CHAR(n)` is not padded. `CITEXT` is not case-insensitive. `INTERVAL` is milliseconds (a month is 30 days). `INET`, `CIDR`, `MACADDR`, `XML` are not checked.
-- The `PRIMARY KEY` cannot be dropped. `DROP TABLE ... CASCADE` is refused while another table `REFERENCES` the table: drop that foreign key first. `DEFERRABLE` constraints, `INHERITS`, `PARTITION BY RANGE`, `EXCLUDE` constraints and schemas other than `public` are not supported. Table constraints must come after the columns.
+- The `PRIMARY KEY` cannot be dropped. `DROP TABLE ... CASCADE` drops the foreign keys, views and materialized views that use the table, as in PostgreSQL. `DEFERRABLE` constraints, `INHERITS`, `PARTITION BY RANGE`, `EXCLUDE` constraints and schemas other than `public` are not supported. Table constraints must come after the columns.
 - In one `INSERT` of many rows, a row may refer (REFERENCES) only to rows before it, not to rows after it.
 - A foreign key action reads the whole child table for each changed parent row when the child column has no key or index. Add an index on foreign key columns of big tables.
 - `ALTER COLUMN ... TYPE` and `ADD PRIMARY KEY` write every row again (slow for very big tables).

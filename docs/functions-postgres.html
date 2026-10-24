@@ -310,6 +310,18 @@ version()</code></pre>
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>current_user (STRING)</th><th>session_user (STRING)</th><th>current_schema (STRING)</th><th>current_catalog (STRING)</th><th>pg14 (BOOL)</th></tr></thead><tbody><tr><td>kdb</td><td>kdb</td><td>public</td><td>demo</td><td>true</td></tr></tbody></table></div>
 <p>(1 row)</p>
+<h2 id="pg_typeof">pg_typeof</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">pg_typeof(value)</code></pre>
+<p>The PostgreSQL name of a value&#39;s type, as text: <code>integer</code>, <code>bigint</code>, <code>numeric</code>, <code>double precision</code>, <code>text</code>, <code>character varying</code>, <code>timestamp with time zone</code>, <code>jsonb</code>, <code>text[]</code> ...</p>
+<ul><li><strong>Returns:</strong> text.</li><li><strong>Notes:</strong>
+<ul><li>The name comes from what the value is: a column gives its declared type (<code>VARCHAR(10)</code> is <code>character varying</code>), a cast its target, <code>now()</code> is <code>timestamp with time zone</code>. Arithmetic widens as in PostgreSQL: <code>integer * integer</code> is <code>integer</code>, <code>integer + 1.5</code> is <code>numeric</code>.</li><li>A whole number that fits 32 bits is <code>integer</code>, as in PostgreSQL, although KarelaDB keeps every whole number in 64 bits. A text constant alone is <code>unknown</code>, as in PostgreSQL.</li><li>Anything else is named from its value (<code>text</code>, <code>bigint</code>, <code>double precision</code>, ...).</li></ul></li></ul>
+<p><strong>Example: What PostgreSQL type does each value have?</strong></p>
+<pre><code class="language-sql">SELECT pg_typeof(1) AS one, pg_typeof(3000000000) AS big, pg_typeof(1.5) AS decimal_literal,
+       pg_typeof(1 + 1) AS sum, pg_typeof(now()) AS now, pg_typeof(CAST(1 AS DOUBLE)) AS float8;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>one (STRING)</th><th>big (STRING)</th><th>decimal_literal (STRING)</th><th>sum (STRING)</th><th>now (STRING)</th><th>float8 (STRING)</th></tr></thead><tbody><tr><td>integer</td><td>bigint</td><td>numeric</td><td>integer</td><td>timestamp with time zone</td><td>double precision</td></tr></tbody></table></div>
+<p>(1 row)</p>
 <h2 id="privileges">Rights: has_table_privilege and friends</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">has_table_privilege([user,] table, privilege)

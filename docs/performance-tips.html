@@ -30,7 +30,7 @@ EXPLAIN SELECT ...                -- how KarelaDB will read the data</code></pre
 -------+----------
 CITY   |    504.24
 COAST  |    378.36
-(2 rows, 0.5 ms)</code></pre>
+(2 rows, 0.7 ms)</code></pre>
 <p><strong>Example: EXPLAIN: a time filter and a symbol read only one key range</strong> (sample data: sample)</p>
 <pre><code class="language-sql">EXPLAIN SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39; AND time IN &#39;2026-09-10&#39;;</code></pre>
 <p>Result:</p>
@@ -88,7 +88,7 @@ CALL minutes_of(&#39;2026-09-10&#39;) WITH DEBUG;</code></pre>
 <div class="table-wrap"><table><thead><tr><th>minutes (LONG)</th></tr></thead><tbody><tr><td>476</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>debug</code></p>
-<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL minutes_of(&#39;2026-09-10&#39;) WITH DEBUG</td><td>0</td><td>680</td><td>partitions read: 1</td></tr><tr><td>2</td><td>minutes_of</td><td>SELECT count(*) AS minutes FROM ochl_minutes WHERE time &gt;= day AND time &lt; dateadd(&#39;d&#39;, 1, day)</td><td>1</td><td>615</td><td>partitions read: 1</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>step (LONG)</th><th>routine (STRING)</th><th>statement (STRING)</th><th>rows (LONG)</th><th>time_us (LONG)</th><th>changes (STRING)</th></tr></thead><tbody><tr><td>1</td><td></td><td>CALL minutes_of(&#39;2026-09-10&#39;) WITH DEBUG</td><td>0</td><td>584</td><td>partitions read: 1</td></tr><tr><td>2</td><td>minutes_of</td><td>SELECT count(*) AS minutes FROM ochl_minutes WHERE time &gt;= day AND time &lt; dateadd(&#39;d&#39;, 1, day)</td><td>1</td><td>544</td><td>partitions read: 1</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <h2 id="limit">LIMIT</h2>
 <p>Syntax:</p>
@@ -156,7 +156,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h3 id="synchronous-commit">One session only: SET synchronous_commit = off</h3>
@@ -221,7 +221,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 2 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h3 id="memory-per-database">Memory per database and resident tables</h3>
@@ -257,7 +257,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h2 id="result-cache">Result cache: --cache-mb</h2>
@@ -290,7 +290,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries &gt;= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.</code></pre>
 <h2 id="column-engine">What the column engine takes</h2>
@@ -366,7 +366,7 @@ EXPLAIN SELECT count(*) FROM trade_log WHERE transaction_id &gt; 100008;</code><
 <p>Syntax:</p>
 <pre><code class="language-sql">SELECT key, key2, sum(a), sum(a) - sum(b) FROM t WHERE time_range GROUP BY key, key2</code></pre>
 <p>KarelaDB has two ways to run a query: the <strong>column engine</strong> (whole columns at a time, on all threads) and the <strong>row engine</strong> (row by row). The column engine is 5 to 50 times faster. A <code>GROUP BY</code> stays in it, even with hundreds of thousands of groups, when it is written like this:</p>
-<div class="table-wrap"><table><thead><tr><th>Part of the query</th><th>The column engine takes</th></tr></thead><tbody><tr><td>Group keys</td><td><code>SYMBOL</code>, <code>STRING</code> (<code>VARCHAR</code>, <code>TEXT</code>), whole-number, <code>DATE</code> and <code>TIMESTAMP</code> columns, up to 4 of them; <code>date_trunc(&#39;day&#39;, time)</code> and <code>to_char(time, &#39;YYYY-MM-DD&#39;)</code> of a time column, also with a time zone</td></tr><tr><td>Aggregates</td><td><code>count</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>first</code>, <code>last</code>; <code>count(DISTINCT col)</code>; <code>sum(CASE WHEN a &gt; b THEN x ELSE y END)</code>; <a href="#aggregate-math">math inside an aggregate</a></td></tr><tr><td>Result columns</td><td>the keys, the aggregates, and expressions of aggregates only: <code>sum(a) - sum(b)</code>, <code>round(sum(a) / sum(b), 2)</code>, <code>coalesce(sum(a), 0)</code>, <code>CASE WHEN sum(q) &gt; 0 THEN sum(a) / sum(q) ELSE 0 END</code></td></tr><tr><td><code>ORDER BY</code></td><td>result columns, by name, alias or position, and an aggregate that is also a result column (<code>ORDER BY sum(q) DESC</code>)</td></tr><tr><td><code>WHERE</code></td><td>the <a href="#column-engine">column engine shapes</a>: a column against a value, <code>IN</code>, <code>BETWEEN</code>, <code>LIKE</code>, <code>IS NULL</code>, a column against a column of the same kind (<code>buyer = seller</code>, <code>close &gt; open</code>), a <code>JSON</code> member against text (<code>extra-&gt;&gt;&#39;category&#39; = &#39;auth&#39;</code>), and <code>NOT</code> / <code>OR</code> / <code>AND</code> of them</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Part of the query</th><th>The column engine takes</th></tr></thead><tbody><tr><td>Group keys</td><td><code>SYMBOL</code>, <code>STRING</code> (<code>VARCHAR</code>, <code>TEXT</code>), whole-number, <code>DATE</code> and <code>TIMESTAMP</code> columns, up to 4 of them; <code>date_trunc(&#39;day&#39;, time)</code> and <code>to_char(time, &#39;YYYY-MM-DD&#39;)</code> of a time column, also with a time zone</td></tr><tr><td>Aggregates</td><td><code>count</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>first</code>, <code>last</code>; <code>count(DISTINCT col)</code>; <code>sum(CASE WHEN a &gt; b THEN x ELSE y END)</code>; <a href="#aggregate-math">math inside an aggregate</a></td></tr><tr><td>Result columns</td><td>the keys, the aggregates, and expressions of aggregates only: <code>sum(a) - sum(b)</code>, <code>round(sum(a) / sum(b), 2)</code>, <code>coalesce(sum(a), 0)</code>, <code>CASE WHEN sum(q) &gt; 0 THEN sum(a) / sum(q) ELSE 0 END</code></td></tr><tr><td><code>ORDER BY</code></td><td>result columns, by name, alias or position, and an aggregate that is also a result column (<code>ORDER BY sum(q) DESC</code>)</td></tr><tr><td><code>WHERE</code></td><td>the <a href="#column-engine">column engine shapes</a>: a column against a value, <code>IN</code>, <code>BETWEEN</code>, <code>LIKE</code>, <code>IS NULL</code>, a column against a column of the same kind (<code>buyer = seller</code>, <code>close &gt; open</code>), a <code>JSON</code> member against text (<code>extra-&gt;&gt;&#39;category&#39; = &#39;auth&#39;</code>), and <code>NOT</code> / <code>OR</code> / <code>AND</code> of them</td></tr><tr><td><code>SELECT DISTINCT</code>, <code>UNION</code></td><td>run as a <code>GROUP BY</code> of every column, so the same keys apply (<a href="select.html#distinct">DISTINCT</a>)</td></tr></tbody></table></div>
 <p>These send the query, or its last step, back to the row engine:</p>
 <ul><li>A <code>WHERE</code> part the column engine does not take (arithmetic, a function), more than 4 group keys, a <code>DOUBLE</code> group key, a function other than <code>date_trunc</code> / <code>to_char</code> as a key.</li><li><code>HAVING</code>, an <code>ORDER BY</code> of something that is not a result column (<code>ORDER BY sum(x)</code> with no <code>sum(x)</code> in the list), or of a <code>DECIMAL</code> result, still run, but every group becomes a row first. With 300,000 groups that step takes longer than the grouping. Add a time range so fewer groups are made.</li><li>The same aggregate written twice (<code>sum(q)</code> in the list and again in a <code>CASE</code>) is added up once.</li><li>A result column that mixes a plain column into the arithmetic (<code>sum(a) - broker</code>).</li></ul>
 <p>A <code>GROUP BY</code> over a <code>UNION ALL</code> in <code>FROM</code> is grouped <strong>part by part</strong>: each part groups its own table in the column engine, and the outer query only adds up one row per group and part. This is the buy-and-sell shape of a floor sheet, and it costs the two legs instead of a row-by-row pass over every trade twice:</p>
@@ -376,7 +376,7 @@ FROM (SELECT symbol, buyer AS broker, quantity AS bq, 0 AS sq FROM trades WHERE 
       UNION ALL
       SELECT symbol, seller AS broker, 0 AS bq, quantity AS sq FROM trades WHERE time_range)
 GROUP BY symbol, broker</code></pre>
-<p><code>EXPLAIN</code> starts with <code>aggregates pushed into the 2 UNION ALL parts</code> when it applies. It applies to <code>sum</code>, <code>count</code>, <code>min</code> and <code>max</code> (with <code>sum(a) - sum(b)</code>, <code>HAVING</code>, <code>ORDER BY</code> and <code>LIMIT</code> on the outer query, and an outer <code>WHERE</code>, which moves into every part) over parts that are plain <code>SELECT ... FROM one_table [WHERE ...]</code>. With <code>avg</code>, <code>first</code>, <code>last</code>, <code>DISTINCT</code>, a window function, or a part that joins, groups or limits by itself, the query runs as written.</p>
+<p>A view whose query is such a <code>UNION ALL</code> is grouped the same way, also when its parts say <code>SELECT *</code> (see <a href="views.html#where-pushdown">views</a>). <code>EXPLAIN</code> starts with <code>aggregates pushed into the 2 UNION ALL parts</code> when it applies. It applies to <code>sum</code>, <code>count</code>, <code>min</code> and <code>max</code> (with <code>sum(a) - sum(b)</code>, <code>HAVING</code>, <code>ORDER BY</code> and <code>LIMIT</code> on the outer query, and an outer <code>WHERE</code>, which moves into every part) over parts that are plain <code>SELECT ... FROM one_table [WHERE ...]</code>. With <code>avg</code>, <code>first</code>, <code>last</code>, <code>DISTINCT</code>, a window function, or a part that joins, groups or limits by itself, the query runs as written.</p>
 <p>Both engines give the same rows. Two small differences exist, and neither changes a stored value:</p>
 <ul><li>Sums of <code>DOUBLE</code> values are added up in a different order. When one group holds huge values that cancel (<code>+1e300</code> and <code>-1e300</code>) next to small ones, the last digits of the sum can differ.</li><li>A page with no rows (<code>OFFSET</code> past the last group) may name a different column type, because the type of a <code>sum</code> comes from the values found.</li></ul>
 <p><strong>Example: Two keys, a CASE sum and arithmetic on aggregates: all in the column engine</strong> (sample data: sample)</p>

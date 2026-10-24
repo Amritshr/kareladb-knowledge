@@ -211,13 +211,13 @@ Result:
 | group by 1 key(s), 2 aggregate(s) |
 | sort by 1 key(s) |
 | engine: column |
-| actual: 3 row(s) in 0.207 ms |
-|   -> ochl_day: 3 row(s) in 0.196 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
-|      steps: prepare 0.010 ms, scan and aggregate 0.186 ms |
+| actual: 3 row(s) in 0.580 ms |
+|   -> ochl_day: 3 row(s) in 0.361 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
+|      steps: prepare 0.029 ms, scan and aggregate 0.331 ms |
 | partitions read: 1 |
 | memory: 2016 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.113 ms |
-| Execution Time: 0.207 ms |
+| Planning Time: 0.185 ms |
+| Execution Time: 0.580 ms |
 
 (13 rows)
 
@@ -239,15 +239,15 @@ Result:
 | sort by 1 key(s) |
 | limit 3 |
 | engine: row (a join) |
-| actual: 3 row(s) in 0.114 ms |
-|   -> t, brokers: 3 row(s) in 0.108 ms, engine: row (a join) |
-|      steps: prepare 0.044 ms, scan, join and filter 0.058 ms, sort 0.005 ms, limit and result 0.001 ms |
-|     -> trade_log: 5 row(s) in 0.031 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.011 ms, scan and aggregate 0.019 ms, result 0.001 ms |
+| actual: 3 row(s) in 0.162 ms |
+|   -> t, brokers: 3 row(s) in 0.154 ms, engine: row (a join) |
+|      steps: prepare 0.065 ms, scan, join and filter 0.082 ms, sort 0.006 ms, limit and result 0.001 ms |
+|     -> trade_log: 5 row(s) in 0.045 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.016 ms, scan and aggregate 0.028 ms, result 0.001 ms |
 | partitions read: 3 |
 | memory: 1059 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.317 ms |
-| Execution Time: 0.114 ms |
+| Planning Time: 0.495 ms |
+| Execution Time: 0.162 ms |
 
 (14 rows)
 
@@ -736,12 +736,13 @@ Result:
 
 | plan (STRING) |
 |---|
+| distinct: run as a GROUP BY of every column |
 | scan table trade_log (2 of 2 partitions, about 32 rows) |
 | build 2 of 7 stored column(s) per row: date, symbol |
-| distinct |
-| engine: row (a condition the column engine does not do) |
+| group by 1 key(s), 0 aggregate(s) |
+| engine: row (a condition, group key or aggregate the column engine does not do) |
 
-(4 rows)
+(5 rows)
 
 `EXPLAIN SELECT symbol FROM trade_log WHERE buyer = 58 UNION ALL SELECT symbol FROM trade_log WHERE s`
 
@@ -900,19 +901,19 @@ Result:
 | scan result of subquery 1 (6 rows) |
 | engine: row (reads a subquery or view result) |
 | union all with 1 more part(s) |
-| actual: 10 row(s) in 0.048 ms |
-|   -> subquery 1: 6 row(s) in 0.030 ms, engine: row (reads a subquery or view result) |
-|      steps: prepare 0.028 ms, scan and filter 0.001 ms, result 0.000 ms |
-|     -> trade_log: 6 row(s) in 0.021 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.012 ms, scan and filter 0.009 ms, result 0.001 ms |
-|   -> subquery 2: 4 row(s) in 0.014 ms, engine: row (reads a subquery or view result) |
-|      steps: prepare 0.013 ms, scan and filter 0.001 ms, result 0.000 ms |
-|     -> trade_log: 4 row(s) in 0.008 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
-|        steps: prepare 0.003 ms, scan and filter 0.005 ms, result 0.000 ms |
+| actual: 10 row(s) in 0.070 ms |
+|   -> subquery 1: 6 row(s) in 0.044 ms, engine: row (reads a subquery or view result) |
+|      steps: prepare 0.042 ms, scan and filter 0.001 ms, result 0.000 ms |
+|     -> trade_log: 6 row(s) in 0.030 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.018 ms, scan and filter 0.011 ms, result 0.001 ms |
+|   -> subquery 2: 4 row(s) in 0.018 ms, engine: row (reads a subquery or view result) |
+|      steps: prepare 0.017 ms, scan and filter 0.001 ms, result 0.000 ms |
+|     -> trade_log: 4 row(s) in 0.011 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
+|        steps: prepare 0.004 ms, scan and filter 0.006 ms, result 0.000 ms |
 | partitions read: 3 |
 | memory: 0 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.329 ms |
-| Execution Time: 0.048 ms |
+| Planning Time: 0.696 ms |
+| Execution Time: 0.070 ms |
 
 (16 rows)
 

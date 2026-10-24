@@ -1284,10 +1284,11 @@ Deletes a table with all its rows and its indexes. With `IF EXISTS`, a table tha
 
 - **Returns:** `table 'name' dropped`, or `table 'name' does not exist` with `IF EXISTS`.
 - **Notes:** the table goes to the [trash](trash.md) for some days, and `UNDROP TABLE` brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while another table `REFERENCES` it, and while it has triggers. To remove all rows and keep the table, use [TRUNCATE](update-delete.md#truncate).
-- **CASCADE and RESTRICT:** PostgreSQL writes `DROP TABLE t CASCADE` (drop what depends on it too) or `DROP TABLE t RESTRICT` (refuse while something depends on it). KarelaDB always works like `RESTRICT`: it never drops anything but the table.
-  - `RESTRICT` is read and changes nothing.
-  - `CASCADE` works when nothing uses the table, so a PostgreSQL script with `DROP TABLE IF EXISTS t CASCADE` runs.
-  - `CASCADE` is **refused** while a view, a materialized view or another table's foreign key uses the table: `DROP TABLE ... CASCADE is not supported` (PostgreSQL `0A000`). The message names what uses it. Drop those first, then the table.
+- **CASCADE and RESTRICT:** as in PostgreSQL. `DROP TABLE t RESTRICT` (or no word) refuses while another table's foreign key or a materialized view uses `t`. `DROP TABLE t CASCADE` drops what uses it first, then `t`:
+  - the foreign keys of other tables that point at `t` (`ALTER TABLE other DROP CONSTRAINT ...`; the other tables and their rows stay),
+  - the views and materialized views that read `t`.
+  - The reply names them: `table 't' dropped; drop cascades to constraint orders_customer_fkey on table orders, view big_orders`.
+  - A table with triggers is still refused before anything is dropped: `DROP TRIGGER` them first.
   - Without `CASCADE`, a plain view that reads the table does not stop the drop: the view stays and fails when it is read (see [views](views.md)).
   - `DROP FUNCTION`, `DROP PROCEDURE` and `DROP TRIGGER` read both words and ignore them.
 
@@ -1389,22 +1390,36 @@ table 'test_b' dropped; UNDROP TABLE test_b brings it back within 7 days
 
 (0 rows)
 
-**Example: CASCADE would have to drop a view: refused** (shows an error)
+**Example: CASCADE drops the view and the foreign key that use the table**
 
 Setup:
 
 ```sql
-CREATE TABLE test_prices (symbol SYMBOL, price DOUBLE);
+CREATE TABLE test_prices (id INT PRIMARY KEY, symbol SYMBOL, price DOUBLE);
+CREATE TABLE test_alerts (id INT PRIMARY KEY, price_id INT REFERENCES test_prices(id));
 CREATE VIEW test_expensive AS SELECT symbol FROM test_prices WHERE price > 1000;
 ```
 
 ```sql
 DROP TABLE test_prices CASCADE;
+SHOW TABLES;
 ```
 
 Result:
 
-Error: `DROP TABLE ... CASCADE is not supported: it would not drop view 'test_expensive', which uses table 'test_prices'. Drop the dependent views first (DROP VIEW test_expensive), then DROP TABLE test_prices`
+`DROP TABLE test_prices`
+
+```text
+table 'test_prices' dropped; UNDROP TABLE test_prices brings it back within 7 days; drop cascades to constraint test_alerts_price_id_fkey on table test_alerts, view test_expensive
+```
+
+`SHOW TABLES`
+
+| name (STRING) | kind (STRING) | partition (STRING) | columns (INT) | rows (LONG) |
+|---|---|---|---|---|
+| test_alerts | relational | NONE | 2 | 0 |
+
+(1 row)
 
 <a id="resident"></a>
 
