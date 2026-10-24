@@ -229,7 +229,7 @@ ALTER DATABASE <name> SET READ WRITE
 kareladb serve --read-only
 ```
 
-A read-only database takes no changes: `INSERT`, `UPDATE`, `DELETE`, DDL, `CALL`, the line protocol. `SELECT`, backups and checks work.
+A read-only database takes no changes: `INSERT`, `UPDATE`, `DELETE`, DDL, `CALL`, the line protocol, a CSV import (`/imp`). `SELECT`, backups and checks work.
 
 - **Returns:** `database 'x' is read-only now: only reads are allowed`. A refused change gets `the database is read-only (...)`, HTTP 403, SQLSTATE `25006`.
 - **Notes:**

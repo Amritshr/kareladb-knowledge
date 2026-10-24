@@ -92,7 +92,7 @@ UPDATE securities SET name = &#39;oops&#39;;</code></pre>
 <pre><code class="language-sql">ALTER DATABASE &lt;name&gt; SET READ ONLY
 ALTER DATABASE &lt;name&gt; SET READ WRITE
 kareladb serve --read-only</code></pre>
-<p>A read-only database takes no changes: <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, DDL, <code>CALL</code>, the line protocol. <code>SELECT</code>, backups and checks work.</p>
+<p>A read-only database takes no changes: <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, DDL, <code>CALL</code>, the line protocol, a CSV import (<code>/imp</code>). <code>SELECT</code>, backups and checks work.</p>
 <ul><li><strong>Returns:</strong> <code>database &#39;x&#39; is read-only now: only reads are allowed</code>. A refused change gets <code>the database is read-only (...)</code>, HTTP 403, SQLSTATE <code>25006</code>.</li><li><strong>Notes:</strong>
 <ul><li>Needs a server admin. The setting is kept in the data folder (<code>_system</code>) and holds after a restart. A read-only database cannot be dropped.</li><li><code>kareladb serve --read-only</code> makes <strong>every</strong> database read-only, and refuses new databases and user changes. Good for a report server on a copy of the data.</li></ul></li></ul>
 <p><strong>Example: Read-only, then writable again</strong> (shows an error)</p>

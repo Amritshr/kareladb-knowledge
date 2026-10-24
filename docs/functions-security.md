@@ -33,7 +33,7 @@ WHERE email = 'sita@example.com' AND password_verify('correct horse battery', pa
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$5L`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$YX`
 
 ```text
 1 row(s) inserted
@@ -43,7 +43,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$5LcUSQOMLVh1TlF4TkUunw$YGL6ZXC592xNHE4Bopka6zksauj8x1oHndDkJQvQCnA |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$YX9an00tfhnRECv169PQrA$sZ2fTFPeERtaZM1iPrrskT0jrynW1rLSc5QiUCjKqdw |
 
 (1 row)
 
@@ -91,7 +91,7 @@ Result:
 
 | first (STRING) | second (STRING) |
 |---|---|
-| $pbkdf2-sha256$i=600000$y2JQ9lpBUqqIwT8GTCNLUg$Cvu5yWcKtJAqiLaLmdW1nCBzwHPnrf1mBh0rqjHbGH8 | $pbkdf2-sha256$i=600000$9osqR459XQe9YmhMZ27gng$5f50RLiT+wqGAPDF37Q1SKmujcehN9yitR+VwtNeEMw |
+| $pbkdf2-sha256$i=600000$GaEpv7jPzzZ2yib2OhsZNg$ByFASzN0G7rsGphmXY5x8tCQlTBtJwkkPg6+DHKzdv4 | $pbkdf2-sha256$i=600000$Ul27rlaLmLJsBs320gGYGA$skyI/HNNRhgcjvPUAn2hmghWR/JIUYuVrc+s6pU0iaM |
 
 (1 row)
 
@@ -110,7 +110,7 @@ SELECT id, email, password_hash FROM app_users;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$Ed`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$GH`
 
 ```text
 1 row(s) inserted
@@ -120,7 +120,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$EdB84eIDDCgNn0jTtW7aMQ$dpVnbu3RuUxLkhdJiuEDHDIWpeAE1ZbICIN6DcoMSuo |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$GHLAF87r3Br0d1tblSu//w$K3qTwB9iqx+LnPraSg4tI6FxrQ2S0Sg22UQQQCrIIQ8 |
 
 (1 row)
 
@@ -157,7 +157,7 @@ SELECT id, password_hash FROM app_users;
 
 Result:
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$Y4kyMkd1ucLY1HvwSIXWwQ$py6HOBUcLUFWXSW`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$RoXRDWXw5zZMCy6CUlH/ug$QeSTk+eftLz301y`
 
 ```text
 2 row(s) updated
@@ -167,8 +167,8 @@ Result:
 
 | id (INT) | password_hash (STRING) |
 |---|---|
-| 1 | $pbkdf2-sha256$i=600000$Y4kyMkd1ucLY1HvwSIXWwQ$py6HOBUcLUFWXSWZLEpK7ZjXRsVrrpJhtsNKXYyP2t4 |
-| 2 | $pbkdf2-sha256$i=600000$Y4kyMkd1ucLY1HvwSIXWwQ$py6HOBUcLUFWXSWZLEpK7ZjXRsVrrpJhtsNKXYyP2t4 |
+| 1 | $pbkdf2-sha256$i=600000$RoXRDWXw5zZMCy6CUlH/ug$QeSTk+eftLz301yo7A0LudCoYvlonNeEHajt76FawMI |
+| 2 | $pbkdf2-sha256$i=600000$RoXRDWXw5zZMCy6CUlH/ug$QeSTk+eftLz301yo7A0LudCoYvlonNeEHajt76FawMI |
 
 (2 rows)
 
@@ -183,7 +183,7 @@ Result:
 
 | ok_but_weak (STRING) |
 |---|
-| $pbkdf2-sha256$i=1000$2JSezD2PLRKPkFikkSEuLQ$NTrjORFSBH+Y20ZpWqQ6KeHI0ksYRWjcJZ9JBzBkuVA |
+| $pbkdf2-sha256$i=1000$tt14TTn6lmrofn2YhQGLGg$cu4Un6PMeYDHr5hcGt2sOWHUEq0C/tm1HmCAYABuep8 |
 
 (1 row)
 
@@ -286,7 +286,7 @@ Result:
 
 (1 row)
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$Al+pOVQuWJIk6NK9dZNGfA$0VHbfXeLmktm98K`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$mYLRio///svE1S/jgENK9A$2juL81/gKcwOwgS`
 
 ```text
 1 row(s) updated
@@ -515,7 +515,7 @@ Result:
 
 | four_bytes (STRING) | api_secret (STRING) | hex_chars (LONG) |
 |---|---|---|
-| 51b06c60 | 8d2ae8808228dae8242607e841efd775 | 32 |
+| c27b5a2c | 20089e15c8ddde119c451a48ad89ff31 | 32 |
 
 (1 row)
 
@@ -571,7 +571,7 @@ Result:
 
 | session_token (STRING) | shorter (STRING) | chars (LONG) |
 |---|---|---|
-| x4Zmd-AgNRZA8tiDh3PkfjyK3xb29nAndYpu7F5puF8 | NM8gsekpdOepyWmkuSLljw | 43 |
+| ZZOLNaTU-sQMKXgpuNIbUbegSOm0VBY7odcxUimQYyM | WWupaE-aWtQ-MLVtP30-Sw | 43 |
 
 (1 row)
 
@@ -596,7 +596,7 @@ Result:
 
 | token_for_the_email_link (STRING) |
 |---|
-| gGSh7giuSygz4GOd7XQpMhPpswfPCvdIxjs7vMl2DoE |
+| BTDl0V2kZUxbPiEvWH0ajo7wGhBDeRLmYkA7kaZjBII |
 
 (1 row)
 
@@ -652,7 +652,7 @@ Result:
 
 | id (STRING) | chars (LONG) |
 |---|---|
-| dd90a5cc-6097-4a4e-9f81-5c514caaa6a4 | 36 |
+| 27880a7a-e413-427c-8037-873387cfce5a | 36 |
 
 (1 row)
 
@@ -681,8 +681,8 @@ Result:
 
 | public_id (STRING) | author (STRING) | title (STRING) |
 |---|---|---|
-| a6ce078e-58b5-4281-b656-f4dc1281e0a6 | sita | CITY dividend news |
-| d20e20c8-0f28-464b-8fd9-a2000c8179d8 | ram | बजार आज कस्तो होला? |
+| 666a8e82-f6af-47a3-a7ae-173ea4d16d6f | ram | बजार आज कस्तो होला? |
+| 931e0116-091b-443d-9f7e-6bf9e40a4667 | sita | CITY dividend news |
 
 (2 rows)
 
@@ -805,7 +805,7 @@ Result:
 
 | message (STRING) |
 |---|
-| -----BEGIN PGP MESSAGE-----  ww0EBwMCeHqpANH6Wdpg0joB9GfzIRDk0hhAcfonEOI7K0a+LgL+X80FRFtAiyKSuMf+bxy9ICI3 5WnmODINkSyhoLSIht6PZod7 =3EhB -----END PGP MESSAGE-----  |
+| -----BEGIN PGP MESSAGE-----  ww0EBwMCBVAoI7RioQd/0joBuT26SxzArRvccGeymqAlBljLnev+t6EcCx11qgUdbcvKwu4xsiVX hD/Smq3TJ/wdOZXMN8hw1R9X =4GMR -----END PGP MESSAGE-----  |
 
 (1 row)
 
@@ -1048,7 +1048,7 @@ Result:
 
 | bytes (LONG) | hex (STRING) |
 |---|---|
-| 16 | 83b3827a347264b2 |
+| 16 | b52022be27525efe |
 
 (1 row)
 
@@ -1193,7 +1193,7 @@ SELECT count(*) AS sessions_left FROM app_sessions;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$iI`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$in`
 
 ```text
 1 row(s) inserted
@@ -1211,7 +1211,7 @@ Result:
 
 | token (STRING) |
 |---|
-| MjPY-T7K026nJVqwz96IF_3-kIqoZafKJhbMsSIwOZI |
+| hpXaw23i-HAK3bUl5aEUTlTA-GlvvFhy-gLtXc6mL1c |
 
 (1 row)
 

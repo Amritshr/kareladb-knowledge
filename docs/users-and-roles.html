@@ -34,7 +34,7 @@ SHOW USERS;</code></pre>
 <p><code>CREATE USER report WITH PASSWORD &#39;***&#39; ROLE read</code></p>
 <pre><code class="language-text">user &#39;report&#39; created with role read</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:35.958Z</td><td>2026-10-24T03:43:35.958Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:43:36.124Z</td><td>2026-10-24T03:43:36.124Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-24T03:43:36.040Z</td><td>2026-10-24T03:43:36.046Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:30.366Z</td><td>2026-10-24T03:57:30.366Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:57:30.495Z</td><td>2026-10-24T03:57:30.495Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-24T03:57:30.429Z</td><td>2026-10-24T03:57:30.432Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <h2 id="create-user">CREATE USER</h2>
 <p>Syntax:</p>
@@ -94,7 +94,7 @@ SHOW USERS;</code></pre>
 <p><code>ALTER USER report ROLE write</code></p>
 <pre><code class="language-text">user &#39;report&#39; changed: role write</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:36.621Z</td><td>2026-10-24T03:43:36.621Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>write</td><td>NULL</td><td>2026-10-24T03:43:36.691Z</td><td>2026-10-24T03:43:36.994Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:30.943Z</td><td>2026-10-24T03:57:30.943Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>write</td><td>NULL</td><td>2026-10-24T03:57:31.006Z</td><td>2026-10-24T03:57:31.228Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: The last admin must stay an admin</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -116,7 +116,7 @@ ALTER USER name RESET statement_timeout</code></pre>
 <p>Gives one user their own time limit for a statement. It takes the place of the server&#39;s <code>--statement-timeout</code> (60 s unless set) for that user only.</p>
 <div class="table-wrap"><table><thead><tr><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&#39;2s&#39;</code>, <code>&#39;500ms&#39;</code>, <code>&#39;10min&#39;</code>, <code>5000</code></td><td>the time; a plain number is milliseconds</td></tr><tr><td><code>0</code></td><td>no limit for this user</td></tr><tr><td><code>DEFAULT</code>, or <code>RESET</code></td><td>the server&#39;s limit again</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> a message like <code>statement_timeout of user &#39;charts&#39; is 2 s (from their next statement)</code>. <code>SHOW USERS</code> shows it in the column <code>statement_timeout</code>.</li><li><strong>Notes:</strong>
-<ul><li>Needs <code>ROLE admin</code>. A user can not change their own limit.</li><li>It may be longer than the server&#39;s limit: a report user may get 10 minutes while every other user keeps 60 s.</li><li>In a session, the user may still make it <strong>shorter</strong> with <code>SET statement_timeout</code>, never longer (an admin user may do both).</li><li>It counts on the HTTP API and on the PostgreSQL port, from the user&#39;s next statement. It is kept in the data folder, so it survives a restart.</li><li>A per-role limit (all <code>read</code> users at once) does not exist; set it on each user.</li></ul></li></ul>
+<ul><li>Needs <code>ROLE admin</code>. A user can not change their own limit.</li><li>It may be longer than the server&#39;s limit: a report user may get 10 minutes while every other user keeps 60 s.</li><li>In a session, the user may still make it <strong>shorter</strong> with <code>SET statement_timeout</code>, never longer (an admin user may do both). A longer value or <code>0</code> keeps the user&#39;s limit; the reply and <code>SHOW statement_timeout</code> then show the limit that stays.</li><li>It counts on the HTTP API and on the PostgreSQL port, from the user&#39;s next statement. It is kept in the data folder, so it survives a restart.</li><li>A per-role limit (all <code>read</code> users at once) does not exist; set it on each user.</li></ul></li></ul>
 <p><strong>Example: Short queries for the chart app, long ones for reports</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE USER admin WITH PASSWORD &#39;Long-Admin-Passw0rd&#39; ROLE admin;
@@ -131,7 +131,7 @@ SHOW USERS;</code></pre>
 <p><code>ALTER USER report SET statement_timeout = &#39;600000ms&#39;</code></p>
 <pre><code class="language-text">statement_timeout of user &#39;report&#39; is 10 min (from their next statement)</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:37.276Z</td><td>2026-10-24T03:43:37.276Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>charts</td><td>read</td><td>NULL</td><td>2026-10-24T03:43:37.361Z</td><td>2026-10-24T03:43:37.668Z</td><td>NULL</td><td>false</td><td>2 s</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:43:37.448Z</td><td>2026-10-24T03:43:37.676Z</td><td>NULL</td><td>false</td><td>10 min</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:31.557Z</td><td>2026-10-24T03:57:31.557Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>charts</td><td>read</td><td>NULL</td><td>2026-10-24T03:57:31.630Z</td><td>2026-10-24T03:57:31.843Z</td><td>NULL</td><td>false</td><td>2 s</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:57:31.697Z</td><td>2026-10-24T03:57:31.848Z</td><td>NULL</td><td>false</td><td>10 min</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <p><strong>Example: Back to the server&#39;s limit</strong></p>
 <p>Setup:</p>
@@ -181,7 +181,7 @@ SHOW USERS;</code></pre>
 <p><code>DROP USER IF EXISTS report</code></p>
 <pre><code class="language-text">user &#39;report&#39; does not exist</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:38.148Z</td><td>2026-10-24T03:43:38.148Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:32.200Z</td><td>2026-10-24T03:57:32.200Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: The last admin can not be dropped while others exist</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -207,7 +207,7 @@ GRANT write ON DATABASE shop TO shop_app;
 GRANT read ON DATABASE demo TO shop_app;</code></pre>
 <pre><code class="language-sql">SHOW USERS;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:38.280Z</td><td>2026-10-24T03:43:38.280Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:43:38.438Z</td><td>2026-10-24T03:43:38.438Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=read, shop=write</td><td>2026-10-24T03:43:38.359Z</td><td>2026-10-24T03:43:38.468Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:32.262Z</td><td>2026-10-24T03:57:32.262Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:57:32.395Z</td><td>2026-10-24T03:57:32.395Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=read, shop=write</td><td>2026-10-24T03:57:32.324Z</td><td>2026-10-24T03:57:32.440Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <h2 id="grant">GRANT</h2>
 <p>Syntax:</p>
@@ -230,7 +230,7 @@ SHOW USERS;</code></pre>
 <p><code>GRANT admin ON DATABASE demo TO shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; has role admin on database &#39;demo&#39;</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:38.267Z</td><td>2026-10-24T03:43:38.267Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=admin, shop=write</td><td>2026-10-24T03:43:38.343Z</td><td>2026-10-24T03:43:38.603Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:32.308Z</td><td>2026-10-24T03:57:32.308Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=admin, shop=write</td><td>2026-10-24T03:57:32.373Z</td><td>2026-10-24T03:57:32.618Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: DROP DATABASE removes the grants on it</strong></p>
 <p>Setup:</p>
@@ -242,9 +242,9 @@ GRANT write ON DATABASE shop TO shop_app;</code></pre>
 SHOW USERS;</code></pre>
 <p>Result:</p>
 <p><code>DROP DATABASE shop</code></p>
-<pre><code class="language-text">database &#39;shop&#39; dropped; its folder was moved to kdb-data/_trash/1792813419268-shop</code></pre>
+<pre><code class="language-text">database &#39;shop&#39; dropped; its folder was moved to kdb-data/_trash/1792814253129-shop</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:38.916Z</td><td>2026-10-24T03:43:38.916Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-24T03:43:38.991Z</td><td>2026-10-24T03:43:39.280Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:32.824Z</td><td>2026-10-24T03:57:32.824Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-24T03:57:32.889Z</td><td>2026-10-24T03:57:33.141Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: The database must exist</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -277,7 +277,7 @@ SHOW USERS;</code></pre>
 <p><code>REVOKE ALL ON DATABASE demo FROM shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; has no grant on database &#39;demo&#39; now</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:39.176Z</td><td>2026-10-24T03:43:39.176Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-24T03:43:39.251Z</td><td>2026-10-24T03:43:39.489Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:33.092Z</td><td>2026-10-24T03:57:33.092Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>NULL</td><td>2026-10-24T03:57:33.151Z</td><td>2026-10-24T03:57:33.393Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: REVOKE does not touch the user&#39;s own ROLE</strong></p>
 <p>Setup:</p>
@@ -290,7 +290,7 @@ SHOW USERS;</code></pre>
 <p><code>REVOKE read ON DATABASE demo FROM report</code></p>
 <pre><code class="language-text">user &#39;report&#39; keeps role write on database &#39;demo&#39;: REVOKE read takes away only a read grant; use REVOKE write or REVOKE ALL. Nothing was revoked</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:39.731Z</td><td>2026-10-24T03:43:39.731Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>demo=write</td><td>2026-10-24T03:43:39.813Z</td><td>2026-10-24T03:43:39.816Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:33.514Z</td><td>2026-10-24T03:57:33.514Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>demo=write</td><td>2026-10-24T03:57:33.569Z</td><td>2026-10-24T03:57:33.575Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <h2 id="set-role">SET ROLE</h2>
 <p>Syntax:</p>
@@ -351,7 +351,7 @@ SHOW USERS;</code></pre>
 <p><code>GRANT write ON DATABASE demo TO shop_app</code></p>
 <pre><code class="language-text">user &#39;shop_app&#39; has role write on database &#39;demo&#39;</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:43:39.936Z</td><td>2026-10-24T03:43:39.936Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:43:40.218Z</td><td>2026-10-24T03:43:40.218Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-24T03:43:40.298Z</td><td>2026-10-24T03:43:40.304Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T03:57:33.740Z</td><td>2026-10-24T03:57:33.740Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>report</td><td>read</td><td>NULL</td><td>2026-10-24T03:57:33.986Z</td><td>2026-10-24T03:57:33.986Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>shop_app</td><td>none</td><td>demo=write</td><td>2026-10-24T03:57:34.051Z</td><td>2026-10-24T03:57:34.054Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(3 rows)</p>
 <p><strong>Example: A migration user may change tables, not users</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -407,7 +407,7 @@ kareladb sql shop &quot;CREATE USER report WITH PASSWORD &#39;Reports-only-secre
 <pre><code class="language-text">user &#39;admin&#39; added with role admin in ./kdb-data</code></pre>
 <p><code>&gt; kareladb user list</code></p>
 <pre><code class="language-text">USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-24 09:28:40
+admin                    admin  -                              2026-10-24 09:42:34
 1 user in ./kdb-data</code></pre>
 <p><code>&gt; kareladb sql kdb-data/shop &quot;CREATE TABLE orders (id INT PRIMARY KEY)&quot;</code></p>
 <pre><code class="language-text">table &#39;orders&#39; created</code></pre>
@@ -416,8 +416,8 @@ admin                    admin  -                              2026-10-24 09:28:
 
 name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority
 -------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+---------
-admin  | admin | NULL   | 2026-10-24T03:43:40.648Z | 2026-10-24T03:43:40.648Z | NULL         | false      | NULL              | NULL    
-report | read  | NULL   | 2026-10-24T03:43:41.367Z | 2026-10-24T03:43:41.367Z | NULL         | false      | NULL              | NULL    
+admin  | admin | NULL   | 2026-10-24T03:57:34.170Z | 2026-10-24T03:57:34.170Z | NULL         | false      | NULL              | NULL    
+report | read  | NULL   | 2026-10-24T03:57:34.678Z | 2026-10-24T03:57:34.678Z | NULL         | false      | NULL              | NULL    
 (2 rows, 0.0 ms)</code></pre>
 <p>Here the data folder is <code>kdb-data</code>. The first <code>kareladb sql</code> makes the database <code>shop</code> in it by its path. After that, the plain name <code>shop</code> means the database in the data folder, so the user statements work. A plain name that is <strong>not</strong> in the data folder is taken as a new folder in the current folder, and then user statements say <code>users need a data folder</code>.</p>
 </main>
