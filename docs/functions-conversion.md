@@ -363,9 +363,12 @@ Syntax:
 
 ```sql
 to_date(value)
+to_date(text, format)
 ```
 
 Makes a `DATE` (a day without a clock time) from time text, a `TIMESTAMP` or a number of milliseconds. It keeps the **UTC** date.
+
+With a `format`, the text is read in that shape, with the same words as [to_timestamp(text, format)](#to_timestamp): PostgreSQL's `DD/MM/YYYY` or QuestDB's `dd/MM/yyyy`. The date is the one written: no time zone moves it, as in PostgreSQL.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -391,6 +394,21 @@ Result:
 | a (DATE) | nepal_3am_is_utc_day_before (DATE) | b (DATE) | c (STRING) |
 |---|---|---|---|
 | 2026-09-10 | 2026-09-09 | 1970-01-02 | NULL |
+
+(1 row)
+
+**Example: A date written day first**
+
+```sql
+SELECT to_date('25/09/2026', 'DD/MM/YYYY') AS pg_words,
+       to_date('2026-09-25', 'yyyy-MM-dd') AS questdb_letters;
+```
+
+Result:
+
+| pg_words (DATE) | questdb_letters (DATE) |
+|---|---|
+| 2026-09-25 | 2026-09-25 |
 
 (1 row)
 

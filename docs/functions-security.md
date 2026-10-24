@@ -33,7 +33,7 @@ WHERE email = 'sita@example.com' AND password_verify('correct horse battery', pa
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$VD`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$yO`
 
 ```text
 1 row(s) inserted
@@ -43,7 +43,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$VDHXUEWSaiQkxgwNYpiFsg$szDODcccytFm0N38zPOuIy+Y28BHAxo7o1HfGurvfxI |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$yOWYl7gaviNGU0+kCFaPLw$pZp73iq2dime6lLIZxtkdVbwPUMD8XNf382IaSV5wKI |
 
 (1 row)
 
@@ -91,7 +91,7 @@ Result:
 
 | first (STRING) | second (STRING) |
 |---|---|
-| $pbkdf2-sha256$i=600000$yefsPjr8PA6NM8XGVafsWQ$jDUnbfwSiUNUVwc2PF9+wCr5wbTqCD6mSFv48R6KE30 | $pbkdf2-sha256$i=600000$RCZJjkHcfjVAU7ViyH7xsQ$FBY88fwWfYUL1Ed+T+37Fsbk8Ai9kiBtjBVWDPv3YaM |
+| $pbkdf2-sha256$i=600000$N2P21VAdmpdSRwCZ1kW5Qw$oClC2luEtR9UjVkn3+4qlapPyRJ8xMPjXy0ClZ/lxZw | $pbkdf2-sha256$i=600000$rTnA3p8DpjwK9VvjH7v4tg$c+EDZkCugmIeOPgG8J+9EtwNoRZkTpwDrfcAUxzxPr4 |
 
 (1 row)
 
@@ -110,7 +110,7 @@ SELECT id, email, password_hash FROM app_users;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$RB`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$Ux`
 
 ```text
 1 row(s) inserted
@@ -120,7 +120,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$RB3thjuAdtHY0jdgJG0RoA$zAdUwPeZw5Ho+0zwSwnGPNT+slqIV/u8Mf9HAD79PEg |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$Uxq9gP0FHKatYyvtZ8aQrA$9jb3kdqqj1wEozXKFtC71M9B1/Rn4c6DEToHof6/DJs |
 
 (1 row)
 
@@ -157,7 +157,7 @@ SELECT id, password_hash FROM app_users;
 
 Result:
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$3IVXyL1uQb1a4RvEh/IAwQ$FxTVRhFDjpZFC49`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$Et/UMjuUUgQbNe4dqHomEg$RWmWuiaie4k5Xhb`
 
 ```text
 2 row(s) updated
@@ -167,8 +167,8 @@ Result:
 
 | id (INT) | password_hash (STRING) |
 |---|---|
-| 1 | $pbkdf2-sha256$i=600000$3IVXyL1uQb1a4RvEh/IAwQ$FxTVRhFDjpZFC49ETQaq/m/d3ONRGmz9oPT+BCQZyeI |
-| 2 | $pbkdf2-sha256$i=600000$3IVXyL1uQb1a4RvEh/IAwQ$FxTVRhFDjpZFC49ETQaq/m/d3ONRGmz9oPT+BCQZyeI |
+| 1 | $pbkdf2-sha256$i=600000$Et/UMjuUUgQbNe4dqHomEg$RWmWuiaie4k5XhbJDqsKk8TqarN8FVTwIIdVUuca380 |
+| 2 | $pbkdf2-sha256$i=600000$Et/UMjuUUgQbNe4dqHomEg$RWmWuiaie4k5XhbJDqsKk8TqarN8FVTwIIdVUuca380 |
 
 (2 rows)
 
@@ -183,7 +183,7 @@ Result:
 
 | ok_but_weak (STRING) |
 |---|
-| $pbkdf2-sha256$i=1000$eV3M9beDngLYrB72JIWLXA$t5jlCSRJmvs6TZI1pyp9rWpSPtaHX2qQdPRsFfnUDZk |
+| $pbkdf2-sha256$i=1000$1endbDzLgvK9bsovyedA4Q$cxzqsWfGUbqfPvj6v5uTvbZD1W8Q/V1CAdDjpjh4Nrk |
 
 (1 row)
 
@@ -286,7 +286,7 @@ Result:
 
 (1 row)
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$7IYcDqBolqktOn1tvSzM0g$Qmgodd17k2ogEsp`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$KwS6dFj1hV89T6DHrS03tw$gVUPkoMDPqNEjTM`
 
 ```text
 1 row(s) updated
@@ -355,7 +355,7 @@ Result:
 
 | raw_hash (BYTES) | pg_style_hex (STRING) | same_hex (BOOL) | sha512_hex (STRING) |
 |---|---|---|---|
-| \\xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad | ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad | false | ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f |
+| \\xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad | ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad | true | ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f |
 
 (1 row)
 
@@ -515,7 +515,7 @@ Result:
 
 | four_bytes (STRING) | api_secret (STRING) | hex_chars (LONG) |
 |---|---|---|
-| b0e53ddb | ec359b1da5c28a78b65a2c15764c8dfe | 32 |
+| 097f3852 | f1ed9ddf76180d58283a6317329ddf02 | 32 |
 
 (1 row)
 
@@ -571,7 +571,7 @@ Result:
 
 | session_token (STRING) | shorter (STRING) | chars (LONG) |
 |---|---|---|
-| Z9yhPC64F3iq4SFbJ4b6DnTqLzLfdDQQvmJSn9YDmIc | 3dX9uYMMsXzqepy5y3Owtw | 43 |
+| q2plcM2uFjlKy5Om0R9N6f_fR_VYDxxtCWg3XFSp_vE | c4ZOWoZbeIzelYklPU1wkQ | 43 |
 
 (1 row)
 
@@ -596,7 +596,7 @@ Result:
 
 | token_for_the_email_link (STRING) |
 |---|
-| qRo4qdlIpPFYA0A63NJAfIR1YYjfRL96gw-thiajjcg |
+| ytt8pUDpfZtK7J9J8vcUIO035jO6_moy4CgeeRuDg6Q |
 
 (1 row)
 
@@ -652,7 +652,7 @@ Result:
 
 | id (STRING) | chars (LONG) |
 |---|---|
-| ecd9de47-13f7-445f-878e-7c590c5c2f40 | 36 |
+| f59aa237-dd21-49aa-a995-c45abe5a5a43 | 36 |
 
 (1 row)
 
@@ -681,8 +681,8 @@ Result:
 
 | public_id (STRING) | author (STRING) | title (STRING) |
 |---|---|---|
-| 717f55d7-4277-4b7f-a5a9-c68ee5372bcf | ram | बजार आज कस्तो होला? |
-| fb48b6a2-bf66-4265-995a-c8bc0bf5c2e0 | sita | CITY dividend news |
+| 179d5ffa-4de1-4a40-8578-78988bad985a | ram | बजार आज कस्तो होला? |
+| 4abdc25b-4ca9-462d-850d-221837ae212f | sita | CITY dividend news |
 
 (2 rows)
 
@@ -805,7 +805,7 @@ Result:
 
 | message (STRING) |
 |---|
-| -----BEGIN PGP MESSAGE-----  ww0EBwMC9s8eIy8oJBl+0joBPOiwWSEo7mxjawrOWwLxyxrpFCjy2jr8E2SaRc3QuCuOQpEdvFXZ 8gnWmQK5ZQCwu2jTqsqeFRWI =SJqA -----END PGP MESSAGE-----  |
+| -----BEGIN PGP MESSAGE-----  ww0EBwMCPM3a62G5lGZ90joBN9F+0kBNInwU8Dmnj4y/8NkSH/lu2lRuNmVN9zZAbomPC8ggufs2 /V0hWe6jOJrtkyFs0ZcArFYe =D/X4 -----END PGP MESSAGE-----  |
 
 (1 row)
 
@@ -1048,7 +1048,7 @@ Result:
 
 | bytes (LONG) | hex (STRING) |
 |---|---|
-| 16 | 6fbc37e9de400341 |
+| 16 | 869caf997b402ecb |
 
 (1 row)
 
@@ -1193,7 +1193,7 @@ SELECT count(*) AS sessions_left FROM app_sessions;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$S4`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$h/`
 
 ```text
 1 row(s) inserted
@@ -1211,7 +1211,7 @@ Result:
 
 | token (STRING) |
 |---|
-| kxqpR2joDEuITloSPMslHZ-jOU7vt19Ek5avMbvE6TM |
+| zlqKGLLjuuJJI03yXoabMiIObjIOTmoNe1O67pPR5KQ |
 
 (1 row)
 

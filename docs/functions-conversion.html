@@ -157,8 +157,10 @@ ORDER BY user_id;</code></pre>
 <p>Error: <code>line 1, column 8: to_timestamp: argument 1 must be a time, got &#39;10/09/2026&#39;</code></p>
 <h2 id="to_date">to_date</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">to_date(value)</code></pre>
+<pre><code class="language-sql">to_date(value)
+to_date(text, format)</code></pre>
 <p>Makes a <code>DATE</code> (a day without a clock time) from time text, a <code>TIMESTAMP</code> or a number of milliseconds. It keeps the <strong>UTC</strong> date.</p>
+<p>With a <code>format</code>, the text is read in that shape, with the same words as <a href="#to_timestamp">to_timestamp(text, format)</a>: PostgreSQL&#39;s <code>DD/MM/YYYY</code> or QuestDB&#39;s <code>dd/MM/yyyy</code>. The date is the one written: no time zone moves it, as in PostgreSQL.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>text, <code>TIMESTAMP</code>, <code>DATE</code> or whole number</td><td>a time, or milliseconds since 1970-01-01 UTC</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>DATE</code>.</li><li><strong>NULL:</strong> <code>NULL</code> in, <code>NULL</code> out.</li><li><strong>Notes:</strong>
 <ul><li>The date is the UTC date. Nepal is 5 hours 45 minutes ahead of UTC, so between 00:00 and 05:45 Nepal time the UTC date is the day before. For the Nepal date write <code>to_date(time + 20700000)</code> (20700000 ms = 5 h 45 min).</li><li><code>to_date(86400000)</code> works (a number of milliseconds), but <code>CAST(86400000 AS DATE)</code> is an error. <code>CAST</code> into <code>DATE</code> does not take numbers.</li></ul></li></ul>
@@ -169,6 +171,12 @@ ORDER BY user_id;</code></pre>
        to_date(NULL) AS c;</code></pre>
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>a (DATE)</th><th>nepal_3am_is_utc_day_before (DATE)</th><th>b (DATE)</th><th>c (STRING)</th></tr></thead><tbody><tr><td>2026-09-10</td><td>2026-09-09</td><td>1970-01-02</td><td>NULL</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<p><strong>Example: A date written day first</strong></p>
+<pre><code class="language-sql">SELECT to_date(&#39;25/09/2026&#39;, &#39;DD/MM/YYYY&#39;) AS pg_words,
+       to_date(&#39;2026-09-25&#39;, &#39;yyyy-MM-dd&#39;) AS questdb_letters;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>pg_words (DATE)</th><th>questdb_letters (DATE)</th></tr></thead><tbody><tr><td>2026-09-25</td><td>2026-09-25</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: Sign-ups per day: UTC date and Nepal date</strong></p>
 <p>Setup:</p>

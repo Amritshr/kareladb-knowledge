@@ -136,8 +136,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-045009-049 |     9 | 194519 |      30
-(1 row, 17.3 ms)
+backups/20261024-054455-770 |     9 | 194519 |      30
+(1 row, 19.6 ms)
 backup created and verified
 kareladb>
 ```
@@ -261,7 +261,7 @@ Output:
 `> kareladb backup market backups --keep-daily 7 --keep-weekly 4`
 
 ```text
-backup created and verified: backups/20261024-045009-116
+backup created and verified: backups/20261024-054455-895
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -269,7 +269,7 @@ backup created and verified: backups/20261024-045009-116
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-045009-116    2026-10-24 10:35:09       9   190.0 KB           30
+20261024-054455-895    2026-10-24 11:29:55       9   190.0 KB           30
 1 backups
 ```
 
@@ -287,31 +287,31 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-045009-131
+backup created and verified: backups/20261024-054455-901
   9 files, 190.0 KB, log up to 30
 ```
 
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-045009-171
+backup created and verified: backups/20261024-054455-942
   9 files, 190.0 KB, log up to 30
 ```
 
 `> kareladb backup market backups --keep-daily 1 --keep-weekly 1`
 
 ```text
-backup created and verified: backups/20261024-045009-223
+backup created and verified: backups/20261024-054455-986
   9 files, 190.0 KB, log up to 30
-removed old backup backups/20261024-045009-171
-removed old backup backups/20261024-045009-131
+removed old backup backups/20261024-054455-942
+removed old backup backups/20261024-054455-901
 ```
 
 `> kareladb backups backups`
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-045009-223    2026-10-24 10:35:09       9   190.0 KB           30
+20261024-054455-986    2026-10-24 11:29:55       9   190.0 KB           30
 1 backups
 ```
 
@@ -324,7 +324,7 @@ kareladb backup market before-import --hard-links
 Output:
 
 ```text
-backup created and verified: before-import/20261024-045009-146
+backup created and verified: before-import/20261024-054455-914
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -355,7 +355,7 @@ kareladb>
 `> kareladb backup reports backups`
 
 ```text
-backup created and verified: backups/reports/20261024-045009-224
+backup created and verified: backups/reports/20261024-054455-964
   1 files, 427 B, log up to 2
 ```
 
@@ -363,7 +363,7 @@ backup created and verified: backups/reports/20261024-045009-224
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-045009-224    2026-10-24 10:35:09       1      427 B            2
+20261024-054455-964    2026-10-24 11:29:55       1      427 B            2
 1 backups
 ```
 
@@ -400,7 +400,7 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-045009-188
+backup created and verified: backups/20261024-054455-961
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -408,7 +408,7 @@ backup created and verified: backups/20261024-045009-188
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-045009-188    2026-10-24 10:35:09       9   190.0 KB           30
+20261024-054455-961    2026-10-24 11:29:55       9   190.0 KB           30
 1 backups
 ```
 
@@ -465,7 +465,7 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-045009-239
+backup created and verified: backups/20261024-054456-013
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -655,10 +655,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-045009-448",
-  "dir": "./backups/demo/20261024-045009-448",
-  "created_ms": 1792817409448,
-  "created": "2026-10-24T04:50:09.448Z",
+  "name": "20261024-054456-212",
+  "dir": "./backups/demo/20261024-054456-212",
+  "created_ms": 1792820696212,
+  "created": "2026-10-24T05:44:56.212Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -675,10 +675,10 @@ HTTP 200 (application/json)
   "database": "drill_check",
   "source": "demo",
   "backup": {
-    "name": "20261024-045009-448",
-    "dir": "./backups/demo/20261024-045009-448",
-    "created_ms": 1792817409448,
-    "created": "2026-10-24T04:50:09.448Z",
+    "name": "20261024-054456-212",
+    "dir": "./backups/demo/20261024-054456-212",
+    "created_ms": 1792820696212,
+    "created": "2026-10-24T05:44:56.212Z",
     "end_lsn": 30,
     "checkpoint_lsn": 30,
     "files": 9,
@@ -689,7 +689,7 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 9 data files from ./backups/demo/20261024-045009-448; the log (up to LSN 30) is replayed on first open"
+    "restored 9 data files from ./backups/demo/20261024-054456-212; the log (up to LSN 30) is replayed on first open"
   ],
   "took_ms": 24,
   "next": "check 'drill_check', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"drill_check\"} to put it in place, or DROP DATABASE drill_check"
@@ -716,7 +716,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 33, "execute_us": 154}
+      "timings": {"parse_us": 45, "execute_us": 244}
     }
   ],
   "columns": [
@@ -726,7 +726,7 @@ HTTP 200 (application/json)
     [57]
   ],
   "count": 1,
-  "timings": {"parse_us": 33, "execute_us": 154}
+  "timings": {"parse_us": 45, "execute_us": 244}
 }
 ```
 
@@ -738,7 +738,7 @@ HTTP 200 (application/json)
 {
   "name": "drill_check",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792817409509-drill_check"
+  "moved_to": "kdb-data/_trash/1792820696283-drill_check"
 }
 ```
 

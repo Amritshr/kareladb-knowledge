@@ -33,7 +33,7 @@ SHOW USERS;</code></pre>
 <p><code>CREATE USER grafana WITH PASSWORD &#39;***&#39; ROLE read</code></p>
 <pre><code class="language-text">user &#39;grafana&#39; created with role read</code></pre>
 <p><code>SHOW USERS</code></p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T04:50:42.017Z</td><td>2026-10-24T04:50:42.017Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>grafana</td><td>read</td><td>NULL</td><td>2026-10-24T04:50:42.068Z</td><td>2026-10-24T04:50:42.068Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>role (STRING)</th><th>grants (STRING)</th><th>created (TIMESTAMP)</th><th>changed (TIMESTAMP)</th><th>table_grants (STRING)</th><th>two_factor (BOOL)</th><th>statement_timeout (STRING)</th><th>priority (STRING)</th></tr></thead><tbody><tr><td>admin</td><td>admin</td><td>NULL</td><td>2026-10-24T05:45:31.371Z</td><td>2026-10-24T05:45:31.371Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr><tr><td>grafana</td><td>read</td><td>NULL</td><td>2026-10-24T05:45:31.430Z</td><td>2026-10-24T05:45:31.430Z</td><td>NULL</td><td>false</td><td>NULL</td><td>NULL</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <ul><li>An API token is not a password for the PostgreSQL port (<a href="api-tokens.html">API tokens</a>): Grafana logs in with the user&#39;s password.</li><li>The query editor lists tables and columns for the <strong>Builder</strong> mode. KarelaDB answers the exact catalog SQL Grafana 11 sends (it reads the <code>search_path</code> with <code>array_lower</code> and with <code>string_to_array(...)</code> used as a table).</li></ul>
 <p>Instead of clicking, Grafana can read the data source from a file at start (<code>integrations/grafana/provisioning/datasources/kareladb.yaml</code>). Grafana fills <code>${...}</code> from its own environment, so the password is not in the file. Never put the server&#39;s token in Grafana&#39;s environment:</p>
@@ -136,7 +136,7 @@ ORDER BY 1;</code></pre>
 CREATE USER monitor WITH PASSWORD &#39;Monitor-reads-only-9&#39; ROLE read;</code></pre>
 <pre><code class="language-sql">CREATE TOKEN prometheus FOR USER monitor;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>prometheus</td><td>monitor</td><td>kdbt_WYV2Fhi1lbGS_6ihIFTh8Vx3ITPsapB8ZYJFzc1Ufiw</td><td>NULL</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>user (STRING)</th><th>token (STRING)</th><th>expires (TIMESTAMP)</th></tr></thead><tbody><tr><td>prometheus</td><td>monitor</td><td>kdbt_APOeOsbBi_SiRWg8SNjB-m0TcwJlGgG77_zb_CgErq0</td><td>NULL</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <pre><code class="language-text">token &#39;prometheus&#39; for user &#39;monitor&#39; created: copy it now, it is shown only this once. Send it as Authorization: Bearer &lt;token&gt;</code></pre>
 <p>Put the user&#39;s password in a file next to <code>prometheus.yml</code>, one line, and point the scrape job at the HTTP port:</p>

@@ -582,7 +582,7 @@ Tools and ORMs read the schema from PostgreSQL's catalog. KarelaDB works these o
 | Schema | Views |
 |---|---|
 | `information_schema` | `tables`, `columns`, `views`, `schemata`, `sequences`, `table_constraints`, `key_column_usage`, `constraint_column_usage`, `referential_constraints`, `check_constraints` |
-| `pg_catalog` | `pg_namespace`, `pg_class`, `pg_attribute`, `pg_type`, `pg_index`, `pg_indexes`, `pg_tables`, `pg_views`, `pg_constraint`, `pg_sequences`, `pg_database`, `pg_attrdef`, `pg_roles`, `pg_settings`, `pg_am`, `pg_collation`, `pg_policy` and `pg_policies` ([row rights](table-rights.md#row-rights)), and empty ones such as `pg_description`, `pg_inherits`, `pg_trigger` |
+| `pg_catalog` | `pg_namespace`, `pg_class`, `pg_attribute`, `pg_type`, `pg_index`, `pg_indexes`, `pg_tables`, `pg_views`, `pg_constraint`, `pg_sequences`, `pg_database`, `pg_attrdef`, `pg_roles`, `pg_settings`, `pg_am`, `pg_collation`, `pg_range` (empty: no range types), `pg_policy` and `pg_policies` ([row rights](table-rights.md#row-rights)), and empty ones such as `pg_description`, `pg_inherits`, `pg_trigger` |
 
 They only read. `pg_attribute` also lists the columns of every view and index.
 

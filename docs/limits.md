@@ -203,7 +203,7 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 48, "execute_us": 800}
+      "timings": {"parse_us": 26, "execute_us": 211}
     }
   ],
   "columns": [
@@ -216,7 +216,7 @@ HTTP 200 (application/json)
     ["2026-09-09T05:16:00.000Z", "CITY", 511.9]
   ],
   "count": 2,
-  "timings": {"parse_us": 48, "execute_us": 800}
+  "timings": {"parse_us": 26, "execute_us": 211}
 }
 ```
 
@@ -499,7 +499,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 10:35:07
+newest change   2026-10-24 11:29:53
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
