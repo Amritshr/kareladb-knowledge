@@ -474,7 +474,7 @@ about 6 s (3.6-6 s measured). Each node: `--node-id a --cluster-peers a=http://h
   `KARELADB_SYNC_STANDBYS=required`: never confirmed without a standby. While
   none copies, a write is refused before it is written (`25006`, nothing to
   undo: send it again later); a write whose standby left while it waited fails
-  after `KARELADB_SYNC_WAIT_MS` (10 s) or its statement_timeout (`25006`, "no
+  after `KARELADB_SYNC_WAIT_MS` (10 s) or its statement_timeout (`08007`, "no
   standby holds this commit": it is on the leader, check before resending).
   `0`: faster, but a dead leader loses what the follower had not copied, and a
   leader that is only cut off keeps confirming for up to 3 s (its lease):

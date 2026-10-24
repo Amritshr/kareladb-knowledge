@@ -171,7 +171,7 @@ time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.4 ms)
+(2 rows, more not shown, 0.3 ms)
 ```
 
 **HTTP: HTTP: limit=2, and truncated is true** (sample data: sample)
@@ -203,7 +203,7 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 38, "execute_us": 359}
+      "timings": {"parse_us": 25, "execute_us": 183}
     }
   ],
   "columns": [
@@ -216,7 +216,7 @@ HTTP 200 (application/json)
     ["2026-09-09T05:16:00.000Z", "CITY", 511.9]
   ],
   "count": 2,
-  "timings": {"parse_us": 38, "execute_us": 359}
+  "timings": {"parse_us": 25, "execute_us": 183}
 }
 ```
 
@@ -446,7 +446,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -499,7 +499,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 12:24:33
+newest change   2026-10-24 12:42:41
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -552,7 +552,7 @@ Short list. The details, and the ways around each one, are in [known limitations
 | Procedures and triggers | exception handlers, `LOOP`, `OUT` parameters, functions that return tables, `INSTEAD OF` triggers; row triggers (`FOR EACH ROW`) only as a PostgreSQL `BEFORE UPDATE` trigger |
 | Transactions | Row-level locks cover `UPDATE` / `DELETE` by primary key and `SELECT ... FOR UPDATE` on one table; an `INSERT`, or a change of a table without a primary key or with a secondary `UNIQUE` or a `FOREIGN KEY`, still locks its whole table until `COMMIT`, so `SKIP LOCKED` inside `BEGIN` returns no rows (and `NOWAIT` fails) while another transaction holds that table that way, unless `kareladb serve --skip-locked-beside on`. `FOR SHARE`, `FOR NO KEY UPDATE` and `FOR KEY SHARE` take the same lock as `FOR UPDATE`: two sessions cannot share a row lock, the second one waits (stricter than PostgreSQL, never looser; see [FOR UPDATE](transactions.md#for-update)). |
 | Text and JSON | regular expression back references and look-around, JSON path wildcards (`$.items[*]`), the `jsonb` operator `?` |
-| Time | summer time in `ROUND ... TIME ZONE`, `time IN ... TIME ZONE` and the zone argument of `date_trunc` / `to_char` (fixed offsets only there) |
+| Time | summer time in `ROUND ... TIME ZONE`, `time IN ... TIME ZONE` and the zone argument of `date_trunc` / `to_char` (fixed offsets only there); a zone name as the third argument of `time_bucket` (TimescaleDB form: give an offset) |
 | Server | CORS, compressed replies, a Windows service mode; TLS certificates are read at start (restart after renewing one) |
 | PostgreSQL port | pgAdmin's own catalog queries (psql `\d` and DBeaver work); API tokens as passwords |
 | Users | `CALL` and triggers do not check table rights (rights per database, table, column and row work: [table rights](table-rights.md)); `kareladb sql` and `kareladb shell` never ask for a login |

@@ -29,7 +29,7 @@ In Grafana: **Connections**, **Data sources**, **Add data source**, **PostgreSQL
 | Password | that user's password (the server's token also works, but it gives Grafana full rights: below) |
 | TLS/SSL Mode | `disable` without TLS; `require` when `kareladb serve` runs with [TLS](tls.md) |
 | Version | `14` (KarelaDB says it is PostgreSQL 14) |
-| TimescaleDB | **off** (KarelaDB has no `time_bucket`; [macros](#macros)) |
+| TimescaleDB | off or on: both work. On, `$__timeGroup` becomes [time_bucket](functions-date-time.md#time_bucket), which KarelaDB groups on the column engine ([macros](#macros)) |
 
 **Save & test** answers `Database Connection OK`.
 
@@ -61,8 +61,8 @@ user 'grafana' created with role read
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T06:40:10.959Z | 2026-10-24T06:40:10.959Z | NULL | false | NULL | NULL |
-| grafana | read | NULL | 2026-10-24T06:40:11.015Z | 2026-10-24T06:40:11.015Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T06:58:16.089Z | 2026-10-24T06:58:16.089Z | NULL | false | NULL | NULL |
+| grafana | read | NULL | 2026-10-24T06:58:16.146Z | 2026-10-24T06:58:16.146Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -106,7 +106,7 @@ Grafana changes its macros into plain SQL before it sends the query. The table s
 | `$__unixEpochFilter(col)`, `$__unixEpochFrom()`, `$__unixEpochTo()` | `col >= 1788912000 AND col <= 1789084800` | yes, for a column of whole seconds |
 | `$__unixEpochGroup(col, 1h)`, `$__unixEpochGroupAlias` | `floor((col)/3600)*3600` | yes |
 | `$__interval`, `$__interval_ms` | `2m`, `120000`: the width of one point on the panel | yes |
-| TimescaleDB on: `$__timeGroup` as `time_bucket(...)` | `time_bucket('3600.000s',time)` | **no**: keep TimescaleDB off |
+| TimescaleDB on: `$__timeGroup` as `time_bucket(...)` | `time_bucket('3600.000s',time)` | yes, on the column engine (since 2026-10-24) |
 
 - `$__unixEpochFilter(extract(epoch from time))` does not work: Grafana's macro reader stops at the first `)`. Use `$__timeFilter(time)` on a time column.
 - `$__timeGroup` is the same SQL for every database, so it comes from Grafana's own code. KarelaDB sees the shape `floor(extract(epoch from col)/N)*N` and groups it in the column engine like `date_trunc`, with exactly the rows the row-by-row engine gives (4 million rows into 3,169 five-minute buckets: 34 ms instead of 6.2 s). That is for buckets of whole seconds and of 1/2, 1/4 or 1/8 second. A bucket like `0.1` (Grafana's `100ms`, `50ms`, `1ms` intervals) is not exact in a computer's floating point, so `floor(.../0.1)` must be worked out row by row to give the same edges as PostgreSQL; such a query runs on the row engine. A panel **Min interval** of `1s` keeps every panel on the fast path.
@@ -262,7 +262,7 @@ A dashboard runs every panel's query on each refresh, for every person looking a
 | `symbol = '$symbol'` or `symbol IN ($symbols)` on a `SYMBOL` column | a SYMBOL compare is a number compare ([SYMBOL columns](performance-tips.md#symbol)) |
 | [LATEST ON](latest-on.md) for "last price" tables and stat panels | reads the newest rows of each symbol, not the whole range |
 | A **Min interval** on the panel, and `LIMIT` on table panels | a narrow range or a big table cannot ask for a million rows |
-| TimescaleDB off, no `time_bucket` | `$__timeGroup` is grouped by the column engine; `time_bucket` does not exist |
+| `$__timeGroup` with TimescaleDB off or on | both forms are grouped by the column engine |
 
 **Example: Only the day in the time range is read, in the column engine** (sample data: sample)
 
@@ -326,7 +326,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| prometheus | monitor | kdbt_Hek8EHkI0eOSgLPa9_w3JpN95AxPbzoe5qUZoL8FEl0 | NULL |
+| prometheus | monitor | kdbt_touIbVZPqWYjGrrow6ULmMmH1P2bYtb84PWvuwLW61E | NULL |
 
 (1 row)
 
@@ -419,6 +419,6 @@ Telegraf collects metrics (processor, memory, disks, many services) and can writ
 | `pq: SSL is not enabled on the server` | TLS/SSL Mode `require` on a server without TLS | `disable`, or turn [TLS](tls.md) on |
 | `connections from other computers need a password` | no token and no users, and Grafana runs in Docker (another address) | start the server with a token or make a user |
 | `database 'x' does not exist` | the Database name field | a database from `SHOW DATABASES` |
-| `unknown function 'time_bucket'` | TimescaleDB is on in the data source | turn it off; `$__timeGroup` works without it |
+| `unknown function 'time_bucket'` | a KarelaDB older than 2026-10-24 with TimescaleDB on in the data source | update KarelaDB, or turn TimescaleDB off; `$__timeGroup` works either way |
 | `db has no time column` | Time series format without a `time` column | `AS "time"`, `$__time(col)` or `$__timeGroupAlias(...)` |
 | Prometheus target `down`, `401` | a wrong password in `password_file`, or a wrong token | the password or a token of a user with `read` |

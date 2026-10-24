@@ -96,21 +96,6 @@ HTTP 200 (application/json)
       "result_cache_source": "server"
     },
     {
-      "name": "h1411",
-      "dir": "kdb-data/h1411",
-      "default": false,
-      "encrypted": false,
-      "open": true,
-      "tables": 0,
-      "bytes": 0,
-      "opening": false,
-      "wal_archive_max_bytes": 1073741824,
-      "wal_archive_source": "server",
-      "wal_archive_bytes": 0,
-      "result_cache_bytes": 268435456,
-      "result_cache_source": "server"
-    },
-    {
       "name": "h1412",
       "dir": "kdb-data/h1412",
       "default": false,
@@ -311,7 +296,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'items' created",
-      "timings": {"parse_us": 14, "execute_us": 5261}
+      "timings": {"parse_us": 13, "execute_us": 5825}
     },
     {
       "statement": "SHOW TABLES",
@@ -329,10 +314,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 14, "execute_us": 15}
+      "timings": {"parse_us": 13, "execute_us": 15}
     }
   ],
-  "timings": {"parse_us": 28, "execute_us": 5276}
+  "timings": {"parse_us": 26, "execute_us": 5840}
 }
 ```
 
@@ -449,7 +434,7 @@ HTTP 200 (application/json)
 {
   "name": "help_scratch",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792824011912-help_scratch"
+  "moved_to": "kdb-data/_trash/1792825096971-help_scratch"
 }
 ```
 

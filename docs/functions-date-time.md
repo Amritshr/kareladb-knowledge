@@ -1088,6 +1088,7 @@ Puts a time into a bucket of a fixed width and gives the bucket's start. `time_b
   - Without an origin, `time_bucket` counts from Monday 2000-01-03 (so `'1 week'` starts on Monday) and month widths from 2000-01-01, as TimescaleDB does.
   - A width mixing months with days or hours (`'1 month 2 days'`) is an error, so is a width of zero or less.
   - Buckets are cut on UTC's clock, not the session's. For local days give an offset or an origin at local midnight.
+  - TimescaleDB's third-argument form with a zone name (`time_bucket('1 day', t, 'Asia/Kathmandu')`) is not supported: it is an error, never a wrong bucket. Give the offset instead (`INTERVAL '5 hours 45 minutes'`), or use [timestamp_floor](#timestamp_floor) with a zone.
   - **Speed:** as a `GROUP BY` key on a `TIMESTAMP` column both are read by the column engine, as fast as [date_trunc](#date_trunc). Month widths from an origin that is not the first of a month at midnight are worked out row by row.
 
 **Example: Buckets of one moment**
@@ -1134,6 +1135,28 @@ Result:
 | 2026-09-10T09:00:00.000Z | 505 | 506.1 | 504.3 | 504.9 |
 
 (9 rows)
+
+**Example: Grafana with TimescaleDB on: $__timeGroup(time, 1h) becomes this** (sample data: sample)
+
+```sql
+SELECT time_bucket('3600.000s', time) AS time, avg(close) AS close
+FROM ochl_minutes
+WHERE symbol = 'CITY' AND time IN '2026-09-10'
+GROUP BY 1
+ORDER BY 1;
+```
+
+Result:
+
+| time (TIMESTAMP) | close (DOUBLE) |
+|---|---|
+| 2026-09-10T05:00:00.000Z | 505.244444444444 |
+| 2026-09-10T06:00:00.000Z | 504.555 |
+| 2026-09-10T07:00:00.000Z | 502.686666666667 |
+| 2026-09-10T08:00:00.000Z | 504.516666666667 |
+| 2026-09-10T09:00:00.000Z | 505.12 |
+
+(5 rows)
 
 **Example: date_bin takes no months** (shows an error)
 
@@ -2484,7 +2507,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 06:39:52.841 | 12:24 | true |
+| 06:57:59.636 | 12:42 | true |
 
 (1 row)
 

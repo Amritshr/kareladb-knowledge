@@ -1133,7 +1133,7 @@ id | owner | balance
 ---+-------+--------
  1 | Ram   |  600.00
  2 | Sita  |    0.00
-(2 rows, 0.3 ms)
+(2 rows, 0.2 ms)
 ```
 
 <a id="print"></a>

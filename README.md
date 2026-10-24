@@ -1,6 +1,6 @@
 # KarelaDB knowledge
 
-Documentation of **KarelaDB (KARELA DataBase)** for people and for AI assistants (web site: https://amritshr.github.io/kareladb-knowledge/): 123 help topics, 25 tutorial chapters and 2321 examples. Every example ran on kareladb 0.2.0-dev when this was built (2026-10-24), and its real result is written under it.
+Documentation of **KarelaDB (KARELA DataBase)** for people and for AI assistants (web site: https://amritshr.github.io/kareladb-knowledge/): 123 help topics, 25 tutorial chapters and 2322 examples. Every example ran on kareladb 0.2.0-dev when this was built (2026-10-24), and its real result is written under it.
 
 KarelaDB is a SQL database for time-series and relational data, made by Amrit Shrestha. One program serves an HTTP/JSON API and a web console (port 9900) and the PostgreSQL wire protocol (port 8832). It is not kdb+/q.
 

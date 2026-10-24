@@ -217,10 +217,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 46, "execute_us": 82}
+      "timings": {"parse_us": 30, "execute_us": 64}
     }
   ],
-  "timings": {"parse_us": 46, "execute_us": 82}
+  "timings": {"parse_us": 30, "execute_us": 64}
 }
 ```
 
@@ -235,7 +235,7 @@ HTTP 200 (application/json)
   "events": [
     {
       "seq": 2,
-      "ms": 1792823976459,
+      "ms": 1792825064697,
       "kind": "query",
       "level": "ok",
       "user": "",
@@ -248,7 +248,7 @@ HTTP 200 (application/json)
     },
     {
       "seq": 3,
-      "ms": 1792823980116,
+      "ms": 1792825068195,
       "kind": "query",
       "level": "ok",
       "user": "",

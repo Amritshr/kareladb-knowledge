@@ -125,7 +125,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792823978482,
+  "server_time_ms": 1792825066606,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -150,7 +150,7 @@ HTTP 503 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792823978504,
+  "server_time_ms": 1792825066637,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -298,7 +298,7 @@ Use `KARELADB_SYNC_STANDBYS=required` for data where a refused write is better t
 |---|---|
 | A standby copies | the same as `1`: confirmed once the standby holds it |
 | No standby copies (for longer than the lease) | refused **before it is written**: SQLSTATE `25006`, HTTP `500`, `no standby holds this database's log now ... nothing of it was written`. Send it again once a standby copies (`GET /api/cluster`) |
-| The standby goes away while the commit waits | the commit waits up to `KARELADB_SYNC_WAIT_MS` (10 s) or its `statement_timeout`, then fails: `25006`, `no standby holds this commit ... it is on the leader's disk ... not confirmed`. It stays on the leader and the standby copies it when it comes back. Check whether it is there before you send it again |
+| The standby goes away while the commit waits (also a standby that stays connected but stops copying) | the commit waits up to `KARELADB_SYNC_WAIT_MS` (10 s; a `statement_timeout` ends it sooner when the commit waits inside its statement), then fails: `08007` ("transaction resolution unknown"; not `25006`, which means nothing was written), `no standby holds this commit ... it is on the leader's disk ... not confirmed`. It stays on the leader and the standby copies it when it comes back. Check whether it is there before you send it again |
 | `SET synchronous_commit = off` | not refused and not waited for, as with `1`: the session asked for no wait |
 
 Each refused or failed commit counts in `kdb_cluster_sync_refused_total`, and the log says `WARNING: sync commit: ... required: commits are refused` at most every 10 s. Reads always go on. PostgreSQL's synchronous standby makes a commit wait forever (or, cancelled, keeps it with a warning); MySQL's semi-sync falls back to async after a timeout. `required` instead refuses up front once it knows no standby copies, so a client never hangs and never hears "done" for a commit only one disk holds.

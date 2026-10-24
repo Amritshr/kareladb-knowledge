@@ -442,7 +442,7 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-24 12:24:36
+newest change   2026-10-24 12:42:44
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   8
 

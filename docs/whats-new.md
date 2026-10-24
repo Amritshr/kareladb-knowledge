@@ -18,7 +18,7 @@ This page lists what was added to KarelaDB from 2026-09-12 to 2026-09-24. Each l
 
 | What changed | Measured (`kareladb sql`, best of 5, the program before and after on the same data) | Read more |
 |---|---|---|
-| `SAMPLE BY` with no other key over a table stored `SORT BY (symbol, time)` (the default) finds each bucket's group by its number, in any order, and reads a partition in stretches of time, so a bucket is made once and its numbers stay in the CPU's cache. Every answer is the same to the last bit. | one day, 2M trades of 500 symbols, `1s`: 1,630 -> 52 ms (sorted by time: 44 ms); `100ms`: 69 s -> 0.21 s; `1s FILL(PREV)`: 1,679 -> 101 ms; one day of a month partition at `1s`: 343 -> 60 ms (warm: 299 -> 19 ms); a month at `1m`: 409 -> 49 ms | [SAMPLE BY](sample-by.md) |
+| `SAMPLE BY` with no other key over a table stored `SORT BY (symbol, time)` (the default) finds each bucket's group by its number, in any order, and reads a partition in stretches of time, so a bucket is made once and its numbers stay in the CPU's cache. The answers are the same, row for row (a `DOUBLE` sum may differ in its last digit, as the rows add in another order). | one day, 2M trades of 500 symbols, `1s`: 1,630 -> 52 ms (sorted by time: 44 ms); `100ms`: 69 s -> 0.21 s; `1s FILL(PREV)`: 1,679 -> 101 ms; one day of a month partition at `1s`: 343 -> 60 ms (warm: 299 -> 19 ms); a month at `1m`: 409 -> 49 ms | [SAMPLE BY](sample-by.md) |
 
 <a id="2026-10-23-views"></a>
 
