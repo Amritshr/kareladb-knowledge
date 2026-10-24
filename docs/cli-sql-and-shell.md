@@ -162,7 +162,7 @@ time                     | symbol | close
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
 2026-09-09T05:17:00.000Z | CITY   | 511.9
-(3 rows, more not shown, 0.4 ms)
+(3 rows, more not shown, 0.3 ms)
 ```
 
 `--max-rows` is a safety net for big results. When you want fewer rows, write `LIMIT` in the SQL: it says clearly what you want, and it works the same in the console and over HTTP.
@@ -214,7 +214,7 @@ symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.3 ms)
+(3 rows, 0.4 ms)
 ```
 
 ```powershell
@@ -255,8 +255,8 @@ Output:
 ```text
 backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-065745-420 |     9 | 194519 |      30
-(1 row, 17.2 ms)
+backups/20261024-071322-594 |     9 | 194519 |      30
+(1 row, 17.8 ms)
 backup created and verified
 ```
 
@@ -526,7 +526,7 @@ kareladb> 1 row(s) inserted
 kareladb> inside_the_transaction
 ----------------------
                      6
-(1 row, 0.1 ms)
+(1 row, 0.2 ms)
 kareladb> 
 the open transaction was rolled back (it had no COMMIT)
 ```
@@ -805,7 +805,7 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> problem
 -------
-(0 rows, 0.7 ms)
+(0 rows, 0.9 ms)
 OK: no damage found in 14 files
 kareladb>
 ```
@@ -835,8 +835,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-065745-759 |     9 | 194519 |      30
-(1 row, 88.5 ms)
+backups/20261024-071322-920 |     9 | 194519 |      30
+(1 row, 18.9 ms)
 backup created and verified
 kareladb>
 ```
@@ -891,6 +891,6 @@ End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> one
 ---
   1
-(1 row, 0.1 ms)
+(1 row, 0.3 ms)
 kareladb>
 ```

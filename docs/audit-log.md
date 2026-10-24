@@ -284,7 +284,7 @@ audit is on for table 'ledger': every changed row is written to _audit_log
 
 | log (STRING) | ok (BOOL) | rows_checked (LONG) | unchained (LONG) | first_seq (LONG) | last_seq (LONG) | first_broken (LONG) | problems (STRING) | last_hash (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | 8fdb1147ea1b18e19bb8a6e7875ec26814d2c6bf9ca0167b3435a389e1fc7311 |
+| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | 3f44336274f8b87da5c88779b98395f827700ff36ffbca52e5a85db9a53f97a5 |
 
 (1 row)
 

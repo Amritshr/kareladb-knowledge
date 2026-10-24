@@ -1277,7 +1277,7 @@ Result:
 view 'broker_names' dropped
 ```
 
-Error: `view 'big_brokers': line 1, column 18: table or view 'broker_names' does not exist`
+Error: `line 1, column 18: table or view 'broker_names' does not exist`
 
 <a id="show-views"></a>
 
