@@ -100,7 +100,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 market  |      0 |     0 | false  
-(2 rows, 0.1 ms)
+(2 rows, 0.2 ms)
 kareladb>
 ```
 
@@ -285,7 +285,7 @@ Result:
 `DROP DATABASE test_2025`
 
 ```text
-database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792816897849-test_2025
+database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792817416264-test_2025
 ```
 
 `DROP DATABASE IF EXISTS test_2025`
@@ -318,7 +318,7 @@ SHOW TABLES;
 Result:
 
 ```text
-database 'demo' dropped; its folder was moved to kdb-data/_trash/1792816897855-demo; no database is selected now (USE <name>)
+database 'demo' dropped; its folder was moved to kdb-data/_trash/1792817416275-demo; no database is selected now (USE <name>)
 ```
 
 Error: `no database is selected; choose one with USE <name>`
@@ -406,7 +406,7 @@ Result:
 `DROP DATABASE old_test`
 
 ```text
-database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792816898081-old_test
+database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792817416376-old_test
 ```
 
 `PURGE TRASH ALL`

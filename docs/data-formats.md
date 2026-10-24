@@ -53,7 +53,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 10:26:20
+newest change   2026-10-24 10:35:07
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -113,7 +113,7 @@ data         693 B
 block size   65536
 LSN          30
 id           1
-created      2026-10-24 10:26:20
+created      2026-10-24 10:35:07
 blocks       1
 digest       1d198644
 OK: all blocks match their checksums
@@ -154,9 +154,9 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           9
-created      2026-10-24 10:26:20
+created      2026-10-24 10:35:07
 blocks       1
-digest       ceb3f6a7
+digest       6bdc2e69
 OK: all blocks match their checksums
 ```
 
@@ -231,7 +231,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 10:26:20
+newest change   2026-10-24 10:35:07
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -260,9 +260,9 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           8
-created      2026-10-24 10:26:20
+created      2026-10-24 10:35:07
 blocks       1
-digest       057490f3
+digest       a01b483d
 OK: all blocks match their checksums
 ```
 
@@ -300,7 +300,7 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-044122-346
+backup created and verified: backups/20261024-045009-188
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -308,7 +308,7 @@ backup created and verified: backups/20261024-044122-346
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-044122-346    2026-10-24 10:26:22       9   190.0 KB           30
+20261024-045009-188    2026-10-24 10:35:09       9   190.0 KB           30
 1 backups
 ```
 

@@ -90,7 +90,7 @@ Output:
 before
 ------
      5
-(1 row, 0.2 ms)
+(1 row, 0.1 ms)
 error: line 1, column 48: unknown column 'nope' (table 'brokers' has: id name)
 ```
 
@@ -255,8 +255,8 @@ Output:
 ```text
 backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-044124-853 |     9 | 194519 |      30
-(1 row, 19.9 ms)
+backups/20261024-045010-901 |     9 | 194519 |      30
+(1 row, 68.2 ms)
 backup created and verified
 ```
 
@@ -364,7 +364,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false  
 reports |      1 |   229 | true   
-(2 rows, 0.1 ms)
+(2 rows, 0.2 ms)
 kareladb>
 ```
 
@@ -526,7 +526,7 @@ kareladb> 1 row(s) inserted
 kareladb> inside_the_transaction
 ----------------------
                      6
-(1 row, 0.2 ms)
+(1 row, 0.1 ms)
 kareladb> 
 the open transaction was rolled back (it had no COMMIT)
 ```
@@ -835,8 +835,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-044125-523 |     9 | 194519 |      30
-(1 row, 15.2 ms)
+backups/20261024-045011-247 |     9 | 194519 |      30
+(1 row, 18.3 ms)
 backup created and verified
 kareladb>
 ```

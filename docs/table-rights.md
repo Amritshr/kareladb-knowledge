@@ -70,8 +70,8 @@ granted SELECT on table 'securities' of database 'demo' to user 'viewer'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T04:42:39.874Z | 2026-10-24T04:42:39.874Z | NULL | false | NULL | NULL |
-| viewer | none | NULL | 2026-10-24T04:42:39.929Z | 2026-10-24T04:42:39.937Z | demo.securities: +SELECT | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T04:51:05.554Z | 2026-10-24T04:51:05.554Z | NULL | false | NULL | NULL |
+| viewer | none | NULL | 2026-10-24T04:51:05.607Z | 2026-10-24T04:51:05.641Z | demo.securities: +SELECT | false | NULL | NULL |
 
 (2 rows)
 
@@ -134,8 +134,8 @@ revoked UPDATE, DELETE on table 'ledger' of database 'demo' from user 'app'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T04:42:39.905Z | 2026-10-24T04:42:39.905Z | NULL | false | NULL | NULL |
-| app | none | demo=write | 2026-10-24T04:42:39.961Z | 2026-10-24T04:42:39.970Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T04:51:05.671Z | 2026-10-24T04:51:05.671Z | NULL | false | NULL | NULL |
+| app | none | demo=write | 2026-10-24T04:51:05.725Z | 2026-10-24T04:51:05.771Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL |
 
 (2 rows)
 

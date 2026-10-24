@@ -171,7 +171,7 @@ time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.3 ms)
+(2 rows, more not shown, 0.4 ms)
 ```
 
 **HTTP: HTTP: limit=2, and truncated is true** (sample data: sample)
@@ -203,7 +203,7 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 315}
+      "timings": {"parse_us": 48, "execute_us": 800}
     }
   ],
   "columns": [
@@ -216,7 +216,7 @@ HTTP 200 (application/json)
     ["2026-09-09T05:16:00.000Z", "CITY", 511.9]
   ],
   "count": 2,
-  "timings": {"parse_us": 23, "execute_us": 315}
+  "timings": {"parse_us": 48, "execute_us": 800}
 }
 ```
 
@@ -499,7 +499,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 10:26:20
+newest change   2026-10-24 10:35:07
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 

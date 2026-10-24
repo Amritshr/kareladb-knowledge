@@ -207,7 +207,7 @@ kareladb> partition | result                        | bytes
 ----------+-------------------------------+------
 2025-01   | moved to cold store 'archive' |   692
 2025-02   | moved to cold store 'archive' |   692
-(2 rows, 11.3 ms)
+(2 rows, 10.1 ms)
 2 partition(s) of table 'ticks' moved to cold store 'archive' (they stay there: cold_after is not set)
 kareladb> symbol | days | avg_price | volume
 -------+------+-----------+-------
@@ -262,12 +262,12 @@ kareladb> partition | result                        | bytes
 ----------+-------------------------------+------
 2025-01   | moved to cold store 'archive' |   692
 2025-02   | moved to cold store 'archive' |   692
-(2 rows, 12.6 ms)
+(2 rows, 11.1 ms)
 2 partition(s) of table 'ticks' moved to cold store 'archive' (they stay there: cold_after is not set)
 kareladb> partition | result                       | bytes
 ----------+------------------------------+------
 2025-02   | written back as a local file |     0
-(1 row, 2.9 ms)
+(1 row, 2.4 ms)
 1 partition(s) of table 'ticks' are local files again
 kareladb>
 ```
@@ -334,7 +334,7 @@ kareladb> partition | result                        | bytes
 2025-01   | moved to cold store 'archive' |   692
 2025-02   | moved to cold store 'archive' |   692
 2025-03   | moved to cold store 'archive' |   692
-(3 rows, 18.7 ms)
+(3 rows, 17.1 ms)
 3 partition(s) of table 'ticks' moved to cold store 'archive' (they stay there: cold_after is not set)
 kareladb> table_name | partition | store   | bytes
 -----------+-----------+---------+------
