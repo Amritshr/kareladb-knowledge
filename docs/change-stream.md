@@ -155,7 +155,7 @@ HTTP 200 (application/json)
     {
       "lsn": 2,
       "seq": 0,
-      "committed_at": "2026-10-24T03:55:52.210Z",
+      "committed_at": "2026-10-24T04:41:23.417Z",
       "op": "ddl",
       "key": "CREATE TABLE acct (\n  id INT PRIMARY KEY,\n  name STRING,\n  bal DOUBLE\n)",
       "row": null
@@ -163,7 +163,7 @@ HTTP 200 (application/json)
     {
       "lsn": 4,
       "seq": 0,
-      "committed_at": "2026-10-24T03:55:52.250Z",
+      "committed_at": "2026-10-24T04:41:23.421Z",
       "op": "upsert",
       "key": null,
       "row": {"id": 1, "name": "Asha", "bal": 10}

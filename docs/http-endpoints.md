@@ -68,10 +68,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "endpoint 'last_close' created: GET /v/last_close",
-      "timings": {"parse_us": 102, "execute_us": 43120}
+      "timings": {"parse_us": 79, "execute_us": 6580}
     }
   ],
-  "timings": {"parse_us": 102, "execute_us": 43120}
+  "timings": {"parse_us": 79, "execute_us": 6580}
 }
 ```
 
@@ -98,7 +98,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 325}
+      "timings": {"parse_us": 14, "execute_us": 524}
     }
   ],
   "columns": [
@@ -111,7 +111,7 @@ HTTP 200 (application/json)
     ["2026-09-08T00:00:00.000Z", 497.5]
   ],
   "count": 3,
-  "timings": {"parse_us": 12, "execute_us": 325}
+  "timings": {"parse_us": 14, "execute_us": 524}
 }
 ```
 
@@ -136,7 +136,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 47, "execute_us": 253}
+      "timings": {"parse_us": 22, "execute_us": 236}
     }
   ],
   "columns": [
@@ -147,7 +147,7 @@ HTTP 200 (application/json)
     ["2026-09-10T00:00:00.000Z", 504.9]
   ],
   "count": 1,
-  "timings": {"parse_us": 47, "execute_us": 253}
+  "timings": {"parse_us": 22, "execute_us": 236}
 }
 ```
 
@@ -201,10 +201,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "endpoint 'closes' created: GET /v/closes",
-      "timings": {"parse_us": 22, "execute_us": 37665}
+      "timings": {"parse_us": 20, "execute_us": 6875}
     }
   ],
-  "timings": {"parse_us": 22, "execute_us": 37665}
+  "timings": {"parse_us": 20, "execute_us": 6875}
 }
 ```
 

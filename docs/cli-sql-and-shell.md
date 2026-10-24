@@ -255,8 +255,8 @@ Output:
 ```text
 backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-035553-188 |     9 | 194519 |      30
-(1 row, 97.9 ms)
+backups/20261024-044124-853 |     9 | 194519 |      30
+(1 row, 19.9 ms)
 backup created and verified
 ```
 
@@ -364,7 +364,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false  
 reports |      1 |   229 | true   
-(2 rows, 2.4 ms)
+(2 rows, 0.1 ms)
 kareladb>
 ```
 
@@ -775,7 +775,7 @@ kareladb> kareladb> time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.5 ms)
+(2 rows, more not shown, 0.3 ms)
 kareladb>
 ```
 
@@ -805,7 +805,7 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> problem
 -------
-(0 rows, 0.9 ms)
+(0 rows, 0.6 ms)
 OK: no damage found in 14 files
 kareladb>
 ```
@@ -835,8 +835,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-035553-707 |     9 | 194519 |      30
-(1 row, 110.4 ms)
+backups/20261024-044125-523 |     9 | 194519 |      30
+(1 row, 15.2 ms)
 backup created and verified
 kareladb>
 ```

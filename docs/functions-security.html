@@ -26,10 +26,10 @@ SELECT id, email, password_hash FROM app_users;
 SELECT id FROM app_users
 WHERE email = &#39;sita@example.com&#39; AND password_verify(&#39;correct horse battery&#39;, password_hash);</code></pre>
 <p>Result:</p>
-<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$YX</code></p>
+<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$/9</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
 <p><code>SELECT id, email, password_hash FROM app_users</code></p>
-<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$YX9an00tfhnRECv169PQrA$sZ2fTFPeERtaZM1iPrrskT0jrynW1rLSc5QiUCjKqdw</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$/9xW/zvBTzFObP6bxbfFJA$ogl7cw4TTWPV478ip/bzHK54IqLZkj++nyBcxs2nO2k</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>SELECT id FROM app_users WHERE email = &#39;sita@example.com&#39; AND password_verify(&#39;correct horse battery</code></p>
 <div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
@@ -45,7 +45,7 @@ password_hash(password, iterations)</code></pre>
 <p><strong>Example: The same password twice gives two different hashes</strong></p>
 <pre><code class="language-sql">SELECT password_hash(&#39;correct horse battery&#39;) AS first, password_hash(&#39;correct horse battery&#39;) AS second;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>first (STRING)</th><th>second (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=600000$GaEpv7jPzzZ2yib2OhsZNg$ByFASzN0G7rsGphmXY5x8tCQlTBtJwkkPg6+DHKzdv4</td><td>$pbkdf2-sha256$i=600000$Ul27rlaLmLJsBs320gGYGA$skyI/HNNRhgcjvPUAn2hmghWR/JIUYuVrc+s6pU0iaM</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>first (STRING)</th><th>second (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=600000$8naD5qc0l9mDWbQYA8m6iA$mIgtxFpi8p+yhfEk8TxXEYhBYSJFWAaKSDxIgL2pRgc</td><td>$pbkdf2-sha256$i=600000$90gwnMHnN6KFhg4r9inkkA$Cl9yz2KvFeh0O3dOmS3qlNCyo0g4nUyyetSWNo4gzqM</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: Register: store the hash, never the password</strong></p>
 <p>Setup:</p>
@@ -53,10 +53,10 @@ password_hash(password, iterations)</code></pre>
 <pre><code class="language-sql">INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, password_hash(&#39;correct horse battery&#39;));
 SELECT id, email, password_hash FROM app_users;</code></pre>
 <p>Result:</p>
-<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$GH</code></p>
+<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$s+</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
 <p><code>SELECT id, email, password_hash FROM app_users</code></p>
-<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$GHLAF87r3Br0d1tblSu//w$K3qTwB9iqx+LnPraSg4tI6FxrQ2S0Sg22UQQQCrIIQ8</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>email (STRING)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>sita@example.com</td><td>$pbkdf2-sha256$i=600000$s+EARR76aEclM3IIbaUJ+g$xfBR2eeHgPRUum4b7NGZGQW3rq4lTQXcjzSk62HEAh4</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: The email is already registered</strong> (shows an error)</p>
 <p>Setup:</p>
@@ -72,16 +72,16 @@ INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;,
 <pre><code class="language-sql">UPDATE app_users SET password_hash = password_hash(&#39;Temporary-pass-1&#39;);
 SELECT id, password_hash FROM app_users;</code></pre>
 <p>Result:</p>
-<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$RoXRDWXw5zZMCy6CUlH/ug$QeSTk+eftLz301y</code></p>
+<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$Ho6KzSndVa3ehgyhhqtqVQ$do9i0ma4U9Fsxwi</code></p>
 <pre><code class="language-text">2 row(s) updated</code></pre>
 <p><code>SELECT id, password_hash FROM app_users</code></p>
-<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>$pbkdf2-sha256$i=600000$RoXRDWXw5zZMCy6CUlH/ug$QeSTk+eftLz301yo7A0LudCoYvlonNeEHajt76FawMI</td></tr><tr><td>2</td><td>$pbkdf2-sha256$i=600000$RoXRDWXw5zZMCy6CUlH/ug$QeSTk+eftLz301yo7A0LudCoYvlonNeEHajt76FawMI</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (INT)</th><th>password_hash (STRING)</th></tr></thead><tbody><tr><td>1</td><td>$pbkdf2-sha256$i=600000$Ho6KzSndVa3ehgyhhqtqVQ$do9i0ma4U9FsxwijpzWfAIK/FJ1CPMmKDU4OMx+Vtm0</td></tr><tr><td>2</td><td>$pbkdf2-sha256$i=600000$Ho6KzSndVa3ehgyhhqtqVQ$do9i0ma4U9FsxwijpzWfAIK/FJ1CPMmKDU4OMx+Vtm0</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: Fewer rounds: faster, but easier to guess</strong> (shows an error)</p>
 <pre><code class="language-sql">SELECT password_hash(&#39;my password&#39;, 1000) AS ok_but_weak;
 SELECT password_hash(&#39;my password&#39;, 500) AS too_few;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>ok_but_weak (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=1000$tt14TTn6lmrofn2YhQGLGg$cu4Un6PMeYDHr5hcGt2sOWHUEq0C/tm1HmCAYABuep8</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>ok_but_weak (STRING)</th></tr></thead><tbody><tr><td>$pbkdf2-sha256$i=1000$dijtpxxb+57MSlePlq2F6g$xaFB2Tlbcu2GjJfiInKvK22YSXK5qMOP5+GEw2m7w8k</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p>Error: <code>line 2, column 8: password_hash: iterations must be a whole number from 1000 to 10000000 (default 600000)</code></p>
 <h2 id="password-verify">password_verify</h2>
@@ -124,7 +124,7 @@ FROM app_users WHERE id = 1;</code></pre>
 <p><code>SELECT password_verify(&#39;old password 1&#39;, password_hash) AS old_is_right FROM app_users WHERE id = 1</code></p>
 <div class="table-wrap"><table><thead><tr><th>old_is_right (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
 <p>(1 row)</p>
-<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$mYLRio///svE1S/jgENK9A$2juL81/gKcwOwgS</code></p>
+<p><code>UPDATE app_users SET password_hash = &#39;$pbkdf2-sha256$i=600000$TqqiofUJzsFC0Vp2I54gAQ$DljB+SU82IJOkQj</code></p>
 <pre><code class="language-text">1 row(s) updated</code></pre>
 <p><code>SELECT password_verify(&#39;old password 1&#39;, password_hash) AS old_works, password_verify(&#39;new password </code></p>
 <div class="table-wrap"><table><thead><tr><th>old_works (BOOL)</th><th>new_works (BOOL)</th></tr></thead><tbody><tr><td>false</td><td>true</td></tr></tbody></table></div>
@@ -213,7 +213,7 @@ HAVING count(*) &gt; 1;</code></pre>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT random_bytes(4) AS four_bytes, random_bytes(16) AS api_secret, length(random_bytes(16)) AS hex_chars;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>four_bytes (STRING)</th><th>api_secret (STRING)</th><th>hex_chars (LONG)</th></tr></thead><tbody><tr><td>c27b5a2c</td><td>20089e15c8ddde119c451a48ad89ff31</td><td>32</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>four_bytes (STRING)</th><th>api_secret (STRING)</th><th>hex_chars (LONG)</th></tr></thead><tbody><tr><td>5edef36b</td><td>74cbd96f74b28a672d830b02e4bea208</td><td>32</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: The number must be from 1 to 1024</strong> (shows an error)</p>
 <pre><code class="language-sql">SELECT random_bytes(0);</code></pre>
@@ -234,7 +234,7 @@ random_token(n)</code></pre>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT random_token() AS session_token, random_token(16) AS shorter, length(random_token()) AS chars;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>session_token (STRING)</th><th>shorter (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>ZZOLNaTU-sQMKXgpuNIbUbegSOm0VBY7odcxUimQYyM</td><td>WWupaE-aWtQ-MLVtP30-Sw</td><td>43</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>session_token (STRING)</th><th>shorter (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>9UMVKncsIPTUS4TxueptuWGzsISp0VBc4FnB8VxBURI</td><td>oePC63CrkWHunvjo53eTUw</td><td>43</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: Forgot password: store the hash of a reset token for 30 minutes</strong></p>
 <p>Setup:</p>
@@ -245,7 +245,7 @@ SELECT user_id FROM password_resets
 WHERE token_hash = sha256(&#39;Qm9vSw1mY3Jk0x7Lr2nT5uV8wZ1aB4cD6eF9gH2jK3m&#39;) AND expires_at &gt; now();</code></pre>
 <p>Result:</p>
 <p><code>SELECT random_token() AS token_for_the_email_link</code></p>
-<div class="table-wrap"><table><thead><tr><th>token_for_the_email_link (STRING)</th></tr></thead><tbody><tr><td>BTDl0V2kZUxbPiEvWH0ajo7wGhBDeRLmYkA7kaZjBII</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>token_for_the_email_link (STRING)</th></tr></thead><tbody><tr><td>kFtCTr8p_-krYCO2ME480y6MU_7M4_5UbKaFV0a5H6A</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>INSERT INTO password_resets VALUES (sha256(&#39;Qm9vSw1mY3Jk0x7Lr2nT5uV8wZ1aB4cD6eF9gH2jK3m&#39;), 1, datead</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
@@ -265,7 +265,7 @@ WHERE token_hash = sha256(&#39;Qm9vSw1mY3Jk0x7Lr2nT5uV8wZ1aB4cD6eF9gH2jK3m&#39;)
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT gen_random_uuid() AS id, length(gen_random_uuid()) AS chars;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>id (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>27880a7a-e413-427c-8037-873387cfce5a</td><td>36</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>id (STRING)</th><th>chars (LONG)</th></tr></thead><tbody><tr><td>c4d66310-c94b-4ee0-baa5-896b368815eb</td><td>36</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><strong>Example: Forum posts with a random public id</strong></p>
 <p>Setup:</p>
@@ -276,7 +276,7 @@ SELECT public_id, author, title FROM forum_posts;</code></pre>
 <p><code>INSERT INTO forum_posts (author, title) VALUES (&#39;sita&#39;, &#39;CITY dividend news&#39;), (&#39;ram&#39;, &#39;बजार आज कस्त</code></p>
 <pre><code class="language-text">2 row(s) inserted</code></pre>
 <p><code>SELECT public_id, author, title FROM forum_posts</code></p>
-<div class="table-wrap"><table><thead><tr><th>public_id (STRING)</th><th>author (STRING)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>666a8e82-f6af-47a3-a7ae-173ea4d16d6f</td><td>ram</td><td>बजार आज कस्तो होला?</td></tr><tr><td>931e0116-091b-443d-9f7e-6bf9e40a4667</td><td>sita</td><td>CITY dividend news</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>public_id (STRING)</th><th>author (STRING)</th><th>title (STRING)</th></tr></thead><tbody><tr><td>81c48eea-04bd-4f92-b038-cb47d8643396</td><td>ram</td><td>बजार आज कस्तो होला?</td></tr><tr><td>f8e316d6-6273-4f6c-ae2a-905042c7e7a9</td><td>sita</td><td>CITY dividend news</td></tr></tbody></table></div>
 <p>(2 rows)</p>
 <p><strong>Example: No arguments</strong> (shows an error)</p>
 <pre><code class="language-sql">SELECT gen_random_uuid(4);</code></pre>
@@ -316,7 +316,7 @@ SELECT name, pgp_sym_decrypt(phone, &#39;shop-key-2026&#39;) AS phone FROM custo
 <p><strong>Example: As text GnuPG reads</strong></p>
 <pre><code class="language-sql">SELECT armor(pgp_sym_encrypt(&#39;hello gpg&#39;, &#39;pw&#39;)) AS message;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>message (STRING)</th></tr></thead><tbody><tr><td>-----BEGIN PGP MESSAGE-----  ww0EBwMCBVAoI7RioQd/0joBuT26SxzArRvccGeymqAlBljLnev+t6EcCx11qgUdbcvKwu4xsiVX hD/Smq3TJ/wdOZXMN8hw1R9X =4GMR -----END PGP MESSAGE-----</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>message (STRING)</th></tr></thead><tbody><tr><td>-----BEGIN PGP MESSAGE-----  ww0EBwMCOw+UYeXhZghh0joBEFkL+vCnb3TBkifQItNwpTBOwKZ/TSgNxzOqZs50cvTwNqHkS2nY DQ/TQ2ymlvwJ/82cDxl4UzSZ =OaHu -----END PGP MESSAGE-----</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="pgp-sym-decrypt">pgp_sym_decrypt</h2>
 <p>Syntax:</p>
@@ -409,7 +409,7 @@ FROM app_users;</code></pre>
 <p><strong>Example</strong></p>
 <pre><code class="language-sql">SELECT length(gen_random_bytes(16)) AS bytes, encode(gen_random_bytes(8), &#39;hex&#39;) AS hex;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>bytes (LONG)</th><th>hex (STRING)</th></tr></thead><tbody><tr><td>16</td><td>b52022be27525efe</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>bytes (LONG)</th><th>hex (STRING)</th></tr></thead><tbody><tr><td>16</td><td>b57e6ef74ef4ba48</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <h2 id="armor">armor</h2>
 <p>Syntax:</p>
@@ -477,13 +477,13 @@ WHERE s.token_hash = sha256(&#39;mR3v7yJ2nqKx0Qe8i4uX1t9LZbF5cH6aWgD2sP0oVkE&#39
 DELETE FROM app_sessions WHERE token_hash = sha256(&#39;mR3v7yJ2nqKx0Qe8i4uX1t9LZbF5cH6aWgD2sP0oVkE&#39;);
 SELECT count(*) AS sessions_left FROM app_sessions;</code></pre>
 <p>Result:</p>
-<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$in</code></p>
+<p><code>INSERT INTO app_users (email, password_hash) VALUES (&#39;sita@example.com&#39;, &#39;$pbkdf2-sha256$i=600000$hM</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>
 <p><code>SELECT id FROM app_users WHERE email = &#39;sita@example.com&#39; AND password_verify(&#39;correct horse battery</code></p>
 <div class="table-wrap"><table><thead><tr><th>id (INT)</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>SELECT random_token() AS token</code></p>
-<div class="table-wrap"><table><thead><tr><th>token (STRING)</th></tr></thead><tbody><tr><td>hpXaw23i-HAK3bUl5aEUTlTA-GlvvFhy-gLtXc6mL1c</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>token (STRING)</th></tr></thead><tbody><tr><td>DwI66BA_iqdJ-2uXdF6l1A27BYMI2SsoupWVx9zB_ME</td></tr></tbody></table></div>
 <p>(1 row)</p>
 <p><code>INSERT INTO app_sessions VALUES (sha256(&#39;mR3v7yJ2nqKx0Qe8i4uX1t9LZbF5cH6aWgD2sP0oVkE&#39;), 1, dateadd(&#39;</code></p>
 <pre><code class="language-text">1 row(s) inserted</code></pre>

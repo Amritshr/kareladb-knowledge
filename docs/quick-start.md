@@ -377,7 +377,7 @@ posts | relational | NONE      |       3 |    1
 kareladb> id | author | body                     
 ---+--------+--------------------------
  1 | ram    | CITY dividend looks good.
-(1 row, 0.1 ms)
+(1 row, 0.2 ms)
 kareladb>
 ```
 

@@ -46,7 +46,7 @@ SELECT [DISTINCT] item [[AS] alias], ...
 [SAMPLE BY interval ...]
 [GROUP BY expression, ...]
 [HAVING condition]
-[UNION ALL SELECT ...]
+[UNION [ALL] | INTERSECT [ALL] | EXCEPT [ALL] SELECT ...]
 [ORDER BY expression [ASC | DESC], ...]
 [LIMIT n [OFFSET m]]
 ```
@@ -62,7 +62,7 @@ The parts must be written in this order. KarelaDB does the work in another order
 | 5 | `HAVING` | keep only the groups that match |
 | 6 | window functions | `lag`, `sma`, `row_number`, ... |
 | 7 | select list, `DISTINCT` | compute the output columns |
-| 8 | `UNION ALL` | add the rows of the next query |
+| 8 | `UNION [ALL]`, `INTERSECT [ALL]`, `EXCEPT [ALL]` | add, keep the common, or take away the rows of the next query (see [union-subqueries](union-subqueries.md)) |
 | 9 | `ORDER BY`, `LIMIT`, `OFFSET` | sort and cut |
 
 | Item | Example |
