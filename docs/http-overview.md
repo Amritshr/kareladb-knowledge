@@ -111,10 +111,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 39, "execute_us": 142}
+      "timings": {"parse_us": 45, "execute_us": 132}
     }
   ],
-  "timings": {"parse_us": 39, "execute_us": 142}
+  "timings": {"parse_us": 45, "execute_us": 132}
 }
 ```
 
@@ -140,10 +140,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 37, "execute_us": 203}
+      "timings": {"parse_us": 61, "execute_us": 302}
     }
   ],
-  "timings": {"parse_us": 37, "execute_us": 203}
+  "timings": {"parse_us": 61, "execute_us": 302}
 }
 ```
 
@@ -253,7 +253,7 @@ HTTP 405 (application/json)
 
 ## GET reads, POST changes
 
-`GET /exec` and `GET /exp` only run SQL that **reads**: `SELECT`, `SHOW ...`, `EXPLAIN`, `CHECK TABLE`, `USE`. SQL that changes something must be sent with `POST`. The answer to a GET that changes data is **405**.
+`GET /exec` and `GET /exp` only run SQL that **reads**: `SELECT`, `SHOW ...`, `EXPLAIN`, `CHECK TABLE`, `USE`. SQL that changes something must be sent with `POST`. The answer to a GET that changes data is **405**. A GET also runs as a read-only transaction, so a `SELECT` that would change something is refused the same way: `nextval()` and `setval()`, a `WITH d AS (DELETE ... RETURNING *)`, a function that writes, `kv_set()`. `SUBSCRIBE` and `/exp` follow the same rule.
 
 Why: a link or a picture on any web page can make your browser send a GET. So a bad page must not be able to change your data with a GET.
 
@@ -317,10 +317,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'idem_orders' created",
-      "timings": {"parse_us": 23, "execute_us": 6968}
+      "timings": {"parse_us": 48, "execute_us": 8183}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 6968}
+  "timings": {"parse_us": 48, "execute_us": 8183}
 }
 ```
 
@@ -340,10 +340,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 20, "execute_us": 32}
+      "timings": {"parse_us": 30, "execute_us": 43}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 32}
+  "timings": {"parse_us": 30, "execute_us": 43}
 }
 ```
 
@@ -363,10 +363,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 20, "execute_us": 32}
+      "timings": {"parse_us": 30, "execute_us": 43}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 32}
+  "timings": {"parse_us": 30, "execute_us": 43}
 }
 ```
 
@@ -390,7 +390,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 37, "execute_us": 217}
+      "timings": {"parse_us": 40, "execute_us": 160}
     }
   ],
   "columns": [
@@ -400,7 +400,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 37, "execute_us": 217}
+  "timings": {"parse_us": 40, "execute_us": 160}
 }
 ```
 

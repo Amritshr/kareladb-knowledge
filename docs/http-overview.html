@@ -53,10 +53,10 @@ SELECT symbol, name FROM securities ORDER BY symbol LIMIT 2</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 142}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 45, &quot;execute_us&quot;: 132}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 142}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 45, &quot;execute_us&quot;: 132}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -77,10 +77,10 @@ SELECT symbol, name FROM securities ORDER BY symbol LIMIT 2</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 37, &quot;execute_us&quot;: 203}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 61, &quot;execute_us&quot;: 302}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 37, &quot;execute_us&quot;: 203}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 61, &quot;execute_us&quot;: 302}
 }</code></pre>
 <p><strong>HTTP: A database that does not exist</strong></p>
 <pre><code class="language-http">GET /exec?db=no_such_db&amp;query=SELECT 1</code></pre>
@@ -122,7 +122,7 @@ SELECT 1</code></pre>
 <pre><code class="language-text">{&quot;error&quot;: &quot;method PUT is not allowed here&quot;}</code></pre>
 <ul><li><strong>Notes:</strong> a <code>405</code> answer has an <code>Allow</code> header with the methods the path has (here <code>GET, POST</code>). The <a href="line-protocol.html">line protocol</a> has its own error shape: <code>{&quot;code&quot;, &quot;message&quot;, &quot;line&quot;, &quot;errorId&quot;}</code>.</li></ul>
 <h2 id="get-post">GET reads, POST changes</h2>
-<p><code>GET /exec</code> and <code>GET /exp</code> only run SQL that <strong>reads</strong>: <code>SELECT</code>, <code>SHOW ...</code>, <code>EXPLAIN</code>, <code>CHECK TABLE</code>, <code>USE</code>. SQL that changes something must be sent with <code>POST</code>. The answer to a GET that changes data is <strong>405</strong>.</p>
+<p><code>GET /exec</code> and <code>GET /exp</code> only run SQL that <strong>reads</strong>: <code>SELECT</code>, <code>SHOW ...</code>, <code>EXPLAIN</code>, <code>CHECK TABLE</code>, <code>USE</code>. SQL that changes something must be sent with <code>POST</code>. The answer to a GET that changes data is <strong>405</strong>. A GET also runs as a read-only transaction, so a <code>SELECT</code> that would change something is refused the same way: <code>nextval()</code> and <code>setval()</code>, a <code>WITH d AS (DELETE ... RETURNING *)</code>, a function that writes, <code>kv_set()</code>. <code>SUBSCRIBE</code> and <code>/exp</code> follow the same rule.</p>
 <p>Why: a link or a picture on any web page can make your browser send a GET. So a bad page must not be able to change your data with a GET.</p>
 <p><strong>HTTP: DELETE with GET is refused</strong> (sample data: sample)</p>
 <pre><code class="language-http">GET /exec?query=DELETE FROM brokers WHERE id = 1</code></pre>
@@ -162,10 +162,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;idem_orders&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 6968}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 8183}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 6968}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 8183}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -180,10 +180,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 32}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 43}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 32}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 43}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -198,10 +198,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 32}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 43}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 32}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 43}
 }</code></pre>
 <p><code>GET /exec?query=SELECT count(*) FROM idem_orders</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -220,7 +220,7 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 37, &quot;execute_us&quot;: 217}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 40, &quot;execute_us&quot;: 160}
     }
   ],
   &quot;columns&quot;: [
@@ -230,7 +230,7 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
     [1]
   ],
   &quot;count&quot;: 1,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 37, &quot;execute_us&quot;: 217}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 40, &quot;execute_us&quot;: 160}
 }</code></pre>
 <div class="table-wrap"><table><thead><tr><th>Case</th><th>Answer</th></tr></thead><tbody><tr><td>the same key and the same request again</td><td>the first answer, with the header <code>Idempotent-Replayed: true</code></td></tr><tr><td>the same key while the first request still runs</td><td>waits for it, then its answer</td></tr><tr><td>the same key with a different request (another body or query string)</td><td><code>422</code>: a new request needs a new key</td></tr><tr><td>the first answer was over 1 MB (a big <code>SELECT</code>)</td><td><code>409</code>: it was done already, the answer was not kept</td></tr><tr><td>the first answer was <code>500</code> or more (busy, stopping)</td><td>not kept: the retry runs for real</td></tr></tbody></table></div>
 <ul><li><strong>Where:</strong> <code>POST /exec</code>, <code>POST /write</code>, <code>POST /api/v2/write</code> and <code>POST /imp</code>. A request without the header runs as always.</li><li><strong>Whose:</strong> a key belongs to the user (or token) and the database (<code>?db=</code>), so two users never share one.</li><li><strong>How long:</strong> keys are kept 24 hours, in memory, at most 64 MB of answers (the oldest go first). A restart forgets them.</li></ul>

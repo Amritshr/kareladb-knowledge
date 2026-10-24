@@ -39,10 +39,10 @@
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 44, &quot;execute_us&quot;: 317}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 87, &quot;execute_us&quot;: 582}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 44, &quot;execute_us&quot;: 317}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 87, &quot;execute_us&quot;: 582}
 }</code></pre>
 <h2 id="get-exec">GET /exec</h2>
 <p>Syntax:</p>
@@ -74,7 +74,7 @@
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 225}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 50, &quot;execute_us&quot;: 386}
     }
   ],
   &quot;columns&quot;: [
@@ -86,7 +86,7 @@
     [&quot;CITY&quot;, &quot;Banking&quot;]
   ],
   &quot;count&quot;: 2,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 225}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 50, &quot;execute_us&quot;: 386}
 }</code></pre>
 <p><strong>HTTP: limit=2 and truncated</strong> (sample data: sample)</p>
 <pre><code class="language-http">GET /exec?compat=0&amp;limit=2&amp;query=SELECT time, close FROM ochl_minutes WHERE symbol = &#39;CITY&#39; ORDER BY time</code></pre>
@@ -109,10 +109,10 @@
       &quot;truncated&quot;: true,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 26, &quot;execute_us&quot;: 332}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 77, &quot;execute_us&quot;: 718}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 26, &quot;execute_us&quot;: 332}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 77, &quot;execute_us&quot;: 718}
 }</code></pre>
 <p><strong>HTTP: cache=0: computed now, not taken from the result cache</strong> (sample data: sample)</p>
 <pre><code class="language-http">GET /exec?compat=0&amp;cache=0&amp;query=SELECT symbol, count(*) FROM ochl_day GROUP BY symbol ORDER BY symbol LIMIT 3</code></pre>
@@ -136,10 +136,10 @@
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 55, &quot;execute_us&quot;: 681}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 50, &quot;execute_us&quot;: 931}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 55, &quot;execute_us&quot;: 681}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 50, &quot;execute_us&quot;: 931}
 }</code></pre>
 <p><strong>HTTP: How each type looks in JSON</strong></p>
 <pre><code class="language-http">GET /exec?compat=0&amp;query=SELECT CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP) AS ts, CAST(&#39;2026-09-10&#39; AS DATE) AS day, CAST(1500.25 AS DECIMAL(2)) AS price, 9007199254740993 AS big, true AS ok, NULL AS nothing, &#39;नेपाल&#39; AS text, sqrt(-1) AS not_real</code></pre>
@@ -167,10 +167,10 @@
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 99, &quot;execute_us&quot;: 111}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 114, &quot;execute_us&quot;: 202}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 99, &quot;execute_us&quot;: 111}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 114, &quot;execute_us&quot;: 202}
 }</code></pre>
 <p><strong>HTTP: The first time as text and as numbers</strong> (sample data: sample)</p>
 <pre><code class="language-http">GET /exec?compat=0&amp;query=SELECT min(time) AS first, CAST(min(time) AS LONG) AS first_ms, date_part(&#39;epoch&#39;, min(time)) AS first_seconds FROM ochl_day WHERE symbol = &#39;CITY&#39;</code></pre>
@@ -193,10 +193,10 @@
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 68, &quot;execute_us&quot;: 634}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 121, &quot;execute_us&quot;: 1236}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 68, &quot;execute_us&quot;: 634}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 121, &quot;execute_us&quot;: 1236}
 }</code></pre>
 <p><strong>HTTP: SQL that changes data needs POST</strong> (sample data: sample)</p>
 <pre><code class="language-http">GET /exec?query=UPDATE ochl_day SET close = 0 WHERE symbol = &#39;CITY&#39;</code></pre>
@@ -243,7 +243,7 @@ SELECT id, name FROM brokers WHERE id &gt;= 58 ORDER BY id</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 613}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 1085}
     },
     {
       &quot;statement&quot;: &quot;SELECT id, name FROM brokers WHERE id &gt;= 58 ORDER BY id&quot;,
@@ -259,10 +259,10 @@ SELECT id, name FROM brokers WHERE id &gt;= 58 ORDER BY id</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 204}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 32, &quot;execute_us&quot;: 275}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 40, &quot;execute_us&quot;: 817}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 64, &quot;execute_us&quot;: 1360}
 }</code></pre>
 <p><strong>HTTP: The second INSERT fails: the first one ran and is kept</strong> (sample data: sample; shows an error)</p>
 <pre><code class="language-http">POST /exec?compat=0
@@ -286,7 +286,7 @@ GET /exec?compat=0&amp;query=SELECT id, name FROM brokers WHERE id = 98</code></
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 11, &quot;execute_us&quot;: 624}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 26, &quot;execute_us&quot;: 1169}
     }
   ],
   &quot;saved&quot;: 1,
@@ -315,10 +315,10 @@ GET /exec?compat=0&amp;query=SELECT id, name FROM brokers WHERE id = 98</code></
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 54, &quot;execute_us&quot;: 97}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 110}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 54, &quot;execute_us&quot;: 97}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 110}
 }</code></pre>
 <p><strong>HTTP: A failed CREATE TABLE: status 400, the first two statements are kept, the last did not run</strong></p>
 <pre><code class="language-http">POST /exec?compat=0
@@ -340,7 +340,7 @@ INSERT INTO notes VALUES (2, &#39;second&#39;)</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;notes&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 32274}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 45104}
     },
     {
       &quot;statement&quot;: &quot;INSERT INTO notes VALUES (1, &#39;first&#39;)&quot;,
@@ -350,7 +350,7 @@ INSERT INTO notes VALUES (2, &#39;second&#39;)</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 4670}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 4715}
     }
   ],
   &quot;saved&quot;: 2,
@@ -395,10 +395,10 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS rows_with_id_97 FROM brokers WHE
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 500}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 379}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 500}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 379}
 }</code></pre>
 <p><strong>HTTP: BEGIN in the body: the error rolls back what came after it</strong> (sample data: sample; shows an error)</p>
 <pre><code class="language-http">POST /exec?compat=0
@@ -423,7 +423,7 @@ GET /exec?compat=0&amp;query=SELECT id FROM brokers WHERE id IN (94, 95)</code><
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 845}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 1234}
     },
     {
       &quot;statement&quot;: &quot;BEGIN&quot;,
@@ -433,7 +433,7 @@ GET /exec?compat=0&amp;query=SELECT id FROM brokers WHERE id IN (94, 95)</code><
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;transaction started&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 7}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 7}
     },
     {
       &quot;statement&quot;: &quot;INSERT INTO brokers VALUES (94, &#39;Valley Capital&#39;)&quot;,
@@ -443,7 +443,7 @@ GET /exec?compat=0&amp;query=SELECT id FROM brokers WHERE id IN (94, 95)</code><
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 35}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 9, &quot;execute_us&quot;: 37}
     }
   ],
   &quot;saved&quot;: 1,
@@ -471,10 +471,10 @@ GET /exec?compat=0&amp;query=SELECT id FROM brokers WHERE id IN (94, 95)</code><
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 101}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 120}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 101}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 120}
 }</code></pre>
 <h3 id="format">One array per column: format=columns</h3>
 <p><code>?format=columns</code> writes every <code>dataset</code> as an object with one array per column instead of an array of rows:</p>
@@ -499,10 +499,10 @@ GET /exec?compat=0&amp;query=SELECT id FROM brokers WHERE id IN (94, 95)</code><
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 420}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 63, &quot;execute_us&quot;: 418}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 48, &quot;execute_us&quot;: 420}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 63, &quot;execute_us&quot;: 418}
 }</code></pre>
 <ul><li>A chart, a spreadsheet or a columnar file gets the shape it stores, with no reshaping on the client.</li><li>The cells are the same as in the row form: times as ISO strings, JSON columns as JSON, <code>null</code> for NULL.</li><li>Two result columns with one name: the later one wins (an object holds one of each name). Give them aliases.</li><li><code>format=rows</code> is the default. Anything else is a 400.</li></ul>
 <h3 id="nan">NaN and Infinity: nan=string</h3>
@@ -532,10 +532,10 @@ GET /exec?compat=0&amp;nan=string&amp;query=SELECT &#39;NaN&#39;::float8 AS nan,
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 51}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 91, &quot;execute_us&quot;: 93}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 51}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 91, &quot;execute_us&quot;: 93}
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;nan=string&amp;query=SELECT &#39;NaN&#39;::float8 AS nan, &#39;Infinity&#39;::float8 AS inf, NULL::float8 AS nothing, 1.5::float8 AS number</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -557,10 +557,10 @@ GET /exec?compat=0&amp;nan=string&amp;query=SELECT &#39;NaN&#39;::float8 AS nan,
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 363}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 5, &quot;execute_us&quot;: 56}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 4, &quot;execute_us&quot;: 363}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 5, &quot;execute_us&quot;: 56}
 }</code></pre>
 <ul><li>Only <code>DOUBLE</code> and <code>FLOAT</code> values change; <code>NULL</code> stays <code>null</code>.</li><li><code>nan=null</code> is the default. Anything else is a 400.</li><li>The PostgreSQL port always sends <code>NaN</code>, <code>Infinity</code> and <code>-Infinity</code>.</li></ul>
 <h3 id="etag">Nothing to send: ETag and If-None-Match</h3>
@@ -597,7 +597,7 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS rows_with_id_96 FROM brokers WHE
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 5, &quot;execute_us&quot;: 142}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 8, &quot;execute_us&quot;: 223}
     }
   ],
   &quot;saved&quot;: 0,
@@ -625,10 +625,10 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS rows_with_id_96 FROM brokers WHE
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 162}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 110}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 162}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 110}
 }</code></pre>
 <p><strong>HTTP: atomic=1 with statements that all work</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /exec?compat=0&amp;atomic=1
@@ -649,7 +649,7 @@ SELECT id, name FROM brokers WHERE id = 93</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 179}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 198}
     },
     {
       &quot;statement&quot;: &quot;UPDATE brokers SET name = &#39;Delta Securities Ltd&#39; WHERE id = 93&quot;,
@@ -659,7 +659,7 @@ SELECT id, name FROM brokers WHERE id = 93</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) updated&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 37}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 38}
     },
     {
       &quot;statement&quot;: &quot;SELECT id, name FROM brokers WHERE id = 93&quot;,
@@ -674,10 +674,10 @@ SELECT id, name FROM brokers WHERE id = 93</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 44}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 103}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 260}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 339}
 }</code></pre>
 <p><strong>HTTP: atomic=1 refuses CREATE TABLE before anything runs</strong></p>
 <pre><code class="language-http">POST /exec?compat=0&amp;atomic=1
@@ -719,10 +719,10 @@ compat=0&amp;limit=3&amp;query=SELECT symbol, ltp FROM live_data LATEST ON times
       &quot;truncated&quot;: true,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 43, &quot;execute_us&quot;: 369}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 70, &quot;execute_us&quot;: 496}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 43, &quot;execute_us&quot;: 369}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 70, &quot;execute_us&quot;: 496}
 }</code></pre>
 <p><strong>HTTP: Create a table and write rows in one request</strong></p>
 <pre><code class="language-http">POST /exec?compat=0
@@ -743,7 +743,7 @@ SELECT * FROM ticks</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;ticks&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 33109}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 31306}
     },
     {
       &quot;statement&quot;: &quot;INSERT INTO ticks VALUES (&#39;2026-09-10T05:15:00Z&#39;, &#39;CITY&#39;, 512.4), (&#39;2026-09-10T05:15:01Z&#39;, &#39;COAST&#39;, 380.1)&quot;,
@@ -753,7 +753,7 @@ SELECT * FROM ticks</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 2,
       &quot;message&quot;: &quot;2 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 5943}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 4440}
     },
     {
       &quot;statement&quot;: &quot;SELECT * FROM ticks&quot;,
@@ -770,10 +770,10 @@ SELECT * FROM ticks</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 96}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 102}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 75, &quot;execute_us&quot;: 39148}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 66, &quot;execute_us&quot;: 35848}
 }</code></pre>
 <p>Clients (not run by the help build; <a href="../tutorial/08-http-api.html">chapter 8</a> has tested ones with real output):</p>
 <pre><code class="language-bash">curl -s &quot;http://127.0.0.1:9900/exec?compat=0&quot; --data-binary &quot;INSERT INTO brokers VALUES (99, &#39;Himalayan Securities&#39;)&quot;

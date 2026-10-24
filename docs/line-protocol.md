@@ -91,7 +91,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: timestamps look like seconds (1789103700) but precision= is not set: add ?precision=s (without it they are read as nanoseconds and would land on 1970-01-01T00:00:01.789Z)",
   "line": 1,
-  "errorId": "934d599ef9eb-1"
+  "errorId": "b4cb8f8c02ee-1"
 }
 ```
 
@@ -133,10 +133,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 132}
+      "timings": {"parse_us": 68, "execute_us": 177}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 132}
+  "timings": {"parse_us": 68, "execute_us": 177}
 }
 ```
 
@@ -163,7 +163,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'orders_log', column 'placed' cannot take 1789103700000t: a t value is microseconds, and this number looks like milliseconds (it would be 1970-01-21T16:58:23.700Z); write 1789103700000000t",
   "line": 1,
-  "errorId": "934d599ef9eb-2"
+  "errorId": "b4cb8f8c02ee-2"
 }
 ```
 
@@ -235,10 +235,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 20, "execute_us": 36}
+      "timings": {"parse_us": 25, "execute_us": 127}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 36}
+  "timings": {"parse_us": 25, "execute_us": 127}
 }
 ```
 
@@ -295,10 +295,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 58}
+      "timings": {"parse_us": 48, "execute_us": 126}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 58}
+  "timings": {"parse_us": 48, "execute_us": 126}
 }
 ```
 
@@ -369,10 +369,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 10}
+      "timings": {"parse_us": 4, "execute_us": 30}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 10}
+  "timings": {"parse_us": 4, "execute_us": 30}
 }
 ```
 
@@ -469,10 +469,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 89}
+      "timings": {"parse_us": 43, "execute_us": 161}
     }
   ],
-  "timings": {"parse_us": 18, "execute_us": 89}
+  "timings": {"parse_us": 43, "execute_us": 161}
 }
 ```
 
@@ -532,10 +532,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 88}
+      "timings": {"parse_us": 39, "execute_us": 172}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 88}
+  "timings": {"parse_us": 39, "execute_us": 172}
 }
 ```
 
@@ -604,10 +604,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 10, "execute_us": 82}
+      "timings": {"parse_us": 42, "execute_us": 207}
     }
   ],
-  "timings": {"parse_us": 10, "execute_us": 82}
+  "timings": {"parse_us": 42, "execute_us": 207}
 }
 ```
 
@@ -657,10 +657,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 87}
+      "timings": {"parse_us": 60, "execute_us": 217}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 87}
+  "timings": {"parse_us": 60, "execute_us": 217}
 }
 ```
 
@@ -687,7 +687,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 2: table 'live_data', column 'volume' is LONG and cannot take a float; write whole numbers with an i suffix, like 3i",
   "line": 2,
-  "errorId": "934d599ef9eb-3"
+  "errorId": "b4cb8f8c02ee-3"
 }
 ```
 
@@ -711,10 +711,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 17, "execute_us": 80}
+      "timings": {"parse_us": 36, "execute_us": 159}
     }
   ],
-  "timings": {"parse_us": 17, "execute_us": 80}
+  "timings": {"parse_us": 36, "execute_us": 159}
 }
 ```
 
@@ -735,7 +735,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'live_data' has no column 'turnover'; add it first (ALTER TABLE live_data ADD COLUMN ...)",
   "line": 1,
-  "errorId": "934d599ef9eb-4"
+  "errorId": "b4cb8f8c02ee-4"
 }
 ```
 
@@ -789,10 +789,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 11, "execute_us": 50}
+      "timings": {"parse_us": 13, "execute_us": 71}
     }
   ],
-  "timings": {"parse_us": 11, "execute_us": 50}
+  "timings": {"parse_us": 13, "execute_us": 71}
 }
 ```
 
@@ -813,7 +813,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "unsupported precision 'minutes': use n, u, ms or s",
   "line": 0,
-  "errorId": "934d599ef9eb-5"
+  "errorId": "b4cb8f8c02ee-5"
 }
 ```
 
@@ -940,9 +940,9 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 92}
+      "timings": {"parse_us": 31, "execute_us": 163}
     }
   ],
-  "timings": {"parse_us": 18, "execute_us": 92}
+  "timings": {"parse_us": 31, "execute_us": 163}
 }
 ```

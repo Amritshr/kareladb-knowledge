@@ -620,23 +620,24 @@ Result:
 
 (4 rows)
 
-**Example: The table under a view was dropped** (shows an error)
+**Example: A table a view reads cannot be dropped** (shows an error)
 
 Setup:
 
 ```sql
 CREATE TABLE watchlist (symbol STRING PRIMARY KEY, note STRING);
 CREATE VIEW my_watchlist AS SELECT symbol, note FROM watchlist;
-DROP TABLE watchlist;
 ```
 
 ```sql
-SELECT * FROM my_watchlist;
+DROP TABLE watchlist;
 ```
 
 Result:
 
-Error: `view 'my_watchlist': line 1, column 26: table or view 'watchlist' does not exist`
+Error: `cannot drop table watchlist because other objects depend on it: view my_watchlist. Drop them first, or use DROP TABLE watchlist CASCADE to drop them too`
+
+`DROP TABLE watchlist CASCADE` drops `my_watchlist` with it; or `DROP VIEW my_watchlist` first.
 
 **Example: A view cannot be changed with INSERT** (sample data: sample; shows an error)
 

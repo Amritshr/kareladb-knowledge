@@ -1174,7 +1174,7 @@ id | name
 ---+---------------------
 45 | Imperial Securities 
 58 | Northgate Securities
-(2 rows, 0.2 ms)
+(2 rows, 1.2 ms)
 ```
 
 A mistake gives a clear message and exit code 1:
@@ -1324,7 +1324,7 @@ posts | relational | NONE      |       3 |    1
 kareladb> id | author | body                     
 ---+--------+--------------------------
  1 | ram    | CITY dividend looks good.
-(1 row, 0.1 ms)
+(1 row, 0.2 ms)
 kareladb>
 ```
 
@@ -1366,7 +1366,7 @@ ochl_day     | timeseries | YEAR      |       7 |   57
 ochl_minutes | timeseries | MONTH     |       7 |  956
 securities   | relational | NONE      |       3 |    5
 trade_log    | timeseries | DAY       |       8 |   32
-(6 rows, 0.0 ms)
+(6 rows, 0.1 ms)
 ```
 
 **Example: The last 3 daily closes of CITY** (sample data: sample)
@@ -1427,7 +1427,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -2506,9 +2506,9 @@ user 'shop_app' has role write on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:13.189Z | 2026-10-24T03:03:13.189Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T03:03:13.442Z | 2026-10-24T03:03:13.442Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-24T03:03:13.504Z | 2026-10-24T03:03:13.509Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:22.129Z | 2026-10-24T03:43:22.129Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-24T03:43:22.454Z | 2026-10-24T03:43:22.454Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-24T03:43:22.547Z | 2026-10-24T03:43:22.552Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -19097,7 +19097,7 @@ Writing and running this tutorial found 12 bugs. All of them are fixed, and each
 - `DO $$ ... $$` blocks may use only `IF`, `RAISE`, `NULL` and SQL statements (no `DECLARE`, loops, `PERFORM`, `EXECUTE`, `EXCEPTION`). A DO block is **not one transaction**: statements before an error stay.
 - `SERIAL` / `IDENTITY` only for the single-column `PRIMARY KEY`. Use a sequence for other columns.
 - `NUMERIC` without precision is a `DOUBLE` (exact with `kdb.pg_compat = on`). `NUMERIC(p,s)`: up to 38 digits (more than 18 use 128 bits). `FLOAT` alone is 4 bytes. `CHAR(n)` is not padded. `CITEXT` is not case-insensitive. `INTERVAL` is milliseconds (a month is 30 days). `INET`, `CIDR`, `MACADDR`, `XML` are not checked.
-- The `PRIMARY KEY` cannot be dropped. `DROP TABLE ... CASCADE` drops the foreign keys, views and materialized views that use the table, as in PostgreSQL. `DEFERRABLE` constraints, `INHERITS`, `PARTITION BY RANGE`, `EXCLUDE` constraints and schemas other than `public` are not supported. Table constraints must come after the columns.
+- The `PRIMARY KEY` cannot be dropped. `DROP TABLE` is refused while a foreign key, view or materialized view uses the table; `DROP TABLE ... CASCADE` drops them too, as in PostgreSQL. `DEFERRABLE` constraints, `INHERITS`, `PARTITION BY RANGE`, `EXCLUDE` constraints and schemas other than `public` are not supported. Table constraints must come after the columns.
 - In one `INSERT` of many rows, a row may refer (REFERENCES) only to rows before it, not to rows after it.
 - A foreign key action reads the whole child table for each changed parent row when the child column has no key or index. Add an index on foreign key columns of big tables.
 - `ALTER COLUMN ... TYPE` and `ADD PRIMARY KEY` write every row again (slow for very big tables).
@@ -19263,7 +19263,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 market  |      0 |     0 | false  
-(2 rows, 0.5 ms)
+(2 rows, 0.4 ms)
 kareladb>
 ```
 
@@ -19338,7 +19338,7 @@ table 'products' created
 name     | kind       | partition | columns | rows
 ---------+------------+-----------+---------+-----
 products | relational | NONE      |       2 |    0
-(1 row, 0.0 ms)
+(1 row, 0.1 ms)
 ```
 
 <a id="create-database"></a>
@@ -19448,7 +19448,7 @@ Result:
 `DROP DATABASE test_2025`
 
 ```text
-database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792810914196-test_2025
+database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792813309562-test_2025
 ```
 
 `DROP DATABASE IF EXISTS test_2025`
@@ -19481,7 +19481,7 @@ SHOW TABLES;
 Result:
 
 ```text
-database 'demo' dropped; its folder was moved to kdb-data/_trash/1792810914231-demo; no database is selected now (USE <name>)
+database 'demo' dropped; its folder was moved to kdb-data/_trash/1792813309591-demo; no database is selected now (USE <name>)
 ```
 
 Error: `no database is selected; choose one with USE <name>`
@@ -19569,7 +19569,7 @@ Result:
 `DROP DATABASE old_test`
 
 ```text
-database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792810914464-old_test
+database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792813309818-old_test
 ```
 
 `PURGE TRASH ALL`
@@ -24761,13 +24761,12 @@ DROP TABLE [IF EXISTS] table [CASCADE | RESTRICT]
 Deletes a table with all its rows and its indexes. With `IF EXISTS`, a table that is not there is not an error.
 
 - **Returns:** `table 'name' dropped`, or `table 'name' does not exist` with `IF EXISTS`.
-- **Notes:** the table goes to the [trash](trash.md) for some days, and `UNDROP TABLE` brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while another table `REFERENCES` it, and while it has triggers. To remove all rows and keep the table, use [TRUNCATE](update-delete.md#truncate).
-- **CASCADE and RESTRICT:** as in PostgreSQL. `DROP TABLE t RESTRICT` (or no word) refuses while another table's foreign key or a materialized view uses `t`. `DROP TABLE t CASCADE` drops what uses it first, then `t`:
+- **Notes:** the table goes to the [trash](trash.md) for some days, and `UNDROP TABLE` brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while anything uses it (another table's `REFERENCES`, a view, a materialized view; the error names each, SQLSTATE `2BP01`), and while it has triggers. To remove all rows and keep the table, use [TRUNCATE](update-delete.md#truncate).
+- **CASCADE and RESTRICT:** as in PostgreSQL. `DROP TABLE t RESTRICT` (or no word) refuses while another table's foreign key, a view or a materialized view uses `t`. `DROP TABLE t CASCADE` drops what uses it first, then `t`:
   - the foreign keys of other tables that point at `t` (`ALTER TABLE other DROP CONSTRAINT ...`; the other tables and their rows stay),
   - the views and materialized views that read `t`.
   - The reply names them: `table 't' dropped; drop cascades to constraint orders_customer_fkey on table orders, view big_orders`.
   - A table with triggers is still refused before anything is dropped: `DROP TRIGGER` them first.
-  - Without `CASCADE`, a plain view that reads the table does not stop the drop: the view stays and fails when it is read (see [views](views.md)).
   - `DROP FUNCTION`, `DROP PROCEDURE` and `DROP TRIGGER` read both words and ignore them.
 
 **Example: Remove a test table; safe to run twice**
@@ -24820,7 +24819,7 @@ DROP TABLE brokers;
 
 Result:
 
-Error: `cannot drop table 'brokers': column 'buyer' of table 'trades' REFERENCES it; drop that column or table first`
+Error: `cannot drop table brokers because other objects depend on it: constraint trades_buyer_fkey on table trades. Drop them first, or use DROP TABLE brokers CASCADE to drop them too`
 
 **Example: A table that is not there** (shows an error)
 
@@ -25627,7 +25626,7 @@ table 'live_data' dropped; UNDROP TABLE live_data brings it back within 7 days
 
 | name (STRING) | dropped (TIMESTAMP) | removed_after (TIMESTAMP) | rows (LONG) | stored_as (STRING) |
 |---|---|---|---|---|
-| live_data | 2026-10-24T03:03:17.843Z | 2026-10-31T03:03:17.843Z | 12 | _dropped_1792810997843_live_data |
+| live_data | 2026-10-24T03:43:27.347Z | 2026-10-31T03:43:27.347Z | 12 | _dropped_1792813407347_live_data |
 
 (1 row)
 
@@ -28362,7 +28361,7 @@ time                     | symbol | close
 -------------------------+--------+------
 2026-09-13T00:00:00.000Z | CITY   | 508.2
 2026-09-13T00:00:00.000Z | COAST  | 378.5
-(2 rows, 0.2 ms)
+(2 rows, 0.3 ms)
 ```
 
 ```powershell
@@ -28469,7 +28468,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'ochl_day' created",
-      "timings": {"parse_us": 26, "execute_us": 35114}
+      "timings": {"parse_us": 36, "execute_us": 34095}
     },
     {
       "statement": "INSERT OR REPLACE INTO ochl_day VALUES ('2026-09-10', 'CITY', 504.9, 183040), ('2026-09-10', 'COAST', 376.1, 186200)",
@@ -28479,13 +28478,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 2,
       "message": "2 row(s) inserted",
-      "timings": {"parse_us": 26, "execute_us": 5756}
+      "timings": {"parse_us": 36, "execute_us": 4361}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 52, "execute_us": 40870}
+  "timings": {"parse_us": 72, "execute_us": 38456}
 }
 ```
 
@@ -28552,7 +28551,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 70}
+      "timings": {"parse_us": 20, "execute_us": 111}
     }
   ],
   "columns": [
@@ -28566,7 +28565,7 @@ HTTP 200 (application/json)
     ["2026-09-10T05:20:00.000Z", "COAST", 380.2, 900]
   ],
   "count": 2,
-  "timings": {"parse_us": 13, "execute_us": 70}
+  "timings": {"parse_us": 20, "execute_us": 111}
 }
 ```
 
@@ -28913,7 +28912,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: timestamps look like seconds (1789103700) but precision= is not set: add ?precision=s (without it they are read as nanoseconds and would land on 1970-01-01T00:00:01.789Z)",
   "line": 1,
-  "errorId": "934d599ef9eb-1"
+  "errorId": "b4cb8f8c02ee-1"
 }
 ```
 
@@ -28955,10 +28954,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 132}
+      "timings": {"parse_us": 68, "execute_us": 177}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 132}
+  "timings": {"parse_us": 68, "execute_us": 177}
 }
 ```
 
@@ -28985,7 +28984,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'orders_log', column 'placed' cannot take 1789103700000t: a t value is microseconds, and this number looks like milliseconds (it would be 1970-01-21T16:58:23.700Z); write 1789103700000000t",
   "line": 1,
-  "errorId": "934d599ef9eb-2"
+  "errorId": "b4cb8f8c02ee-2"
 }
 ```
 
@@ -29057,10 +29056,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 20, "execute_us": 36}
+      "timings": {"parse_us": 25, "execute_us": 127}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 36}
+  "timings": {"parse_us": 25, "execute_us": 127}
 }
 ```
 
@@ -29117,10 +29116,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 58}
+      "timings": {"parse_us": 48, "execute_us": 126}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 58}
+  "timings": {"parse_us": 48, "execute_us": 126}
 }
 ```
 
@@ -29191,10 +29190,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 12, "execute_us": 10}
+      "timings": {"parse_us": 4, "execute_us": 30}
     }
   ],
-  "timings": {"parse_us": 12, "execute_us": 10}
+  "timings": {"parse_us": 4, "execute_us": 30}
 }
 ```
 
@@ -29291,10 +29290,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 89}
+      "timings": {"parse_us": 43, "execute_us": 161}
     }
   ],
-  "timings": {"parse_us": 18, "execute_us": 89}
+  "timings": {"parse_us": 43, "execute_us": 161}
 }
 ```
 
@@ -29354,10 +29353,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 88}
+      "timings": {"parse_us": 39, "execute_us": 172}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 88}
+  "timings": {"parse_us": 39, "execute_us": 172}
 }
 ```
 
@@ -29426,10 +29425,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 10, "execute_us": 82}
+      "timings": {"parse_us": 42, "execute_us": 207}
     }
   ],
-  "timings": {"parse_us": 10, "execute_us": 82}
+  "timings": {"parse_us": 42, "execute_us": 207}
 }
 ```
 
@@ -29479,10 +29478,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 87}
+      "timings": {"parse_us": 60, "execute_us": 217}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 87}
+  "timings": {"parse_us": 60, "execute_us": 217}
 }
 ```
 
@@ -29509,7 +29508,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 2: table 'live_data', column 'volume' is LONG and cannot take a float; write whole numbers with an i suffix, like 3i",
   "line": 2,
-  "errorId": "934d599ef9eb-3"
+  "errorId": "b4cb8f8c02ee-3"
 }
 ```
 
@@ -29533,10 +29532,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 17, "execute_us": 80}
+      "timings": {"parse_us": 36, "execute_us": 159}
     }
   ],
-  "timings": {"parse_us": 17, "execute_us": 80}
+  "timings": {"parse_us": 36, "execute_us": 159}
 }
 ```
 
@@ -29557,7 +29556,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'live_data' has no column 'turnover'; add it first (ALTER TABLE live_data ADD COLUMN ...)",
   "line": 1,
-  "errorId": "934d599ef9eb-4"
+  "errorId": "b4cb8f8c02ee-4"
 }
 ```
 
@@ -29611,10 +29610,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 11, "execute_us": 50}
+      "timings": {"parse_us": 13, "execute_us": 71}
     }
   ],
-  "timings": {"parse_us": 11, "execute_us": 50}
+  "timings": {"parse_us": 13, "execute_us": 71}
 }
 ```
 
@@ -29635,7 +29634,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "unsupported precision 'minutes': use n, u, ms or s",
   "line": 0,
-  "errorId": "934d599ef9eb-5"
+  "errorId": "b4cb8f8c02ee-5"
 }
 ```
 
@@ -29762,10 +29761,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 18, "execute_us": 92}
+      "timings": {"parse_us": 31, "execute_us": 163}
     }
   ],
-  "timings": {"parse_us": 18, "execute_us": 92}
+  "timings": {"parse_us": 31, "execute_us": 163}
 }
 ```
 
@@ -36157,13 +36156,13 @@ Result:
 | group by 1 key(s), 2 aggregate(s) |
 | sort by 1 key(s) |
 | engine: column |
-| actual: 3 row(s) in 0.580 ms |
-|   -> ochl_day: 3 row(s) in 0.361 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
-|      steps: prepare 0.029 ms, scan and aggregate 0.331 ms |
+| actual: 3 row(s) in 0.489 ms |
+|   -> ochl_day: 3 row(s) in 0.466 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
+|      steps: prepare 0.019 ms, scan and aggregate 0.446 ms |
 | partitions read: 1 |
 | memory: 2016 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.185 ms |
-| Execution Time: 0.580 ms |
+| Planning Time: 0.223 ms |
+| Execution Time: 0.489 ms |
 
 (13 rows)
 
@@ -36185,15 +36184,15 @@ Result:
 | sort by 1 key(s) |
 | limit 3 |
 | engine: row (a join) |
-| actual: 3 row(s) in 0.162 ms |
-|   -> t, brokers: 3 row(s) in 0.154 ms, engine: row (a join) |
-|      steps: prepare 0.065 ms, scan, join and filter 0.082 ms, sort 0.006 ms, limit and result 0.001 ms |
-|     -> trade_log: 5 row(s) in 0.045 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.016 ms, scan and aggregate 0.028 ms, result 0.001 ms |
+| actual: 3 row(s) in 0.332 ms |
+|   -> t, brokers: 3 row(s) in 0.318 ms, engine: row (a join) |
+|      steps: prepare 0.091 ms, scan, join and filter 0.217 ms, sort 0.009 ms, limit and result 0.002 ms |
+|     -> trade_log: 5 row(s) in 0.062 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.021 ms, scan and aggregate 0.039 ms, result 0.002 ms |
 | partitions read: 3 |
 | memory: 1059 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.495 ms |
-| Execution Time: 0.162 ms |
+| Planning Time: 0.792 ms |
+| Execution Time: 0.332 ms |
 
 (14 rows)
 
@@ -36847,19 +36846,19 @@ Result:
 | scan result of subquery 1 (6 rows) |
 | engine: row (reads a subquery or view result) |
 | union all with 1 more part(s) |
-| actual: 10 row(s) in 0.070 ms |
-|   -> subquery 1: 6 row(s) in 0.044 ms, engine: row (reads a subquery or view result) |
-|      steps: prepare 0.042 ms, scan and filter 0.001 ms, result 0.000 ms |
-|     -> trade_log: 6 row(s) in 0.030 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.018 ms, scan and filter 0.011 ms, result 0.001 ms |
-|   -> subquery 2: 4 row(s) in 0.018 ms, engine: row (reads a subquery or view result) |
-|      steps: prepare 0.017 ms, scan and filter 0.001 ms, result 0.000 ms |
-|     -> trade_log: 4 row(s) in 0.011 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
-|        steps: prepare 0.004 ms, scan and filter 0.006 ms, result 0.000 ms |
+| actual: 10 row(s) in 0.338 ms |
+|   -> subquery 1: 6 row(s) in 0.218 ms, engine: row (reads a subquery or view result) |
+|      steps: prepare 0.213 ms, scan and filter 0.004 ms, result 0.001 ms |
+|     -> trade_log: 6 row(s) in 0.177 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.069 ms, scan and filter 0.105 ms, result 0.002 ms |
+|   -> subquery 2: 4 row(s) in 0.057 ms, engine: row (reads a subquery or view result) |
+|      steps: prepare 0.055 ms, scan and filter 0.002 ms, result 0.001 ms |
+|     -> trade_log: 4 row(s) in 0.031 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
+|        steps: prepare 0.016 ms, scan and filter 0.015 ms, result 0.001 ms |
 | partitions read: 3 |
 | memory: 0 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.696 ms |
-| Execution Time: 0.070 ms |
+| Planning Time: 1.596 ms |
+| Execution Time: 0.338 ms |
 
 (16 rows)
 
@@ -39138,7 +39137,7 @@ the time zone of this session is Asia/Kathmandu; times are still stored as UTC
 
 | today_in_nepal (DATE) | nepal_clock (TIMESTAMP) | utc_now (TIMESTAMP) | as_text (STRING) | zone (STRING) |
 |---|---|---|---|---|
-| 2026-10-24 | 2026-10-24T08:48:15.048Z | 2026-10-24T03:03:15.048Z | 2026-10-24 08:48:15.048+05:45 | Asia/Kathmandu |
+| 2026-10-24 | 2026-10-24T09:28:24.277Z | 2026-10-24T03:43:24.277Z | 2026-10-24 09:28:24.277+05:45 | Asia/Kathmandu |
 
 (1 row)
 
@@ -41886,13 +41885,13 @@ kareladb> partition | result                        | bytes
 ----------+-------------------------------+------
 2025-01   | moved to cold store 'archive' |   692
 2025-02   | moved to cold store 'archive' |   692
-(2 rows, 92.3 ms)
+(2 rows, 83.2 ms)
 2 partition(s) of table 'ticks' moved to cold store 'archive' (they stay there: cold_after is not set)
 kareladb> symbol | days | avg_price | volume
 -------+------+-----------+-------
 BANK   |    3 |     211.5 |   1730
 CITY   |    3 |     506.5 |    630
-(2 rows, 0.8 ms)
+(2 rows, 1.1 ms)
 kareladb>
 ```
 
@@ -41941,7 +41940,7 @@ kareladb> partition | result                        | bytes
 ----------+-------------------------------+------
 2025-01   | moved to cold store 'archive' |   692
 2025-02   | moved to cold store 'archive' |   692
-(2 rows, 87.3 ms)
+(2 rows, 82.2 ms)
 2 partition(s) of table 'ticks' moved to cold store 'archive' (they stay there: cold_after is not set)
 kareladb> partition | result                       | bytes
 ----------+------------------------------+------
@@ -42013,14 +42012,14 @@ kareladb> partition | result                        | bytes
 2025-01   | moved to cold store 'archive' |   692
 2025-02   | moved to cold store 'archive' |   692
 2025-03   | moved to cold store 'archive' |   692
-(3 rows, 131.5 ms)
+(3 rows, 138.2 ms)
 3 partition(s) of table 'ticks' moved to cold store 'archive' (they stay there: cold_after is not set)
 kareladb> table_name | partition | store   | bytes
 -----------+-----------+---------+------
 ticks      | 2025-01   | archive |   692
 ticks      | 2025-02   | archive |   692
 ticks      | 2025-03   | archive |   692
-(3 rows, 0.2 ms)
+(3 rows, 0.3 ms)
 kareladb>
 ```
 
@@ -51468,7 +51467,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 03:02:13.468 | 08:47 | true |
+| 03:42:11.088 | 09:27 | true |
 
 (1 row)
 
@@ -67864,7 +67863,7 @@ WHERE email = 'sita@example.com' AND password_verify('correct horse battery', pa
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$+f`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$5L`
 
 ```text
 1 row(s) inserted
@@ -67874,7 +67873,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$+fIBEKwIOZQs8mH+wBjD6Q$q9c+Il9Ye9hmPoVc/c1xXfLi0ra+CycWZEFjTi8uv0I |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$5LcUSQOMLVh1TlF4TkUunw$YGL6ZXC592xNHE4Bopka6zksauj8x1oHndDkJQvQCnA |
 
 (1 row)
 
@@ -67922,7 +67921,7 @@ Result:
 
 | first (STRING) | second (STRING) |
 |---|---|
-| $pbkdf2-sha256$i=600000$UW0VHdz6GxbTtFPdE5EloQ$KYavRTQfn9OTK34AfVHdPgFThzrVuSDYDkGalXiwZ+g | $pbkdf2-sha256$i=600000$nOmPUycAaCQnRoV/m8jGJA$Q6VwUYY8oLuUUzmikQwGBhtcM/LfM6wdydePd05J58k |
+| $pbkdf2-sha256$i=600000$y2JQ9lpBUqqIwT8GTCNLUg$Cvu5yWcKtJAqiLaLmdW1nCBzwHPnrf1mBh0rqjHbGH8 | $pbkdf2-sha256$i=600000$9osqR459XQe9YmhMZ27gng$5f50RLiT+wqGAPDF37Q1SKmujcehN9yitR+VwtNeEMw |
 
 (1 row)
 
@@ -67941,7 +67940,7 @@ SELECT id, email, password_hash FROM app_users;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$KF`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$Ed`
 
 ```text
 1 row(s) inserted
@@ -67951,7 +67950,7 @@ Result:
 
 | id (INT) | email (STRING) | password_hash (STRING) |
 |---|---|---|
-| 1 | sita@example.com | $pbkdf2-sha256$i=600000$KFbbVsknVLmgdPZOR8ZCPA$b1eDLLDnRhx09lE+KSMqPAhRN2Xqi7Oh6tTsV9o9F6E |
+| 1 | sita@example.com | $pbkdf2-sha256$i=600000$EdB84eIDDCgNn0jTtW7aMQ$dpVnbu3RuUxLkhdJiuEDHDIWpeAE1ZbICIN6DcoMSuo |
 
 (1 row)
 
@@ -67988,7 +67987,7 @@ SELECT id, password_hash FROM app_users;
 
 Result:
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$CQgDmpud9pkGUh5xSUfcow$H12OWdmKZbJMp+V`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$Y4kyMkd1ucLY1HvwSIXWwQ$py6HOBUcLUFWXSW`
 
 ```text
 2 row(s) updated
@@ -67998,8 +67997,8 @@ Result:
 
 | id (INT) | password_hash (STRING) |
 |---|---|
-| 1 | $pbkdf2-sha256$i=600000$CQgDmpud9pkGUh5xSUfcow$H12OWdmKZbJMp+VdnFNpTXvcIvGBO15LOQu0S32uvPc |
-| 2 | $pbkdf2-sha256$i=600000$CQgDmpud9pkGUh5xSUfcow$H12OWdmKZbJMp+VdnFNpTXvcIvGBO15LOQu0S32uvPc |
+| 1 | $pbkdf2-sha256$i=600000$Y4kyMkd1ucLY1HvwSIXWwQ$py6HOBUcLUFWXSWZLEpK7ZjXRsVrrpJhtsNKXYyP2t4 |
+| 2 | $pbkdf2-sha256$i=600000$Y4kyMkd1ucLY1HvwSIXWwQ$py6HOBUcLUFWXSWZLEpK7ZjXRsVrrpJhtsNKXYyP2t4 |
 
 (2 rows)
 
@@ -68014,7 +68013,7 @@ Result:
 
 | ok_but_weak (STRING) |
 |---|
-| $pbkdf2-sha256$i=1000$jiH1xl96lcOQUp6YELwOXw$WKccgzPBWcNrWJszMX0lKgv0xMV7RIypDwoOg//DJ4A |
+| $pbkdf2-sha256$i=1000$2JSezD2PLRKPkFikkSEuLQ$NTrjORFSBH+Y20ZpWqQ6KeHI0ksYRWjcJZ9JBzBkuVA |
 
 (1 row)
 
@@ -68117,7 +68116,7 @@ Result:
 
 (1 row)
 
-`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$+NB+e98XTtYrKkEm+1r5uw$q23Qu2sP7rBsyT9`
+`UPDATE app_users SET password_hash = '$pbkdf2-sha256$i=600000$Al+pOVQuWJIk6NK9dZNGfA$0VHbfXeLmktm98K`
 
 ```text
 1 row(s) updated
@@ -68346,7 +68345,7 @@ Result:
 
 | four_bytes (STRING) | api_secret (STRING) | hex_chars (LONG) |
 |---|---|---|
-| 4283c13a | 7eb65f306bb614d20969b8167a0be197 | 32 |
+| 51b06c60 | 8d2ae8808228dae8242607e841efd775 | 32 |
 
 (1 row)
 
@@ -68402,7 +68401,7 @@ Result:
 
 | session_token (STRING) | shorter (STRING) | chars (LONG) |
 |---|---|---|
-| LgV9lVWSgEKBBKawxNzUgPMHcKcWwCdIEIu0g3sxTuQ | aCLQ9VF3EKaaVK_TL5jIyg | 43 |
+| x4Zmd-AgNRZA8tiDh3PkfjyK3xb29nAndYpu7F5puF8 | NM8gsekpdOepyWmkuSLljw | 43 |
 
 (1 row)
 
@@ -68427,7 +68426,7 @@ Result:
 
 | token_for_the_email_link (STRING) |
 |---|
-| PtXfQg_TYQ-3_S1ATy50BHI52Jg0IbLo8D380ItqB9Y |
+| gGSh7giuSygz4GOd7XQpMhPpswfPCvdIxjs7vMl2DoE |
 
 (1 row)
 
@@ -68483,7 +68482,7 @@ Result:
 
 | id (STRING) | chars (LONG) |
 |---|---|
-| 28c3aa80-0f40-45e0-a60e-8c97e1fd2a0b | 36 |
+| dd90a5cc-6097-4a4e-9f81-5c514caaa6a4 | 36 |
 
 (1 row)
 
@@ -68512,8 +68511,8 @@ Result:
 
 | public_id (STRING) | author (STRING) | title (STRING) |
 |---|---|---|
-| 3a410b84-1cdc-4e96-b013-831c45418392 | ram | बजार आज कस्तो होला? |
-| 8f4a6be9-8926-4ae0-81b8-6d5669792d02 | sita | CITY dividend news |
+| a6ce078e-58b5-4281-b656-f4dc1281e0a6 | sita | CITY dividend news |
+| d20e20c8-0f28-464b-8fd9-a2000c8179d8 | ram | बजार आज कस्तो होला? |
 
 (2 rows)
 
@@ -68636,7 +68635,7 @@ Result:
 
 | message (STRING) |
 |---|
-| -----BEGIN PGP MESSAGE-----  ww0EBwMCX+1a+0UMYX9/0joBGPqa1ecd9LOS7nHyemPxfvkccxKA7p4fHSM4ehxV+fFM8WNNtcPN kPbI7Cj/q1SiommdueTB4/kR =x561 -----END PGP MESSAGE-----  |
+| -----BEGIN PGP MESSAGE-----  ww0EBwMCeHqpANH6Wdpg0joB9GfzIRDk0hhAcfonEOI7K0a+LgL+X80FRFtAiyKSuMf+bxy9ICI3 5WnmODINkSyhoLSIht6PZod7 =3EhB -----END PGP MESSAGE-----  |
 
 (1 row)
 
@@ -68879,7 +68878,7 @@ Result:
 
 | bytes (LONG) | hex (STRING) |
 |---|---|
-| 16 | 436a539e8418fac9 |
+| 16 | 83b3827a347264b2 |
 
 (1 row)
 
@@ -69024,7 +69023,7 @@ SELECT count(*) AS sessions_left FROM app_sessions;
 
 Result:
 
-`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$co`
+`INSERT INTO app_users (email, password_hash) VALUES ('sita@example.com', '$pbkdf2-sha256$i=600000$iI`
 
 ```text
 1 row(s) inserted
@@ -69042,7 +69041,7 @@ Result:
 
 | token (STRING) |
 |---|
-| g-sIlm29nvtzvU5Gnr55Pz7ogdS8NsEC7t8O0eKDCjU |
+| MjPY-T7K026nJVqwz96IF_3-kIqoZafKJhbMsSIwOZI |
 
 (1 row)
 
@@ -69701,23 +69700,24 @@ Result:
 
 (4 rows)
 
-**Example: The table under a view was dropped** (shows an error)
+**Example: A table a view reads cannot be dropped** (shows an error)
 
 Setup:
 
 ```sql
 CREATE TABLE watchlist (symbol STRING PRIMARY KEY, note STRING);
 CREATE VIEW my_watchlist AS SELECT symbol, note FROM watchlist;
-DROP TABLE watchlist;
 ```
 
 ```sql
-SELECT * FROM my_watchlist;
+DROP TABLE watchlist;
 ```
 
 Result:
 
-Error: `view 'my_watchlist': line 1, column 26: table or view 'watchlist' does not exist`
+Error: `cannot drop table watchlist because other objects depend on it: view my_watchlist. Drop them first, or use DROP TABLE watchlist CASCADE to drop them too`
+
+`DROP TABLE watchlist CASCADE` drops `my_watchlist` with it; or `DROP VIEW my_watchlist` first.
 
 **Example: A view cannot be changed with INSERT** (sample data: sample; shows an error)
 
@@ -71621,7 +71621,7 @@ id | owner | balance
 ---+-------+--------
  1 | Ram   | 1000.00
  2 | Sita  |    0.00
-(2 rows, 0.4 ms)
+(2 rows, 0.3 ms)
 ```
 
 **Example: Two CALLs in one transaction, then ROLLBACK**
@@ -71920,14 +71920,14 @@ procedure 'transfer' done: 3 row(s) changed
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL transfer(1, 2, 600) WITH DEBUG | 3 | 6792 |  |
-| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 94 | have=1000.00 |
-| 3 | transfer | IF have < amt THEN | 0 | 5 | false |
-| 4 | transfer | ELSIF amt >= 500 THEN | 0 | 2 | true |
-| 5 | transfer | PRINT 'big transfer: check it by hand' | 0 | 0 | big transfer: check it by hand |
-| 6 | transfer | UPDATE accounts SET balance = balance - amt WHERE id = from_id | 1 | 55 |  |
-| 7 | transfer | UPDATE accounts SET balance = balance + amt WHERE id = to_id | 1 | 9 |  |
-| 8 | transfer | INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt) | 1 | 67 |  |
+| 1 |  | CALL transfer(1, 2, 600) WITH DEBUG | 3 | 5802 |  |
+| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 237 | have=1000.00 |
+| 3 | transfer | IF have < amt THEN | 0 | 12 | false |
+| 4 | transfer | ELSIF amt >= 500 THEN | 0 | 3 | true |
+| 5 | transfer | PRINT 'big transfer: check it by hand' | 0 | 1 | big transfer: check it by hand |
+| 6 | transfer | UPDATE accounts SET balance = balance - amt WHERE id = from_id | 1 | 109 |  |
+| 7 | transfer | UPDATE accounts SET balance = balance + amt WHERE id = to_id | 1 | 24 |  |
+| 8 | transfer | INSERT INTO ledger (from_account, to_account, amount) VALUES (from_id, to_id, amt) | 1 | 137 |  |
 
 (8 rows)
 
@@ -71957,10 +71957,10 @@ procedure 'transfer' created
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL transfer(2, 1, 50) WITH DEBUG | 0 | 239 | failed |
-| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 99 | have=0.00 |
-| 3 | transfer | IF have < amt THEN | 0 | 8 | true |
-| 4 | transfer | RAISE concat('not enough money in account ', from_id, ': it has ', have) | 0 | 53 | failed: not enough money in account 2: it has 0.00 |
+| 1 |  | CALL transfer(2, 1, 50) WITH DEBUG | 0 | 387 | failed |
+| 2 | transfer | DECLARE have DECIMAL(2) DEFAULT (SELECT balance FROM accounts WHERE id = from_id) | 0 | 201 | have=0.00 |
+| 3 | transfer | IF have < amt THEN | 0 | 13 | true |
+| 4 | transfer | RAISE concat('not enough money in account ', from_id, ': it has ', have) | 0 | 103 | failed: not enough money in account 2: it has 0.00 |
 
 (4 rows)
 
@@ -73240,7 +73240,7 @@ id | owner | balance
 ---+-------+--------
  1 | Ram   |  600.00
  2 | Sita  |    0.00
-(2 rows, 0.3 ms)
+(2 rows, 0.5 ms)
 ```
 
 <a id="print"></a>
@@ -73993,10 +73993,10 @@ HTTP 200 (application/json)
   "schedule": "every 5m",
   "sql": "CALL refresh_shop_totals()",
   "enabled": true,
-  "created_ms": 1792810995724,
-  "updated_ms": 1792810995724,
+  "created_ms": 1792813405079,
+  "updated_ms": 1792813405079,
   "created_by": "",
-  "next_run_ms": 1792811100000,
+  "next_run_ms": 1792813500000,
   "last_run_ms": 0,
   "last_due_ms": 0,
   "last_late_ms": 0,
@@ -74021,7 +74021,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"name": "shop_totals", "finished": true, "ok": true, "error": "", "took_ms": 3, "rows": 2}
+{"name": "shop_totals", "finished": true, "ok": true, "error": "", "took_ms": 4, "rows": 2}
 ```
 
 `POST /exec?compat=0`
@@ -74046,10 +74046,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 50, "execute_us": 98}
+      "timings": {"parse_us": 49, "execute_us": 95}
     }
   ],
-  "timings": {"parse_us": 50, "execute_us": 98}
+  "timings": {"parse_us": 49, "execute_us": 95}
 }
 ```
 
@@ -74123,8 +74123,8 @@ HTTP 200 (application/json)
   "schedule": "daily 02:00",
   "sql": "SELECT 1",
   "enabled": true,
-  "created_ms": 1792810995673,
-  "updated_ms": 1792810995673,
+  "created_ms": 1792813405026,
+  "updated_ms": 1792813405026,
   "created_by": "",
   "next_run_ms": 1792872900000,
   "last_run_ms": 0,
@@ -74157,8 +74157,8 @@ HTTP 200 (application/json)
   "schedule": "daily 02:00",
   "sql": "SELECT 1",
   "enabled": false,
-  "created_ms": 1792810995673,
-  "updated_ms": 1792810995719,
+  "created_ms": 1792813405026,
+  "updated_ms": 1792813405093,
   "created_by": "",
   "next_run_ms": 0,
   "last_run_ms": 0,
@@ -74194,7 +74194,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792810995747,
+  "now_ms": 1792813405139,
   "timers": []
 }
 ```
@@ -75213,7 +75213,7 @@ exit code 1
 accounts | audit_rows
 ---------+-----------
        0 |          0
-(1 row, 0.4 ms)
+(1 row, 0.3 ms)
 ```
 
 **Example: A trigger that fires itself** (shows an error)
@@ -76341,7 +76341,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "5c112f9c20ef1758198c9dcac4b3b302", "idle_timeout_ms": 600000}
+{"session": "fa05962c0f2ad0b405dd1ded41c7068a", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -76360,7 +76360,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 14, "execute_us": 8}
+      "timings": {"parse_us": 14, "execute_us": 7}
     },
     {
       "statement": "INSERT INTO users VALUES (2, 'sita@example.np')",
@@ -76370,7 +76370,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 14, "execute_us": 58}
+      "timings": {"parse_us": 14, "execute_us": 54}
     },
     {
       "statement": "SAVEPOINT before_hari",
@@ -76380,13 +76380,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "savepoint before_hari set",
-      "timings": {"parse_us": 14, "execute_us": 9}
+      "timings": {"parse_us": 14, "execute_us": 19}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 42, "execute_us": 75}
+  "timings": {"parse_us": 42, "execute_us": 80}
 }
 ```
 
@@ -76424,7 +76424,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "rolled back to savepoint before_hari: 0 row change(s) undone",
-      "timings": {"parse_us": 10, "execute_us": 12}
+      "timings": {"parse_us": 10, "execute_us": 11}
     },
     {
       "statement": "INSERT INTO users VALUES (3, 'hari@example.np')",
@@ -76434,7 +76434,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 10, "execute_us": 53}
+      "timings": {"parse_us": 10, "execute_us": 48}
     },
     {
       "statement": "COMMIT",
@@ -76450,7 +76450,7 @@ HTTP 200 (application/json)
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 30, "execute_us": 78}
+  "timings": {"parse_us": 30, "execute_us": 72}
 }
 ```
 
@@ -76477,7 +76477,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 41, "execute_us": 94}
+      "timings": {"parse_us": 42, "execute_us": 127}
     }
   ],
   "columns": [
@@ -76490,7 +76490,7 @@ HTTP 200 (application/json)
     [3, "hari@example.np"]
   ],
   "count": 3,
-  "timings": {"parse_us": 41, "execute_us": 94}
+  "timings": {"parse_us": 42, "execute_us": 127}
 }
 ```
 
@@ -76585,7 +76585,7 @@ id | name
 ---+--------------------
  1 | Keystone Securities
 34 | Vision Securities  
-(2 rows, 0.5 ms)
+(2 rows, 3.2 ms)
 ```
 
 <a id="errors"></a>
@@ -76682,7 +76682,7 @@ id | owner | balance
 ---+-------+--------
  1 | Ram   | 1000.00
  2 | Sita  |    0.00
-(2 rows, 0.5 ms)
+(2 rows, 6.1 ms)
 ```
 
 <a id="no-commit"></a>
@@ -76921,7 +76921,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "f1c54a60bba8a70e9d6fdbdf07315cec", "idle_timeout_ms": 600000}
+{"session": "d4f928b63f3b6bf308f5af0c5fd445aa", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -76940,7 +76940,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 24, "execute_us": 7}
+      "timings": {"parse_us": 26, "execute_us": 8}
     },
     {
       "statement": "SELECT id FROM jobs WHERE state = 'new' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
@@ -76954,7 +76954,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 24, "execute_us": 143}
+      "timings": {"parse_us": 26, "execute_us": 150}
     }
   ],
   "columns": [
@@ -76964,7 +76964,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 48, "execute_us": 150}
+  "timings": {"parse_us": 52, "execute_us": 158}
 }
 ```
 
@@ -76989,7 +76989,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 32, "execute_us": 96}
+      "timings": {"parse_us": 44, "execute_us": 106}
     }
   ],
   "columns": [
@@ -77000,7 +77000,7 @@ HTTP 200 (application/json)
     [2, "new"]
   ],
   "count": 1,
-  "timings": {"parse_us": 32, "execute_us": 96}
+  "timings": {"parse_us": 44, "execute_us": 106}
 }
 ```
 
@@ -77034,7 +77034,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "a6ba20dc50efc663010b28d0d3c71910", "idle_timeout_ms": 600000}
+{"session": "d784d69085a972f95c3b748bbe3907be", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77053,7 +77053,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 17, "execute_us": 7}
+      "timings": {"parse_us": 19, "execute_us": 7}
     },
     {
       "statement": "SELECT id FROM jobs WHERE id = 1 FOR UPDATE",
@@ -77067,7 +77067,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 17, "execute_us": 82}
+      "timings": {"parse_us": 19, "execute_us": 131}
     }
   ],
   "columns": [
@@ -77077,7 +77077,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 34, "execute_us": 89}
+  "timings": {"parse_us": 38, "execute_us": 138}
 }
 ```
 
@@ -77126,7 +77126,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "d25607dc3b0d5764cddeb8ca020c5579", "idle_timeout_ms": 600000}
+{"session": "01fac3b459a0a2e41fc862ef699a3be1", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77145,7 +77145,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 15, "execute_us": 5}
+      "timings": {"parse_us": 21, "execute_us": 8}
     },
     {
       "statement": "SELECT id FROM jobs WHERE id = 1 FOR UPDATE",
@@ -77159,7 +77159,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 15, "execute_us": 76}
+      "timings": {"parse_us": 21, "execute_us": 92}
     }
   ],
   "columns": [
@@ -77169,7 +77169,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 30, "execute_us": 81}
+  "timings": {"parse_us": 42, "execute_us": 100}
 }
 ```
 
@@ -77193,7 +77193,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 38, "execute_us": 85}
+      "timings": {"parse_us": 40, "execute_us": 98}
     }
   ],
   "columns": [
@@ -77203,7 +77203,7 @@ HTTP 200 (application/json)
     [2]
   ],
   "count": 1,
-  "timings": {"parse_us": 38, "execute_us": 85}
+  "timings": {"parse_us": 40, "execute_us": 98}
 }
 ```
 
@@ -77258,7 +77258,7 @@ kareladb> id | owner | balance
 ---+-------+--------
  1 | Ram   |  749.50
  2 | Sita  |  250.50
-(2 rows, 0.4 ms)
+(2 rows, 0.2 ms)
 kareladb> transaction committed: 2 change(s) saved
 kareladb>
 ```
@@ -77367,7 +77367,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "c6585594460e44835078008109522134", "idle_timeout_ms": 600000}
+{"session": "84adb999531598fc9216c87bf5ddb239", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77386,7 +77386,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 14, "execute_us": 5}
+      "timings": {"parse_us": 19, "execute_us": 8}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -77396,13 +77396,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 14, "execute_us": 45}
+      "timings": {"parse_us": 19, "execute_us": 76}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 28, "execute_us": 50}
+  "timings": {"parse_us": 38, "execute_us": 84}
 }
 ```
 
@@ -77428,7 +77428,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 35, "execute_us": 69}
+      "timings": {"parse_us": 44, "execute_us": 95}
     }
   ],
   "columns": [
@@ -77440,7 +77440,7 @@ HTTP 200 (application/json)
     [2, "0.00"]
   ],
   "count": 2,
-  "timings": {"parse_us": 35, "execute_us": 69}
+  "timings": {"parse_us": 44, "execute_us": 95}
 }
 ```
 
@@ -77460,7 +77460,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 17, "execute_us": 55}
+      "timings": {"parse_us": 20, "execute_us": 63}
     },
     {
       "statement": "COMMIT",
@@ -77470,13 +77470,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 2 change(s) saved",
-      "timings": {"parse_us": 17, "execute_us": 12}
+      "timings": {"parse_us": 20, "execute_us": 16}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 34, "execute_us": 67}
+  "timings": {"parse_us": 40, "execute_us": 79}
 }
 ```
 
@@ -77502,7 +77502,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 3, "execute_us": 72}
+      "timings": {"parse_us": 4, "execute_us": 100}
     }
   ],
   "columns": [
@@ -77514,7 +77514,7 @@ HTTP 200 (application/json)
     [2, "100.00"]
   ],
   "count": 2,
-  "timings": {"parse_us": 3, "execute_us": 72}
+  "timings": {"parse_us": 4, "execute_us": 100}
 }
 ```
 
@@ -77523,7 +77523,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "c6585594460e44835078008109522134", "closed": true}
+{"session": "84adb999531598fc9216c87bf5ddb239", "closed": true}
 ```
 
 <a id="one-writer"></a>
@@ -77604,7 +77604,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "465036a6e2b7066295f9ef1913de5695", "idle_timeout_ms": 600000}
+{"session": "0431f249c482bfd1ac85f9ab88ed862c", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77623,7 +77623,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 13, "execute_us": 4}
+      "timings": {"parse_us": 13, "execute_us": 11}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -77633,13 +77633,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 13, "execute_us": 50}
+      "timings": {"parse_us": 13, "execute_us": 59}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 26, "execute_us": 54}
+  "timings": {"parse_us": 26, "execute_us": 70}
 }
 ```
 
@@ -77659,13 +77659,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 34, "execute_us": 28}
+      "timings": {"parse_us": 24, "execute_us": 32}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 34, "execute_us": 28}
+  "timings": {"parse_us": 24, "execute_us": 32}
 }
 ```
 
@@ -77699,7 +77699,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "4e1f84832a5592c5919518128071dd09", "idle_timeout_ms": 600000}
+{"session": "de7e2cce98e749c040e38d34acd54844", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77718,7 +77718,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 19, "execute_us": 6}
+      "timings": {"parse_us": 13, "execute_us": 7}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -77728,13 +77728,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 19, "execute_us": 70}
+      "timings": {"parse_us": 13, "execute_us": 52}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 38, "execute_us": 76}
+  "timings": {"parse_us": 26, "execute_us": 59}
 }
 ```
 
@@ -77754,13 +77754,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 17, "execute_us": 33}
+      "timings": {"parse_us": 27, "execute_us": 51}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 17, "execute_us": 33}
+  "timings": {"parse_us": 27, "execute_us": 51}
 }
 ```
 
@@ -77794,7 +77794,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "dcb63ea69aca97c2316001db84f6b474", "idle_timeout_ms": 600000}
+{"session": "ace826f57a517735f0aca5925fe8d4b1", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77813,7 +77813,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 13, "execute_us": 6}
+      "timings": {"parse_us": 18, "execute_us": 7}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -77823,13 +77823,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 13, "execute_us": 71}
+      "timings": {"parse_us": 18, "execute_us": 61}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 26, "execute_us": 77}
+  "timings": {"parse_us": 36, "execute_us": 68}
 }
 ```
 
@@ -77843,7 +77843,7 @@ HTTP 503 (application/json)
   "results": [],
   "saved": 0,
   "rolled_back": false,
-  "error": "a row of table 'accounts' is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5007 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
+  "error": "a row of table 'accounts' is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5015 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
   "sqlstate": "55P03"
 }
 ```
@@ -77878,7 +77878,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "59b0a2f5d5ec8c0911e600c841d0bfec", "idle_timeout_ms": 600000}
+{"session": "38067a8d88d32b40e8eceb0e598121b4", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77897,7 +77897,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 7, "execute_us": 4}
+      "timings": {"parse_us": 36, "execute_us": 11}
     },
     {
       "statement": "INSERT INTO accounts VALUES (3, 'Hari', 0)",
@@ -77907,13 +77907,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 7, "execute_us": 33}
+      "timings": {"parse_us": 36, "execute_us": 40}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 14, "execute_us": 37}
+  "timings": {"parse_us": 72, "execute_us": 51}
 }
 ```
 
@@ -77927,7 +77927,7 @@ HTTP 503 (application/json)
   "results": [],
   "saved": 0,
   "rolled_back": false,
-  "error": "table 'accounts' is busy: another transaction has held it for 5035 ms; waited 5001 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
+  "error": "table 'accounts' is busy: another transaction has held it for 5017 ms; waited 5004 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
   "sqlstate": "55P03"
 }
 ```
@@ -77962,7 +77962,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "a9146d09695660cb9dd6cdec35df912d", "idle_timeout_ms": 600000}
+{"session": "bd71b998afdca561c1a1fab3e1b46185", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -77981,7 +77981,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 10, "execute_us": 45}
+      "timings": {"parse_us": 16, "execute_us": 8}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -77991,13 +77991,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 10, "execute_us": 50}
+      "timings": {"parse_us": 16, "execute_us": 70}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 20, "execute_us": 95}
+  "timings": {"parse_us": 32, "execute_us": 78}
 }
 ```
 
@@ -78050,7 +78050,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "ac94b3e7477757c4246c165d719ce58b", "idle_timeout_ms": 600000}
+{"session": "2dd2e591c2aa0d98bf3488d5ce92511f", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -78069,7 +78069,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 18, "execute_us": 7}
+      "timings": {"parse_us": 15, "execute_us": 5}
     },
     {
       "statement": "UPDATE accounts SET balance = balance - 100 WHERE id = 1",
@@ -78079,13 +78079,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 18, "execute_us": 77}
+      "timings": {"parse_us": 15, "execute_us": 51}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 36, "execute_us": 84}
+  "timings": {"parse_us": 30, "execute_us": 56}
 }
 ```
 
@@ -78105,7 +78105,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'accounts' already exists",
-      "timings": {"parse_us": 29, "execute_us": 3}
+      "timings": {"parse_us": 19, "execute_us": 2}
     },
     {
       "statement": "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS owner STRING",
@@ -78115,13 +78115,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'accounts' not changed (already as asked)",
-      "timings": {"parse_us": 29, "execute_us": 1}
+      "timings": {"parse_us": 19, "execute_us": 1}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 58, "execute_us": 4}
+  "timings": {"parse_us": 38, "execute_us": 3}
 }
 ```
 
@@ -78208,7 +78208,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "55341c7534ef87050622f87058c1c26b", "idle_timeout_ms": 600000}
+{"session": "cff97fd21e24560696a166abb858ecdd", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -78227,13 +78227,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 12, "execute_us": 14}
+      "timings": {"parse_us": 15, "execute_us": 23}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 12, "execute_us": 14}
+  "timings": {"parse_us": 15, "execute_us": 23}
 }
 ```
 
@@ -78257,7 +78257,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 30, "execute_us": 61}
+      "timings": {"parse_us": 33, "execute_us": 68}
     }
   ],
   "columns": [
@@ -78267,7 +78267,7 @@ HTTP 200 (application/json)
     [10]
   ],
   "count": 1,
-  "timings": {"parse_us": 30, "execute_us": 61}
+  "timings": {"parse_us": 33, "execute_us": 68}
 }
 ```
 
@@ -78287,13 +78287,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 32, "execute_us": 36}
+      "timings": {"parse_us": 54, "execute_us": 91}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 32, "execute_us": 36}
+  "timings": {"parse_us": 54, "execute_us": 91}
 }
 ```
 
@@ -78317,7 +78317,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 4, "execute_us": 84}
+      "timings": {"parse_us": 3, "execute_us": 85}
     }
   ],
   "columns": [
@@ -78327,7 +78327,7 @@ HTTP 200 (application/json)
     [11]
   ],
   "count": 1,
-  "timings": {"parse_us": 4, "execute_us": 84}
+  "timings": {"parse_us": 3, "execute_us": 85}
 }
 ```
 
@@ -78347,13 +78347,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 0 change(s) saved",
-      "timings": {"parse_us": 15, "execute_us": 11}
+      "timings": {"parse_us": 17, "execute_us": 13}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 15, "execute_us": 11}
+  "timings": {"parse_us": 17, "execute_us": 13}
 }
 ```
 
@@ -78427,7 +78427,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 11, "execute_us": 4}
+      "timings": {"parse_us": 9, "execute_us": 6}
     },
     {
       "statement": "SELECT v FROM report_src",
@@ -78441,7 +78441,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 11, "execute_us": 43}
+      "timings": {"parse_us": 9, "execute_us": 92}
     },
     {
       "statement": "COMMIT",
@@ -78451,13 +78451,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 0 change(s) saved",
-      "timings": {"parse_us": 11, "execute_us": 3}
+      "timings": {"parse_us": 9, "execute_us": 4}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 33, "execute_us": 50}
+  "timings": {"parse_us": 27, "execute_us": 102}
 }
 ```
 
@@ -78477,7 +78477,7 @@ HTTP 403 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 7, "execute_us": 3}
+      "timings": {"parse_us": 17, "execute_us": 7}
     }
   ],
   "saved": 0,
@@ -78586,7 +78586,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "8f44c4097e2f711870393acc9f6dae6f", "idle_timeout_ms": 600000}
+{"session": "1700753997e33ec9f1d5a1b0d66e4e55", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -78605,7 +78605,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 8, "execute_us": 6}
+      "timings": {"parse_us": 25, "execute_us": 8}
     },
     {
       "statement": "LOCK TABLE accounts IN SHARE MODE",
@@ -78615,13 +78615,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "LOCK TABLE",
-      "timings": {"parse_us": 8, "execute_us": 3}
+      "timings": {"parse_us": 25, "execute_us": 6}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 16, "execute_us": 9}
+  "timings": {"parse_us": 50, "execute_us": 14}
 }
 ```
 
@@ -78647,7 +78647,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 56, "execute_us": 125}
+      "timings": {"parse_us": 27, "execute_us": 73}
     },
     {
       "statement": "SELECT c.relname, l.mode, l.granted FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation",
@@ -78663,7 +78663,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 56, "execute_us": 205}
+      "timings": {"parse_us": 27, "execute_us": 225}
     }
   ],
   "columns": [
@@ -78675,7 +78675,7 @@ HTTP 200 (application/json)
     ["accounts", "ShareLock", true]
   ],
   "count": 1,
-  "timings": {"parse_us": 112, "execute_us": 330}
+  "timings": {"parse_us": 54, "execute_us": 298}
 }
 ```
 
@@ -78709,7 +78709,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "387b504222a13bde78d4433c952ed7e3", "idle_timeout_ms": 600000}
+{"session": "657185c5fa2b82d2b3c7d1d56a153cf2", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -78728,7 +78728,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 11, "execute_us": 7}
+      "timings": {"parse_us": 18, "execute_us": 15}
     },
     {
       "statement": "LOCK TABLE accounts IN SHARE MODE",
@@ -78738,13 +78738,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "LOCK TABLE",
-      "timings": {"parse_us": 11, "execute_us": 1}
+      "timings": {"parse_us": 18, "execute_us": 3}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 22, "execute_us": 8}
+  "timings": {"parse_us": 36, "execute_us": 18}
 }
 ```
 
@@ -79572,7 +79572,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "fb5797bb96902229a95cdf5650fce1e1", "idle_timeout_ms": 600000}
+{"session": "3b683d52c3037178043dd99f61c3325f", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -79591,13 +79591,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "cursor 'b' declared: 5 row(s)",
-      "timings": {"parse_us": 67, "execute_us": 270}
+      "timings": {"parse_us": 51, "execute_us": 352}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 67, "execute_us": 270}
+  "timings": {"parse_us": 51, "execute_us": 352}
 }
 ```
 
@@ -79624,7 +79624,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "3 row(s) fetched, 2 left",
-      "timings": {"parse_us": 15, "execute_us": 8}
+      "timings": {"parse_us": 30, "execute_us": 12}
     }
   ],
   "columns": [
@@ -79637,7 +79637,7 @@ HTTP 200 (application/json)
     [45, "Imperial Securities"]
   ],
   "count": 3,
-  "timings": {"parse_us": 15, "execute_us": 8}
+  "timings": {"parse_us": 30, "execute_us": 12}
 }
 ```
 
@@ -79646,7 +79646,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "fb5797bb96902229a95cdf5650fce1e1", "closed": true}
+{"session": "3b683d52c3037178043dd99f61c3325f", "closed": true}
 ```
 
 <a id="http"></a>
@@ -79695,7 +79695,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "1832faebf09d5ac1",
+  "cursor": "6a7462cd03a8da80",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -79712,7 +79712,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "1832faebf09d5ac1",
+  "cursor": "6a7462cd03a8da80",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -79735,7 +79735,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "1832faebf09d5ac1",
+  "cursor": "6a7462cd03a8da80",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -79757,7 +79757,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "1832faebf09d5ac1", "closed": true}
+{"cursor": "6a7462cd03a8da80", "closed": true}
 ```
 
 `GET /cursor/{{cursor}}?fetch=3`
@@ -79765,7 +79765,7 @@ HTTP 200 (application/json)
 HTTP 404 (application/json)
 
 ```text
-{"error": "cursor '1832faebf09d5ac1' does not exist (an unused cursor closes after 10 minutes)"}
+{"error": "cursor '6a7462cd03a8da80' does not exist (an unused cursor closes after 10 minutes)"}
 ```
 
 <a id="limits"></a>
@@ -81705,9 +81705,9 @@ user 'report' created with role read
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:26.166Z | 2026-10-24T03:03:26.166Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T03:03:26.336Z | 2026-10-24T03:03:26.336Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-24T03:03:26.252Z | 2026-10-24T03:03:26.255Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:35.958Z | 2026-10-24T03:43:35.958Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-24T03:43:36.124Z | 2026-10-24T03:43:36.124Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-24T03:43:36.040Z | 2026-10-24T03:43:36.046Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -81868,8 +81868,8 @@ user 'report' changed: role write
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:26.911Z | 2026-10-24T03:03:26.911Z | NULL | false | NULL | NULL |
-| report | write | NULL | 2026-10-24T03:03:26.986Z | 2026-10-24T03:03:27.297Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:36.621Z | 2026-10-24T03:43:36.621Z | NULL | false | NULL | NULL |
+| report | write | NULL | 2026-10-24T03:43:36.691Z | 2026-10-24T03:43:36.994Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -81967,9 +81967,9 @@ statement_timeout of user 'report' is 10 min (from their next statement)
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:27.451Z | 2026-10-24T03:03:27.451Z | NULL | false | NULL | NULL |
-| charts | read | NULL | 2026-10-24T03:03:27.521Z | 2026-10-24T03:03:27.796Z | NULL | false | 2 s | NULL |
-| report | read | NULL | 2026-10-24T03:03:27.603Z | 2026-10-24T03:03:27.803Z | NULL | false | 10 min | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:37.276Z | 2026-10-24T03:43:37.276Z | NULL | false | NULL | NULL |
+| charts | read | NULL | 2026-10-24T03:43:37.361Z | 2026-10-24T03:43:37.668Z | NULL | false | 2 s | NULL |
+| report | read | NULL | 2026-10-24T03:43:37.448Z | 2026-10-24T03:43:37.676Z | NULL | false | 10 min | NULL |
 
 (3 rows)
 
@@ -82100,7 +82100,7 @@ user 'report' does not exist
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:28.298Z | 2026-10-24T03:03:28.298Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:38.148Z | 2026-10-24T03:43:38.148Z | NULL | false | NULL | NULL |
 
 (1 row)
 
@@ -82169,9 +82169,9 @@ Result:
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:28.433Z | 2026-10-24T03:03:28.433Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T03:03:28.595Z | 2026-10-24T03:03:28.595Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=read, shop=write | 2026-10-24T03:03:28.516Z | 2026-10-24T03:03:28.632Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:38.280Z | 2026-10-24T03:43:38.280Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-24T03:43:38.438Z | 2026-10-24T03:43:38.438Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=read, shop=write | 2026-10-24T03:43:38.359Z | 2026-10-24T03:43:38.468Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -82234,8 +82234,8 @@ user 'shop_app' has role admin on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:28.551Z | 2026-10-24T03:03:28.551Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=admin, shop=write | 2026-10-24T03:03:28.627Z | 2026-10-24T03:03:28.898Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:38.267Z | 2026-10-24T03:43:38.267Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=admin, shop=write | 2026-10-24T03:43:38.343Z | 2026-10-24T03:43:38.603Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -82260,15 +82260,15 @@ Result:
 `DROP DATABASE shop`
 
 ```text
-database 'shop' dropped; its folder was moved to kdb-data/_trash/1792811009369-shop
+database 'shop' dropped; its folder was moved to kdb-data/_trash/1792813419268-shop
 ```
 
 `SHOW USERS`
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:29.029Z | 2026-10-24T03:03:29.029Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-24T03:03:29.116Z | 2026-10-24T03:03:29.382Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:38.916Z | 2026-10-24T03:43:38.916Z | NULL | false | NULL | NULL |
+| shop_app | none | NULL | 2026-10-24T03:43:38.991Z | 2026-10-24T03:43:39.280Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -82355,8 +82355,8 @@ user 'shop_app' has no grant on database 'demo' now
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:29.361Z | 2026-10-24T03:03:29.361Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-24T03:03:29.452Z | 2026-10-24T03:03:29.671Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:39.176Z | 2026-10-24T03:43:39.176Z | NULL | false | NULL | NULL |
+| shop_app | none | NULL | 2026-10-24T03:43:39.251Z | 2026-10-24T03:43:39.489Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -82387,8 +82387,8 @@ user 'report' keeps role write on database 'demo': REVOKE read takes away only a
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:29.853Z | 2026-10-24T03:03:29.853Z | NULL | false | NULL | NULL |
-| report | read | demo=write | 2026-10-24T03:03:29.932Z | 2026-10-24T03:03:29.937Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:39.731Z | 2026-10-24T03:43:39.731Z | NULL | false | NULL | NULL |
+| report | read | demo=write | 2026-10-24T03:43:39.813Z | 2026-10-24T03:43:39.816Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -82565,9 +82565,9 @@ user 'shop_app' has role write on database 'demo'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:30.126Z | 2026-10-24T03:03:30.126Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T03:03:30.422Z | 2026-10-24T03:03:30.422Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-24T03:03:30.500Z | 2026-10-24T03:03:30.504Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:39.936Z | 2026-10-24T03:43:39.936Z | NULL | false | NULL | NULL |
+| report | read | NULL | 2026-10-24T03:43:40.218Z | 2026-10-24T03:43:40.218Z | NULL | false | NULL | NULL |
+| shop_app | none | demo=write | 2026-10-24T03:43:40.298Z | 2026-10-24T03:43:40.304Z | NULL | false | NULL | NULL |
 
 (3 rows)
 
@@ -82705,7 +82705,7 @@ user 'admin' added with role admin in ./kdb-data
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-24 08:48:30
+admin                    admin  -                              2026-10-24 09:28:40
 1 user in ./kdb-data
 ```
 
@@ -82722,8 +82722,8 @@ user 'report' created with role read
 
 name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority
 -------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+---------
-admin  | admin | NULL   | 2026-10-24T03:03:30.802Z | 2026-10-24T03:03:30.802Z | NULL         | false      | NULL              | NULL    
-report | read  | NULL   | 2026-10-24T03:03:31.515Z | 2026-10-24T03:03:31.515Z | NULL         | false      | NULL              | NULL    
+admin  | admin | NULL   | 2026-10-24T03:43:40.648Z | 2026-10-24T03:43:40.648Z | NULL         | false      | NULL              | NULL    
+report | read  | NULL   | 2026-10-24T03:43:41.367Z | 2026-10-24T03:43:41.367Z | NULL         | false      | NULL              | NULL    
 (2 rows, 0.0 ms)
 ```
 
@@ -82806,8 +82806,8 @@ granted SELECT on table 'securities' of database 'demo' to user 'viewer'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:13.294Z | 2026-10-24T03:03:13.294Z | NULL | false | NULL | NULL |
-| viewer | none | NULL | 2026-10-24T03:03:13.354Z | 2026-10-24T03:03:13.433Z | demo.securities: +SELECT | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:22.318Z | 2026-10-24T03:43:22.318Z | NULL | false | NULL | NULL |
+| viewer | none | NULL | 2026-10-24T03:43:22.406Z | 2026-10-24T03:43:22.482Z | demo.securities: +SELECT | false | NULL | NULL |
 
 (2 rows)
 
@@ -82870,8 +82870,8 @@ revoked UPDATE, DELETE on table 'ledger' of database 'demo' from user 'app'
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:03:13.348Z | 2026-10-24T03:03:13.348Z | NULL | false | NULL | NULL |
-| app | none | demo=write | 2026-10-24T03:03:13.409Z | 2026-10-24T03:03:13.490Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:43:22.336Z | 2026-10-24T03:43:22.336Z | NULL | false | NULL | NULL |
+| app | none | demo=write | 2026-10-24T03:43:22.411Z | 2026-10-24T03:43:22.489Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL |
 
 (2 rows)
 
@@ -83211,7 +83211,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| chart_app | charts | kdbt_uz5bsgkQzttWQOa_Ymxt1T2fvhN73iugFgTMjWDs1Ic | 2027-01-22T03:01:35.562Z |
+| chart_app | charts | kdbt_4hGRNLms4dVZwacz6tUBu2Vwa6KRjMHHaoGxdr5g6Rw | 2027-01-22T03:41:29.246Z |
 
 (1 row)
 
@@ -83223,7 +83223,7 @@ token 'chart_app' for user 'charts' created: copy it now, it is shown only this 
 
 | name (STRING) | user (STRING) | prefix (STRING) | created (TIMESTAMP) | expires (TIMESTAMP) | expired (BOOL) | created_by (STRING) | last_used (TIMESTAMP) |
 |---|---|---|---|---|---|---|---|
-| chart_app | charts | kdbt_uz5b... | 2026-10-24T03:01:35.590Z | 2027-01-22T03:01:35.562Z | false | NULL | NULL |
+| chart_app | charts | kdbt_4hGR... | 2026-10-24T03:41:29.274Z | 2027-01-22T03:41:29.246Z | false | NULL | NULL |
 
 (1 row)
 
@@ -83271,7 +83271,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| price_feed | loader | kdbt_LArMJU2exBFxafYguXKkFvn1YKQBoOjspr5oTXJuygk | NULL |
+| price_feed | loader | kdbt_IoeNDHWBohUqlf99wqyXBqCOCY8zv2JAcXP5tKIVEtU | NULL |
 
 (1 row)
 
@@ -83283,7 +83283,7 @@ token 'price_feed' for user 'loader' created: copy it now, it is shown only this
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| backfill | loader | kdbt_kAMtmceCipXcT7j4TcITCXPvtlhUAXISD7H7Emrb5hU | 2026-10-31T03:01:35.782Z |
+| backfill | loader | kdbt_y0nQ9j3wHc-XEO_8tZhkxbH2xBMgP14M8esBC8U8qZg | 2026-10-31T03:41:29.448Z |
 
 (1 row)
 
@@ -83403,7 +83403,7 @@ Result:
 
 | name (STRING) | user (STRING) | prefix (STRING) | created (TIMESTAMP) | expires (TIMESTAMP) | expired (BOOL) | created_by (STRING) | last_used (TIMESTAMP) |
 |---|---|---|---|---|---|---|---|
-| price_feed | admin | kdbt_NEKC... | 2026-10-24T03:01:36.250Z | 2026-11-23T03:01:36.216Z | false | NULL | NULL |
+| price_feed | admin | kdbt_C8H0... | 2026-10-24T03:41:29.953Z | 2026-11-23T03:41:29.914Z | false | NULL | NULL |
 
 (1 row)
 
@@ -83476,7 +83476,7 @@ user 'boss' created with role admin
 
 | user (STRING) | otpauth_uri (STRING) | secret (STRING) |
 |---|---|---|
-| boss | otpauth://totp/KarelaDB:boss?secret=4DVW3L7DBKCZ2M44CP2XMIJJ5EKMDEXM&issuer=KarelaDB&algorithm=SHA1&digits=6&period=30 | 4DVW3L7DBKCZ2M44CP2XMIJJ5EKMDEXM |
+| boss | otpauth://totp/KarelaDB:boss?secret=BQVX7JIGQHMZDRU5C2KS23R5PROLMH5O&issuer=KarelaDB&algorithm=SHA1&digits=6&period=30 | BQVX7JIGQHMZDRU5C2KS23R5PROLMH5O |
 
 (1 row)
 
@@ -83627,7 +83627,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792810971689,
+  "server_time_ms": 1792813373174,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -83746,7 +83746,7 @@ Result:
 
 | token_for_kdb_serve (STRING) | password_for_a_program (STRING) |
 |---|---|
-| vMqIL6QHxLg3s3jaw3e1fN300U7QNydBYfpklaI4d0g | AhmZ5pBj34Cg3SPJCAfAisPpVmANRfF4 |
+| RveogO1fSpqDPWLNXPUCsH3GQabc44dVZujc01MAuzQ | G8SYdAoRHKX7OskSOjulxSFr1vTy-gM7 |
 
 (1 row)
 
@@ -84783,7 +84783,7 @@ audit is on for table 'ledger': every changed row is written to _audit_log
 
 | log (STRING) | ok (BOOL) | rows_checked (LONG) | unchained (LONG) | first_seq (LONG) | last_seq (LONG) | first_broken (LONG) | problems (STRING) | last_hash (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | 795c0ab2df72aae7632903f09ce353e46dc4610277f2de40b82a1661abb502a2 |
+| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | aa6c00e462325fafa8a1fe8b74f4eee047196639f96fafdf8ab31b426f30e2d1 |
 
 (1 row)
 
@@ -85279,7 +85279,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792811001993,
+  "now_ms": 1792813411849,
   "timers": []
 }
 ```
@@ -85481,8 +85481,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-030136-878 |     9 | 194519 |      30
-(1 row, 116.6 ms)
+backups/20261024-034130-446 |     9 | 194519 |      30
+(1 row, 133.2 ms)
 backup created and verified
 kareladb>
 ```
@@ -85606,7 +85606,7 @@ Output:
 `> kareladb backup market backups --keep-daily 7 --keep-weekly 4`
 
 ```text
-backup created and verified: backups/20261024-030137-149
+backup created and verified: backups/20261024-034130-760
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -85614,7 +85614,7 @@ backup created and verified: backups/20261024-030137-149
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-030137-149    2026-10-24 08:46:37       9   190.0 KB           30
+20261024-034130-760    2026-10-24 09:26:30       9   190.0 KB           30
 1 backups
 ```
 
@@ -85632,31 +85632,31 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-030137-190
+backup created and verified: backups/20261024-034130-794
   9 files, 190.0 KB, log up to 30
 ```
 
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-030137-397
+backup created and verified: backups/20261024-034130-995
   9 files, 190.0 KB, log up to 30
 ```
 
 `> kareladb backup market backups --keep-daily 1 --keep-weekly 1`
 
 ```text
-backup created and verified: backups/20261024-030137-578
+backup created and verified: backups/20261024-034131-188
   9 files, 190.0 KB, log up to 30
-removed old backup backups/20261024-030137-397
-removed old backup backups/20261024-030137-190
+removed old backup backups/20261024-034130-995
+removed old backup backups/20261024-034130-794
 ```
 
 `> kareladb backups backups`
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-030137-578    2026-10-24 08:46:37       9   190.0 KB           30
+20261024-034131-188    2026-10-24 09:26:31       9   190.0 KB           30
 1 backups
 ```
 
@@ -85669,7 +85669,7 @@ kareladb backup market before-import --hard-links
 Output:
 
 ```text
-backup created and verified: before-import/20261024-030137-224
+backup created and verified: before-import/20261024-034130-827
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -85700,7 +85700,7 @@ kareladb>
 `> kareladb backup reports backups`
 
 ```text
-backup created and verified: backups/reports/20261024-030137-426
+backup created and verified: backups/reports/20261024-034131-067
   1 files, 427 B, log up to 2
 ```
 
@@ -85708,7 +85708,7 @@ backup created and verified: backups/reports/20261024-030137-426
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-030137-426    2026-10-24 08:46:37       1      427 B            2
+20261024-034131-067    2026-10-24 09:26:31       1      427 B            2
 1 backups
 ```
 
@@ -85745,7 +85745,7 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-030137-397
+backup created and verified: backups/20261024-034130-993
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -85753,7 +85753,7 @@ backup created and verified: backups/20261024-030137-397
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-030137-397    2026-10-24 08:46:37       9   190.0 KB           30
+20261024-034130-993    2026-10-24 09:26:30       9   190.0 KB           30
 1 backups
 ```
 
@@ -85810,7 +85810,7 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-030137-470
+backup created and verified: backups/20261024-034131-131
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -86000,10 +86000,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-030137-936",
-  "dir": "./backups/demo/20261024-030137-936",
-  "created_ms": 1792810897936,
-  "created": "2026-10-24T03:01:37.936Z",
+  "name": "20261024-034131-499",
+  "dir": "./backups/demo/20261024-034131-499",
+  "created_ms": 1792813291499,
+  "created": "2026-10-24T03:41:31.499Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -86020,10 +86020,10 @@ HTTP 200 (application/json)
   "database": "drill_check",
   "source": "demo",
   "backup": {
-    "name": "20261024-030137-936",
-    "dir": "./backups/demo/20261024-030137-936",
-    "created_ms": 1792810897936,
-    "created": "2026-10-24T03:01:37.936Z",
+    "name": "20261024-034131-499",
+    "dir": "./backups/demo/20261024-034131-499",
+    "created_ms": 1792813291499,
+    "created": "2026-10-24T03:41:31.499Z",
     "end_lsn": 30,
     "checkpoint_lsn": 30,
     "files": 9,
@@ -86034,9 +86034,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 9 data files from ./backups/demo/20261024-030137-936; the log (up to LSN 30) is replayed on first open"
+    "restored 9 data files from ./backups/demo/20261024-034131-499; the log (up to LSN 30) is replayed on first open"
   ],
-  "took_ms": 162,
+  "took_ms": 173,
   "next": "check 'drill_check', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"drill_check\"} to put it in place, or DROP DATABASE drill_check"
 }
 ```
@@ -86061,7 +86061,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 41, "execute_us": 257}
+      "timings": {"parse_us": 57, "execute_us": 358}
     }
   ],
   "columns": [
@@ -86071,7 +86071,7 @@ HTTP 200 (application/json)
     [57]
   ],
   "count": 1,
-  "timings": {"parse_us": 41, "execute_us": 257}
+  "timings": {"parse_us": 57, "execute_us": 358}
 }
 ```
 
@@ -86083,7 +86083,7 @@ HTTP 200 (application/json)
 {
   "name": "drill_check",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792810898368-drill_check"
+  "moved_to": "kdb-data/_trash/1792813291992-drill_check"
 }
 ```
 
@@ -86709,7 +86709,7 @@ Output:
 KarelaDB 0.2.0-dev, database market
 saved feature list: batched_log_sync, block_stats, compressed_log, partition_format_2
 1/3 verified backup into backups ...
-    backups/20261024-030330-698 (9 files, 190.0 KB)
+    backups/20261024-034340-509 (9 files, 190.0 KB)
 2/3 saving the feature list ...
     features used: batched_log_sync, block_stats, compressed_log, partition_format_2
     (no files need to be written again for this KarelaDB version)
@@ -86790,7 +86790,7 @@ KarelaDB 0.2.0-dev: downgrade to 2026-09-24
 
 database market
 1/3 verified backup into backups ...
-    backups/20261024-030331-048 (9 files, 190.0 KB)
+    backups/20261024-034340-837 (9 files, 190.0 KB)
 2/3 checkpoint, then the feature list ...
     list before: batched_log_sync, block_stats, compressed_log, partition_format_2
     list now:    batched_log_sync, block_stats, partition_format_2
@@ -87247,7 +87247,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792810903196,
+  "server_time_ms": 1792813297247,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -87272,7 +87272,7 @@ HTTP 503 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792810903243,
+  "server_time_ms": 1792813297291,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -88007,7 +88007,7 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-24 08:46:40
+newest change   2026-10-24 09:26:34
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   8
 
@@ -88024,7 +88024,7 @@ t/1/all                                         2      388 B            4  ok
 ```text
 name | kind | partition | columns | rows
 -----+------+-----------+---------+-----
-(0 rows, 0.0 ms)
+(0 rows, 0.1 ms)
 ```
 
 In this example the data folder is `./kdb-data`. `kareladb info reports` opens `./kdb-data/reports`. `./reports` is a new, empty database in the current folder, so it has no tables.
@@ -88115,7 +88115,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
   logs      slow queries >= 1000 ms to my-data/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 0 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 1 ms: manifest 1 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -88306,7 +88306,7 @@ symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.5 ms)
+(3 rows, 0.6 ms)
 ```
 
 **Command line: Many statements: one result each** (sample data: sample)
@@ -88341,7 +88341,7 @@ Output:
 before
 ------
      5
-(1 row, 0.3 ms)
+(1 row, 0.4 ms)
 error: line 1, column 48: unknown column 'nope' (table 'brokers' has: id name)
 ```
 
@@ -88465,7 +88465,7 @@ symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.4 ms)
+(3 rows, 0.5 ms)
 ```
 
 ```powershell
@@ -88506,8 +88506,8 @@ Output:
 ```text
 backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-030140-899 |     9 | 194519 |      30
-(1 row, 97.3 ms)
+backups/20261024-034134-768 |     9 | 194519 |      30
+(1 row, 107.4 ms)
 backup created and verified
 ```
 
@@ -88579,13 +88579,13 @@ ochl_day     | timeseries | YEAR      |       7 |   57
 ochl_minutes | timeseries | MONTH     |       7 |  956
 securities   | relational | NONE      |       3 |    5
 trade_log    | timeseries | DAY       |       8 |   32
-(6 rows, 0.0 ms)
+(6 rows, 0.1 ms)
 kareladb> ...> ...> symbol | close
 -------+------
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.5 ms)
+(3 rows, 0.7 ms)
 kareladb> kareladb> id,name
 1,Keystone Securities
 34,Vision Securities
@@ -88615,7 +88615,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false  
 reports |      1 |   229 | true   
-(2 rows, 0.3 ms)
+(2 rows, 0.4 ms)
 kareladb>
 ```
 
@@ -88660,7 +88660,7 @@ End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> ...> days
 ----
   57
-(1 row, 0.3 ms)
+(1 row, 0.4 ms)
 kareladb> a
 -
 1
@@ -88695,7 +88695,7 @@ kareladb> procedure 'hello' done: 0 row(s) changed
 shout 
 ------
 MARKET
-(1 row, 0.6 ms)
+(1 row, 0.2 ms)
 
 output
 ------
@@ -88788,7 +88788,7 @@ the open transaction was rolled back (it had no COMMIT)
 after_the_shell
 ---------------
               5
-(1 row, 0.3 ms)
+(1 row, 0.4 ms)
 ```
 
 **Command line: kareladb sql: BEGIN and COMMIT must be in the same command** (sample data: sample)
@@ -89026,7 +89026,7 @@ kareladb> kareladb> time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.5 ms)
+(2 rows, more not shown, 0.6 ms)
 kareladb>
 ```
 
@@ -89056,7 +89056,7 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> problem
 -------
-(0 rows, 0.9 ms)
+(0 rows, 1.4 ms)
 OK: no damage found in 14 files
 kareladb>
 ```
@@ -89086,8 +89086,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-030141-485 |     9 | 194519 |      30
-(1 row, 141.4 ms)
+backups/20261024-034135-405 |     9 | 194519 |      30
+(1 row, 118.0 ms)
 backup created and verified
 kareladb>
 ```
@@ -89142,7 +89142,7 @@ End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> one
 ---
   1
-(1 row, 0.1 ms)
+(1 row, 0.5 ms)
 kareladb>
 ```
 
@@ -89351,7 +89351,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -89383,7 +89383,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -89416,7 +89416,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -89869,7 +89869,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 3 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 2 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -90102,7 +90102,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 08:46:30
+newest change   2026-10-24 09:26:24
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -90338,9 +90338,9 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           9
-created      2026-10-24 08:46:30
+created      2026-10-24 09:26:24
 blocks       1
-digest       936554ec
+digest       84b04470
 OK: all blocks match their checksums
 ```
 
@@ -90360,7 +90360,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 08:46:30
+newest change   2026-10-24 09:26:24
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -90389,7 +90389,7 @@ data         693 B
 block size   65536
 LSN          30
 id           1
-created      2026-10-24 08:46:30
+created      2026-10-24 09:26:24
 blocks       1
 digest       1d198644
 OK: all blocks match their checksums
@@ -90528,9 +90528,9 @@ user 'shop_app' added with role none in ./kdb-data
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-24 08:46:41
-report                   read   -                              2026-10-24 08:46:42
-shop_app                 none   -                              2026-10-24 08:46:42
+admin                    admin  -                              2026-10-24 09:26:35
+report                   read   -                              2026-10-24 09:26:36
+shop_app                 none   -                              2026-10-24 09:26:36
 3 users in ./kdb-data
 ```
 
@@ -90689,8 +90689,8 @@ user 'shop_app' now has role write
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-24 08:46:42
-shop_app                 write  -                              2026-10-24 08:46:42
+admin                    admin  -                              2026-10-24 09:26:36
+shop_app                 write  -                              2026-10-24 09:26:36
 2 users in ./kdb-data
 ```
 
@@ -90817,8 +90817,8 @@ kareladb>
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-24 08:46:42
-shop_app                 none   shop=write                     2026-10-24 08:46:43
+admin                    admin  -                              2026-10-24 09:26:36
+shop_app                 none   shop=write                     2026-10-24 09:26:37
 2 users in ./kdb-data
 ```
 
@@ -90872,7 +90872,7 @@ user 'report' removed
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-24 08:46:42
+admin                    admin  -                              2026-10-24 09:26:36
 1 user in ./kdb-data
 ```
 
@@ -91072,10 +91072,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 39, "execute_us": 142}
+      "timings": {"parse_us": 45, "execute_us": 132}
     }
   ],
-  "timings": {"parse_us": 39, "execute_us": 142}
+  "timings": {"parse_us": 45, "execute_us": 132}
 }
 ```
 
@@ -91101,10 +91101,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 37, "execute_us": 203}
+      "timings": {"parse_us": 61, "execute_us": 302}
     }
   ],
-  "timings": {"parse_us": 37, "execute_us": 203}
+  "timings": {"parse_us": 61, "execute_us": 302}
 }
 ```
 
@@ -91214,7 +91214,7 @@ HTTP 405 (application/json)
 
 ## GET reads, POST changes
 
-`GET /exec` and `GET /exp` only run SQL that **reads**: `SELECT`, `SHOW ...`, `EXPLAIN`, `CHECK TABLE`, `USE`. SQL that changes something must be sent with `POST`. The answer to a GET that changes data is **405**.
+`GET /exec` and `GET /exp` only run SQL that **reads**: `SELECT`, `SHOW ...`, `EXPLAIN`, `CHECK TABLE`, `USE`. SQL that changes something must be sent with `POST`. The answer to a GET that changes data is **405**. A GET also runs as a read-only transaction, so a `SELECT` that would change something is refused the same way: `nextval()` and `setval()`, a `WITH d AS (DELETE ... RETURNING *)`, a function that writes, `kv_set()`. `SUBSCRIBE` and `/exp` follow the same rule.
 
 Why: a link or a picture on any web page can make your browser send a GET. So a bad page must not be able to change your data with a GET.
 
@@ -91278,10 +91278,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'idem_orders' created",
-      "timings": {"parse_us": 23, "execute_us": 6968}
+      "timings": {"parse_us": 48, "execute_us": 8183}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 6968}
+  "timings": {"parse_us": 48, "execute_us": 8183}
 }
 ```
 
@@ -91301,10 +91301,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 20, "execute_us": 32}
+      "timings": {"parse_us": 30, "execute_us": 43}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 32}
+  "timings": {"parse_us": 30, "execute_us": 43}
 }
 ```
 
@@ -91324,10 +91324,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 20, "execute_us": 32}
+      "timings": {"parse_us": 30, "execute_us": 43}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 32}
+  "timings": {"parse_us": 30, "execute_us": 43}
 }
 ```
 
@@ -91351,7 +91351,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 37, "execute_us": 217}
+      "timings": {"parse_us": 40, "execute_us": 160}
     }
   ],
   "columns": [
@@ -91361,7 +91361,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 37, "execute_us": 217}
+  "timings": {"parse_us": 40, "execute_us": 160}
 }
 ```
 
@@ -91711,10 +91711,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 44, "execute_us": 317}
+      "timings": {"parse_us": 87, "execute_us": 582}
     }
   ],
-  "timings": {"parse_us": 44, "execute_us": 317}
+  "timings": {"parse_us": 87, "execute_us": 582}
 }
 ```
 
@@ -91804,7 +91804,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 32, "execute_us": 225}
+      "timings": {"parse_us": 50, "execute_us": 386}
     }
   ],
   "columns": [
@@ -91816,7 +91816,7 @@ HTTP 200 (application/json)
     ["CITY", "Banking"]
   ],
   "count": 2,
-  "timings": {"parse_us": 32, "execute_us": 225}
+  "timings": {"parse_us": 50, "execute_us": 386}
 }
 ```
 
@@ -91848,10 +91848,10 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 26, "execute_us": 332}
+      "timings": {"parse_us": 77, "execute_us": 718}
     }
   ],
-  "timings": {"parse_us": 26, "execute_us": 332}
+  "timings": {"parse_us": 77, "execute_us": 718}
 }
 ```
 
@@ -91884,10 +91884,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 55, "execute_us": 681}
+      "timings": {"parse_us": 50, "execute_us": 931}
     }
   ],
-  "timings": {"parse_us": 55, "execute_us": 681}
+  "timings": {"parse_us": 50, "execute_us": 931}
 }
 ```
 
@@ -91924,10 +91924,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 99, "execute_us": 111}
+      "timings": {"parse_us": 114, "execute_us": 202}
     }
   ],
-  "timings": {"parse_us": 99, "execute_us": 111}
+  "timings": {"parse_us": 114, "execute_us": 202}
 }
 ```
 
@@ -91959,10 +91959,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 68, "execute_us": 634}
+      "timings": {"parse_us": 121, "execute_us": 1236}
     }
   ],
-  "timings": {"parse_us": 68, "execute_us": 634}
+  "timings": {"parse_us": 121, "execute_us": 1236}
 }
 ```
 
@@ -92085,7 +92085,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 20, "execute_us": 613}
+      "timings": {"parse_us": 32, "execute_us": 1085}
     },
     {
       "statement": "SELECT id, name FROM brokers WHERE id >= 58 ORDER BY id",
@@ -92101,10 +92101,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 20, "execute_us": 204}
+      "timings": {"parse_us": 32, "execute_us": 275}
     }
   ],
-  "timings": {"parse_us": 40, "execute_us": 817}
+  "timings": {"parse_us": 64, "execute_us": 1360}
 }
 ```
 
@@ -92138,7 +92138,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 11, "execute_us": 624}
+      "timings": {"parse_us": 26, "execute_us": 1169}
     }
   ],
   "saved": 1,
@@ -92172,10 +92172,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 54, "execute_us": 97}
+      "timings": {"parse_us": 39, "execute_us": 110}
     }
   ],
-  "timings": {"parse_us": 54, "execute_us": 97}
+  "timings": {"parse_us": 39, "execute_us": 110}
 }
 ```
 
@@ -92206,7 +92206,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'notes' created",
-      "timings": {"parse_us": 10, "execute_us": 32274}
+      "timings": {"parse_us": 16, "execute_us": 45104}
     },
     {
       "statement": "INSERT INTO notes VALUES (1, 'first')",
@@ -92216,7 +92216,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 10, "execute_us": 4670}
+      "timings": {"parse_us": 16, "execute_us": 4715}
     }
   ],
   "saved": 2,
@@ -92276,10 +92276,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 36, "execute_us": 500}
+      "timings": {"parse_us": 27, "execute_us": 379}
     }
   ],
-  "timings": {"parse_us": 36, "execute_us": 500}
+  "timings": {"parse_us": 27, "execute_us": 379}
 }
 ```
 
@@ -92314,7 +92314,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 8, "execute_us": 845}
+      "timings": {"parse_us": 9, "execute_us": 1234}
     },
     {
       "statement": "BEGIN",
@@ -92324,7 +92324,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 8, "execute_us": 7}
+      "timings": {"parse_us": 9, "execute_us": 7}
     },
     {
       "statement": "INSERT INTO brokers VALUES (94, 'Valley Capital')",
@@ -92334,7 +92334,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 8, "execute_us": 35}
+      "timings": {"parse_us": 9, "execute_us": 37}
     }
   ],
   "saved": 1,
@@ -92367,10 +92367,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 22, "execute_us": 101}
+      "timings": {"parse_us": 23, "execute_us": 120}
     }
   ],
-  "timings": {"parse_us": 22, "execute_us": 101}
+  "timings": {"parse_us": 23, "execute_us": 120}
 }
 ```
 
@@ -92408,10 +92408,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 48, "execute_us": 420}
+      "timings": {"parse_us": 63, "execute_us": 418}
     }
   ],
-  "timings": {"parse_us": 48, "execute_us": 420}
+  "timings": {"parse_us": 63, "execute_us": 418}
 }
 ```
 
@@ -92459,10 +92459,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 36, "execute_us": 51}
+      "timings": {"parse_us": 91, "execute_us": 93}
     }
   ],
-  "timings": {"parse_us": 36, "execute_us": 51}
+  "timings": {"parse_us": 91, "execute_us": 93}
 }
 ```
 
@@ -92489,10 +92489,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 4, "execute_us": 363}
+      "timings": {"parse_us": 5, "execute_us": 56}
     }
   ],
-  "timings": {"parse_us": 4, "execute_us": 363}
+  "timings": {"parse_us": 5, "execute_us": 56}
 }
 ```
 
@@ -92567,7 +92567,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 5, "execute_us": 142}
+      "timings": {"parse_us": 8, "execute_us": 223}
     }
   ],
   "saved": 0,
@@ -92600,10 +92600,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 20, "execute_us": 162}
+      "timings": {"parse_us": 22, "execute_us": 110}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 162}
+  "timings": {"parse_us": 22, "execute_us": 110}
 }
 ```
 
@@ -92633,7 +92633,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 7, "execute_us": 179}
+      "timings": {"parse_us": 13, "execute_us": 198}
     },
     {
       "statement": "UPDATE brokers SET name = 'Delta Securities Ltd' WHERE id = 93",
@@ -92643,7 +92643,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) updated",
-      "timings": {"parse_us": 7, "execute_us": 37}
+      "timings": {"parse_us": 13, "execute_us": 38}
     },
     {
       "statement": "SELECT id, name FROM brokers WHERE id = 93",
@@ -92658,10 +92658,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 7, "execute_us": 44}
+      "timings": {"parse_us": 13, "execute_us": 103}
     }
   ],
-  "timings": {"parse_us": 21, "execute_us": 260}
+  "timings": {"parse_us": 39, "execute_us": 339}
 }
 ```
 
@@ -92721,10 +92721,10 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 43, "execute_us": 369}
+      "timings": {"parse_us": 70, "execute_us": 496}
     }
   ],
-  "timings": {"parse_us": 43, "execute_us": 369}
+  "timings": {"parse_us": 70, "execute_us": 496}
 }
 ```
 
@@ -92754,7 +92754,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'ticks' created",
-      "timings": {"parse_us": 25, "execute_us": 33109}
+      "timings": {"parse_us": 22, "execute_us": 31306}
     },
     {
       "statement": "INSERT INTO ticks VALUES ('2026-09-10T05:15:00Z', 'CITY', 512.4), ('2026-09-10T05:15:01Z', 'COAST', 380.1)",
@@ -92764,7 +92764,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 2,
       "message": "2 row(s) inserted",
-      "timings": {"parse_us": 25, "execute_us": 5943}
+      "timings": {"parse_us": 22, "execute_us": 4440}
     },
     {
       "statement": "SELECT * FROM ticks",
@@ -92781,10 +92781,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 25, "execute_us": 96}
+      "timings": {"parse_us": 22, "execute_us": 102}
     }
   ],
-  "timings": {"parse_us": 75, "execute_us": 39148}
+  "timings": {"parse_us": 66, "execute_us": 35848}
 }
 ```
 
@@ -93135,21 +93135,6 @@ HTTP 200 (application/json)
       "result_cache_source": "server"
     },
     {
-      "name": "h1411",
-      "dir": "kdb-data/h1411",
-      "default": false,
-      "encrypted": false,
-      "open": true,
-      "tables": 0,
-      "bytes": 0,
-      "opening": false,
-      "wal_archive_max_bytes": 1073741824,
-      "wal_archive_source": "server",
-      "wal_archive_bytes": 0,
-      "result_cache_bytes": 268435456,
-      "result_cache_source": "server"
-    },
-    {
       "name": "h186",
       "dir": "kdb-data/h186",
       "default": false,
@@ -93227,37 +93212,6 @@ HTTP 200 (application/json)
     {
       "name": "h60",
       "dir": "kdb-data/h60",
-      "default": false,
-      "encrypted": false,
-      "open": true,
-      "tables": 0,
-      "bytes": 0,
-      "opening": false,
-      "wal_archive_max_bytes": 1073741824,
-      "wal_archive_source": "server",
-      "wal_archive_bytes": 0,
-      "result_cache_bytes": 268435456,
-      "result_cache_source": "server"
-    },
-    {
-      "name": "help_shop",
-      "dir": "kdb-data/help_shop",
-      "default": false,
-      "encrypted": false,
-      "open": true,
-      "tables": null,
-      "bytes": 0,
-      "opening": false,
-      "busy": true,
-      "wal_archive_max_bytes": 1073741824,
-      "wal_archive_source": "server",
-      "wal_archive_bytes": null,
-      "result_cache_bytes": 268435456,
-      "result_cache_source": "server"
-    },
-    {
-      "name": "help_twice",
-      "dir": "kdb-data/help_twice",
       "default": false,
       "encrypted": false,
       "open": true,
@@ -93366,7 +93320,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'items' created",
-      "timings": {"parse_us": 13, "execute_us": 37300}
+      "timings": {"parse_us": 21, "execute_us": 33485}
     },
     {
       "statement": "SHOW TABLES",
@@ -93384,10 +93338,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 15}
+      "timings": {"parse_us": 21, "execute_us": 23}
     }
   ],
-  "timings": {"parse_us": 26, "execute_us": 37315}
+  "timings": {"parse_us": 42, "execute_us": 33508}
 }
 ```
 
@@ -93504,7 +93458,7 @@ HTTP 200 (application/json)
 {
   "name": "help_scratch",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792810969312-help_scratch"
+  "moved_to": "kdb-data/_trash/1792813370499-help_scratch"
 }
 ```
 
@@ -93633,10 +93587,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "endpoint 'last_close' created: GET /v/last_close",
-      "timings": {"parse_us": 42, "execute_us": 33877}
+      "timings": {"parse_us": 45, "execute_us": 40722}
     }
   ],
-  "timings": {"parse_us": 42, "execute_us": 33877}
+  "timings": {"parse_us": 45, "execute_us": 40722}
 }
 ```
 
@@ -93663,7 +93617,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 11, "execute_us": 231}
+      "timings": {"parse_us": 21, "execute_us": 570}
     }
   ],
   "columns": [
@@ -93676,7 +93630,7 @@ HTTP 200 (application/json)
     ["2026-09-08T00:00:00.000Z", 497.5]
   ],
   "count": 3,
-  "timings": {"parse_us": 11, "execute_us": 231}
+  "timings": {"parse_us": 21, "execute_us": 570}
 }
 ```
 
@@ -93701,7 +93655,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 19, "execute_us": 187}
+      "timings": {"parse_us": 22, "execute_us": 173}
     }
   ],
   "columns": [
@@ -93712,7 +93666,7 @@ HTTP 200 (application/json)
     ["2026-09-10T00:00:00.000Z", 504.9]
   ],
   "count": 1,
-  "timings": {"parse_us": 19, "execute_us": 187}
+  "timings": {"parse_us": 22, "execute_us": 173}
 }
 ```
 
@@ -93766,10 +93720,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "endpoint 'closes' created: GET /v/closes",
-      "timings": {"parse_us": 23, "execute_us": 36568}
+      "timings": {"parse_us": 42, "execute_us": 44240}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 36568}
+  "timings": {"parse_us": 42, "execute_us": 44240}
 }
 ```
 
@@ -93861,7 +93815,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792810971689,
+  "server_time_ms": 1792813373174,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -93956,8 +93910,8 @@ HTTP 200 (application/json)
   "dir": "kdb-data/demo",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "opened_ms": 1792810971710,
-  "server_time_ms": 1792810971824,
+  "opened_ms": 1792813373202,
+  "server_time_ms": 1792813373316,
   "last_lsn": 4,
   "data_files": 1,
   "data_bytes": 231,
@@ -93991,7 +93945,7 @@ HTTP 200 (application/json)
     }
   ],
   "damaged": [],
-  "recovery_summary": "manifest copy: -, last shutdown: clean\nreplayed 0 transactions after LSN 0, last LSN 0\nopened in 1 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms",
+  "recovery_summary": "manifest copy: -, last shutdown: clean\nreplayed 0 transactions after LSN 0, last LSN 0\nopened in 1 ms: manifest 1 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms",
   "warning": "",
   "backup_dir": "./backups/demo",
   "last_backup": null,
@@ -94003,7 +93957,7 @@ HTTP 200 (application/json)
     "max_groups": 5000000,
     "max_queries_per_user": 32,
     "safe_updates": false,
-    "running": 1,
+    "running": 2,
     "server_read_only": false,
     "audit": true
   },
@@ -94233,7 +94187,7 @@ HTTP 200 (application/json)
   "bytes_checked": 77929,
   "wal_segments_checked": 1,
   "problems": [],
-  "elapsed_us": 839
+  "elapsed_us": 1264
 }
 ```
 
@@ -94293,10 +94247,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-030251-935",
-  "dir": "./backups/demo/20261024-030251-935",
-  "created_ms": 1792810971935,
-  "created": "2026-10-24T03:02:51.935Z",
+  "name": "20261024-034253-464",
+  "dir": "./backups/demo/20261024-034253-464",
+  "created_ms": 1792813373464,
+  "created": "2026-10-24T03:42:53.464Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -94312,10 +94266,10 @@ HTTP 200 (application/json)
 {
   "backups": [
     {
-      "name": "20261024-030251-935",
-      "dir": "./backups/demo/20261024-030251-935",
-      "created_ms": 1792810971935,
-      "created": "2026-10-24T03:02:51.935Z",
+      "name": "20261024-034253-464",
+      "dir": "./backups/demo/20261024-034253-464",
+      "created_ms": 1792813373464,
+      "created": "2026-10-24T03:42:53.464Z",
       "end_lsn": 30,
       "checkpoint_lsn": 30,
       "files": 9,
@@ -94325,9 +94279,9 @@ HTTP 200 (application/json)
   "backup_dir": "./backups/demo",
   "point_in_time": {
     "possible": true,
-    "from_ms": 1792810971935,
-    "from": "2026-10-24T03:02:51.935Z",
-    "from_backup": "20261024-030251-935",
+    "from_ms": 1792813373464,
+    "from": "2026-10-24T03:42:53.464Z",
+    "from_backup": "20261024-034253-464",
     "log_first_lsn": 1,
     "why": "",
     "wal_archive_max_bytes": 1073741824
@@ -94466,10 +94420,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-030252-135",
-  "dir": "./backups/demo/20261024-030252-135",
-  "created_ms": 1792810972135,
-  "created": "2026-10-24T03:02:52.135Z",
+  "name": "20261024-034253-705",
+  "dir": "./backups/demo/20261024-034253-705",
+  "created_ms": 1792813373705,
+  "created": "2026-10-24T03:42:53.705Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -94486,10 +94440,10 @@ HTTP 200 (application/json)
   "database": "demo_restored",
   "source": "demo",
   "backup": {
-    "name": "20261024-030252-135",
-    "dir": "./backups/demo/20261024-030252-135",
-    "created_ms": 1792810972135,
-    "created": "2026-10-24T03:02:52.135Z",
+    "name": "20261024-034253-705",
+    "dir": "./backups/demo/20261024-034253-705",
+    "created_ms": 1792813373705,
+    "created": "2026-10-24T03:42:53.705Z",
     "end_lsn": 30,
     "checkpoint_lsn": 30,
     "files": 9,
@@ -94500,9 +94454,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 9 data files from ./backups/demo/20261024-030252-135; the log (up to LSN 30) is replayed on first open"
+    "restored 9 data files from ./backups/demo/20261024-034253-705; the log (up to LSN 30) is replayed on first open"
   ],
-  "took_ms": 174,
+  "took_ms": 190,
   "next": "check 'demo_restored', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_restored\"} to put it in place, or DROP DATABASE demo_restored"
 }
 ```
@@ -94515,7 +94469,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_restored",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792810972616-demo_restored"
+  "moved_to": "kdb-data/_trash/1792813374204-demo_restored"
 }
 ```
 
@@ -94543,10 +94497,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-030252-245",
-  "dir": "./backups/demo/20261024-030252-245",
-  "created_ms": 1792810972245,
-  "created": "2026-10-24T03:02:52.245Z",
+  "name": "20261024-034253-825",
+  "dir": "./backups/demo/20261024-034253-825",
+  "created_ms": 1792813373825,
+  "created": "2026-10-24T03:42:53.825Z",
   "end_lsn": 0,
   "checkpoint_lsn": 0,
   "files": 0,
@@ -94563,10 +94517,10 @@ HTTP 200 (application/json)
   "database": "demo_twice",
   "source": "demo",
   "backup": {
-    "name": "20261024-030252-245",
-    "dir": "./backups/demo/20261024-030252-245",
-    "created_ms": 1792810972245,
-    "created": "2026-10-24T03:02:52.245Z",
+    "name": "20261024-034253-825",
+    "dir": "./backups/demo/20261024-034253-825",
+    "created_ms": 1792813373825,
+    "created": "2026-10-24T03:42:53.825Z",
     "end_lsn": 0,
     "checkpoint_lsn": 0,
     "files": 0,
@@ -94577,9 +94531,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 0 data files from ./backups/demo/20261024-030252-245; the log (up to LSN 0) is replayed on first open"
+    "restored 0 data files from ./backups/demo/20261024-034253-825; the log (up to LSN 0) is replayed on first open"
   ],
-  "took_ms": 72,
+  "took_ms": 81,
   "next": "check 'demo_twice', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_twice\"} to put it in place, or DROP DATABASE demo_twice"
 }
 ```
@@ -94665,7 +94619,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 't' created",
-      "timings": {"parse_us": 31, "execute_us": 33064}
+      "timings": {"parse_us": 31, "execute_us": 36768}
     },
     {
       "statement": "INSERT INTO t VALUES (1)",
@@ -94675,13 +94629,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 31, "execute_us": 4293}
+      "timings": {"parse_us": 31, "execute_us": 3856}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 62, "execute_us": 37357}
+  "timings": {"parse_us": 62, "execute_us": 40624}
 }
 ```
 
@@ -94691,10 +94645,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-030252-412",
-  "dir": "./backups/demo/20261024-030252-412",
-  "created_ms": 1792810972412,
-  "created": "2026-10-24T03:02:52.412Z",
+  "name": "20261024-034253-895",
+  "dir": "./backups/demo/20261024-034253-895",
+  "created_ms": 1792813373895,
+  "created": "2026-10-24T03:42:53.895Z",
   "end_lsn": 4,
   "checkpoint_lsn": 4,
   "files": 2,
@@ -94718,13 +94672,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 45, "execute_us": 41}
+      "timings": {"parse_us": 40, "execute_us": 58}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 45, "execute_us": 41}
+  "timings": {"parse_us": 40, "execute_us": 58}
 }
 ```
 
@@ -94737,10 +94691,10 @@ HTTP 200 (application/json)
   "database": "demo_old",
   "source": "demo",
   "backup": {
-    "name": "20261024-030252-412",
-    "dir": "./backups/demo/20261024-030252-412",
-    "created_ms": 1792810972412,
-    "created": "2026-10-24T03:02:52.412Z",
+    "name": "20261024-034253-895",
+    "dir": "./backups/demo/20261024-034253-895",
+    "created_ms": 1792813373895,
+    "created": "2026-10-24T03:42:53.895Z",
     "end_lsn": 4,
     "checkpoint_lsn": 4,
     "files": 2,
@@ -94751,9 +94705,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 2 data files from ./backups/demo/20261024-030252-412; the log (up to LSN 4) is replayed on first open"
+    "restored 2 data files from ./backups/demo/20261024-034253-895; the log (up to LSN 4) is replayed on first open"
   ],
-  "took_ms": 94,
+  "took_ms": 106,
   "next": "check 'demo_old', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_old\"} to put it in place, or DROP DATABASE demo_old"
 }
 ```
@@ -94786,7 +94740,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 41, "execute_us": 231}
+      "timings": {"parse_us": 54, "execute_us": 219}
     }
   ],
   "columns": [
@@ -94796,7 +94750,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 41, "execute_us": 231}
+  "timings": {"parse_us": 54, "execute_us": 219}
 }
 ```
 
@@ -94816,7 +94770,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_old",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792810972887-demo_old"
+  "moved_to": "kdb-data/_trash/1792813374483-demo_old"
 }
 ```
 
@@ -95725,7 +95679,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 19, "execute_us": 9}
+      "timings": {"parse_us": 13, "execute_us": 7}
     },
     {
       "statement": "INSERT INTO brokers VALUES (72, 'Never Saved Securities')",
@@ -95735,7 +95689,7 @@ HTTP 400 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 19, "execute_us": 209}
+      "timings": {"parse_us": 13, "execute_us": 217}
     }
   ],
   "saved": 0,
@@ -95765,10 +95719,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 85}
+      "timings": {"parse_us": 27, "execute_us": 123}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 85}
+  "timings": {"parse_us": 27, "execute_us": 123}
 }
 ```
 
@@ -95802,7 +95756,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "422c124e1c17dcd50da0542e6bb637e0", "idle_timeout_ms": 600000}
+{"session": "e977518ca7307027faf899cb27ccf17b", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec?compat=0`
@@ -95821,7 +95775,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 12, "execute_us": 6}
+      "timings": {"parse_us": 12, "execute_us": 7}
     },
     {
       "statement": "INSERT INTO brokers VALUES (70, 'Transaction Test Securities')",
@@ -95831,10 +95785,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 12, "execute_us": 176}
+      "timings": {"parse_us": 12, "execute_us": 232}
     }
   ],
-  "timings": {"parse_us": 24, "execute_us": 182}
+  "timings": {"parse_us": 24, "execute_us": 239}
 }
 ```
 
@@ -95858,10 +95812,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 25, "execute_us": 127}
+      "timings": {"parse_us": 24, "execute_us": 118}
     }
   ],
-  "timings": {"parse_us": 25, "execute_us": 127}
+  "timings": {"parse_us": 24, "execute_us": 118}
 }
 ```
 
@@ -95881,10 +95835,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction committed: 1 change(s) saved",
-      "timings": {"parse_us": 13, "execute_us": 876}
+      "timings": {"parse_us": 16, "execute_us": 898}
     }
   ],
-  "timings": {"parse_us": 13, "execute_us": 876}
+  "timings": {"parse_us": 16, "execute_us": 898}
 }
 ```
 
@@ -95908,10 +95862,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 22, "execute_us": 161}
+      "timings": {"parse_us": 23, "execute_us": 163}
     }
   ],
-  "timings": {"parse_us": 22, "execute_us": 161}
+  "timings": {"parse_us": 23, "execute_us": 163}
 }
 ```
 
@@ -95920,7 +95874,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "422c124e1c17dcd50da0542e6bb637e0", "closed": true}
+{"session": "e977518ca7307027faf899cb27ccf17b", "closed": true}
 ```
 
 **HTTP: ROLLBACK undoes the changes of the session** (sample data: sample)
@@ -95950,7 +95904,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "376fed4f48df1c137c3becf0f5c5934a", "idle_timeout_ms": 600000}
+{"session": "e3dd69fa4787dc8835428af732137e77", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec?compat=0`
@@ -95969,7 +95923,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 16, "execute_us": 10}
+      "timings": {"parse_us": 34, "execute_us": 9}
     },
     {
       "statement": "UPDATE ochl_day SET close = 0 WHERE symbol = 'CITY'",
@@ -95979,7 +95933,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 19,
       "message": "19 row(s) updated",
-      "timings": {"parse_us": 16, "execute_us": 475}
+      "timings": {"parse_us": 34, "execute_us": 629}
     },
     {
       "statement": "SELECT max(close) AS inside_the_transaction FROM ochl_day WHERE symbol = 'CITY'",
@@ -95993,10 +95947,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 190}
+      "timings": {"parse_us": 34, "execute_us": 744}
     }
   ],
-  "timings": {"parse_us": 48, "execute_us": 675}
+  "timings": {"parse_us": 102, "execute_us": 1382}
 }
 ```
 
@@ -96016,7 +95970,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction rolled back: 1 change(s) undone",
-      "timings": {"parse_us": 17, "execute_us": 35}
+      "timings": {"parse_us": 23, "execute_us": 66}
     },
     {
       "statement": "SELECT max(close) AS after_rollback FROM ochl_day WHERE symbol = 'CITY'",
@@ -96030,10 +95984,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 17, "execute_us": 141}
+      "timings": {"parse_us": 23, "execute_us": 223}
     }
   ],
-  "timings": {"parse_us": 34, "execute_us": 176}
+  "timings": {"parse_us": 46, "execute_us": 289}
 }
 ```
 
@@ -96042,7 +95996,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "376fed4f48df1c137c3becf0f5c5934a", "closed": true}
+{"session": "e3dd69fa4787dc8835428af732137e77", "closed": true}
 ```
 
 A transfer between two accounts in Python, with the `requests` library:
@@ -96151,7 +96105,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "9c51087281d1b4f8a291ccf13c2f9732", "idle_timeout_ms": 600000}
+{"session": "e0fbcbf27cb89fba261a48211422224b", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec?compat=0`
@@ -96170,7 +96124,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "transaction started",
-      "timings": {"parse_us": 14, "execute_us": 6}
+      "timings": {"parse_us": 19, "execute_us": 7}
     },
     {
       "statement": "DELETE FROM ochl_day WHERE symbol = 'CITY'",
@@ -96180,10 +96134,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 19,
       "message": "19 row(s) deleted",
-      "timings": {"parse_us": 14, "execute_us": 642}
+      "timings": {"parse_us": 19, "execute_us": 498}
     }
   ],
-  "timings": {"parse_us": 28, "execute_us": 648}
+  "timings": {"parse_us": 38, "execute_us": 505}
 }
 ```
 
@@ -96192,7 +96146,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "9c51087281d1b4f8a291ccf13c2f9732", "closed": true}
+{"session": "e0fbcbf27cb89fba261a48211422224b", "closed": true}
 ```
 
 `GET /exec?compat=0&query=SELECT count(*) AS city_days_still_there FROM ochl_day WHERE symbol = 'CITY'`
@@ -96215,10 +96169,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 16, "execute_us": 146}
+      "timings": {"parse_us": 26, "execute_us": 212}
     }
   ],
-  "timings": {"parse_us": 16, "execute_us": 146}
+  "timings": {"parse_us": 26, "execute_us": 212}
 }
 ```
 
@@ -96242,7 +96196,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "df246c10e7d74b014b45082cd300e7dc", "idle_timeout_ms": 600000}
+{"session": "667cb77e2c2e36ebedb0590af111769c", "idle_timeout_ms": 600000}
 ```
 
 `DELETE /session/{{session}}`
@@ -96250,7 +96204,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "df246c10e7d74b014b45082cd300e7dc", "closed": true}
+{"session": "667cb77e2c2e36ebedb0590af111769c", "closed": true}
 ```
 
 `POST /exec?compat=0`
@@ -96259,7 +96213,7 @@ HTTP 404 (application/json)
 
 ```text
 {
-  "error": "session 'df246c10e7d74b014b45082cd300e7dc' does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session"
+  "error": "session '667cb77e2c2e36ebedb0590af111769c' does not exist: it was closed, or unused for more than 600 s (its open transaction was rolled back). Open a new one with POST /session"
 }
 ```
 
@@ -96314,7 +96268,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "a6cc93c4fed6b965",
+  "cursor": "781a85230d948f31",
   "columns": [
     {"name": "time", "type": "TIMESTAMP"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -96330,7 +96284,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "a6cc93c4fed6b965",
+  "cursor": "781a85230d948f31",
   "columns": [
     {"name": "time", "type": "TIMESTAMP"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -96352,7 +96306,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "a6cc93c4fed6b965",
+  "cursor": "781a85230d948f31",
   "columns": [
     {"name": "time", "type": "TIMESTAMP"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -96373,7 +96327,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "a6cc93c4fed6b965", "closed": true}
+{"cursor": "781a85230d948f31", "closed": true}
 ```
 
 **HTTP: A cursor needs exactly one SELECT** (sample data: sample)
@@ -96449,7 +96403,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "6c718a5311948365",
+  "cursor": "affbd2914aa257ec",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -96464,7 +96418,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "6c718a5311948365",
+  "cursor": "affbd2914aa257ec",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -96484,7 +96438,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "6c718a5311948365",
+  "cursor": "affbd2914aa257ec",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -96504,7 +96458,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "6c718a5311948365",
+  "cursor": "affbd2914aa257ec",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"},
     {"name": "name", "type": "STRING"}
@@ -96522,7 +96476,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "6c718a5311948365", "closed": true}
+{"cursor": "affbd2914aa257ec", "closed": true}
 ```
 
 **HTTP: fetch must be 1 or more** (sample data: sample)
@@ -96543,7 +96497,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "8d5666120ee65c49",
+  "cursor": "6d7740c6171869fb",
   "columns": [
     {"name": "symbol", "type": "SYMBOL"}
   ],
@@ -96646,7 +96600,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "66ecbc941e324828",
+  "cursor": "3e87a12ca4321633",
   "columns": [
     {"name": "id", "type": "INT"},
     {"name": "name", "type": "STRING"}
@@ -96660,7 +96614,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "66ecbc941e324828", "closed": true}
+{"cursor": "3e87a12ca4321633", "closed": true}
 ```
 
 `GET /cursor/{{cursor}}`
@@ -96668,7 +96622,7 @@ HTTP 200 (application/json)
 HTTP 404 (application/json)
 
 ```text
-{"error": "cursor '66ecbc941e324828' does not exist (an unused cursor closes after 10 minutes)"}
+{"error": "cursor '3e87a12ca4321633' does not exist (an unused cursor closes after 10 minutes)"}
 ```
 
 
@@ -96819,13 +96773,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 41.495,
+    "parse_ms": 58.297,
     "lock_wait_ms": 0.024,
-    "wal_ms": 5.213,
-    "apply_ms": 6.677,
+    "wal_ms": 12.684,
+    "apply_ms": 22.856,
     "trigger_ms": 0,
-    "durable_ms": 53.409,
-    "total_ms": 53.409
+    "durable_ms": 93.861,
+    "total_ms": 93.861
   }
 }
 ```
@@ -96855,10 +96809,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 26, "execute_us": 95}
+      "timings": {"parse_us": 45, "execute_us": 117}
     }
   ],
-  "timings": {"parse_us": 26, "execute_us": 95}
+  "timings": {"parse_us": 45, "execute_us": 117}
 }
 ```
 
@@ -96894,13 +96848,13 @@ HTTP 200 (application/json)
     {"name": "sector", "type": "STRING", "size": 0, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 2.436,
-    "lock_wait_ms": 0.089,
-    "wal_ms": 9.458,
-    "apply_ms": 4.726,
+    "parse_ms": 0.271,
+    "lock_wait_ms": 0.02,
+    "wal_ms": 11.42,
+    "apply_ms": 7.595,
     "trigger_ms": 0,
-    "durable_ms": 16.709,
-    "total_ms": 16.709
+    "durable_ms": 19.306,
+    "total_ms": 19.306
   }
 }
 ```
@@ -96931,10 +96885,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 20, "execute_us": 328}
+      "timings": {"parse_us": 20, "execute_us": 553}
     }
   ],
-  "timings": {"parse_us": 20, "execute_us": 328}
+  "timings": {"parse_us": 20, "execute_us": 553}
 }
 ```
 
@@ -96999,13 +96953,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 1}
   ],
   "timings": {
-    "parse_ms": 0.072,
-    "lock_wait_ms": 0.013,
-    "wal_ms": 3.597,
-    "apply_ms": 10.371,
+    "parse_ms": 0.096,
+    "lock_wait_ms": 0.021,
+    "wal_ms": 3.724,
+    "apply_ms": 7.702,
     "trigger_ms": 0,
-    "durable_ms": 14.053,
-    "total_ms": 14.053
+    "durable_ms": 11.543,
+    "total_ms": 11.543
   }
 }
 ```
@@ -97032,10 +96986,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 21, "execute_us": 70}
+      "timings": {"parse_us": 21, "execute_us": 114}
     }
   ],
-  "timings": {"parse_us": 21, "execute_us": 70}
+  "timings": {"parse_us": 21, "execute_us": 114}
 }
 ```
 
@@ -97077,13 +97031,13 @@ HTTP 200 (application/json)
     {"name": "close", "type": "DOUBLE", "size": 8, "errors": 1}
   ],
   "timings": {
-    "parse_ms": 0.091,
-    "lock_wait_ms": 0.016,
-    "wal_ms": 5.838,
-    "apply_ms": 11.263,
+    "parse_ms": 0.097,
+    "lock_wait_ms": 0.019,
+    "wal_ms": 4.512,
+    "apply_ms": 9.491,
     "trigger_ms": 0,
-    "durable_ms": 17.208,
-    "total_ms": 17.208
+    "durable_ms": 14.119,
+    "total_ms": 14.119
   }
 }
 ```
@@ -97109,10 +97063,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 38, "execute_us": 89}
+      "timings": {"parse_us": 47, "execute_us": 103}
     }
   ],
-  "timings": {"parse_us": 38, "execute_us": 89}
+  "timings": {"parse_us": 47, "execute_us": 103}
 }
 ```
 
@@ -97170,13 +97124,13 @@ HTTP 200 (application/json)
     {"name": "note", "type": "STRING", "size": 0, "errors": 0}
   ],
   "timings": {
-    "parse_ms": 24.105,
-    "lock_wait_ms": 0.02,
-    "wal_ms": 6.187,
-    "apply_ms": 4.684,
+    "parse_ms": 26.268,
+    "lock_wait_ms": 0.023,
+    "wal_ms": 6.625,
+    "apply_ms": 6.034,
     "trigger_ms": 0,
-    "durable_ms": 34.996,
-    "total_ms": 34.996
+    "durable_ms": 38.95,
+    "total_ms": 38.95
   }
 }
 ```
@@ -97336,12 +97290,12 @@ HTTP 200 (application/json)
   "sql": "SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol",
   "max_rows": 10000,
   "enabled": true,
-  "created_ms": 1792810982352,
+  "created_ms": 1792813387347,
   "created_by": "",
   "open": true,
   "cached": false,
   "cached_bytes": 0,
-  "last_run_ms": 1792810982352,
+  "last_run_ms": 1792813387348,
   "last_ok": true,
   "last_error": "",
   "error": ""
@@ -97354,19 +97308,19 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792810982403,
+  "now_ms": 1792813387425,
   "pins": [
     {
       "database": "demo",
       "sql": "SELECT symbol, sum(qty) AS qty, sum(qty * price) AS amount FROM trades GROUP BY symbol ORDER BY symbol",
       "max_rows": 10000,
       "enabled": true,
-      "created_ms": 1792810982352,
+      "created_ms": 1792813387347,
       "created_by": "",
       "open": true,
       "cached": false,
       "cached_bytes": 0,
-      "last_run_ms": 1792810982352,
+      "last_run_ms": 1792813387348,
       "last_ok": true,
       "last_error": "",
       "error": ""
@@ -97439,12 +97393,12 @@ HTTP 200 (application/json)
   "sql": "SELECT symbol, sum(qty) FROM trades GROUP BY symbol",
   "max_rows": 10000,
   "enabled": true,
-  "created_ms": 1792810982361,
+  "created_ms": 1792813387365,
   "created_by": "",
   "open": true,
   "cached": false,
   "cached_bytes": 0,
-  "last_run_ms": 1792810982361,
+  "last_run_ms": 1792813387366,
   "last_ok": true,
   "last_error": "",
   "error": ""
@@ -97550,9 +97504,9 @@ HTTP 200 (application/json)
   "database": "demo",
   "table": "candles",
   "column": "symbol",
-  "boot": "d80d8ec379e8",
-  "table_rev": "d80d8ec379e8.0",
-  "revs": {"NABIL": "d80d8ec379e8.0", "NEPSE": "d80d8ec379e8.0"}
+  "boot": "a663a90a6006",
+  "table_rev": "a663a90a6006.0",
+  "revs": {"NABIL": "a663a90a6006.0", "NEPSE": "a663a90a6006.0"}
 }
 ```
 
@@ -97780,7 +97734,7 @@ HTTP 200 (application/json)
     {
       "lsn": 2,
       "seq": 0,
-      "committed_at": "2026-10-24T03:01:39.572Z",
+      "committed_at": "2026-10-24T03:41:33.350Z",
       "op": "ddl",
       "key": "CREATE TABLE acct (\n  id INT PRIMARY KEY,\n  name STRING,\n  bal DOUBLE\n)",
       "row": null
@@ -97788,7 +97742,7 @@ HTTP 200 (application/json)
     {
       "lsn": 4,
       "seq": 0,
-      "committed_at": "2026-10-24T03:01:39.605Z",
+      "committed_at": "2026-10-24T03:41:33.387Z",
       "op": "upsert",
       "key": null,
       "row": {"id": 1, "name": "Asha", "bal": 10}
@@ -97971,10 +97925,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 228487}
+      "timings": {"parse_us": 0, "execute_us": 245852}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 228487}
+  "timings": {"parse_us": 0, "execute_us": 245852}
 }
 ```
 
@@ -97998,9 +97952,9 @@ HTTP 200 (application/json)
   "user": "boss",
   "role": "admin",
   "grants": {},
-  "expires_ms": 1792854170732,
-  "csrf": "b2eb139ca723e908d239f94d3bd06461",
-  "token": "OpEBu1asHqEF6LQfo7NPFLmXxiRSVhn26uLuKbcd6fo"
+  "expires_ms": 1792856572100,
+  "csrf": "639767c34d8836ae8a3892553f985035",
+  "token": "brvJ9J1NIX1u8NJCjK6GP5F86nYtLGKXZrhalqJkbSM"
 }
 ```
 
@@ -98024,10 +97978,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 31, "execute_us": 70}
+      "timings": {"parse_us": 21, "execute_us": 68}
     }
   ],
-  "timings": {"parse_us": 31, "execute_us": 70}
+  "timings": {"parse_us": 21, "execute_us": 68}
 }
 ```
 
@@ -98103,10 +98057,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 233420}
+      "timings": {"parse_us": 0, "execute_us": 257861}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 233420}
+  "timings": {"parse_us": 0, "execute_us": 257861}
 }
 ```
 
@@ -98391,7 +98345,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 227226}
+      "timings": {"parse_us": 0, "execute_us": 246762}
     },
     {
       "statement": "CREATE USER shop_app WITH PASSWORD '***'",
@@ -98401,7 +98355,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'shop_app' created with role none",
-      "timings": {"parse_us": 0, "execute_us": 80853}
+      "timings": {"parse_us": 0, "execute_us": 82705}
     },
     {
       "statement": "CREATE DATABASE shop",
@@ -98411,7 +98365,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "database 'shop' created",
-      "timings": {"parse_us": 0, "execute_us": 30993}
+      "timings": {"parse_us": 0, "execute_us": 34960}
     },
     {
       "statement": "GRANT write ON DATABASE shop TO shop_app",
@@ -98421,10 +98375,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'shop_app' has role write on database 'shop'",
-      "timings": {"parse_us": 0, "execute_us": 4799}
+      "timings": {"parse_us": 0, "execute_us": 4990}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 343871}
+  "timings": {"parse_us": 0, "execute_us": 369417}
 }
 ```
 
@@ -98437,9 +98391,9 @@ HTTP 200 (application/json)
   "user": "shop_app",
   "role": "none",
   "grants": {"shop": "write"},
-  "expires_ms": 1792854171000,
-  "csrf": "a92fded6712245d77167eb70c42a72d2",
-  "token": "0GVUn_ZvdapmErSiPZcCERQ4NUTtEmly8POtGpwBW0Q"
+  "expires_ms": 1792856572376,
+  "csrf": "3dc487d8030ed2fc3c6e7fc185ee2576",
+  "token": "zHHIT5Snq5fwZwN_HccTqdzOKv8J9Lvi1j1hQAdAPbM"
 }
 ```
 
@@ -98514,7 +98468,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792810970551,
+  "server_time_ms": 1792813371921,
   "auth_required": true,
   "login": false,
   "tls": false,
@@ -98560,10 +98514,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 32, "execute_us": 82}
+      "timings": {"parse_us": 38, "execute_us": 87}
     }
   ],
-  "timings": {"parse_us": 32, "execute_us": 82}
+  "timings": {"parse_us": 38, "execute_us": 87}
 }
 ```
 
@@ -98634,7 +98588,7 @@ HTTP 200 (application/json)
   "role": "admin",
   "full_access": true,
   "remember": false,
-  "csrf": "037d00df4b9c3e76620b9834bff6a511"
+  "csrf": "72e824d0374de4bc36eaba2c335f4a6b"
 }
 ```
 
@@ -98686,7 +98640,7 @@ HTTP 200 (application/json)
   "role": "admin",
   "full_access": true,
   "remember": false,
-  "csrf": "18d8357767bf255c2864182150353fe5"
+  "csrf": "11c463f9936d49cc3cb1f18ed8140e59"
 }
 ```
 
@@ -98761,7 +98715,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'boss' created with role admin",
-      "timings": {"parse_us": 0, "execute_us": 221324}
+      "timings": {"parse_us": 0, "execute_us": 247106}
     },
     {
       "statement": "CREATE USER reader WITH PASSWORD '***' ROLE read",
@@ -98771,10 +98725,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "user 'reader' created with role read",
-      "timings": {"parse_us": 0, "execute_us": 77989}
+      "timings": {"parse_us": 0, "execute_us": 81585}
     }
   ],
-  "timings": {"parse_us": 0, "execute_us": 299313}
+  "timings": {"parse_us": 0, "execute_us": 328691}
 }
 ```
 
@@ -98800,10 +98754,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 25, "execute_us": 278}
+      "timings": {"parse_us": 42, "execute_us": 495}
     }
   ],
-  "timings": {"parse_us": 25, "execute_us": 278}
+  "timings": {"parse_us": 42, "execute_us": 495}
 }
 ```
 
@@ -101744,8 +101698,8 @@ user 'grafana' created with role read
 
 | name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T03:02:47.628Z | 2026-10-24T03:02:47.628Z | NULL | false | NULL | NULL |
-| grafana | read | NULL | 2026-10-24T03:02:47.709Z | 2026-10-24T03:02:47.709Z | NULL | false | NULL | NULL |
+| admin | admin | NULL | 2026-10-24T03:42:48.666Z | 2026-10-24T03:42:48.666Z | NULL | false | NULL | NULL |
+| grafana | read | NULL | 2026-10-24T03:42:48.751Z | 2026-10-24T03:42:48.751Z | NULL | false | NULL | NULL |
 
 (2 rows)
 
@@ -102009,7 +101963,7 @@ Result:
 
 | name (STRING) | user (STRING) | token (STRING) | expires (TIMESTAMP) |
 |---|---|---|---|
-| prometheus | monitor | kdbt_aUSVmwYHxIZKZKEARSzBvF-dGlR4MMKGVCjHGIi6Yms | NULL |
+| prometheus | monitor | kdbt_RyNFTS1UjV9oPnQ0aJiQ9oAyZlC8hDVvlEZsys0wwDM | NULL |
 
 (1 row)
 
@@ -103486,10 +103440,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 34, "execute_us": 51}
+      "timings": {"parse_us": 39, "execute_us": 103}
     }
   ],
-  "timings": {"parse_us": 34, "execute_us": 51}
+  "timings": {"parse_us": 39, "execute_us": 103}
 }
 ```
 
@@ -103504,7 +103458,7 @@ HTTP 200 (application/json)
   "events": [
     {
       "seq": 2,
-      "ms": 1792810899611,
+      "ms": 1792813293394,
       "kind": "query",
       "level": "ok",
       "user": "",
@@ -103512,12 +103466,12 @@ HTTP 200 (application/json)
       "database": "h119",
       "text": "CREATE TABLE acct (id INT PRIMARY KEY, name STRING, bal DOUBLE); INSERT INTO acct VALUES (1, 'Asha', 10);",
       "rows": 1,
-      "took_ms": 40,
+      "took_ms": 44,
       "error": ""
     },
     {
       "seq": 3,
-      "ms": 1792810907449,
+      "ms": 1792813301882,
       "kind": "query",
       "level": "ok",
       "user": "",
@@ -103936,7 +103890,7 @@ HTTP 200 (application/json)
   "dataset": [
     [
       1,
-      "2026-10-24T03:01:57.728Z",
+      "2026-10-24T03:41:53.372Z",
       "suggestion",
       "new",
       "Please add a CSV export to dashboards.",
@@ -104860,8 +104814,8 @@ procedure 'minutes_of' done: 0 row(s) changed
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 584 | partitions read: 1 |
-| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 544 | partitions read: 1 |
+| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 944 | partitions read: 1 |
+| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 883 | partitions read: 1 |
 
 (2 rows)
 
@@ -105025,7 +104979,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 3 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 2 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -105178,7 +105132,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 2 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -105253,7 +105207,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -105320,7 +105274,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -105953,7 +105907,7 @@ time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.4 ms)
+(2 rows, more not shown, 0.6 ms)
 ```
 
 **HTTP: HTTP: limit=2, and truncated is true** (sample data: sample)
@@ -105985,7 +105939,7 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 29, "execute_us": 218}
+      "timings": {"parse_us": 39, "execute_us": 424}
     }
   ],
   "columns": [
@@ -105998,7 +105952,7 @@ HTTP 200 (application/json)
     ["2026-09-09T05:16:00.000Z", "CITY", 511.9]
   ],
   "count": 2,
-  "timings": {"parse_us": 29, "execute_us": 218}
+  "timings": {"parse_us": 39, "execute_us": 424}
 }
 ```
 
@@ -106228,7 +106182,7 @@ KarelaDB 0.2.0-dev
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -106281,7 +106235,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 08:46:30
+newest change   2026-10-24 09:26:24
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -107002,7 +106956,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 08:46:30
+newest change   2026-10-24 09:26:24
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -107062,7 +107016,7 @@ data         693 B
 block size   65536
 LSN          30
 id           1
-created      2026-10-24 08:46:30
+created      2026-10-24 09:26:24
 blocks       1
 digest       1d198644
 OK: all blocks match their checksums
@@ -107103,9 +107057,9 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           9
-created      2026-10-24 08:46:30
+created      2026-10-24 09:26:24
 blocks       1
-digest       936554ec
+digest       84b04470
 OK: all blocks match their checksums
 ```
 
@@ -107180,7 +107134,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 08:46:30
+newest change   2026-10-24 09:26:24
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -107209,9 +107163,9 @@ data         2.3 KB
 block size   65536
 LSN          30
 id           8
-created      2026-10-24 08:46:30
+created      2026-10-24 09:26:24
 blocks       1
-digest       58a232b8
+digest       4f772224
 OK: all blocks match their checksums
 ```
 
@@ -107249,7 +107203,7 @@ Output:
 `> kareladb backup market backups`
 
 ```text
-backup created and verified: backups/20261024-030137-397
+backup created and verified: backups/20261024-034130-993
   9 files, 190.0 KB, log up to 30
 ```
 
@@ -107257,7 +107211,7 @@ backup created and verified: backups/20261024-030137-397
 
 ```text
 BACKUP                 CREATED               FILES       SIZE      LOG LSN
-20261024-030137-397    2026-10-24 08:46:37       9   190.0 KB           30
+20261024-034130-993    2026-10-24 09:26:30       9   190.0 KB           30
 1 backups
 ```
 

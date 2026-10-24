@@ -1283,13 +1283,12 @@ DROP TABLE [IF EXISTS] table [CASCADE | RESTRICT]
 Deletes a table with all its rows and its indexes. With `IF EXISTS`, a table that is not there is not an error.
 
 - **Returns:** `table 'name' dropped`, or `table 'name' does not exist` with `IF EXISTS`.
-- **Notes:** the table goes to the [trash](trash.md) for some days, and `UNDROP TABLE` brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while another table `REFERENCES` it, and while it has triggers. To remove all rows and keep the table, use [TRUNCATE](update-delete.md#truncate).
-- **CASCADE and RESTRICT:** as in PostgreSQL. `DROP TABLE t RESTRICT` (or no word) refuses while another table's foreign key or a materialized view uses `t`. `DROP TABLE t CASCADE` drops what uses it first, then `t`:
+- **Notes:** the table goes to the [trash](trash.md) for some days, and `UNDROP TABLE` brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while anything uses it (another table's `REFERENCES`, a view, a materialized view; the error names each, SQLSTATE `2BP01`), and while it has triggers. To remove all rows and keep the table, use [TRUNCATE](update-delete.md#truncate).
+- **CASCADE and RESTRICT:** as in PostgreSQL. `DROP TABLE t RESTRICT` (or no word) refuses while another table's foreign key, a view or a materialized view uses `t`. `DROP TABLE t CASCADE` drops what uses it first, then `t`:
   - the foreign keys of other tables that point at `t` (`ALTER TABLE other DROP CONSTRAINT ...`; the other tables and their rows stay),
   - the views and materialized views that read `t`.
   - The reply names them: `table 't' dropped; drop cascades to constraint orders_customer_fkey on table orders, view big_orders`.
   - A table with triggers is still refused before anything is dropped: `DROP TRIGGER` them first.
-  - Without `CASCADE`, a plain view that reads the table does not stop the drop: the view stays and fails when it is read (see [views](views.md)).
   - `DROP FUNCTION`, `DROP PROCEDURE` and `DROP TRIGGER` read both words and ignore them.
 
 **Example: Remove a test table; safe to run twice**
@@ -1342,7 +1341,7 @@ DROP TABLE brokers;
 
 Result:
 
-Error: `cannot drop table 'brokers': column 'buyer' of table 'trades' REFERENCES it; drop that column or table first`
+Error: `cannot drop table brokers because other objects depend on it: constraint trades_buyer_fkey on table trades. Drop them first, or use DROP TABLE brokers CASCADE to drop them too`
 
 **Example: A table that is not there** (shows an error)
 

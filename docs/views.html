@@ -247,14 +247,14 @@ EXPLAIN SELECT symbol, close, prev FROM (SELECT symbol, time, close, lag(close) 
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>ltp (DOUBLE)</th><th>pct_change (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>527.1</td><td>2.71</td></tr><tr><td>TELCO</td><td>897.7</td><td>1.9</td></tr><tr><td>COAST</td><td>401.9</td><td>0.7</td></tr><tr><td>VOLT</td><td>184</td><td>-0.86</td></tr></tbody></table></div>
 <p>(4 rows)</p>
-<p><strong>Example: The table under a view was dropped</strong> (shows an error)</p>
+<p><strong>Example: A table a view reads cannot be dropped</strong> (shows an error)</p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE watchlist (symbol STRING PRIMARY KEY, note STRING);
-CREATE VIEW my_watchlist AS SELECT symbol, note FROM watchlist;
-DROP TABLE watchlist;</code></pre>
-<pre><code class="language-sql">SELECT * FROM my_watchlist;</code></pre>
+CREATE VIEW my_watchlist AS SELECT symbol, note FROM watchlist;</code></pre>
+<pre><code class="language-sql">DROP TABLE watchlist;</code></pre>
 <p>Result:</p>
-<p>Error: <code>view &#39;my_watchlist&#39;: line 1, column 26: table or view &#39;watchlist&#39; does not exist</code></p>
+<p>Error: <code>cannot drop table watchlist because other objects depend on it: view my_watchlist. Drop them first, or use DROP TABLE watchlist CASCADE to drop them too</code></p>
+<p><code>DROP TABLE watchlist CASCADE</code> drops <code>my_watchlist</code> with it; or <code>DROP VIEW my_watchlist</code> first.</p>
 <p><strong>Example: A view cannot be changed with INSERT</strong> (sample data: sample; shows an error)</p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE VIEW banks AS SELECT symbol, name FROM securities WHERE sector = &#39;Banking&#39;;</code></pre>

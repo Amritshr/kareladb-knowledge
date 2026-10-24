@@ -126,21 +126,6 @@ HTTP 200 (application/json)
       "result_cache_source": "server"
     },
     {
-      "name": "h1411",
-      "dir": "kdb-data/h1411",
-      "default": false,
-      "encrypted": false,
-      "open": true,
-      "tables": 0,
-      "bytes": 0,
-      "opening": false,
-      "wal_archive_max_bytes": 1073741824,
-      "wal_archive_source": "server",
-      "wal_archive_bytes": 0,
-      "result_cache_bytes": 268435456,
-      "result_cache_source": "server"
-    },
-    {
       "name": "h186",
       "dir": "kdb-data/h186",
       "default": false,
@@ -218,37 +203,6 @@ HTTP 200 (application/json)
     {
       "name": "h60",
       "dir": "kdb-data/h60",
-      "default": false,
-      "encrypted": false,
-      "open": true,
-      "tables": 0,
-      "bytes": 0,
-      "opening": false,
-      "wal_archive_max_bytes": 1073741824,
-      "wal_archive_source": "server",
-      "wal_archive_bytes": 0,
-      "result_cache_bytes": 268435456,
-      "result_cache_source": "server"
-    },
-    {
-      "name": "help_shop",
-      "dir": "kdb-data/help_shop",
-      "default": false,
-      "encrypted": false,
-      "open": true,
-      "tables": null,
-      "bytes": 0,
-      "opening": false,
-      "busy": true,
-      "wal_archive_max_bytes": 1073741824,
-      "wal_archive_source": "server",
-      "wal_archive_bytes": null,
-      "result_cache_bytes": 268435456,
-      "result_cache_source": "server"
-    },
-    {
-      "name": "help_twice",
-      "dir": "kdb-data/help_twice",
       "default": false,
       "encrypted": false,
       "open": true,
@@ -357,7 +311,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'items' created",
-      "timings": {"parse_us": 13, "execute_us": 37300}
+      "timings": {"parse_us": 21, "execute_us": 33485}
     },
     {
       "statement": "SHOW TABLES",
@@ -375,10 +329,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 15}
+      "timings": {"parse_us": 21, "execute_us": 23}
     }
   ],
-  "timings": {"parse_us": 26, "execute_us": 37315}
+  "timings": {"parse_us": 42, "execute_us": 33508}
 }
 ```
 
@@ -495,7 +449,7 @@ HTTP 200 (application/json)
 {
   "name": "help_scratch",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792810969312-help_scratch"
+  "moved_to": "kdb-data/_trash/1792813370499-help_scratch"
 }
 ```
 

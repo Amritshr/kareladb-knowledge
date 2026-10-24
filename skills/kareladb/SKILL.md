@@ -45,7 +45,7 @@ the paths and where the token file is when `kareladb skill install` wrote them t
 
 ## Running SQL
 
-`GET /exec` runs **read-only** SQL. `POST /exec` runs **anything**.
+`GET /exec` runs **read-only** SQL (a SELECT calling `nextval()` or with a `DELETE ... RETURNING` WITH is refused, 405). `POST /exec` runs **anything**.
 
 ```bash
 # read
@@ -623,6 +623,8 @@ the examples are known to work.
   or a folder on the host (`docker inspect <container>` shows which). Never
   remove it without asking.
 - Prefer `--data-binary` over `--data` with curl so line breaks survive.
+- `DROP TABLE t` is refused (2BP01) while a view, materialized view or foreign key
+  uses `t`; the error names each. `DROP TABLE t CASCADE` drops them too.
 - A `DOUBLE` keeps full precision (`9609.0/17` is `565.2352941176471`). When a
   procedure replaces a program that stores rates rounded (often to 6 places),
   store `round(x, 6)` and round both sides of filter comparisons, or rows
