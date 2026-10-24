@@ -37,7 +37,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792826037357,
+  "server_time_ms": 1792828587233,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -156,7 +156,7 @@ Result:
 
 | token_for_kdb_serve (STRING) | password_for_a_program (STRING) |
 |---|---|
-| IgJGyAyvnA82TNdLiS0mf3JzuoaEzc0aKa1--Y9RboA | u2uiEv9Yv7N2CwStovEttbN9ZisqGsRo |
+| qCZzClhfBMAIXFreG1EJv80ToGq_tfipDK2rjAEr02A | 2_6igyVB8Jhxl-B-sMKPIeW7FXkKJncs |
 
 (1 row)
 

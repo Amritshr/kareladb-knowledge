@@ -442,7 +442,7 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-24 12:58:22
+newest change   2026-10-24 13:40:45
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   8
 
@@ -524,7 +524,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 shop    |      0 |     0 | false  
-(2 rows, 0.2 ms)
+(2 rows, 0.4 ms)
 kareladb>
 ```
 

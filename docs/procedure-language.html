@@ -337,7 +337,7 @@ END;</code></pre>
 END WHILE</code></pre>
 <p>Runs the statements again and again, as long as the condition is true. The condition is checked before each round.</p>
 <ul><li><strong>Notes:</strong>
-<ul><li>A <code>NULL</code> condition counts as false: the loop stops.</li><li>A loop stops with an error after <strong>10 million rounds</strong>, so a loop that never ends cannot hold the database for ever. The whole <code>CALL</code> is then undone.</li><li><code>RETURN</code> inside the loop stops the whole procedure.</li><li>To read rows one by one, a <a href="procedure-language.html#for"><code>FOR</code></a> loop is shorter.</li></ul></li></ul>
+<ul><li>A <code>NULL</code> condition counts as false: the loop stops.</li><li>A loop stops with an error after <strong>10 million rounds</strong>, so a loop that never ends cannot hold the database for ever. The whole <code>CALL</code> is then undone.</li><li><code>RETURN</code> inside the loop stops the whole procedure.</li><li>To read rows one by one, a <a href="procedure-language.html#for"><code>FOR</code></a> loop is shorter.</li><li><strong>Speed:</strong> a statement in a loop is bound once and its variables are filled in on each round. A key written as an expression of a variable (<code>WHERE id = 2 * i + 1</code>) is worked out when the statement is bound, so that statement is bound again on every round; put the value in a variable first (<code>SET k = 2 * i + 1;</code> then <code>WHERE id = k</code>) to keep the fast form.</li></ul></li></ul>
 <p><strong>Example: Savings: how many years until 1 lakh becomes 2 lakh at 8%?</strong></p>
 <pre><code class="language-sql">CREATE PROCEDURE years_to_double(start DECIMAL(2), rate DOUBLE) AS BEGIN
   DECLARE money DECIMAL(2) DEFAULT start;
@@ -540,7 +540,7 @@ kareladb sql market &quot;SELECT id, owner, balance FROM accounts ORDER BY id&qu
 ---+-------+--------
  1 | Ram   |  600.00
  2 | Sita  |    0.00
-(2 rows, 0.2 ms)</code></pre>
+(2 rows, 0.3 ms)</code></pre>
 <h2 id="print">PRINT</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">PRINT expression</code></pre>

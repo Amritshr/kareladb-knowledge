@@ -717,6 +717,7 @@ Runs the statements again and again, as long as the condition is true. The condi
   - A loop stops with an error after **10 million rounds**, so a loop that never ends cannot hold the database for ever. The whole `CALL` is then undone.
   - `RETURN` inside the loop stops the whole procedure.
   - To read rows one by one, a [`FOR`](procedure-language.md#for) loop is shorter.
+  - **Speed:** a statement in a loop is bound once and its variables are filled in on each round. A key written as an expression of a variable (`WHERE id = 2 * i + 1`) is worked out when the statement is bound, so that statement is bound again on every round; put the value in a variable first (`SET k = 2 * i + 1;` then `WHERE id = k`) to keep the fast form.
 
 **Example: Savings: how many years until 1 lakh becomes 2 lakh at 8%?**
 
@@ -1133,7 +1134,7 @@ id | owner | balance
 ---+-------+--------
  1 | Ram   |  600.00
  2 | Sita  |    0.00
-(2 rows, 0.2 ms)
+(2 rows, 0.3 ms)
 ```
 
 <a id="print"></a>
