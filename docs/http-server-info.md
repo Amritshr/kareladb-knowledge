@@ -55,7 +55,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792828587233,
+  "server_time_ms": 1794988987212,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -150,8 +150,8 @@ HTTP 200 (application/json)
   "dir": "kdb-data/demo",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "opened_ms": 1792828587238,
-  "server_time_ms": 1792828587258,
+  "opened_ms": 1794988987235,
+  "server_time_ms": 1794988987334,
   "last_lsn": 4,
   "data_files": 1,
   "data_bytes": 231,
@@ -366,7 +366,19 @@ HTTP 200 (application/json)
       "refused_writes": 0
     }
   ],
-  "jobs": []
+  "jobs": [
+    {
+      "id": 1,
+      "trigger": "copy_ids",
+      "table": "trades",
+      "status": "done",
+      "rows": 2,
+      "commit_lsn": 9,
+      "made_ms": 1794988987394,
+      "took_ms": 9,
+      "error": ""
+    }
+  ]
 }
 ```
 
@@ -427,7 +439,7 @@ HTTP 200 (application/json)
   "bytes_checked": 77929,
   "wal_segments_checked": 1,
   "problems": [],
-  "elapsed_us": 1293
+  "elapsed_us": 3498
 }
 ```
 
@@ -487,10 +499,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-075627-328",
-  "dir": "./backups/demo/20261024-075627-328",
-  "created_ms": 1792828587328,
-  "created": "2026-10-24T07:56:27.328Z",
+  "name": "20261118-080307-454",
+  "dir": "./backups/demo/20261118-080307-454",
+  "created_ms": 1794988987454,
+  "created": "2026-11-18T08:03:07.454Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -506,10 +518,10 @@ HTTP 200 (application/json)
 {
   "backups": [
     {
-      "name": "20261024-075627-328",
-      "dir": "./backups/demo/20261024-075627-328",
-      "created_ms": 1792828587328,
-      "created": "2026-10-24T07:56:27.328Z",
+      "name": "20261118-080307-454",
+      "dir": "./backups/demo/20261118-080307-454",
+      "created_ms": 1794988987454,
+      "created": "2026-11-18T08:03:07.454Z",
       "end_lsn": 30,
       "checkpoint_lsn": 30,
       "files": 9,
@@ -519,9 +531,9 @@ HTTP 200 (application/json)
   "backup_dir": "./backups/demo",
   "point_in_time": {
     "possible": true,
-    "from_ms": 1792828587328,
-    "from": "2026-10-24T07:56:27.328Z",
-    "from_backup": "20261024-075627-328",
+    "from_ms": 1794988987454,
+    "from": "2026-11-18T08:03:07.454Z",
+    "from_backup": "20261118-080307-454",
     "log_first_lsn": 1,
     "why": "",
     "wal_archive_max_bytes": 1073741824
@@ -660,10 +672,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-075627-512",
-  "dir": "./backups/demo/20261024-075627-512",
-  "created_ms": 1792828587512,
-  "created": "2026-10-24T07:56:27.512Z",
+  "name": "20261118-080307-683",
+  "dir": "./backups/demo/20261118-080307-683",
+  "created_ms": 1794988987683,
+  "created": "2026-11-18T08:03:07.683Z",
   "end_lsn": 30,
   "checkpoint_lsn": 30,
   "files": 9,
@@ -680,10 +692,10 @@ HTTP 200 (application/json)
   "database": "demo_restored",
   "source": "demo",
   "backup": {
-    "name": "20261024-075627-512",
-    "dir": "./backups/demo/20261024-075627-512",
-    "created_ms": 1792828587512,
-    "created": "2026-10-24T07:56:27.512Z",
+    "name": "20261118-080307-683",
+    "dir": "./backups/demo/20261118-080307-683",
+    "created_ms": 1794988987683,
+    "created": "2026-11-18T08:03:07.683Z",
     "end_lsn": 30,
     "checkpoint_lsn": 30,
     "files": 9,
@@ -694,9 +706,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 9 data files from ./backups/demo/20261024-075627-512; the log (up to LSN 30) is replayed on first open"
+    "restored 9 data files from ./backups/demo/20261118-080307-683; the log (up to LSN 30) is replayed on first open"
   ],
-  "took_ms": 33,
+  "took_ms": 151,
   "next": "check 'demo_restored', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_restored\"} to put it in place, or DROP DATABASE demo_restored"
 }
 ```
@@ -709,7 +721,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_restored",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792828587595-demo_restored"
+  "moved_to": "kdb-data/_trash/1794988988109-demo_restored"
 }
 ```
 
@@ -737,10 +749,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-075627-527",
-  "dir": "./backups/demo/20261024-075627-527",
-  "created_ms": 1792828587527,
-  "created": "2026-10-24T07:56:27.527Z",
+  "name": "20261118-080307-719",
+  "dir": "./backups/demo/20261118-080307-719",
+  "created_ms": 1794988987719,
+  "created": "2026-11-18T08:03:07.719Z",
   "end_lsn": 0,
   "checkpoint_lsn": 0,
   "files": 0,
@@ -757,10 +769,10 @@ HTTP 200 (application/json)
   "database": "demo_twice",
   "source": "demo",
   "backup": {
-    "name": "20261024-075627-527",
-    "dir": "./backups/demo/20261024-075627-527",
-    "created_ms": 1792828587527,
-    "created": "2026-10-24T07:56:27.527Z",
+    "name": "20261118-080307-719",
+    "dir": "./backups/demo/20261118-080307-719",
+    "created_ms": 1794988987719,
+    "created": "2026-11-18T08:03:07.719Z",
     "end_lsn": 0,
     "checkpoint_lsn": 0,
     "files": 0,
@@ -771,9 +783,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 0 data files from ./backups/demo/20261024-075627-527; the log (up to LSN 0) is replayed on first open"
+    "restored 0 data files from ./backups/demo/20261118-080307-719; the log (up to LSN 0) is replayed on first open"
   ],
-  "took_ms": 12,
+  "took_ms": 70,
   "next": "check 'demo_twice', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_twice\"} to put it in place, or DROP DATABASE demo_twice"
 }
 ```
@@ -859,7 +871,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 't' created",
-      "timings": {"parse_us": 33, "execute_us": 6013}
+      "timings": {"parse_us": 30, "execute_us": 30164}
     },
     {
       "statement": "INSERT INTO t VALUES (1)",
@@ -869,13 +881,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 33, "execute_us": 509}
+      "timings": {"parse_us": 30, "execute_us": 5535}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 66, "execute_us": 6522}
+  "timings": {"parse_us": 60, "execute_us": 35699}
 }
 ```
 
@@ -885,10 +897,10 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "name": "20261024-075627-555",
-  "dir": "./backups/demo/20261024-075627-555",
-  "created_ms": 1792828587555,
-  "created": "2026-10-24T07:56:27.555Z",
+  "name": "20261118-080307-798",
+  "dir": "./backups/demo/20261118-080307-798",
+  "created_ms": 1794988987798,
+  "created": "2026-11-18T08:03:07.798Z",
   "end_lsn": 4,
   "checkpoint_lsn": 4,
   "files": 2,
@@ -912,13 +924,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 137, "execute_us": 36}
+      "timings": {"parse_us": 23, "execute_us": 24}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 137, "execute_us": 36}
+  "timings": {"parse_us": 23, "execute_us": 24}
 }
 ```
 
@@ -931,10 +943,10 @@ HTTP 200 (application/json)
   "database": "demo_old",
   "source": "demo",
   "backup": {
-    "name": "20261024-075627-555",
-    "dir": "./backups/demo/20261024-075627-555",
-    "created_ms": 1792828587555,
-    "created": "2026-10-24T07:56:27.555Z",
+    "name": "20261118-080307-798",
+    "dir": "./backups/demo/20261118-080307-798",
+    "created_ms": 1794988987798,
+    "created": "2026-11-18T08:03:07.798Z",
     "end_lsn": 4,
     "checkpoint_lsn": 4,
     "files": 2,
@@ -945,9 +957,9 @@ HTTP 200 (application/json)
   "opened": true,
   "open_error": "",
   "notes": [
-    "restored 2 data files from ./backups/demo/20261024-075627-555; the log (up to LSN 4) is replayed on first open"
+    "restored 2 data files from ./backups/demo/20261118-080307-798; the log (up to LSN 4) is replayed on first open"
   ],
-  "took_ms": 18,
+  "took_ms": 97,
   "next": "check 'demo_old', then POST /api/databases/swap {\"database\":\"demo\",\"with\":\"demo_old\"} to put it in place, or DROP DATABASE demo_old"
 }
 ```
@@ -980,7 +992,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 56, "execute_us": 198}
+      "timings": {"parse_us": 30, "execute_us": 167}
     }
   ],
   "columns": [
@@ -990,7 +1002,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 56, "execute_us": 198}
+  "timings": {"parse_us": 30, "execute_us": 167}
 }
 ```
 
@@ -1010,7 +1022,7 @@ HTTP 200 (application/json)
 {
   "name": "demo_old",
   "dropped": true,
-  "moved_to": "kdb-data/_trash/1792828587647-demo_old"
+  "moved_to": "kdb-data/_trash/1794988988232-demo_old"
 }
 ```
 
@@ -1034,6 +1046,7 @@ What the server is doing right now: the memory and processor of the process, the
 | `running` | one object per statement running now (HTTP and the PostgreSQL port together) |
 | `can_cancel` | `true` when the server was started with query protection, so `DELETE /exec/<id>` works |
 | `lanes` | [priority lanes](cli-serve.md#lanes): `enabled`, `heavy_slots`, `max_waiting` (HTTP places in line), `http_waiting`, `occupied` (heavy slots in use), `long_normal`, `heavy_ms`, `fast_ms`, `long_ms`, `shapes`, `heavy_shapes`, `cpu_priority`, `read_slots` ([read slots](cli-serve.md#read-slots): `slots`, `slot_ms`, `used`, `waiting`, `waited`, `wait_ms_total`, `wait_ms_max`), and per lane (`fast`, `normal`, `heavy`) `running`, `waiting`, `entered`, `waited`, `wait_ms_total`, `wait_ms_max`, `last_wait_ms`, `refused`, `overflowed` (heavy by history, HTTP line full: ran at once), `stopped_waiting`. Each object of `running` has `lane` and `waiting` too. |
+| `background` | the [background share](cli-serve.md#background-share): `threads` (jobs that may run at once), `running` (turns held now), `backups_running` (the backup slot of scheduled backups, 0 or 1), `memory_bytes` (the share), `bytes` and `bytes_peak` (a checkpoint wave's partitions in memory now, and the most since start), `jobs` (turns taken), `put_off` (jobs that found no turn free and ran at a later tick), `waited` (scheduled backup copies that waited for the backup slot), `yields` (pauses for waiting user writes). |
 | `zone_partition_skips`, `zone_block_skips` | since the process started: partitions not read and blocks not scanned because their saved column statistics (min and max) ruled the `WHERE` out |
 | `slice_reads` | since the process started: partitions not in memory of which a one-symbol query read only that symbol's rows from the file (see [slice reads](performance-tips.md#slice-reads)) |
 | `slice_cache_hits` | of those, slices found in the slice cache instead of the file |
@@ -1098,6 +1111,9 @@ What the server is doing right now: the memory and processor of the process, the
 | `refused` | statements told `memory full` since the start |
 | `reserve_in_use`, `reserve_admitted` | quick statements (reads, no writes or loads) running now in the reserve kept for them at red (at most 8), and how many were let in that way since the start |
 | `reserve_lifted` | of those, how many needed more than their place, waited for memory to come back and then ran on without the cap |
+| `writes_held` | `true` while new writes and loads wait at the door: the unsaved changes passed half of the limit ([back-pressure on loads](cli-serve.md#memory-limit)) |
+| `pending_seen_bytes` | the unsaved changes of all databases together, as the last look found them |
+| `writes_refused` | writes that waited 2 s and were refused that way since the start (HTTP 503, SQLSTATE 53200) |
 | `stopped` | running statements stopped with `memory full` since the start (the process went over the limit, and each held the most memory) |
 | `relieved`, `trims` | looks that gave memory back, and times freed memory went back to the system (Linux) |
 | `resident_holds` | looks at `yellow` by the resident size alone that did not unload partitions or drop kept results, because the last time that did not bring the level down |

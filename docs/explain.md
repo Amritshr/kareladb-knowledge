@@ -211,13 +211,13 @@ Result:
 | group by 1 key(s), 2 aggregate(s) |
 | sort by 1 key(s) |
 | engine: column |
-| actual: 3 row(s) in 0.297 ms |
-|   -> ochl_day: 3 row(s) in 0.282 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
-|      steps: prepare 0.012 ms, scan and aggregate 0.270 ms |
+| actual: 3 row(s) in 0.298 ms |
+|   -> ochl_day: 3 row(s) in 0.276 ms, engine: column, partitions: 1 of 2 read (1 skipped) |
+|      steps: prepare 0.016 ms, scan and aggregate 0.260 ms |
 | partitions read: 1 |
 | memory: 2016 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.142 ms |
-| Execution Time: 0.297 ms |
+| Planning Time: 0.165 ms |
+| Execution Time: 0.298 ms |
 
 (13 rows)
 
@@ -239,15 +239,15 @@ Result:
 | sort by 1 key(s) |
 | limit 3 |
 | engine: row (a join) |
-| actual: 3 row(s) in 0.155 ms |
-|   -> t, brokers: 3 row(s) in 0.146 ms, engine: row (a join) |
-|      steps: prepare 0.052 ms, scan, join and filter 0.085 ms, sort 0.007 ms, limit and result 0.001 ms |
-|     -> trade_log: 5 row(s) in 0.036 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.014 ms, scan and aggregate 0.021 ms, result 0.001 ms |
+| actual: 3 row(s) in 0.159 ms |
+|   -> t, brokers: 3 row(s) in 0.152 ms, engine: row (a join) |
+|      steps: prepare 0.057 ms, scan, join and filter 0.088 ms, sort 0.005 ms, limit and result 0.001 ms |
+|     -> trade_log: 5 row(s) in 0.040 ms, engine: row (a condition, group key or aggregate the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.017 ms, scan and aggregate 0.022 ms, result 0.001 ms |
 | partitions read: 3 |
 | memory: 1059 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.523 ms |
-| Execution Time: 0.155 ms |
+| Planning Time: 0.487 ms |
+| Execution Time: 0.159 ms |
 
 (14 rows)
 
@@ -901,19 +901,19 @@ Result:
 | scan result of subquery 1 (6 rows) |
 | engine: row (reads a subquery or view result) |
 | union all with 1 more part(s) |
-| actual: 10 row(s) in 0.059 ms |
+| actual: 10 row(s) in 0.163 ms |
 |   -> subquery 1: 6 row(s) in 0.037 ms, engine: row (reads a subquery or view result) |
-|      steps: prepare 0.036 ms, scan and filter 0.001 ms, result 0.000 ms |
-|     -> trade_log: 6 row(s) in 0.026 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
-|        steps: prepare 0.016 ms, scan and filter 0.009 ms, result 0.001 ms |
-|   -> subquery 2: 4 row(s) in 0.014 ms, engine: row (reads a subquery or view result) |
-|      steps: prepare 0.013 ms, scan and filter 0.001 ms, result 0.000 ms |
-|     -> trade_log: 4 row(s) in 0.008 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
-|        steps: prepare 0.003 ms, scan and filter 0.005 ms, result 0.000 ms |
+|      steps: prepare 0.035 ms, scan and filter 0.002 ms, result 0.000 ms |
+|     -> trade_log: 6 row(s) in 0.025 ms, engine: row (a condition the column engine does not do), partitions: 2 of 2 read |
+|        steps: prepare 0.014 ms, scan and filter 0.010 ms, result 0.001 ms |
+|   -> subquery 2: 4 row(s) in 0.115 ms, engine: row (reads a subquery or view result) |
+|      steps: prepare 0.112 ms, scan and filter 0.002 ms, result 0.001 ms |
+|     -> trade_log: 4 row(s) in 0.077 ms, engine: row (a condition the column engine does not do), partitions: 1 of 2 read (1 skipped, 1 of them by column stats) |
+|        steps: prepare 0.054 ms, scan and filter 0.021 ms, result 0.002 ms |
 | partitions read: 3 |
 | memory: 0 bytes held at most (the statement's own count of the rows, groups and joins it keeps) |
-| Planning Time: 0.578 ms |
-| Execution Time: 0.059 ms |
+| Planning Time: 0.447 ms |
+| Execution Time: 0.163 ms |
 
 (16 rows)
 

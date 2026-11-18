@@ -324,7 +324,7 @@ For a column with **few different values**: a symbol, a side (`B` / `S`), a stat
 | `a = 5 AND b <> 'x'`, `a = 5 AND b NOT IN (...)` | yes: the rows of `a = 5`, without those of `b` |
 | `(a = 5 OR b = 'x') AND c = 1` | yes: the rows in either set, then those of `c` too |
 | `a = 5 AND MATCH(body, 'word')` (a [full-text index](full-text-search.md)) | yes: the sets and the matches combined |
-| `a = 5 AND d BETWEEN 1 AND 99` (an ordinary index on `d`) | yes, when the range finds few rows: combined too |
+| `a = 5 AND d BETWEEN 1 AND 99` (an ordinary index on `d`) | yes, when the range finds few rows: combined too. When it finds far fewer rows than the sets (16 times fewer or more), the ordinary index is read alone and `a = 5` is checked on its rows: combining big sets would cost more than the answer |
 | `a = 5 AND ts >= '2026-03-01' AND ts < '2026-04-01'` | yes: only the partitions of that month |
 | `b <> 'x'` alone | no |
 | `a > 5`, `a LIKE ...` | no: use an ordinary index |
@@ -335,6 +335,8 @@ For a column with **few different values**: a symbol, a side (`B` / `S`), a stat
   - A text search with a filter: `MATCH(body, 'oil') AND symbol = 'X'` in one month used to read every row with the word and check the symbol on each. Now the matches and the symbol's set are combined first: on 1,000,000 rows, 5 ms instead of 99 ms. A word that is far more common than the filter (more than 32 matches per row of the sets) is still checked row by row.
   - On a table stored by the column (`symbol = 'X'` on a time-series table whose first `SYMBOL` column is its sort key), the storage key already finds the rows: the bitmap index is then used only together with a text search.
   - Like every index, it lives in memory and is built from the rows when first needed. Every `INSERT`, `UPDATE` and `DELETE` changes it. Rows that come in storage order (a time-series table) cost very little: their sets are long runs of rows.
+  - The sets name rows by a number per row. A deleted row's number is freed at the next checkpoint (a [`CHECKPOINT`](backup-and-safety.md) sent alone, or the one the server runs when writes pause), so a table that deletes most of its rows gets its memory back: `memory_bytes` in `SHOW INDEXES` goes down. Answers never change. A partition is numbered again only when at least 1,024 of its numbers (and a quarter of them) are free; while a read of a snapshot or a background build uses the numbers, the table waits for a later checkpoint. The checkpoint the server runs when writes pause numbers about 1,000,000 rows at most and skips a bigger partition: a very large partition is tidied only by a `CHECKPOINT` you send.
+  - A read behind a busy writer ([snapshot reads](transactions.md#snapshot-reads)) uses the sets too: it checks each row they find against its snapshot and also finds the rows the writer changed since.
   - The same cost rules as above: on a big table it is used when the sets together find few rows.
   - It cannot be `UNIQUE`, have an expression or a `WHERE`, or have two columns (make one bitmap index per column: they combine).
   - `SHOW INDEXES` shows its kind as `BITMAP`.

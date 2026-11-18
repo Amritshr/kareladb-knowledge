@@ -3,7 +3,7 @@
 > Sort the result, and give back only the first rows or one page of rows.
 
 - Category: Querying
-- Keywords: sort, order, sorting, ORDER BY, ASC, DESC, ascending, descending, NULLS FIRST, NULLS LAST, NULLS, FIRST, LAST, LIMIT, OFFSET, top N, first rows, paging, pagination, page, next page, LIMIT a, b, order by, limit, offset, asc, desc, paging
+- Keywords: sort, order, sorting, ORDER BY, ASC, DESC, ascending, descending, NULLS FIRST, NULLS LAST, NULLS, FIRST, LAST, LIMIT, OFFSET, top N, first rows, paging, pagination, page, next page, LIMIT a, b, order by, limit, offset, asc, desc, paging, ORDER BY ALL, sort by every column
 - See also: [SELECT](select.md), [WHERE (row-comparison)](where.md#row-comparison), [GROUP BY and HAVING](group-by.md), [UNION and subqueries (union-all)](union-subqueries.md#union-all), [Window and series functions](functions-window.md), [EXPLAIN](explain.md)
 
 `ORDER BY` sorts the rows of the result. `LIMIT` keeps only the first rows, and `OFFSET` skips rows before them.
@@ -203,6 +203,30 @@ SELECT id, name FROM brokers ORDER BY 3;
 Result:
 
 Error: `line 1, column 39: ORDER BY 3: there are only 2 columns`
+
+<a id="order-by-all"></a>
+
+## ORDER BY ALL
+
+`ORDER BY ALL` sorts by every column of the result, the first one first (DuckDB): `ORDER BY 1, 2, 3, ...`. `ASC` / `DESC` and `NULLS FIRST` / `NULLS LAST` after it apply to every column.
+
+- **Errors:** with `SELECT *` (name the columns, 0A000).
+
+**Example** (sample data: sample)
+
+```sql
+SELECT sector, symbol FROM securities ORDER BY ALL DESC LIMIT 3;
+```
+
+Result:
+
+| sector (STRING) | symbol (SYMBOL) |
+|---|---|
+| Telecom | TELCO |
+| Investment | ACME |
+| Energy | VOLT |
+
+(3 rows)
 
 <a id="asc-desc"></a>
 

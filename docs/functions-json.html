@@ -178,6 +178,22 @@ WHERE symbol = &#39;CITY&#39;;</code></pre>
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>text_value (STRING)</th><th>double_value (STRING)</th><th>exact (STRING)</th><th>yes (STRING)</th><th>time_value (STRING)</th><th>still_text (STRING)</th></tr></thead><tbody><tr><td>&quot;City \&quot;Bank\&quot;&quot;</td><td>512.5</td><td>2.50</td><td>true</td><td>&quot;2026-09-10T05:15:00.000Z&quot;</td><td>&quot;{\&quot;a\&quot;: 1}&quot;</td></tr></tbody></table></div>
 <p>(1 row)</p>
+<h3 id="pg-compat-times">Times in JSON with kdb.pg_compat</h3>
+<p>With <code>SET kdb.pg_compat = on</code>, a time inside JSON is written the way PostgreSQL writes it. This covers <code>to_json</code>, <code>to_jsonb</code>, <code>json_build_object</code>, <code>jsonb_build_object</code>, <code>json_build_array</code>, <code>jsonb_build_array</code>, <code>json_agg</code>, <code>jsonb_agg</code>, <code>json_object_agg</code>, <code>jsonb_object_agg</code> and <code>row_to_json(t)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Value</th><th>KarelaDB (off)</th><th>PostgreSQL (on)</th></tr></thead><tbody><tr><td><code>TIMESTAMP</code></td><td><code>&quot;2026-09-10T05:15:00.000Z&quot;</code></td><td><code>&quot;2026-09-10T05:15:00&quot;</code></td></tr><tr><td><code>TIMESTAMPTZ</code>, <code>now()</code>, <code>x::timestamptz</code></td><td><code>&quot;2026-09-10T05:15:00.000Z&quot;</code></td><td><code>&quot;2026-09-10T05:15:00+00:00&quot;</code> (the session&#39;s offset)</td></tr><tr><td><code>DATE</code></td><td><code>&quot;2026-09-10&quot;</code></td><td><code>&quot;2026-09-10&quot;</code></td></tr><tr><td>part of a second</td><td><code>.500Z</code></td><td><code>.5</code> (only when not zero, no trailing zeros)</td></tr></tbody></table></div>
+<ul><li>A <code>TIMESTAMPTZ</code> is shown on the session&#39;s clock with its offset: under <code>SET TIME ZONE &#39;Asia/Kathmandu&#39;</code> it is <code>&quot;2026-09-10T11:00:00+05:45&quot;</code>. Summer time gives each moment its own offset.</li><li>A plain <code>TIMESTAMP</code> is shown as the session&#39;s wall clock, the same as the Postgres port shows the column itself. In UTC that is the stored time.</li><li>The window forms (<code>json_agg(t) OVER (...)</code>, <code>json_object_agg(k, t) OVER (...)</code>) write times the same way.</li><li>A time used as a <strong>key</strong> (<code>json_build_object(ts, 1)</code>, <code>json_object_agg(ts, v)</code>) is PostgreSQL&#39;s text of it, as in PostgreSQL: <code>{&quot;2026-09-10 05:15:00&quot;: 1}</code>, a <code>TIMESTAMPTZ</code> with its offset (<code>&quot;2026-09-10 05:15:00+00&quot;</code>).</li><li>A year before 1 AD ends in <code> BC</code>, as a value and as a key: <code>DATE &#39;0001-01-01&#39; - 800</code> is <code>&quot;0003-10-24 BC&quot;</code>.</li><li>With the setting off, nothing changes.</li><li>A time already inside a JSON value (from <code>array_agg</code>, or a stored JSON column) stays as it was written.</li></ul>
+<p><strong>Example: Times in JSON as PostgreSQL writes them</strong></p>
+<pre><code class="language-sql">SET kdb.pg_compat = on;
+SELECT to_json(CAST(&#39;2026-09-10T05:15:00.5Z&#39; AS TIMESTAMP))::STRING AS plain,
+       to_jsonb(&#39;2026-09-10 05:15:00Z&#39;::timestamptz)::STRING AS moment,
+       json_build_object(&#39;day&#39;, DATE &#39;2026-09-10&#39;)::STRING AS object,
+       json_build_object(CAST(&#39;2026-09-10T05:15:00Z&#39; AS TIMESTAMP), 1)::STRING AS time_key;</code></pre>
+<p>Result:</p>
+<p><code>SET pg_compat = &#39;on&#39;</code></p>
+<pre><code class="language-text">this session gives PostgreSQL 14&#39;s answers (kdb.pg_compat = on): 7 / 2 = 3, 1.005 is an exact NUMERIC, a window with ORDER BY counts ties together (RANGE), text sorts like en_US</code></pre>
+<p><code>SELECT CAST(to_json(CAST(&#39;2026-09-10T05:15:00.5Z&#39; AS TIMESTAMP)) AS STRING) AS plain, CAST(to_jsonb(</code></p>
+<div class="table-wrap"><table><thead><tr><th>plain (STRING)</th><th>moment (STRING)</th><th>object (STRING)</th><th>time_key (STRING)</th></tr></thead><tbody><tr><td>&quot;2026-09-10T05:15:00.5&quot;</td><td>&quot;2026-09-10T05:15:00+00:00&quot;</td><td>{&quot;day&quot;:&quot;2026-09-10&quot;}</td><td>{&quot;2026-09-10 05:15:00&quot;:1}</td></tr></tbody></table></div>
+<p>(1 row)</p>
 <h2 id="json-valid">json_valid</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">json_valid(text)</code></pre>
@@ -422,8 +438,11 @@ WHERE symbol = &#39;CITY&#39;;</code></pre>
 <p>(1 row)</p>
 <h2 id="json-object">json_object</h2>
 <p>Syntax:</p>
-<pre><code class="language-sql">json_object(key, value [, key, value ...])</code></pre>
+<pre><code class="language-sql">json_object(key, value [, key, value ...])
+json_object(array)
+json_object(keys_array, values_array)</code></pre>
 <p>Builds a JSON object from pairs of key and value. Text values become JSON strings; numbers, <code>TRUE</code>/<code>FALSE</code> and <code>JSON</code> values are put in as they are.</p>
+<p>PostgreSQL&#39;s array forms work too: one array of keys and values in turn (<code>&#39;{a,1,b,2}&#39;</code>, or two columns <code>&#39;{{a,1},{b,2}}&#39;</code>), or an array of keys and an array of values. There every value becomes text, as in PostgreSQL. (The pairs form is PostgreSQL&#39;s <code>json_build_object</code>.)</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td><code>STRING</code></td><td>the name of the key (a number is turned into text)</td></tr><tr><td><code>value</code></td><td>any type</td><td>the value; <code>NULL</code> becomes JSON <code>null</code></td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>JSON</code>. <code>json_object()</code> with no arguments is <code>{}</code>.</li><li><strong>NULL:</strong> a <code>NULL</code> value becomes <code>null</code>. A <code>NULL</code> key is an error.</li><li><strong>Notes:</strong> an odd number of arguments is an error. When a key is written twice, the last value wins. At most 64 arguments.</li><li>To put JSON inside, pass a <code>JSON</code> value (a JSON column, or <code>json(&#39;...&#39;)</code>). Plain text like <code>&#39;[&quot;bank&quot;]&#39;</code> becomes a string.</li></ul>
 <p><strong>Example: A JSON answer for an app, made from table columns</strong></p>
@@ -448,6 +467,12 @@ WHERE symbol = &#39;COAST&#39;;</code></pre>
 <pre><code class="language-sql">SELECT json_object(&#39;symbol&#39;, &#39;CITY&#39;, &#39;price&#39;);</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: json_object: needs pairs of key and value, like json_object(&#39;symbol&#39;, &#39;CITY&#39;, &#39;price&#39;, 512.5)</code></p>
+<p><strong>Example: PostgreSQL&#39;s array forms: the values become text</strong></p>
+<pre><code class="language-sql">SELECT json_object(&#39;{symbol,CITY,price,512.5}&#39;) AS one_array,
+       json_object(ARRAY[&#39;symbol&#39;, &#39;price&#39;], ARRAY[&#39;CITY&#39;, &#39;512.5&#39;]) AS keys_and_values;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>one_array (JSON)</th><th>keys_and_values (JSON)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;price&quot;:&quot;512.5&quot;}</td><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;price&quot;:&quot;512.5&quot;}</td></tr></tbody></table></div>
+<p>(1 row)</p>
 <h2 id="json-array">json_array</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">json_array([value, value ...])</code></pre>
@@ -788,16 +813,17 @@ WHERE symbol = &#39;VOLT&#39;;</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">row_to_json(value)
 to_json_row(value)</code></pre>
-<p>Turns a value into JSON, the way a PostgreSQL app calls it on a row. KarelaDB has no whole-row value, so give it a list or an object you built yourself.</p>
+<p>Turns a whole row into a JSON object of its columns: <code>SELECT row_to_json(t) FROM table t</code>, the PostgreSQL way. Given another value, it turns that value into JSON.</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>value</code></td><td>any</td><td>the value to turn into JSON</td></tr></tbody></table></div>
-<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>row_to_json(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> for a whole row, build it with <code>json_build_object(&#39;column&#39;, column, ...)</code>. <code>SELECT row_to_json(t) FROM table t</code>, the usual PostgreSQL way, does not work here.</li></ul>
-<p><strong>Example: One row of the company list as JSON</strong></p>
-<pre><code class="language-sql">SELECT row_to_json(json_build_object(&#39;symbol&#39;, symbol, &#39;name&#39;, name)) AS row_json
-FROM companies
-ORDER BY symbol;</code></pre>
+<ul><li><strong>Returns:</strong> <code>JSON</code>.</li><li><strong>NULL:</strong> <code>row_to_json(NULL)</code> is <code>NULL</code>.</li><li><strong>Notes:</strong> <code>t</code> is the table&#39;s alias (or its name). <code>to_jsonb(t)</code> gives the same object as <code>jsonb</code> (on the PostgreSQL port: type jsonb, written <code>{&quot;a&quot;: 1}</code>). For some columns only, build it with <code>json_build_object(&#39;column&#39;, column, ...)</code>. The row as text is <code>t::text</code> (<a href="functions-postgres.html#rows">whole rows</a>).</li></ul>
+<p><strong>Example: Each company row as JSON</strong></p>
+<pre><code class="language-sql">SELECT row_to_json(c) AS row_json
+FROM (SELECT symbol, name FROM companies) c
+ORDER BY row_json
+LIMIT 2;</code></pre>
 <p>Result:</p>
-<div class="table-wrap"><table><thead><tr><th>row_json (JSON)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;name&quot;:&quot;City Bank Limited&quot;}</td></tr><tr><td>{&quot;symbol&quot;:&quot;COAST&quot;,&quot;name&quot;:&quot;Coastal Bank Limited&quot;}</td></tr><tr><td>{&quot;symbol&quot;:&quot;VOLT&quot;,&quot;name&quot;:&quot;Volt River Hydropower Limited&quot;}</td></tr></tbody></table></div>
-<p>(3 rows)</p>
+<div class="table-wrap"><table><thead><tr><th>row_json (JSON)</th></tr></thead><tbody><tr><td>{&quot;symbol&quot;:&quot;CITY&quot;,&quot;name&quot;:&quot;City Bank Limited&quot;}</td></tr><tr><td>{&quot;symbol&quot;:&quot;COAST&quot;,&quot;name&quot;:&quot;Coastal Bank Limited&quot;}</td></tr></tbody></table></div>
+<p>(2 rows)</p>
 <h2 id="jsonb-set">jsonb_set</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">jsonb_set(document, path_array, new_value)

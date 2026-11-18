@@ -3,7 +3,7 @@
 > Change case, cut, trim, pad, search and join text. A letter of any language (Nepali, Chinese, ...) counts as one character.
 
 - Category: Functions — text
-- Keywords: text, string, STRING, ascii, chr, translate, overlay, PLACING, normalize, NFC, NFD, NFKC, NFKD, U&, to\_ascii, remove accents, bit\_length, to\_hex, parse\_ident, string\_to\_table, number format, format a number, VARCHAR, UTF-8, Unicode, Nepali, Devanagari, characters, letters, bytes, upper case, lower case, cut text, clean text, ||, join text, concatenate, lcase, ucase, len, mid, instr, locate, position IN, lengthb, format, sprintf, printf, string format, quote a name, quote a value, quote\_ident, quote\_literal, quote\_nullable, SQL injection
+- Keywords: text, string, STRING, ascii, chr, translate, overlay, PLACING, normalize, NFC, NFD, NFKC, NFKD, U&, to\_ascii, remove accents, bit\_length, to\_hex, parse\_ident, string\_to\_table, number format, format a number, VARCHAR, UTF-8, Unicode, Nepali, Devanagari, characters, letters, bytes, upper case, lower case, cut text, clean text, ||, join text, concatenate, lcase, ucase, len, mid, instr, locate, position IN, lengthb, format, sprintf, printf, string format, quote a name, quote a value, quote\_ident, quote\_literal, quote\_nullable, SQL injection, levenshtein, damerau\_levenshtein, editdist3, jaccard, editDistance, hamming, mismatches, jaro\_similarity, jaro\_winkler\_similarity, similarity, pg\_trgm, fuzzystrmatch, fuzzy search, typo, edit distance, url\_encode, url\_decode, encodeURLComponent, decodeURLComponent, regexp\_extract, contains, printf, format\_bytes, formatReadableSize, crc32, ucase, lcase, len, strlen, instr, ifnull, nvl, iif, string\_split, str\_split
 - See also: [Regular expressions](functions-regex.md), [WHERE](where.md), [Conversion functions](functions-conversion.md), [Bytes, hex and base64](functions-bytes.md), [Full-text search](full-text-search.md)
 
 These functions work on text (`STRING`). KarelaDB keeps text as **UTF-8**. UTF-8 is the usual way to store the letters of every language. An English letter takes 1 byte; a Nepali letter like `न` takes 3 bytes.
@@ -1999,3 +1999,127 @@ Result:
 | VOLT | 326,540,767.00 |
 
 (3 rows)
+
+<a id="fuzzy-text"></a>
+
+## Fuzzy text: levenshtein, similarity, jaro_winkler_similarity
+
+Find text that is close but not the same: a typo in a company name, `Nabil Bnk` for `Nabil Bank`. These functions measure how far apart two texts are; to find the rows with a word that has a typo through a FULLTEXT index, use a [fuzzy word](full-text-search.md#fuzzy) (`bnak~`). They count characters, not bytes, so `Kathmandu` and `Kāthmandu` are 1 apart.
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `levenshtein(a, b)` | LONG | the fewest single-character edits (insert, delete, change) from `a` to `b` |
+| `levenshtein(a, b, ins, del, sub)` | LONG | the same, with a cost for each kind of edit (whole numbers from 0 to 1000000) |
+| `damerau_levenshtein(a, b)` | LONG | like levenshtein, and a swap of two neighbouring characters is one edit |
+| `hamming(a, b)` | LONG | the places where two texts of the same length differ |
+| `jaro_similarity(a, b)` | DOUBLE | 0 (nothing alike) to 1 (the same); good for short names |
+| `jaro_winkler_similarity(a, b)` | DOUBLE | Jaro with extra weight for the same first 4 characters |
+| `jaccard(a, b)` | DOUBLE | 0 to 1: the characters both have over the characters either has, each counted once |
+| `similarity(a, b)` | DOUBLE | 0 to 1: the share of three-letter pieces both have (PostgreSQL's pg_trgm); case and punctuation do not count |
+
+- **Other names:** `editdist3` is `levenshtein`, `mismatches` is `hamming` (DuckDB); ClickHouse's `editDistance`, `editDistanceUTF8`, `levenshteinDistance`, `damerauLevenshteinDistance`, `jaroSimilarity`, `jaroWinklerSimilarity` and `stringJaccardIndex` work too.
+- **NULL:** any `NULL` argument gives `NULL`.
+- **Errors:** `hamming` of texts of different lengths, a negative cost (SQLSTATE 22023). `levenshtein` takes texts of at most 10,000 characters and `damerau_levenshtein` at most 2,000, so one row cannot hold a thread for minutes.
+- **Speed:** the work memory is kept per thread, so a million rows allocate nothing but their answers. The time per row grows with one length times the other.
+
+**Example**
+
+```sql
+SELECT levenshtein('Nabil Bnk', 'Nabil Bank') AS edits,
+       damerau_levenshtein('ab', 'ba') AS swap,
+       hamming('karolin', 'kathrin') AS places,
+       round(jaro_winkler_similarity('MARTHA', 'MARHTA'), 4) AS jw,
+       jaccard('duck', 'luck') AS chars,
+       similarity('word', 'words') AS trigram;
+```
+
+Result:
+
+| edits (LONG) | swap (LONG) | places (LONG) | jw (DOUBLE) | chars (DOUBLE) | trigram (DOUBLE) |
+|---|---|---|---|---|---|
+| 1 | 1 | 3 | 0.9611 | 0.6 | 0.5714286 |
+
+(1 row)
+
+**Example: The closest company names to a typo** (sample data: sample)
+
+```sql
+SELECT symbol, name, levenshtein(lower(name), 'nabil bnk limited') AS edits
+FROM securities
+ORDER BY edits, symbol
+LIMIT 3;
+```
+
+Result:
+
+| symbol (SYMBOL) | name (STRING) | edits (LONG) |
+|---|---|---|
+| CITY | City Bank Limited | 6 |
+| COAST | Coastal Bank Limited | 6 |
+| TELCO | Northwind Telecom Limited | 14 |
+
+(3 rows)
+
+<a id="url_encode"></a>
+
+## url_encode, url_decode
+
+Syntax:
+
+```sql
+url_encode(text)
+url_decode(text)
+```
+
+`url_encode` writes every byte except `A-Z a-z 0-9 - _ . ~` as `%XX`, so the text can go into a web address: `url_encode('a b/c')` is `a%20b%2Fc`. `url_decode` turns each `%XX` back into its byte.
+
+- **Other names:** `encodeURLComponent`, `decodeURLComponent` (ClickHouse).
+- **Notes:** `url_decode` leaves `+` as it is (it does not mean a space).
+- **Errors:** a `%` without two hex digits after it (SQLSTATE 22025), or decoded bytes that are not UTF-8 text (22021).
+
+**Example**
+
+```sql
+SELECT url_encode('this string has/ special+ characters>') AS encoded,
+       url_decode('NEPSE%20index%3A%202%2C750') AS decoded;
+```
+
+Result:
+
+| encoded (STRING) | decoded (STRING) |
+|---|---|
+| this%20string%20has%2F%20special%2B%20characters%3E | NEPSE index: 2,750 |
+
+(1 row)
+
+<a id="printf"></a>
+
+## regexp_extract, contains, printf, format_bytes, crc32
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `regexp_extract(text, pattern [, group])` | STRING | the first match, or its group `n`; `''` when nothing matches (DuckDB) |
+| `contains(text, part)` | BOOL | whether `part` is in `text` |
+| `printf(format, value, ...)` | STRING | C's formats: `%d %i %u %x %X %o %f %e %g %s %%`, with flags `- + space 0 #`, a width and a precision (at most 1000) |
+| `format_bytes(n)` | STRING | a size in KiB, MiB, ... with one place: `'16.0 KiB'` (DuckDB) |
+| `formatReadableSize(n)` | STRING | the same with two places, `'1.18 MiB'` (ClickHouse) |
+| `crc32(text)` | LONG | the CRC-32 of the bytes (zlib's, as ClickHouse and MySQL) |
+
+Other engines' names that work: `ucase`, `lcase`, `len`, `strlen` (bytes), `instr`, `ifnull`, `nvl`, `if(c, a, b)` / `iif(c, a, b)`, `string_split` / `str_split`.
+
+**Example**
+
+```sql
+SELECT regexp_extract('order 4521 paid', '[0-9]+') AS num,
+       printf('%-6s|%8.2f', 'CITY', 1234.5) AS line,
+       format_bytes(16384) AS size,
+       if(contains('Nabil Bank', 'Bank'), 'bank', 'other') AS kind;
+```
+
+Result:
+
+| num (STRING) | line (STRING) | size (STRING) | kind (STRING) |
+|---|---|---|---|
+| 4521 | CITY  \| 1234.50 | 16.0 KiB | bank |
+
+(1 row)

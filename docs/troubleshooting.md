@@ -44,8 +44,31 @@ HTTP 200 (application/json)
 ```text
 {
   "threshold_ms": 1000,
-  "recorded": 0,
-  "queries": []
+  "recorded": 2,
+  "queries": [
+    {
+      "ms": 1794989020518,
+      "took_ms": 5008,
+      "user": "",
+      "client": "127.0.0.1 (http)",
+      "database": "h2128",
+      "rows": -1,
+      "ok": false,
+      "error": "a row of table 'accounts' is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5009 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
+      "sql": "UPDATE accounts SET balance = 0 WHERE id = 1"
+    },
+    {
+      "ms": 1794989020518,
+      "took_ms": 5005,
+      "user": "",
+      "client": "127.0.0.1 (http)",
+      "database": "h2129",
+      "rows": -1,
+      "ok": false,
+      "error": "table 'accounts' is busy: another transaction has held it for 5010 ms; waited 5006 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short",
+      "sql": "UPDATE accounts SET balance = 0 WHERE id = 2"
+    }
+  ]
 }
 ```
 
@@ -276,7 +299,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "now_ms": 1792828606039,
+  "now_ms": 1794989020750,
   "timers": []
 }
 ```

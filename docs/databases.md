@@ -3,7 +3,7 @@
 > Where KarelaDB keeps databases, how to name them, and CREATE DATABASE, DROP DATABASE, SHOW DATABASES and USE.
 
 - Category: Databases & folders
-- Keywords: database, data folder, PURGE TRASH, PURGE TRASH ALL, data directory, --data-dir, KARELADB\_DATA\_DIR, default database, \_trash, trash, database name, folder path, CREATE DATABASE, IF NOT EXISTS, DROP DATABASE, IF EXISTS, SHOW DATABASES, USE, switch database, many databases, kdb.lock, wal\_archive, WAL\_ARCHIVE, old log, log archive, KARELADB\_WAL\_ARCHIVE\_MB, RESULT\_CACHE, result cache per database, MEMORY\_LIMIT, MEMORY\_RESERVED, memory per database, database\_memory, per-column loads, partial\_loads, BRANCH OF, branch, clone database
+- Keywords: database, data folder, PURGE TRASH, PURGE TRASH ALL, data directory, --data-dir, KARELADB\_DATA\_DIR, default database, \_trash, trash, database name, folder path, CREATE DATABASE, IF NOT EXISTS, DROP DATABASE, IF EXISTS, SHOW DATABASES, USE, switch database, many databases, kdb.lock, wal\_archive, WAL\_ARCHIVE, old log, log archive, KARELADB\_WAL\_ARCHIVE\_MB, RESULT\_CACHE, result cache per database, MEMORY\_LIMIT, MEMORY\_RESERVED, memory per database, database\_memory, MAX\_STATEMENTS, statements at once per database, 53300, per-column loads, partial\_loads, BRANCH OF, branch, clone database
 - See also: [Quick start](quick-start.md), [CREATE TABLE](create-table.md), [SHOW TABLES, COLUMNS, CREATE TABLE](show-tables.md), [Users and roles](users-and-roles.md), [Backup, check, repair and restore](backup-and-safety.md), [kareladb serve](cli-serve.md), [Queries across databases](cross-database-queries.md), [Time travel and branches: SELECT ... AS OF, CREATE DATABASE ... BRANCH OF](as-of-and-branches.md)
 
 A **database** is one folder with its own tables, views, triggers and procedures. KarelaDB keeps many databases in one **data folder**: one sub-folder per database. `kareladb serve` without a database name serves all of them.
@@ -100,7 +100,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 market  |      0 |     0 | false  
-(2 rows, 0.2 ms)
+(2 rows, 0.4 ms)
 kareladb>
 ```
 
@@ -175,7 +175,7 @@ table 'products' created
 name     | kind       | partition | columns | rows
 ---------+------------+-----------+---------+-----
 products | relational | NONE      |       2 |    0
-(1 row, 0.1 ms)
+(1 row, 0.0 ms)
 ```
 
 <a id="create-database"></a>
@@ -285,7 +285,7 @@ Result:
 `DROP DATABASE test_2025`
 
 ```text
-database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1792828554564-test_2025
+database 'test_2025' dropped; its folder was moved to kdb-data/_trash/1794988934796-test_2025
 ```
 
 `DROP DATABASE IF EXISTS test_2025`
@@ -318,7 +318,7 @@ SHOW TABLES;
 Result:
 
 ```text
-database 'demo' dropped; its folder was moved to kdb-data/_trash/1792828554593-demo; no database is selected now (USE <name>)
+database 'demo' dropped; its folder was moved to kdb-data/_trash/1794988934843-demo; no database is selected now (USE <name>)
 ```
 
 Error: `no database is selected; choose one with USE <name>`
@@ -406,7 +406,7 @@ Result:
 `DROP DATABASE old_test`
 
 ```text
-database 'old_test' dropped; its folder was moved to kdb-data/_trash/1792828554729-old_test
+database 'old_test' dropped; its folder was moved to kdb-data/_trash/1794988934984-old_test
 ```
 
 `PURGE TRASH ALL`
@@ -990,3 +990,62 @@ A column-engine query (sums, counts, `GROUP BY` and the like) on a partition tha
 | memory runs short | the columns read apart are unloaded like any loaded partition |
 
 `GET /api/stats` counts these reads in `partial_loads` (part of `partition_loads`). Nothing to set: it is always on.
+
+<a id="max-statements"></a>
+
+## ALTER DATABASE ... SET MAX_STATEMENTS
+
+Syntax:
+
+```sql
+ALTER DATABASE <name> SET MAX_STATEMENTS = 16 | OFF | DEFAULT
+```
+
+How many statements may run on one database **at the same time**, all users together, over the HTTP API and the PostgreSQL port. A busy app on one database then cannot take every thread from the apps on the others. For one user: [ALTER USER ... SET max_statements](users-and-roles.md#max-statements).
+
+| Value | Meaning |
+|---|---|
+| `1` to `100000` | at most this many at once |
+| `OFF`, `DEFAULT`, `0` | no limit |
+
+- **Over the limit:** the next statement waits up to 2 s for one to end, then fails and nothing of it ran: HTTP **429** with `Retry-After: 1`, PostgreSQL SQLSTATE **53300**, error `too many statements: database 'shop' already runs 16 statements at the same time (...)`.
+- **Over HTTP:** only an eighth of `--http-threads` (at least 1) wait at once; the next request gets the 429 at once, so a flood on one database cannot take every request thread. A PostgreSQL connection always waits.
+- **Not held back:** an admin (and the `--token`), so an admin can always get in to look and to lift the limit; a statement inside an open `BEGIN ... COMMIT` (counted, never waits).
+- **Notes:** needs a server admin. Kept in the data folder (`_system`), read when the server starts, works from the next statement.
+
+**Example: The shop's app runs at most 16 statements at once**
+
+Setup:
+
+```sql
+CREATE DATABASE shop;
+```
+
+```sql
+ALTER DATABASE shop SET MAX_STATEMENTS = 16;
+```
+
+Result:
+
+```text
+database 'shop' may run at most 16 statements at the same time over HTTP and PostgreSQL (from the next statement); more wait up to 2 s for one to finish, then fail with SQLSTATE 53300 (HTTP 429)
+```
+
+**Example: No limit again**
+
+Setup:
+
+```sql
+CREATE DATABASE shop;
+ALTER DATABASE shop SET MAX_STATEMENTS = 16;
+```
+
+```sql
+ALTER DATABASE shop SET MAX_STATEMENTS = OFF;
+```
+
+Result:
+
+```text
+database 'shop' has no max_statements of its own now: its statements are not counted
+```

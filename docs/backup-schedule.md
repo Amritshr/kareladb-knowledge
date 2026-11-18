@@ -53,6 +53,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
@@ -144,11 +145,12 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
   logs      slow queries >= 1000 ms to ./kdb-data/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
-  schedule  backups daily 16:00, next 2026-10-24 16:00:00
+  schedule  backups daily 16:00, next 2026-11-18 16:00:00
   recovery  the default database is created when it is first used
 
 Press Ctrl+C to stop.
@@ -243,6 +245,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)

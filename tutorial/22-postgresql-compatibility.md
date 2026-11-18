@@ -35,7 +35,8 @@ Chapter 14 explains how to connect with the PostgreSQL protocol. This chapter is
 | `information_schema.tables / columns / table_constraints`, `pg_indexes`, `pg_constraint`, ... | Read-only views. |
 | `DO $$ BEGIN IF ... THEN ...; END IF; END $$` | Works for `IF`, `RAISE` and SQL statements. |
 | `CREATE EXTENSION`, `CREATE SCHEMA`, `COMMENT ON` | Accepted. Nothing changes. |
-| `CREATE FUNCTION ... RETURNS trigger LANGUAGE plpgsql` with a `BEFORE UPDATE ... FOR EACH ROW` trigger | Works for `IF`, `RAISE EXCEPTION`, `NEW.col := ...` and `RETURN NEW` (Part I). Other plpgsql is refused with a clear message. |
+| `CREATE FUNCTION ... RETURNS trigger LANGUAGE plpgsql` with a `BEFORE` or `AFTER INSERT / UPDATE / DELETE ... FOR EACH ROW` trigger | Works for `IF`, `RAISE EXCEPTION`, `NEW.col := ...` (BEFORE), `INSERT / UPDATE / DELETE / MERGE / CALL` of other tables and `PERFORM` (BEFORE and AFTER), `TG_OP` and `RETURN NEW / OLD / NULL` (Part I). Other plpgsql is refused with a clear message. |
+| `CREATE FUNCTION f(a INT, OUT b INT) ...`, `RETURNS TABLE (...)`, `RETURNS SETOF ...` `LANGUAGE plpgsql` | Works: `SELECT * FROM f(1)`, joins, `LATERAL`; `SELECT f(1)` for `OUT` parameters. The body has variables, `:=`, `IF`, `CASE`, loops, `RETURN NEXT`, `RETURN QUERY` and `EXCEPTION` blocks, and only reads (Part I). |
 
 When the app's PostgreSQL startup DDL runs on KarelaDB, **802 of 809** statements work (99%). Before this work it was 198 of 809. The 7 others are listed at the end of the chapter.
 
@@ -489,7 +490,7 @@ The views have the columns apps and tools use most. They are not complete copies
 
 ## Part I: plpgsql functions and triggers
 
-KarelaDB runs a small part of plpgsql: a **trigger function** (`RETURNS trigger ... LANGUAGE plpgsql`) with a `BEFORE UPDATE ... FOR EACH ROW` trigger. This is the form of the app's two trigger functions. KarelaDB runs the body for every changed row.
+KarelaDB runs a part of plpgsql: a **trigger function** (`RETURNS trigger ... LANGUAGE plpgsql`) with a `BEFORE` or `AFTER INSERT / UPDATE / DELETE ... FOR EACH ROW` trigger (the app's two trigger functions are `BEFORE UPDATE` ones). Its function may also change other tables (an audit table, say: help topic `triggers#for-each-row`); in a `BEFORE` trigger those changes commit with the statement or not at all, and the trigger's own table may not be changed. KarelaDB runs the body for every changed row.
 
 The body may use:
 
@@ -497,7 +498,8 @@ The body may use:
 - `RAISE EXCEPTION 'text with % places', value, ...`
 - `NEW.col := value` (change the new row)
 - `NEW.col` and `OLD.col` in conditions and values
-- `RETURN NEW`
+- `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CALL` of other tables, and `PERFORM`
+- `RETURN NEW`, `RETURN OLD` (a `BEFORE UPDATE` keeps the row as it was), `RETURN NULL` (a `BEFORE UPDATE` skips the row)
 
 **1. Refuse a change** (`user_register_block_identity_update`):
 
@@ -522,7 +524,7 @@ UPDATE user_register SET email = 'new@example.com' WHERE user_id = 2;
 ```
 
 ```text
-trigger function 'user_register_block_identity_update' created (plpgsql, run by KarelaDB for every row a BEFORE UPDATE trigger sees)
+trigger function 'user_register_block_identity_update' created (plpgsql, run by KarelaDB for every row of the FOR EACH ROW triggers that name it)
 
 row trigger 'trg_user_register_immutable' created on table 'user_register': it runs 'user_register_block_identity_update' for every row of a BEFORE UPDATE
 
@@ -566,10 +568,12 @@ What KarelaDB refuses, with a clear message when you create it (nothing is accep
 
 | You write | KarelaDB says |
 |---|---|
-| `AFTER UPDATE ... FOR EACH ROW` | `AFTER ... FOR EACH ROW triggers are not supported by KarelaDB; a plpgsql row trigger must be BEFORE (...)` |
-| `BEFORE INSERT` or `BEFORE DELETE ... FOR EACH ROW` | `only BEFORE UPDATE ... FOR EACH ROW plpgsql triggers are supported by KarelaDB; INSERT row triggers are not (...)` |
-| `DECLARE`, `PERFORM`, loops or SQL statements in the body | the name of the part that is not supported, and what the body may use |
-| A function that does not `RETURNS trigger` (`LANGUAGE sql`, for example) | a `WARNING`: the function is recorded but **not run**. Write a KarelaDB function or procedure for it (chapter 13). |
+| A `BEFORE` trigger's function that changes the trigger's own table | `... KarelaDB refuses a BEFORE row trigger that changes its own table ...` |
+| `NEW.col := ...` in an `AFTER` trigger's function | `changes nothing in an AFTER trigger (...)` |
+| `DECLARE` or loops in the body | the name of the part that is not supported, and what the body may use |
+| A function that does not `RETURNS trigger` and has no `OUT` parameters, `RETURNS TABLE` or `RETURNS SETOF` (`LANGUAGE sql`, or `RETURNS INT` with `RETURN n`) | a `WARNING`: the function is recorded but **not run**. Write a KarelaDB function or procedure for it (chapter 13). |
+
+A plpgsql function with `OUT` parameters, `RETURNS TABLE (...)` or `RETURNS SETOF ...` is a function a **query** calls, and KarelaDB runs it as PostgreSQL does: `SELECT * FROM f(3)` gives its rows, joinable like a table, and `SELECT f(1)` gives the `OUT` values (as record text `(4,0.15)` when there are several). Its body has `DECLARE`, `:=`, `IF`, `CASE`, `LOOP`, `WHILE ... LOOP`, `FOR i IN 1..n LOOP`, `FOR r IN SELECT ... LOOP`, `RETURN NEXT`, `RETURN QUERY`, `RAISE EXCEPTION` and `EXCEPTION` blocks. It only reads: `INSERT`, `UPDATE` and `DELETE` in it are refused. Help topic `procedure-language#plpgsql-functions`.
 
 For other work, write a **KarelaDB trigger** (chapter 13). It runs once per statement and sees all changed rows in the tables `OLD` and `NEW`. A KarelaDB trigger and a plpgsql row trigger can be on the same table.
 

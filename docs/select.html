@@ -14,7 +14,7 @@
 <main>
 <h1 id="select">SELECT</h1>
 <blockquote><p>Choose the columns and values that a query gives back, and the table they come from.</p></blockquote>
-<ul><li>Category: Querying</li><li>Keywords: query, read rows, columns, *, table.*, AS, alias, column name, FROM, DISTINCT, unique rows, SELECT without FROM, calculator, missing comma, select, from, distinct</li><li>See also: <a href="where.html">WHERE</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="group-by.html">GROUP BY and HAVING</a>, <a href="joins.html">Joins</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="views.html">Views</a></li></ul>
+<ul><li>Category: Querying</li><li>Keywords: query, read rows, columns, *, table.*, AS, alias, column name, FROM, DISTINCT, unique rows, SELECT without FROM, calculator, missing comma, select, from, distinct, EXCLUDE, REPLACE, SELECT * EXCLUDE, SELECT * REPLACE, all columns but, except columns, TABLESAMPLE, BERNOULLI, USING SAMPLE, random sample, sample rows</li><li>See also: <a href="where.html">WHERE</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="group-by.html">GROUP BY and HAVING</a>, <a href="joins.html">Joins</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="views.html">Views</a></li></ul>
 <p><code>SELECT</code> reads data. You say which values you want (the <strong>select list</strong>), and from which table (<code>FROM</code>).
 Every other part (<code>WHERE</code>, <code>GROUP BY</code>, <code>ORDER BY</code>, ...) is optional and has its own help page.</p>
 <p>A select item can be a column, a calculation, a function or a constant. Give it a name with <code>AS</code>.</p>
@@ -90,6 +90,24 @@ WHERE f.transaction_id = 100017;</code></pre>
 <pre><code class="language-sql">SELECT *, count(*) FROM brokers;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: * cannot be combined with aggregates or SAMPLE BY</code></p>
+<h2 id="star-exclude">* EXCLUDE, * REPLACE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT * EXCLUDE (column, ...) FROM table
+SELECT * REPLACE (expression AS column, ...) FROM table
+SELECT alias.* EXCLUDE (column) REPLACE (expression AS column), ... FROM table alias JOIN ...</code></pre>
+<p><code>EXCLUDE</code> leaves columns out of the <code>*</code>. <code>REPLACE</code> gives a column another value, in its place and with its name. Both come from DuckDB; they may follow the same <code>*</code>, in either order. One name needs no brackets: <code>* EXCLUDE note</code>.</p>
+<ul><li><strong>Notes:</strong> the <code>*</code> is written out as its columns before the query runs, so the query is exactly as fast as one that lists them. A view keeps <code>EXCLUDE</code> and gets the table&#39;s new columns, as with <code>*</code>.</li><li><strong>Errors:</strong> a name the <code>*</code> does not have (SQLSTATE 42703). After <code>JOIN ... USING</code>, write <code>t.* EXCLUDE (...)</code> for each table (0A000).</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT * EXCLUDE (sector) FROM securities ORDER BY symbol LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Acme Investment Company</td></tr><tr><td>CITY</td><td>City Bank Limited</td></tr><tr><td>COAST</td><td>Coastal Bank Limited</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Prices rounded, every other column as it is</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT * EXCLUDE (volume) REPLACE (round(close, 0) AS close) FROM ochl_day
+WHERE symbol = &#39;CITY&#39; ORDER BY time LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>symbol (SYMBOL)</th><th>open (DOUBLE)</th><th>high (DOUBLE)</th><th>low (DOUBLE)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-28T00:00:00.000Z</td><td>CITY</td><td>540.3</td><td>542.5</td><td>539.2</td><td>542</td></tr><tr><td>2025-12-29T00:00:00.000Z</td><td>CITY</td><td>540.6</td><td>542.1</td><td>538.8</td><td>540</td></tr><tr><td>2025-12-30T00:00:00.000Z</td><td>CITY</td><td>538.5</td><td>540.5</td><td>536.4</td><td>539</td></tr></tbody></table></div>
+<p>(3 rows)</p>
 <h2 id="alias">AS: column names</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">item AS alias
@@ -170,6 +188,17 @@ WHERE t.trades &gt; 5;</code></pre>
 <pre><code class="language-sql">SELECT * FROM ochl_days;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 15: table or view &#39;ochl_days&#39; does not exist</code></p>
+<h2 id="tablesample">TABLESAMPLE, USING SAMPLE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">FROM table [AS alias] TABLESAMPLE BERNOULLI (percent)   -- also SYSTEM (percent), or percent%
+FROM table USING SAMPLE 10%                               -- or 10 PERCENT, 100 ROWS, 100</code></pre>
+<p>A random part of a table, for a quick estimate over a big one: a share of the rows (each row is kept with that chance), or a number of rows. <code>TABLESAMPLE</code> is PostgreSQL&#39;s, <code>USING SAMPLE</code> DuckDB&#39;s; a method in brackets after DuckDB&#39;s (<code>(bernoulli)</code>, <code>(system)</code>, <code>(reservoir)</code>) is taken.</p>
+<ul><li><strong>Notes:</strong> every run takes a new sample. <code>SYSTEM</code> samples rows too, not blocks. A share reads the whole table and keeps some rows; a count of rows sorts the table at random first, so a share is faster on a big table.</li><li><strong>Errors:</strong> <code>REPEATABLE (seed)</code>, a seed in DuckDB&#39;s brackets, a share outside 0 to 100.</li></ul>
+<p><strong>Example: About a tenth of the bars</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT count(*) &gt; 0 AS some_rows FROM ochl_day TABLESAMPLE BERNOULLI (10);</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>some_rows (BOOL)</th></tr></thead><tbody><tr><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
 <h2 id="distinct">DISTINCT</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">SELECT DISTINCT item, ... FROM ...</code></pre>

@@ -55,7 +55,7 @@ symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.4 ms)
+(3 rows, 0.6 ms)
 ```
 
 **Command line: Many statements: one result each** (sample data: sample)
@@ -90,7 +90,7 @@ Output:
 before
 ------
      5
-(1 row, 0.2 ms)
+(1 row, 0.3 ms)
 error: line 1, column 48: unknown column 'nope' (table 'brokers' has: id name)
 ```
 
@@ -162,7 +162,7 @@ time                     | symbol | close
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
 2026-09-09T05:17:00.000Z | CITY   | 511.9
-(3 rows, more not shown, 0.3 ms)
+(3 rows, more not shown, 0.4 ms)
 ```
 
 `--max-rows` is a safety net for big results. When you want fewer rows, write `LIMIT` in the SQL: it says clearly what you want, and it works the same in the console and over HTTP.
@@ -214,7 +214,7 @@ symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.3 ms)
+(3 rows, 0.4 ms)
 ```
 
 ```powershell
@@ -255,8 +255,8 @@ Output:
 ```text
 backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-075545-598 |     9 | 194519 |      30
-(1 row, 59.0 ms)
+backups/20261118-080205-095 |     9 | 194519 |      30
+(1 row, 62.8 ms)
 backup created and verified
 ```
 
@@ -334,7 +334,7 @@ kareladb> ...> ...> symbol | close
 CITY   | 504.9
 COAST  | 376.1
 VOLT   | 191.2
-(3 rows, 0.3 ms)
+(3 rows, 0.4 ms)
 kareladb> kareladb> id,name
 1,Keystone Securities
 34,Vision Securities
@@ -364,7 +364,7 @@ kareladb> name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | false  
 reports |      1 |   229 | true   
-(2 rows, 0.3 ms)
+(2 rows, 0.2 ms)
 kareladb>
 ```
 
@@ -409,7 +409,7 @@ End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> ...> days
 ----
   57
-(1 row, 0.3 ms)
+(1 row, 0.4 ms)
 kareladb> a
 -
 1
@@ -444,7 +444,7 @@ kareladb> procedure 'hello' done: 0 row(s) changed
 shout 
 ------
 MARKET
-(1 row, 0.1 ms)
+(1 row, 0.2 ms)
 
 output
 ------
@@ -526,7 +526,7 @@ kareladb> 1 row(s) inserted
 kareladb> inside_the_transaction
 ----------------------
                      6
-(1 row, 0.2 ms)
+(1 row, 0.3 ms)
 kareladb> 
 the open transaction was rolled back (it had no COMMIT)
 ```
@@ -665,7 +665,7 @@ ochl_day     | timeseries | YEAR      |       7 |   57
 ochl_minutes | timeseries | MONTH     |       7 |  956
 securities   | relational | NONE      |       3 |    5
 trade_log    | timeseries | DAY       |       8 |   32
-(6 rows, 0.0 ms)
+(6 rows, 0.1 ms)
 kareladb>
 ```
 
@@ -775,7 +775,7 @@ kareladb> kareladb> time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.4 ms)
+(2 rows, more not shown, 1.0 ms)
 kareladb>
 ```
 
@@ -805,7 +805,7 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> problem
 -------
-(0 rows, 0.7 ms)
+(0 rows, 1.0 ms)
 OK: no damage found in 14 files
 kareladb>
 ```
@@ -835,8 +835,8 @@ KarelaDB 0.2.0-dev shell on market
 End statements with ';'. Type .help for commands, .exit to quit.
 kareladb> backup                      | files | bytes  | log_lsn
 ----------------------------+-------+--------+--------
-backups/20261024-075545-971 |     9 | 194519 |      30
-(1 row, 66.7 ms)
+backups/20261118-080205-552 |     9 | 194519 |      30
+(1 row, 79.4 ms)
 backup created and verified
 kareladb>
 ```

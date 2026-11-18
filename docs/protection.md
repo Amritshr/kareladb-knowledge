@@ -141,6 +141,7 @@ Stops a query that would keep too much in memory: the rows of the result, rows w
 - **Big answers over the Postgres port** stream: a plain read (no `ORDER BY`, `GROUP BY`, `DISTINCT` or `OFFSET`) sends its rows while it reads them, so this limit does not stop it ([big answers stream](postgres-protocol.md#streaming)).
 - **INSERT ... SELECT:** a plain copy (no `GROUP BY`, `DISTINCT`, window, `ORDER BY` or `LIMIT`) writes the rows while it reads them, so this limit does not stop it ([INSERT ... SELECT](insert.md#insert-select)).
 - **GROUP BY and SAMPLE BY bigger than memory:** when the groups of a query need more than half of `--max-result-memory`, the rows of the groups that are not in memory yet go to sorted temporary files in the database folder (`_tmp/`) and are added up after the scan, one group at a time. The result is exactly the same, only slower. The files are removed when the query ends, fails or is cancelled, and when the database opens after a crash. One query may write at most 16 GB of them (`DatabaseOptions::max_spill_bytes`); past that it stops with `the GROUP BY needs more than N MB of temporary files (max_spill_bytes)`. A read-only database never writes them.
+- **A join bigger than memory:** when the joined table of a hash join does not fit in the statement's working memory (three quarters of it for a plain join, half for `RIGHT` / `FULL JOIN`), both tables are cut into parts by the join key in temporary files (`_tmp/`) and joined part by part, so only one part of the joined table is in memory. The answers are the same (rows without `ORDER BY` come in another order); the same 16 GB limit applies: a join whose two tables would need more stays in memory, and files that still pass it part way stop the query with `the join needs more than N MB of temporary files (max_spill_bytes)`. See [a join bigger than memory](joins.md#join-spill).
 
 <a id="max-queries-per-user"></a>
 
@@ -156,6 +157,8 @@ How many statements one user may run at the same time, over HTTP and the Postgre
 
 - **Returns:** HTTP 429 `user 'x' already runs 32 statements at the same time`; on the Postgres port SQLSTATE `55P03`.
 - **Notes:** the `--token` and a server without users are not counted. A connection pool of your app normally stays below the limit.
+- **One user or one database:** `ALTER USER bob SET max_statements = 4` ([users](users-and-roles.md#max-statements)) and `ALTER DATABASE shop SET MAX_STATEMENTS = 16` ([databases](databases.md#max-statements)) set a limit of their own. Over those, a statement first waits up to 2 s for a place, then fails with HTTP **429** + `Retry-After: 1`, SQLSTATE **53300** (`too many statements: ...`). Over HTTP only a few requests wait at once (an eighth of `--http-threads`); the next gets the 429 at once. Only statements of a limited user or database pay for the count.
+- **Loads when memory is short:** with `--memory-limit`, writes and loads (not reads, `CHECKPOINT`, `COMMIT`, `SET`, `USE`, ...) wait and then get HTTP 503 / SQLSTATE 53200 while the unsaved changes are past half of the limit ([back-pressure on loads](cli-serve.md#memory-limit)).
 
 <a id="rate-limits"></a>
 

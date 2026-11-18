@@ -3,7 +3,7 @@
 > Encrypt both ports with one certificate - https:// for the HTTP API and the console, sslmode=require for PostgreSQL clients.
 
 - Category: Users & security
-- Keywords: TLS, SSL, https, certificate, cert, key, PEM, self-signed, --tls-cert, --tls-key, --tls-required, KARELADB\_TLS\_CERT, KARELADB\_TLS\_KEY, KARELADB\_TLS\_REQUIRED, tls\_cert, tls\_key, sslmode, require, verify-full, sslrootcert, sslnegotiation, direct, encryption, 28000, Secure cookie, curl -k, Lets Encrypt, openssl
+- Keywords: TLS, SSL, https, certificate, cert, key, PEM, self-signed, renew, reload, SIGHUP, /api/reload-tls, certificate renewal, --tls-cert, --tls-key, --tls-required, KARELADB\_TLS\_CERT, KARELADB\_TLS\_KEY, KARELADB\_TLS\_REQUIRED, tls\_cert, tls\_key, sslmode, require, verify-full, sslrootcert, sslnegotiation, direct, encryption, 28000, Secure cookie, curl -k, Lets Encrypt, openssl
 - See also: [Keeping kareladb serve safe](server-security.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [kareladb serve](cli-serve.md), [Logins, tokens and roles over HTTP](http-login.md), [API tokens](api-tokens.md)
 
 With TLS on, everything between a client and KarelaDB is encrypted: passwords, tokens and data. One certificate serves **both** ports.
@@ -36,7 +36,7 @@ env:       KARELADB_TLS_CERT=/data/cert.pem  KARELADB_TLS_KEY=/data/key.pem  KAR
 | `--tls-cert auto` | KarelaDB makes a **self-signed** certificate once, in `<data folder>/_tls/`, and keeps using it | - |
 | `--tls-required on\|off` | `on`: plain connections are refused, except from this computer (`127.x`) | `on` |
 
-- A flag wins, then `kareladb.conf`, then the environment. They are read when the server starts; after renewing a certificate, restart the server.
+- A flag wins, then `kareladb.conf`, then the environment. They are read when the server starts. A renewed certificate in the same files is taken in **without a restart** ([renew](#reload)).
 - The start-up lines say what is used: `console https://...`, `postgres ... (TLS: sslmode=require ...)` and a `tls` line with the file.
 - A wrong file stops the server with the reason, for example `a certificate needs its key too` or `the TLS key does not belong to the certificate`.
 - Plain connections from `127.x` still work with `--tls-required on`, so a health check or a tool on the same computer needs no certificate.
@@ -57,6 +57,34 @@ kareladb serve --data-dir kdb-data --bind 0.0.0.0 --token "long-random-secret-1"
 - `sslmode=require` and `curl -k` encrypt without checking the certificate.
 - A browser warns once for a self-signed certificate. For people on the internet, use a real certificate (Let's Encrypt, or your company's) with `--tls-cert` and `--tls-key`.
 - In Docker: `-e KARELADB_TLS_CERT=auto`. The pair is kept in the `/data` volume, so it survives a rebuild.
+
+<a id="reload"></a>
+
+## Renew a certificate without a restart
+
+Write the new certificate and key over the old files. KarelaDB takes them in by itself; open connections are not dropped.
+
+Syntax:
+
+```sql
+(nothing)                  new connections look at the files at most once a minute
+kill -HUP <pid>            Linux, macOS: the next new connection reads them at once
+docker kill -s HUP kareladb
+POST /api/reload-tls       a server admin: read them now, and get the answer
+```
+
+| What happens | Result |
+|---|---|
+| the files hold a good new pair | new connections get the new certificate; open ones keep the one they started with |
+| the files hold the pair already in use | nothing changes |
+| a bad pair (a half-written file, a key of another certificate) | refused: the old certificate stays in use, the log says why, once per bad pair |
+
+- Both ports (HTTP and PostgreSQL) reload together, from the same files.
+- Each pair taken in or refused is a server log line and a `tls_reload` row in the [audit log](audit-log.md).
+- The check costs one clock read per new connection; the files are read at most once a minute, by one connection, while the others go on.
+- `POST /api/reload-tls` answers `{"ok", "ports": [{"port", "changed", "certificate", "error"}]}`. `certificate` names the one new connections get now, for example `CN=db.example.com, valid until Jan 20 10:00:00 2027 GMT, SHA-256 1a2b3c4d5e6f7a8b`. A server without TLS answers `409`.
+- Turning TLS on or off, or moving to other file names, still needs a restart.
+- Windows has no `SIGHUP`: there use `POST /api/reload-tls`, or wait for the automatic check.
 
 <a id="clients"></a>
 

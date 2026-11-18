@@ -21,7 +21,8 @@ An action done with the server's `--token` is written with `user` = `token`, or 
 
 | event | Meaning |
 |---|---|
-| `login`, `login_failed`, `lockout` | a login, a wrong password or code, an address that must wait |
+| `login`, `login_failed`, `lockout` | a login, any failed login ([which ones](#failed-logins)), a user that must wait |
+| `tls_reload` | a renewed [TLS certificate](tls.md#reload) taken in, or a bad one refused |
 | `user`, `ddl`, `protection`, `backup`, `server` | user statements, schema changes, protection settings, backups, server start, stop and restart |
 | `timer` | a [timer](timers.md) saved, run now, turned on or off, or deleted |
 | `pin` | a [pinned statement](pinned-queries.md) pinned or unpinned |
@@ -48,6 +49,45 @@ The newest security events first (100 when there is no `LIMIT`). The condition u
 
 ```sql
 SHOW AUDIT WHERE event = 'login_failed' AND time > dateadd('d', -1, now()) LIMIT 20;
+```
+
+Result:
+
+| time (TIMESTAMP) | event (STRING) | user (STRING) | client (STRING) | db (STRING) | object (STRING) | detail (STRING) | row_key (STRING) | old_values (JSON) | new_values (JSON) | session (LONG) | ok (BOOL) | seq (LONG) | hash (STRING) | agent (STRING) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+(0 rows)
+
+```text
+no audit events yet
+```
+
+<a id="failed-logins"></a>
+
+## Failed logins
+
+Every failed login writes one `login_failed` row: `user` (the name the client gave, `NULL` when it gave none), `client` (the address and port: `203.0.113.7 (http)` or `(pg)`), and in `detail` the method and the reason, as `<method>: <reason>`.
+
+| Method in `detail` | Where | Reasons |
+|---|---|---|
+| `login` | `POST /api/login` (the console) | wrong password, unknown user, no users on the server, too many failed logins |
+| `basic` | HTTP Basic | wrong password, unknown user, not base64 of `user:password`, a two-factor user (Basic cannot send a code) |
+| `totp`, `step-up` | the code of a [two-factor login](two-factor-login.md), and of a step-up | wrong or used code, too many failed logins |
+| `bearer token`, `API token` | `Authorization: Bearer` | wrong `--token`, wrong or expired login token, wrong, expired or dropped API token |
+| `login cookie`, `console session cookie`, `token cookie` | the console's cookies | an ended login, an ended console session, a wrong old token cookie |
+| `console token (POST /api/session)` | the console's token box | wrong token |
+| `pg SCRAM-SHA-256`, `pg password` | the PostgreSQL port (`with the --token` when the token is the password) | wrong password, no such user, a two-factor user, an unsupported or malformed SCRAM message, too many failed logins, another computer on a server without users or token |
+| `pg` | the PostgreSQL port, before the login starts | no user name |
+
+- Wrong passwords and wrong codes count toward the [lockout](server-security.md#logins); a wrong token or cookie does not (it says nothing about a password).
+- A request with no credential at all writes no row: it has not tried to log in yet.
+- The same refusal (same address, user, method and reason) is written **at most once a second**. Its next row says `(and N more of the same since the last row of it ...)`. One address also writes **at most 20 such rows a second** in all, so a client that makes up a new user name on every try cannot fill the disk either; the next row from that address says `(and N other refused logins from this address held back ...)`. A long user name is cut to 64 characters in the row and the log. Wrong passwords are slow to check (about 0.1 s each) and each gets its own row.
+- The PostgreSQL port of `kareladb serve` asks for SCRAM-SHA-256 and never for md5 (`pg password` is a program that embeds KarelaDB with plain-password logins).
+
+**Example: Failed logins by method and address**
+
+```sql
+SHOW AUDIT WHERE event = 'login_failed' LIMIT 50;
 ```
 
 Result:
@@ -284,7 +324,7 @@ audit is on for table 'ledger': every changed row is written to _audit_log
 
 | log (STRING) | ok (BOOL) | rows_checked (LONG) | unchained (LONG) | first_seq (LONG) | last_seq (LONG) | first_broken (LONG) | problems (STRING) | last_hash (STRING) |
 |---|---|---|---|---|---|---|---|---|
-| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | 0e911769590df3347b72b2d2767fa1173ce68a41b4227fedfa70024c5bb1790d |
+| demo | true | 3 | 0 | 1 | 3 | NULL | NULL | c2752335d57e1696a0dfe1326d0a61b27d42011b1605b14147546c7bf9c5c95a |
 
 (1 row)
 

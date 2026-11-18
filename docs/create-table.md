@@ -247,12 +247,13 @@ Makes a new table from the result of a query, and copies the rows in. The column
 |---|---|
 | `(column, ...)` | new names for the first columns, in order |
 | table options | as for `CREATE TABLE`; without `TIMESERIES` the new table is a relational table |
-| `WITH NO DATA` | make the empty table only |
+| `WITH NO DATA` | make the empty table only (a plain read's rows are not read at all) |
 
 - **Returns:** `table 'name' created with N row(s)`.
 - **Notes:**
   - A `SYMBOL` column of the query stays `SYMBOL` (as QuestDB copies it). Keys, `NOT NULL`, defaults, `CHECK` rules and indexes are **not** copied.
   - A plain read (`SELECT ... FROM one_table [WHERE ...]`, no join, `GROUP BY`, `DISTINCT`, window, `ORDER BY` or `LIMIT`) is copied in batches while the source is read, as `INSERT ... SELECT` writes, so a copy of millions of rows fits the memory limits (5M rows of 10 columns: about 2.4 GB at the peak instead of 9.7 GB, and twice as fast). Other queries keep their whole result first, under `max_result_memory`. Add them with [ALTER TABLE](alter-table.md) afterwards, or make the table first and `INSERT INTO t SELECT ...` (see [INSERT ... SELECT](insert.md#insert-select)).
+  - A copy of stored columns as they are (`SELECT * FROM t`, or columns of `t` or of a held `read_csv` file, with no `WHERE` or one of `column op constant` terms joined by `AND`) is copied column by column on all threads ([column copy](insert.md#insert-select)): 2M rows of four columns in about 0.04 s, 0.15 s on 2 CPUs (0.9 s and 1.1 s before). The answer comes once the rows are in the log; the new table's files are written by the next checkpoint, as after any `INSERT`.
   - `PARTITION BY ..., SYMBOL(col)` is not accepted here.
   - Two query columns with the same name are refused: name them with `AS`.
 

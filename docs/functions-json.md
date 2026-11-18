@@ -357,6 +357,53 @@ Result:
 
 (1 row)
 
+<a id="pg-compat-times"></a>
+
+### Times in JSON with kdb.pg_compat
+
+With `SET kdb.pg_compat = on`, a time inside JSON is written the way PostgreSQL writes it. This covers `to_json`, `to_jsonb`, `json_build_object`, `jsonb_build_object`, `json_build_array`, `jsonb_build_array`, `json_agg`, `jsonb_agg`, `json_object_agg`, `jsonb_object_agg` and `row_to_json(t)`.
+
+| Value | KarelaDB (off) | PostgreSQL (on) |
+|---|---|---|
+| `TIMESTAMP` | `"2026-09-10T05:15:00.000Z"` | `"2026-09-10T05:15:00"` |
+| `TIMESTAMPTZ`, `now()`, `x::timestamptz` | `"2026-09-10T05:15:00.000Z"` | `"2026-09-10T05:15:00+00:00"` (the session's offset) |
+| `DATE` | `"2026-09-10"` | `"2026-09-10"` |
+| part of a second | `.500Z` | `.5` (only when not zero, no trailing zeros) |
+
+- A `TIMESTAMPTZ` is shown on the session's clock with its offset: under `SET TIME ZONE 'Asia/Kathmandu'` it is `"2026-09-10T11:00:00+05:45"`. Summer time gives each moment its own offset.
+- A plain `TIMESTAMP` is shown as the session's wall clock, the same as the Postgres port shows the column itself. In UTC that is the stored time.
+- The window forms (`json_agg(t) OVER (...)`, `json_object_agg(k, t) OVER (...)`) write times the same way.
+- A time used as a **key** (`json_build_object(ts, 1)`, `json_object_agg(ts, v)`) is PostgreSQL's text of it, as in PostgreSQL: `{"2026-09-10 05:15:00": 1}`, a `TIMESTAMPTZ` with its offset (`"2026-09-10 05:15:00+00"`).
+- A year before 1 AD ends in ` BC`, as a value and as a key: `DATE '0001-01-01' - 800` is `"0003-10-24 BC"`.
+- With the setting off, nothing changes.
+- A time already inside a JSON value (from `array_agg`, or a stored JSON column) stays as it was written.
+
+**Example: Times in JSON as PostgreSQL writes them**
+
+```sql
+SET kdb.pg_compat = on;
+SELECT to_json(CAST('2026-09-10T05:15:00.5Z' AS TIMESTAMP))::STRING AS plain,
+       to_jsonb('2026-09-10 05:15:00Z'::timestamptz)::STRING AS moment,
+       json_build_object('day', DATE '2026-09-10')::STRING AS object,
+       json_build_object(CAST('2026-09-10T05:15:00Z' AS TIMESTAMP), 1)::STRING AS time_key;
+```
+
+Result:
+
+`SET pg_compat = 'on'`
+
+```text
+this session gives PostgreSQL 14's answers (kdb.pg_compat = on): 7 / 2 = 3, 1.005 is an exact NUMERIC, a window with ORDER BY counts ties together (RANGE), text sorts like en_US
+```
+
+`SELECT CAST(to_json(CAST('2026-09-10T05:15:00.5Z' AS TIMESTAMP)) AS STRING) AS plain, CAST(to_jsonb(`
+
+| plain (STRING) | moment (STRING) | object (STRING) | time_key (STRING) |
+|---|---|---|---|
+| "2026-09-10T05:15:00.5" | "2026-09-10T05:15:00+00:00" | {"day":"2026-09-10"} | {"2026-09-10 05:15:00":1} |
+
+(1 row)
+
 ## json_valid
 
 Syntax:
@@ -941,9 +988,13 @@ Syntax:
 
 ```sql
 json_object(key, value [, key, value ...])
+json_object(array)
+json_object(keys_array, values_array)
 ```
 
 Builds a JSON object from pairs of key and value. Text values become JSON strings; numbers, `TRUE`/`FALSE` and `JSON` values are put in as they are.
+
+PostgreSQL's array forms work too: one array of keys and values in turn (`'{a,1,b,2}'`, or two columns `'{{a,1},{b,2}}'`), or an array of keys and an array of values. There every value becomes text, as in PostgreSQL. (The pairs form is PostgreSQL's `json_build_object`.)
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -1000,6 +1051,21 @@ SELECT json_object('symbol', 'CITY', 'price');
 Result:
 
 Error: `line 1, column 8: json_object: needs pairs of key and value, like json_object('symbol', 'CITY', 'price', 512.5)`
+
+**Example: PostgreSQL's array forms: the values become text**
+
+```sql
+SELECT json_object('{symbol,CITY,price,512.5}') AS one_array,
+       json_object(ARRAY['symbol', 'price'], ARRAY['CITY', '512.5']) AS keys_and_values;
+```
+
+Result:
+
+| one_array (JSON) | keys_and_values (JSON) |
+|---|---|
+| {"symbol":"CITY","price":"512.5"} | {"symbol":"CITY","price":"512.5"} |
+
+(1 row)
 
 ## json_array
 
@@ -1888,7 +1954,7 @@ row_to_json(value)
 to_json_row(value)
 ```
 
-Turns a value into JSON, the way a PostgreSQL app calls it on a row. KarelaDB has no whole-row value, so give it a list or an object you built yourself.
+Turns a whole row into a JSON object of its columns: `SELECT row_to_json(t) FROM table t`, the PostgreSQL way. Given another value, it turns that value into JSON.
 
 | Argument | Type | Meaning |
 |---|---|---|
@@ -1896,14 +1962,15 @@ Turns a value into JSON, the way a PostgreSQL app calls it on a row. KarelaDB ha
 
 - **Returns:** `JSON`.
 - **NULL:** `row_to_json(NULL)` is `NULL`.
-- **Notes:** for a whole row, build it with `json_build_object('column', column, ...)`. `SELECT row_to_json(t) FROM table t`, the usual PostgreSQL way, does not work here.
+- **Notes:** `t` is the table's alias (or its name). `to_jsonb(t)` gives the same object as `jsonb` (on the PostgreSQL port: type jsonb, written `{"a": 1}`). For some columns only, build it with `json_build_object('column', column, ...)`. The row as text is `t::text` ([whole rows](functions-postgres.md#rows)).
 
-**Example: One row of the company list as JSON**
+**Example: Each company row as JSON**
 
 ```sql
-SELECT row_to_json(json_build_object('symbol', symbol, 'name', name)) AS row_json
-FROM companies
-ORDER BY symbol;
+SELECT row_to_json(c) AS row_json
+FROM (SELECT symbol, name FROM companies) c
+ORDER BY row_json
+LIMIT 2;
 ```
 
 Result:
@@ -1912,9 +1979,8 @@ Result:
 |---|
 | {"symbol":"CITY","name":"City Bank Limited"} |
 | {"symbol":"COAST","name":"Coastal Bank Limited"} |
-| {"symbol":"VOLT","name":"Volt River Hydropower Limited"} |
 
-(3 rows)
+(2 rows)
 
 ## jsonb_set
 

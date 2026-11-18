@@ -91,7 +91,7 @@ work_mem is 64MB for this session
 
 | Setting | Default | What it does |
 |---|---|---|
-| `work_mem` | `0` | how much a `GROUP BY` keeps in memory before its groups go to temporary files. `0` = half of the statement's working memory. Never more than three quarters of it |
+| `work_mem` | `0` | how much a `GROUP BY` keeps in memory before its groups go to temporary files, and a hash join its joined table before both tables go to temporary files in parts ([a join bigger than memory](joins.md#join-spill)). `0` = half of the statement's working memory. Never more than three quarters of it |
 | `max_parallel_workers_per_gather` | the server's threads | threads one statement's scans and aggregates may use, its own included. `0` or `1` = one thread |
 | `enable_hashjoin` | `on` | `off`: equality joins compare every pair of rows (a nested loop) instead of building a hash |
 | `enable_nestloop` | `on` | `off`: a join does not look each row's match up by key or index; it builds a hash |
@@ -175,6 +175,50 @@ plan_cache_mode is force_custom_plan for this session
 | plan_cache_mode (STRING) |
 |---|
 | force_custom_plan |
+
+(1 row)
+
+<a id="source"></a>
+
+## Where a server setting came from
+
+Every `kareladb serve` flag has a setting here, named like its `kareladb.conf` key (`reader_yield`, `statement_timeout`, `backup_schedule`, ...). The `source` column of `pg_settings` (and the last column of `SHOW PARAMETERS`) says who decided the value now:
+
+| source | Means | Order |
+|---|---|---|
+| `command line` | a `kareladb serve` flag | 1, strongest |
+| `configuration file` | a key in `kareladb.conf` (also what `ALTER SYSTEM` saved) | 2 |
+| `environment variable` | a `KARELADB_*` variable | 3 |
+| `default` | nobody set it | 4 |
+| `session` | `SET` in this session | over all of them, for that session |
+
+A secret (`standby_token`, `backup_command`, `alert_webhook`) shows as `(set)`, never its value. [Every flag, variable and key in one table](cli-serve.md#all-options) and [when each takes effect](cli-serve.md#conf-reload).
+
+**Example: Where do the server's settings come from?**
+
+```sql
+SELECT name, setting, source FROM pg_settings WHERE name IN ('reader_yield', 'statement_timeout', 'lanes', 'backup_schedule') ORDER BY name;
+SHOW lanes;
+```
+
+Result:
+
+`SELECT name, setting, source FROM pg_settings WHERE name IN ('reader_yield', 'statement_timeout', 'l`
+
+| name (STRING) | setting (STRING) | source (STRING) |
+|---|---|---|
+| backup_schedule | off | default |
+| lanes | on | default |
+| reader_yield | on | default |
+| statement_timeout | 60000 | default |
+
+(4 rows)
+
+`SHOW lanes`
+
+| lanes (STRING) |
+|---|
+| on |
 
 (1 row)
 

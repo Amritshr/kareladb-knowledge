@@ -699,7 +699,8 @@ Makes the buckets follow the clock of that time zone: hours start at the full ho
 
 - **Returns:** the same columns. The bucket times are **still shown in UTC**: the Nepal hour 11:00 is shown as `05:15:00.000Z`.
 - **Notes:**
-  - A zone with summer time (`'Europe/London'`, `'America/New_York'`) works too: a day bucket starts at local midnight of that day, so it is 23 or 25 hours long when the clocks change ([summer time](time-and-time-zones.md#summer-time)). Nepal has no summer time, so `'Asia/Kathmandu'` and `'+05:45'` are the same.
+  - A zone with summer time (`'Europe/London'`, `'America/New_York'`) works too: a day bucket starts at local midnight of that day, so it is 23 or 25 hours long when the clocks change ([summer time](time-and-time-zones.md#summer-time)). The hour that happens twice when the clocks go back is **one** bucket of the clock (two hours long), stamped with its first instant. Nepal has no summer time, so `'Asia/Kathmandu'` and `'+05:45'` are the same.
+  - **Speed with summer time:** the plain form (the time column and aggregates, no `FILL`, `FROM` / `TO`, `WITH OFFSET`, `WEEK START`, months or other keys) runs on the column engine as a `GROUP BY` of the zone's clock: 2 million rows in London hours take about 4 ms (275 ms before). `EXPLAIN` says `sample by: a zone with summer time, run as a GROUP BY of its time key`. Other forms are worked out row by row, with the same buckets.
   - For `1m`, `5m` and `15m` buckets, UTC and Nepal buckets are the same (Nepal is 5 hours **45** minutes ahead). For `1h` and longer they are not.
   - **Daily rows: first check at what time the table stores a day.** Weeks, months and days of daily rows need TIME ZONE **only** when the rows are at local midnight. See the table below.
   - `SAMPLE BY` without `TIME ZONE` cuts on UTC, also after `SET TIME ZONE` (only functions like `date_trunc()` and `hour()` follow the [session's zone](time-and-time-zones.md#session-time-zone)). Without a zone, `ROUND` and `time IN 'YYYY-MM-DD'` work in UTC. Each has a zone form for local days: `time IN '2026-09-10' TIME ZONE 'Asia/Kathmandu'`, `date_trunc('day', time, 'Asia/Kathmandu')`, `timestamp_floor('1d', time, 'Asia/Kathmandu')` and a column `TIMESTAMP ROUND 1d TIME ZONE 'Asia/Kathmandu'`. For the Nepal hour use `hour(to_timezone(time, 'Asia/Kathmandu'))`.
@@ -947,15 +948,37 @@ Result:
 
 (1 row)
 
-**Example: ROUND TIME ZONE takes fixed offsets only, for now** (sample data: sample; shows an error)
+**Example: ROUND 1d TIME ZONE with summer time: each London day's midnight (23:00 UTC in summer)** (sample data: sample)
 
 ```sql
 CREATE TABLE bars_london (time TIMESTAMP ROUND 1d TIME ZONE 'Europe/London', close DOUBLE) TIMESERIES(time);
+INSERT INTO bars_london VALUES ('2026-07-15T12:00:00Z', 1), ('2026-10-25T23:30:00Z', 2), ('2026-12-01T09:00:00Z', 3);
+SELECT time, close FROM bars_london;
 ```
 
 Result:
 
-Error: `column 'time' of table 'bars_london' has ROUND ... TIME ZONE 'Europe/London', which is not supported (it may change for daylight saving); use a fixed offset like '+05:45'`
+`CREATE TABLE bars_london (`
+
+```text
+table 'bars_london' created
+```
+
+`INSERT INTO bars_london VALUES ('2026-07-15T12:00:00Z', 1), ('2026-10-25T23:30:00Z', 2), ('2026-12-0`
+
+```text
+3 row(s) inserted
+```
+
+`SELECT time, close FROM bars_london`
+
+| time (TIMESTAMP) | close (DOUBLE) |
+|---|---|
+| 2026-07-14T23:00:00.000Z | 1 |
+| 2026-10-24T23:00:00.000Z | 2 |
+| 2026-12-01T00:00:00.000Z | 3 |
+
+(3 rows)
 
 **Example: Hour buckets on the London clock (summer time: +01:00 in September)** (sample data: sample)
 

@@ -891,7 +891,7 @@ time                     | close | sma2
 
 The same works with `GROUP BY`, for example a rank of the groups: `SELECT symbol, sum(volume) AS volume, rank() OVER (ORDER BY sum(volume) DESC) AS place FROM ochl_day GROUP BY symbol`.
 
-A series function cannot be inside another one (`lag(sma(close, 3))`). Use one subquery level per step (see the moving average crossover in the cookbook).
+A series function can be inside another one when the inner one has no `OVER` (`lag(sma(close, 3)) OVER (...)`). A window function cannot be inside an aggregate (`sum(lag(close))`): use one subquery level per step (see the moving average crossover in the cookbook).
 
 ## Views
 

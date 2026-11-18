@@ -32,7 +32,7 @@
   &quot;status&quot;: &quot;ok&quot;,
   &quot;version&quot;: &quot;0.2.0-dev&quot;,
   &quot;product&quot;: &quot;KarelaDB&quot;,
-  &quot;server_time_ms&quot;: 1792828587233,
+  &quot;server_time_ms&quot;: 1794988987212,
   &quot;auth_required&quot;: false,
   &quot;login&quot;: false,
   &quot;tls&quot;: false,
@@ -72,8 +72,8 @@ INSERT INTO brokers VALUES (1, &#39;Keystone Securities&#39;), (34, &#39;Vision 
   &quot;dir&quot;: &quot;kdb-data/demo&quot;,
   &quot;version&quot;: &quot;0.2.0-dev&quot;,
   &quot;product&quot;: &quot;KarelaDB&quot;,
-  &quot;opened_ms&quot;: 1792828587238,
-  &quot;server_time_ms&quot;: 1792828587258,
+  &quot;opened_ms&quot;: 1794988987235,
+  &quot;server_time_ms&quot;: 1794988987334,
   &quot;last_lsn&quot;: 4,
   &quot;data_files&quot;: 1,
   &quot;data_bytes&quot;: 231,
@@ -201,7 +201,19 @@ INSERT INTO trades VALUES (1, 10), (2, 20);</code></pre>
       &quot;refused_writes&quot;: 0
     }
   ],
-  &quot;jobs&quot;: []
+  &quot;jobs&quot;: [
+    {
+      &quot;id&quot;: 1,
+      &quot;trigger&quot;: &quot;copy_ids&quot;,
+      &quot;table&quot;: &quot;trades&quot;,
+      &quot;status&quot;: &quot;done&quot;,
+      &quot;rows&quot;: 2,
+      &quot;commit_lsn&quot;: 9,
+      &quot;made_ms&quot;: 1794988987394,
+      &quot;took_ms&quot;: 9,
+      &quot;error&quot;: &quot;&quot;
+    }
+  ]
 }</code></pre>
 <p><strong>HTTP: An unknown trigger</strong></p>
 <pre><code class="language-http">GET /api/trigger-queue?trigger=nope</code></pre>
@@ -225,7 +237,7 @@ INSERT INTO trades VALUES (1, 10), (2, 20);</code></pre>
   &quot;bytes_checked&quot;: 77929,
   &quot;wal_segments_checked&quot;: 1,
   &quot;problems&quot;: [],
-  &quot;elapsed_us&quot;: 1293
+  &quot;elapsed_us&quot;: 3498
 }</code></pre>
 <p><strong>HTTP: GET is not allowed: checking is work for the server</strong></p>
 <pre><code class="language-http">GET /api/check</code></pre>
@@ -247,10 +259,10 @@ GET /api/backups</code></pre>
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261024-075627-328&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261024-075627-328&quot;,
-  &quot;created_ms&quot;: 1792828587328,
-  &quot;created&quot;: &quot;2026-10-24T07:56:27.328Z&quot;,
+  &quot;name&quot;: &quot;20261118-080307-454&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261118-080307-454&quot;,
+  &quot;created_ms&quot;: 1794988987454,
+  &quot;created&quot;: &quot;2026-11-18T08:03:07.454Z&quot;,
   &quot;end_lsn&quot;: 30,
   &quot;checkpoint_lsn&quot;: 30,
   &quot;files&quot;: 9,
@@ -261,10 +273,10 @@ GET /api/backups</code></pre>
 <pre><code class="language-text">{
   &quot;backups&quot;: [
     {
-      &quot;name&quot;: &quot;20261024-075627-328&quot;,
-      &quot;dir&quot;: &quot;./backups/demo/20261024-075627-328&quot;,
-      &quot;created_ms&quot;: 1792828587328,
-      &quot;created&quot;: &quot;2026-10-24T07:56:27.328Z&quot;,
+      &quot;name&quot;: &quot;20261118-080307-454&quot;,
+      &quot;dir&quot;: &quot;./backups/demo/20261118-080307-454&quot;,
+      &quot;created_ms&quot;: 1794988987454,
+      &quot;created&quot;: &quot;2026-11-18T08:03:07.454Z&quot;,
       &quot;end_lsn&quot;: 30,
       &quot;checkpoint_lsn&quot;: 30,
       &quot;files&quot;: 9,
@@ -274,9 +286,9 @@ GET /api/backups</code></pre>
   &quot;backup_dir&quot;: &quot;./backups/demo&quot;,
   &quot;point_in_time&quot;: {
     &quot;possible&quot;: true,
-    &quot;from_ms&quot;: 1792828587328,
-    &quot;from&quot;: &quot;2026-10-24T07:56:27.328Z&quot;,
-    &quot;from_backup&quot;: &quot;20261024-075627-328&quot;,
+    &quot;from_ms&quot;: 1794988987454,
+    &quot;from&quot;: &quot;2026-11-18T08:03:07.454Z&quot;,
+    &quot;from_backup&quot;: &quot;20261118-080307-454&quot;,
     &quot;log_first_lsn&quot;: 1,
     &quot;why&quot;: &quot;&quot;,
     &quot;wal_archive_max_bytes&quot;: 1073741824
@@ -339,10 +351,10 @@ DELETE /api/databases/demo_restored</code></pre>
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261024-075627-512&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261024-075627-512&quot;,
-  &quot;created_ms&quot;: 1792828587512,
-  &quot;created&quot;: &quot;2026-10-24T07:56:27.512Z&quot;,
+  &quot;name&quot;: &quot;20261118-080307-683&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261118-080307-683&quot;,
+  &quot;created_ms&quot;: 1794988987683,
+  &quot;created&quot;: &quot;2026-11-18T08:03:07.683Z&quot;,
   &quot;end_lsn&quot;: 30,
   &quot;checkpoint_lsn&quot;: 30,
   &quot;files&quot;: 9,
@@ -354,10 +366,10 @@ DELETE /api/databases/demo_restored</code></pre>
   &quot;database&quot;: &quot;demo_restored&quot;,
   &quot;source&quot;: &quot;demo&quot;,
   &quot;backup&quot;: {
-    &quot;name&quot;: &quot;20261024-075627-512&quot;,
-    &quot;dir&quot;: &quot;./backups/demo/20261024-075627-512&quot;,
-    &quot;created_ms&quot;: 1792828587512,
-    &quot;created&quot;: &quot;2026-10-24T07:56:27.512Z&quot;,
+    &quot;name&quot;: &quot;20261118-080307-683&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261118-080307-683&quot;,
+    &quot;created_ms&quot;: 1794988987683,
+    &quot;created&quot;: &quot;2026-11-18T08:03:07.683Z&quot;,
     &quot;end_lsn&quot;: 30,
     &quot;checkpoint_lsn&quot;: 30,
     &quot;files&quot;: 9,
@@ -368,9 +380,9 @@ DELETE /api/databases/demo_restored</code></pre>
   &quot;opened&quot;: true,
   &quot;open_error&quot;: &quot;&quot;,
   &quot;notes&quot;: [
-    &quot;restored 9 data files from ./backups/demo/20261024-075627-512; the log (up to LSN 30) is replayed on first open&quot;
+    &quot;restored 9 data files from ./backups/demo/20261118-080307-683; the log (up to LSN 30) is replayed on first open&quot;
   ],
-  &quot;took_ms&quot;: 33,
+  &quot;took_ms&quot;: 151,
   &quot;next&quot;: &quot;check &#39;demo_restored&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;demo_restored\&quot;} to put it in place, or DROP DATABASE demo_restored&quot;
 }</code></pre>
 <p><code>DELETE /api/databases/demo_restored</code></p>
@@ -378,7 +390,7 @@ DELETE /api/databases/demo_restored</code></pre>
 <pre><code class="language-text">{
   &quot;name&quot;: &quot;demo_restored&quot;,
   &quot;dropped&quot;: true,
-  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792828587595-demo_restored&quot;
+  &quot;moved_to&quot;: &quot;kdb-data/_trash/1794988988109-demo_restored&quot;
 }</code></pre>
 <p><strong>HTTP: The name is taken</strong></p>
 <pre><code class="language-http">POST /api/backup
@@ -396,10 +408,10 @@ Content-Type: application/json
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261024-075627-527&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261024-075627-527&quot;,
-  &quot;created_ms&quot;: 1792828587527,
-  &quot;created&quot;: &quot;2026-10-24T07:56:27.527Z&quot;,
+  &quot;name&quot;: &quot;20261118-080307-719&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261118-080307-719&quot;,
+  &quot;created_ms&quot;: 1794988987719,
+  &quot;created&quot;: &quot;2026-11-18T08:03:07.719Z&quot;,
   &quot;end_lsn&quot;: 0,
   &quot;checkpoint_lsn&quot;: 0,
   &quot;files&quot;: 0,
@@ -411,10 +423,10 @@ Content-Type: application/json
   &quot;database&quot;: &quot;demo_twice&quot;,
   &quot;source&quot;: &quot;demo&quot;,
   &quot;backup&quot;: {
-    &quot;name&quot;: &quot;20261024-075627-527&quot;,
-    &quot;dir&quot;: &quot;./backups/demo/20261024-075627-527&quot;,
-    &quot;created_ms&quot;: 1792828587527,
-    &quot;created&quot;: &quot;2026-10-24T07:56:27.527Z&quot;,
+    &quot;name&quot;: &quot;20261118-080307-719&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261118-080307-719&quot;,
+    &quot;created_ms&quot;: 1794988987719,
+    &quot;created&quot;: &quot;2026-11-18T08:03:07.719Z&quot;,
     &quot;end_lsn&quot;: 0,
     &quot;checkpoint_lsn&quot;: 0,
     &quot;files&quot;: 0,
@@ -425,9 +437,9 @@ Content-Type: application/json
   &quot;opened&quot;: true,
   &quot;open_error&quot;: &quot;&quot;,
   &quot;notes&quot;: [
-    &quot;restored 0 data files from ./backups/demo/20261024-075627-527; the log (up to LSN 0) is replayed on first open&quot;
+    &quot;restored 0 data files from ./backups/demo/20261118-080307-719; the log (up to LSN 0) is replayed on first open&quot;
   ],
-  &quot;took_ms&quot;: 12,
+  &quot;took_ms&quot;: 70,
   &quot;next&quot;: &quot;check &#39;demo_twice&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;demo_twice\&quot;} to put it in place, or DROP DATABASE demo_twice&quot;
 }</code></pre>
 <p><code>POST /api/restore</code></p>
@@ -487,7 +499,7 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;t&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 33, &quot;execute_us&quot;: 6013}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 30164}
     },
     {
       &quot;statement&quot;: &quot;INSERT INTO t VALUES (1)&quot;,
@@ -497,21 +509,21 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 33, &quot;execute_us&quot;: 509}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 5535}
     }
   ],
   &quot;columns&quot;: [],
   &quot;dataset&quot;: [],
   &quot;count&quot;: 0,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 66, &quot;execute_us&quot;: 6522}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 60, &quot;execute_us&quot;: 35699}
 }</code></pre>
 <p><code>POST /api/backup</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;name&quot;: &quot;20261024-075627-555&quot;,
-  &quot;dir&quot;: &quot;./backups/demo/20261024-075627-555&quot;,
-  &quot;created_ms&quot;: 1792828587555,
-  &quot;created&quot;: &quot;2026-10-24T07:56:27.555Z&quot;,
+  &quot;name&quot;: &quot;20261118-080307-798&quot;,
+  &quot;dir&quot;: &quot;./backups/demo/20261118-080307-798&quot;,
+  &quot;created_ms&quot;: 1794988987798,
+  &quot;created&quot;: &quot;2026-11-18T08:03:07.798Z&quot;,
   &quot;end_lsn&quot;: 4,
   &quot;checkpoint_lsn&quot;: 4,
   &quot;files&quot;: 2,
@@ -530,13 +542,13 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 137, &quot;execute_us&quot;: 36}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 24}
     }
   ],
   &quot;columns&quot;: [],
   &quot;dataset&quot;: [],
   &quot;count&quot;: 0,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 137, &quot;execute_us&quot;: 36}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 24}
 }</code></pre>
 <p><code>POST /api/restore</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -544,10 +556,10 @@ DELETE /api/databases/demo_old</code></pre>
   &quot;database&quot;: &quot;demo_old&quot;,
   &quot;source&quot;: &quot;demo&quot;,
   &quot;backup&quot;: {
-    &quot;name&quot;: &quot;20261024-075627-555&quot;,
-    &quot;dir&quot;: &quot;./backups/demo/20261024-075627-555&quot;,
-    &quot;created_ms&quot;: 1792828587555,
-    &quot;created&quot;: &quot;2026-10-24T07:56:27.555Z&quot;,
+    &quot;name&quot;: &quot;20261118-080307-798&quot;,
+    &quot;dir&quot;: &quot;./backups/demo/20261118-080307-798&quot;,
+    &quot;created_ms&quot;: 1794988987798,
+    &quot;created&quot;: &quot;2026-11-18T08:03:07.798Z&quot;,
     &quot;end_lsn&quot;: 4,
     &quot;checkpoint_lsn&quot;: 4,
     &quot;files&quot;: 2,
@@ -558,9 +570,9 @@ DELETE /api/databases/demo_old</code></pre>
   &quot;opened&quot;: true,
   &quot;open_error&quot;: &quot;&quot;,
   &quot;notes&quot;: [
-    &quot;restored 2 data files from ./backups/demo/20261024-075627-555; the log (up to LSN 4) is replayed on first open&quot;
+    &quot;restored 2 data files from ./backups/demo/20261118-080307-798; the log (up to LSN 4) is replayed on first open&quot;
   ],
-  &quot;took_ms&quot;: 18,
+  &quot;took_ms&quot;: 97,
   &quot;next&quot;: &quot;check &#39;demo_old&#39;, then POST /api/databases/swap {\&quot;database\&quot;:\&quot;demo\&quot;,\&quot;with\&quot;:\&quot;demo_old\&quot;} to put it in place, or DROP DATABASE demo_old&quot;
 }</code></pre>
 <p><code>POST /api/databases/swap</code></p>
@@ -583,7 +595,7 @@ DELETE /api/databases/demo_old</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 198}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 167}
     }
   ],
   &quot;columns&quot;: [
@@ -593,7 +605,7 @@ DELETE /api/databases/demo_old</code></pre>
     [1]
   ],
   &quot;count&quot;: 1,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 56, &quot;execute_us&quot;: 198}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 30, &quot;execute_us&quot;: 167}
 }</code></pre>
 <p><code>POST /api/databases/swap</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -603,19 +615,19 @@ DELETE /api/databases/demo_old</code></pre>
 <pre><code class="language-text">{
   &quot;name&quot;: &quot;demo_old&quot;,
   &quot;dropped&quot;: true,
-  &quot;moved_to&quot;: &quot;kdb-data/_trash/1792828587647-demo_old&quot;
+  &quot;moved_to&quot;: &quot;kdb-data/_trash/1794988988232-demo_old&quot;
 }</code></pre>
 <h2 id="api-stats">GET /api/stats</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">GET /api/stats</code></pre>
 <p>What the server is doing right now: the memory and processor of the process, the statements running this second, and the memory and cache counters of every <strong>open</strong> database. Everything here is a counter already in memory, so it is cheap enough to ask for every couple of seconds - no file is read and no database is opened to answer it. The <a href="console-monitor.html">Monitor page</a> of the console shows it.</p>
-<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>version</code></td><td>the KarelaDB version</td></tr><tr><td><code>server_time_ms</code></td><td>the server&#39;s clock (ms since 1970, UTC)</td></tr><tr><td><code>process</code></td><td>see the table below</td></tr><tr><td><code>running</code></td><td>one object per statement running now (HTTP and the PostgreSQL port together)</td></tr><tr><td><code>can_cancel</code></td><td><code>true</code> when the server was started with query protection, so <code>DELETE /exec/&lt;id&gt;</code> works</td></tr><tr><td><code>lanes</code></td><td><a href="cli-serve.html#lanes">priority lanes</a>: <code>enabled</code>, <code>heavy_slots</code>, <code>max_waiting</code> (HTTP places in line), <code>http_waiting</code>, <code>occupied</code> (heavy slots in use), <code>long_normal</code>, <code>heavy_ms</code>, <code>fast_ms</code>, <code>long_ms</code>, <code>shapes</code>, <code>heavy_shapes</code>, <code>cpu_priority</code>, <code>read_slots</code> (<a href="cli-serve.html#read-slots">read slots</a>: <code>slots</code>, <code>slot_ms</code>, <code>used</code>, <code>waiting</code>, <code>waited</code>, <code>wait_ms_total</code>, <code>wait_ms_max</code>), and per lane (<code>fast</code>, <code>normal</code>, <code>heavy</code>) <code>running</code>, <code>waiting</code>, <code>entered</code>, <code>waited</code>, <code>wait_ms_total</code>, <code>wait_ms_max</code>, <code>last_wait_ms</code>, <code>refused</code>, <code>overflowed</code> (heavy by history, HTTP line full: ran at once), <code>stopped_waiting</code>. Each object of <code>running</code> has <code>lane</code> and <code>waiting</code> too.</td></tr><tr><td><code>zone_partition_skips</code>, <code>zone_block_skips</code></td><td>since the process started: partitions not read and blocks not scanned because their saved column statistics (min and max) ruled the <code>WHERE</code> out</td></tr><tr><td><code>slice_reads</code></td><td>since the process started: partitions not in memory of which a one-symbol query read only that symbol&#39;s rows from the file (see <a href="performance-tips.html#slice-reads">slice reads</a>)</td></tr><tr><td><code>slice_cache_hits</code></td><td>of those, slices found in the slice cache instead of the file</td></tr><tr><td><code>slice_cache_bytes</code></td><td>what the slice cache holds now (at most <code>KARELADB_SLICE_CACHE_MB</code>)</td></tr><tr><td><code>search</code></td><td>since the process started, all databases: <code>bm25_evaluations</code> (full-text ranks worked out), <code>top_k_searches</code> (<code>ORDER BY search_rank(...) DESC LIMIT n</code> answered from the index), <code>skipped_blocks</code> and <code>skipped_docs</code> (rows those searches skipped because they could not make the top n; see <a href="full-text-search.html#search-rank">search_rank</a>); <code>segments_written</code>, <code>segment_extensions</code>, <code>segments_merged</code>, <code>segments_loaded</code>, <code>segment_rows_loaded</code>, <code>segments_damaged</code>, <code>segments_stale</code> and <code>rows_indexed</code> (<a href="full-text-search.html#segments">segments on disk</a>)</td></tr><tr><td><code>opening_databases</code></td><td>one object per database a request is opening right now</td></tr><tr><td><code>databases</code></td><td>one object per <strong>open</strong> database; a database opens the first time it is used</td></tr><tr><td><code>warnings</code></td><td>sentences an operator should read now, one per problem. Today: a database far bigger than <code>--memory</code> (see <a href="cli-serve.html#memory-warning">memory</a>). <code>[]</code> when all is well</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Answer field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>version</code></td><td>the KarelaDB version</td></tr><tr><td><code>server_time_ms</code></td><td>the server&#39;s clock (ms since 1970, UTC)</td></tr><tr><td><code>process</code></td><td>see the table below</td></tr><tr><td><code>running</code></td><td>one object per statement running now (HTTP and the PostgreSQL port together)</td></tr><tr><td><code>can_cancel</code></td><td><code>true</code> when the server was started with query protection, so <code>DELETE /exec/&lt;id&gt;</code> works</td></tr><tr><td><code>lanes</code></td><td><a href="cli-serve.html#lanes">priority lanes</a>: <code>enabled</code>, <code>heavy_slots</code>, <code>max_waiting</code> (HTTP places in line), <code>http_waiting</code>, <code>occupied</code> (heavy slots in use), <code>long_normal</code>, <code>heavy_ms</code>, <code>fast_ms</code>, <code>long_ms</code>, <code>shapes</code>, <code>heavy_shapes</code>, <code>cpu_priority</code>, <code>read_slots</code> (<a href="cli-serve.html#read-slots">read slots</a>: <code>slots</code>, <code>slot_ms</code>, <code>used</code>, <code>waiting</code>, <code>waited</code>, <code>wait_ms_total</code>, <code>wait_ms_max</code>), and per lane (<code>fast</code>, <code>normal</code>, <code>heavy</code>) <code>running</code>, <code>waiting</code>, <code>entered</code>, <code>waited</code>, <code>wait_ms_total</code>, <code>wait_ms_max</code>, <code>last_wait_ms</code>, <code>refused</code>, <code>overflowed</code> (heavy by history, HTTP line full: ran at once), <code>stopped_waiting</code>. Each object of <code>running</code> has <code>lane</code> and <code>waiting</code> too.</td></tr><tr><td><code>background</code></td><td>the <a href="cli-serve.html#background-share">background share</a>: <code>threads</code> (jobs that may run at once), <code>running</code> (turns held now), <code>backups_running</code> (the backup slot of scheduled backups, 0 or 1), <code>memory_bytes</code> (the share), <code>bytes</code> and <code>bytes_peak</code> (a checkpoint wave&#39;s partitions in memory now, and the most since start), <code>jobs</code> (turns taken), <code>put_off</code> (jobs that found no turn free and ran at a later tick), <code>waited</code> (scheduled backup copies that waited for the backup slot), <code>yields</code> (pauses for waiting user writes).</td></tr><tr><td><code>zone_partition_skips</code>, <code>zone_block_skips</code></td><td>since the process started: partitions not read and blocks not scanned because their saved column statistics (min and max) ruled the <code>WHERE</code> out</td></tr><tr><td><code>slice_reads</code></td><td>since the process started: partitions not in memory of which a one-symbol query read only that symbol&#39;s rows from the file (see <a href="performance-tips.html#slice-reads">slice reads</a>)</td></tr><tr><td><code>slice_cache_hits</code></td><td>of those, slices found in the slice cache instead of the file</td></tr><tr><td><code>slice_cache_bytes</code></td><td>what the slice cache holds now (at most <code>KARELADB_SLICE_CACHE_MB</code>)</td></tr><tr><td><code>search</code></td><td>since the process started, all databases: <code>bm25_evaluations</code> (full-text ranks worked out), <code>top_k_searches</code> (<code>ORDER BY search_rank(...) DESC LIMIT n</code> answered from the index), <code>skipped_blocks</code> and <code>skipped_docs</code> (rows those searches skipped because they could not make the top n; see <a href="full-text-search.html#search-rank">search_rank</a>); <code>segments_written</code>, <code>segment_extensions</code>, <code>segments_merged</code>, <code>segments_loaded</code>, <code>segment_rows_loaded</code>, <code>segments_damaged</code>, <code>segments_stale</code> and <code>rows_indexed</code> (<a href="full-text-search.html#segments">segments on disk</a>)</td></tr><tr><td><code>opening_databases</code></td><td>one object per database a request is opening right now</td></tr><tr><td><code>databases</code></td><td>one object per <strong>open</strong> database; a database opens the first time it is used</td></tr><tr><td><code>warnings</code></td><td>sentences an operator should read now, one per problem. Today: a database far bigger than <code>--memory</code> (see <a href="cli-serve.html#memory-warning">memory</a>). <code>[]</code> when all is well</td></tr></tbody></table></div>
 <p><code>process</code>:</p>
 <div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>resident_bytes</code></td><td>memory the process holds in RAM now (Windows: working set; Linux: <code>VmRSS</code>)</td></tr><tr><td><code>peak_resident_bytes</code></td><td>the highest that has been since the process started</td></tr><tr><td><code>virtual_bytes</code></td><td>memory it asked for that is its own (Windows: private bytes, which can be <strong>smaller</strong> than resident; Linux: <code>VmSize</code>, which is larger)</td></tr><tr><td><code>cpu_ms</code></td><td>processor time used since the process started, user and kernel together</td></tr><tr><td><code>uptime_ms</code></td><td>how long the process has been up</td></tr><tr><td><code>threads</code>, <code>open_files</code></td><td>threads and open handles now</td></tr><tr><td><code>cpu_count</code></td><td>processors the process may use: inside <code>docker --cpus=2</code> this is 2, not the host&#39;s count (<a href="cli-serve.html#self-tuning">self-tuning</a>)</td></tr><tr><td><code>heap_bytes</code>, <code>heap_objects</code></td><td>what KarelaDB&#39;s own objects hold now</td></tr><tr><td><code>allocator</code></td><td>the C library&#39;s allocator: <code>glibc</code> (the Docker image), <code>windows</code> or <code>other</code></td></tr><tr><td><code>allocator_retained_bytes</code></td><td><code>resident_bytes - heap_bytes</code>: memory that was freed but is still kept by the allocator, plus the program and its thread stacks (tens of MB). On glibc KarelaDB gives freed memory back in the background, so after work this falls back near that.</td></tr><tr><td><code>allocator_arena_max</code></td><td>how many glibc malloc arenas KarelaDB allows (<code>0</code> = the C library decides; <code>GLIBC_TUNABLES=glibc.malloc.arena_max=N</code> overrides)</td></tr><tr><td><code>allocator_mmap_threshold</code></td><td>blocks of this many bytes or more get memory of their own from the system. <code>0</code> = the C library moves the line itself. A <code>GLIBC_TUNABLES</code> with <code>trim_threshold</code> (as in the Docker example) stops glibc from moving it, so KarelaDB sets it to 32 MB; <code>glibc.malloc.mmap_threshold=N</code> overrides</td></tr><tr><td><code>allocator_trims</code>, <code>allocator_trim_released_bytes</code>, <code>allocator_last_trim_ms_ago</code></td><td>how often freed memory was given back, how much in total, and how long ago the last time was (<code>0</code> = never)</td></tr><tr><td><code>allocator_purge_delay_ms</code></td><td>the program built with mimalloc (the Docker image): how long memory a thread freed stays with it before it goes back to the system, 1000 unless <code>MIMALLOC_PURGE_DELAY</code> says otherwise. A query that comes within that time on the same thread reuses the pages instead of faulting them in again. <code>0</code> with another allocator</td></tr><tr><td><code>allocator_longest_trim_ms</code></td><td>the longest one give-back took, in milliseconds. Threads that need memory wait for it, so a long one is a pause of the whole server (HTTP and PostgreSQL port at once). One of 1 s or more is also written to the server log</td></tr><tr><td><code>system_memory_bytes</code>, <code>system_memory_free_bytes</code></td><td>RAM in the computer, and what is still free. Inside a container these are the container&#39;s limit and use, not the host&#39;s.</td></tr></tbody></table></div>
 <p><code>limits</code> - the CPU and memory the process may really use, and what KarelaDB sized from them (<a href="cli-serve.html#self-tuning">self-tuning</a>):</p>
 <div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>cpus</code></td><td>CPUs KarelaDB sizes its threads by: the smaller of the CPUs it may run on and the CPU quota, rounded up</td></tr><tr><td><code>host_cpus</code>, <code>affinity_cpus</code></td><td>the machine&#39;s processors, and those the process may run on (<code>0</code> = not known)</td></tr><tr><td><code>cpu_quota</code></td><td>the container&#39;s or job&#39;s CPU quota in CPUs (<code>1.5</code> for <code>--cpus=1.5</code>); <code>0</code> = none</td></tr><tr><td><code>cpu_source</code></td><td>what decided <code>cpus</code>: <code>machine</code>, <code>affinity</code>, <code>cgroup v2 cpu.max</code>, <code>cgroup v1 cpu.cfs_quota_us</code> or <code>job object CPU rate</code></td></tr><tr><td><code>pinned_cpus</code></td><td>the CPUs KarelaDB&#39;s threads are pinned to, like <code>&quot;0-3&quot;</code> (<a href="cli-serve.html#pin-threads"><code>--pin-threads</code></a>: <code>on</code>, or <code>auto</code> inside a CPU quota); <code>&quot;&quot;</code> when not pinned</td></tr><tr><td><code>pinned_threads</code></td><td><code>on</code>: threads that pinned themselves since the start; <code>auto</code>: the threads pinned now (<code>0</code> when not pinned)</td></tr><tr><td><code>memory_limit_bytes</code>, <code>memory_source</code></td><td>the container&#39;s or job&#39;s memory limit (<code>0</code> = none) and where it was read</td></tr><tr><td><code>machine_memory_bytes</code></td><td>RAM in the machine</td></tr><tr><td><code>query_threads</code>, <code>query_threads_follow</code></td><td>the query pool&#39;s size now, and whether it follows the CPU limit (<code>false</code> with <code>--threads</code>)</td></tr><tr><td><code>process_memory_limit_bytes</code>, <code>process_memory_limit_follows</code></td><td>the memory limit for the whole process now, and whether it follows the container&#39;s (<code>false</code> with <code>--memory-limit</code>)</td></tr><tr><td><code>check_interval_ms</code>, <code>checks</code>, <code>changes</code>, <code>last_check_ms</code>, <code>last_change</code></td><td>how often the limits are read (<code>0</code> = only at start), readings and changes since start, when the last reading was, and the log line of the last change</td></tr></tbody></table></div>
 <p><code>memory_limit</code> - the <a href="cli-serve.html#memory-limit">memory limit for the whole process</a> (<code>--memory-limit</code>):</p>
-<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>limit_bytes</code></td><td>the limit; <code>0</code> = none</td></tr><tr><td><code>level</code></td><td><code>green</code> (under 80%), <code>yellow</code> (80-95%: memory is being given back), <code>red</code> (95% and over: quick statements run in the reserve, others wait, then get <code>memory full</code>)</td></tr><tr><td><code>in_use_bytes</code></td><td>the number the limit is checked against: <code>heap_bytes</code>, or the resident size when that is more. Over by the resident size alone (heap under 80%) the level stops at <code>yellow</code></td></tr><tr><td><code>level_from</code></td><td><code>in_use</code>, or <code>heap</code> with <code>KARELADB_LEVEL_FROM_HEAP=1</code> (the level from the heap alone)</td></tr><tr><td><code>heap_bytes</code></td><td>what KarelaDB&#39;s objects hold now</td></tr><tr><td><code>table_data_bytes</code>, <code>key_map_bytes</code>, <code>view_bytes</code></td><td>loaded table data of all databases, split as in <code>memory</code> below</td></tr><tr><td><code>pending_bytes</code></td><td>changes not yet written to partition files, all databases</td></tr><tr><td><code>index_bytes</code></td><td><code>CREATE INDEX</code> indexes, all databases</td></tr><tr><td><code>result_cache_bytes</code></td><td>the result caches</td></tr><tr><td><code>other_bytes</code></td><td>the rest of the heap: rows of running queries, results being sent, sessions</td></tr><tr><td><code>allocator_bytes</code></td><td><code>resident_bytes - heap_bytes</code></td></tr><tr><td><code>refused</code></td><td>statements told <code>memory full</code> since the start</td></tr><tr><td><code>reserve_in_use</code>, <code>reserve_admitted</code></td><td>quick statements (reads, no writes or loads) running now in the reserve kept for them at red (at most 8), and how many were let in that way since the start</td></tr><tr><td><code>reserve_lifted</code></td><td>of those, how many needed more than their place, waited for memory to come back and then ran on without the cap</td></tr><tr><td><code>stopped</code></td><td>running statements stopped with <code>memory full</code> since the start (the process went over the limit, and each held the most memory)</td></tr><tr><td><code>relieved</code>, <code>trims</code></td><td>looks that gave memory back, and times freed memory went back to the system (Linux)</td></tr><tr><td><code>resident_holds</code></td><td>looks at <code>yellow</code> by the resident size alone that did not unload partitions or drop kept results, because the last time that did not bring the level down</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>limit_bytes</code></td><td>the limit; <code>0</code> = none</td></tr><tr><td><code>level</code></td><td><code>green</code> (under 80%), <code>yellow</code> (80-95%: memory is being given back), <code>red</code> (95% and over: quick statements run in the reserve, others wait, then get <code>memory full</code>)</td></tr><tr><td><code>in_use_bytes</code></td><td>the number the limit is checked against: <code>heap_bytes</code>, or the resident size when that is more. Over by the resident size alone (heap under 80%) the level stops at <code>yellow</code></td></tr><tr><td><code>level_from</code></td><td><code>in_use</code>, or <code>heap</code> with <code>KARELADB_LEVEL_FROM_HEAP=1</code> (the level from the heap alone)</td></tr><tr><td><code>heap_bytes</code></td><td>what KarelaDB&#39;s objects hold now</td></tr><tr><td><code>table_data_bytes</code>, <code>key_map_bytes</code>, <code>view_bytes</code></td><td>loaded table data of all databases, split as in <code>memory</code> below</td></tr><tr><td><code>pending_bytes</code></td><td>changes not yet written to partition files, all databases</td></tr><tr><td><code>index_bytes</code></td><td><code>CREATE INDEX</code> indexes, all databases</td></tr><tr><td><code>result_cache_bytes</code></td><td>the result caches</td></tr><tr><td><code>other_bytes</code></td><td>the rest of the heap: rows of running queries, results being sent, sessions</td></tr><tr><td><code>allocator_bytes</code></td><td><code>resident_bytes - heap_bytes</code></td></tr><tr><td><code>refused</code></td><td>statements told <code>memory full</code> since the start</td></tr><tr><td><code>reserve_in_use</code>, <code>reserve_admitted</code></td><td>quick statements (reads, no writes or loads) running now in the reserve kept for them at red (at most 8), and how many were let in that way since the start</td></tr><tr><td><code>reserve_lifted</code></td><td>of those, how many needed more than their place, waited for memory to come back and then ran on without the cap</td></tr><tr><td><code>writes_held</code></td><td><code>true</code> while new writes and loads wait at the door: the unsaved changes passed half of the limit (<a href="cli-serve.html#memory-limit">back-pressure on loads</a>)</td></tr><tr><td><code>pending_seen_bytes</code></td><td>the unsaved changes of all databases together, as the last look found them</td></tr><tr><td><code>writes_refused</code></td><td>writes that waited 2 s and were refused that way since the start (HTTP 503, SQLSTATE 53200)</td></tr><tr><td><code>stopped</code></td><td>running statements stopped with <code>memory full</code> since the start (the process went over the limit, and each held the most memory)</td></tr><tr><td><code>relieved</code>, <code>trims</code></td><td>looks that gave memory back, and times freed memory went back to the system (Linux)</td></tr><tr><td><code>resident_holds</code></td><td>looks at <code>yellow</code> by the resident size alone that did not unload partitions or drop kept results, because the last time that did not bring the level down</td></tr></tbody></table></div>
 <p>Work out the processor share yourself from two readings: <code>(cpu_ms2 - cpu_ms1) * 100 / (uptime_ms2 - uptime_ms1)</code> is the percentage of one processor.</p>
 <p>Each <code>running</code> object: <code>id</code> (the <code>X-KDB-Request-Id</code> the client sent, or <code>&quot;&quot;</code>), <code>user</code> (<code>&quot;&quot;</code> for the token), <code>client</code>, <code>database</code>, <code>sql</code> (the first 200 characters), <code>started_ms</code>, <code>elapsed_ms</code>, <code>stopping</code>. Cancel one with <code>DELETE /exec/&lt;id&gt;</code>; a statement with no id can only stop on its own timeout.</p>
 <p><code>timers</code>: every <a href="timers.html">timer</a> of the databases the caller may read, each as in <a href="timers.html#get-api-timers">GET /api/timers</a>, with <code>failures_24h</code> (failed runs in about the last 24 hours).</p>

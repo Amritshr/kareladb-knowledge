@@ -6,7 +6,7 @@
 - Keywords: limit, limits, maximum, max, how big, how many, too big, too many, nested too deeply, 16 MB, 64 MB, 10 million, DECIMAL scale, name length, too many open cursors, lock timeout, database is busy, table is busy, deadlock, idle transaction, request body, 10,000 rows, truncated, disk full, 507, 53100, statement timeout, max-queries-per-user, max-groups, max-result-memory, max\_spill\_bytes, KARELADB\_NO\_ZONE\_MAPS, KARELADB\_NO\_COLUMN\_MASK, KARELADB\_NO\_UNION\_PUSHDOWN, switches, reader yield, not supported, missing features, known limitations, not available
 - See also: [Performance tips](performance-tips.md), [Cursors (limits)](cursors.md#limits), [Transactions](transactions.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [How KarelaDB stores data](data-formats.md), [Protection - timeouts, limits, safe updates, read-only](protection.md)
 
-These are the limits of KarelaDB `0.2.0-dev` (September 2026). Most of them are there to protect memory and to give a clear error instead of a crash.
+These are the limits of KarelaDB `0.2.0-dev` (checked against the program on 2026-10-25). Most of them are there to protect memory and to give a clear error instead of a crash.
 When a limit is reached, the statement fails with an error that names the limit, and **nothing** of that statement is saved.
 
 The full list of missing features is in [known limitations](../tutorial/known-limitations.md). Please check again after you update KarelaDB.
@@ -156,6 +156,8 @@ one query (kareladb serve)   1 GB of rows in memory, 5,000,000 groups
 | Rows one query keeps in memory under `kareladb serve` | 1 GB (`--max-result-memory`, `0` = no limit). A plain `INSERT ... SELECT` writes its rows while it reads them and is not stopped by it ([INSERT ... SELECT](insert.md#insert-select)), and neither is a plain read over the Postgres port, which sends its rows while it reads them ([big answers stream](postgres-protocol.md#streaming)). A sort (`ORDER BY` without `LIMIT`) cannot use disk: its rows must fit. |
 | Groups of one `GROUP BY` or `SAMPLE BY` under `kareladb serve` | 5,000,000 (`--max-groups`, `0` = no limit). Counted as the groups are made, also those kept on disk when memory is short, so the query stops as soon as it passes the limit. |
 | Rows made by `FILL` in `SAMPLE BY`, and by `generate_series` | 10 million |
+| Rows one call of a [plpgsql function](procedure-language.md#plpgsql-functions) gives (`RETURN NEXT`, `RETURN QUERY`) | 10 million. They are kept until the query has read them and count against the 1 GB above and the statement's share of `--memory-limit`, which usually stop a big call first |
+| `read_csv('file.csv')` ([read_csv](loading-data.md#read-csv)) | admins only, files in `<data folder>/<database>/import/` only; one row (with its quoted line breaks) at most 256 MB; every row the same number of values. A file up to 256 MB is held as columns while the statement runs when its arrays fit in 256 MB and in half of the statement's memory cap: up to about 4 times the file's size for files of short numbers (8 bytes a value), about its size for text; a bigger one streams under `GROUP BY` / aggregates and into `INSERT ... SELECT` / `CREATE TABLE ... AS`. A plain `SELECT *` keeps its rows (about 8 times the file's size, under the 1 GB above) |
 | Text shown per cell in `kareladb sql` table format | 48 characters (then `...`); use `--format csv` |
 
 **Command line: kareladb sql shows at most --max-rows rows** (sample data: sample)
@@ -171,7 +173,7 @@ time                     | symbol | close
 -------------------------+--------+------
 2026-09-09T05:15:00.000Z | CITY   | 512.1
 2026-09-09T05:16:00.000Z | CITY   | 511.9
-(2 rows, more not shown, 0.4 ms)
+(2 rows, more not shown, 0.5 ms)
 ```
 
 **HTTP: HTTP: limit=2, and truncated is true** (sample data: sample)
@@ -203,7 +205,7 @@ HTTP 200 (application/json)
       "truncated": true,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 28, "execute_us": 351}
+      "timings": {"parse_us": 46, "execute_us": 397}
     }
   ],
   "columns": [
@@ -216,7 +218,7 @@ HTTP 200 (application/json)
     ["2026-09-09T05:16:00.000Z", "CITY", 511.9]
   ],
   "count": 2,
-  "timings": {"parse_us": 28, "execute_us": 351}
+  "timings": {"parse_us": 46, "execute_us": 397}
 }
 ```
 
@@ -230,7 +232,7 @@ Syntax:
 writers                 one per table; writers of different tables run at the same time
 waiting for a table     5 seconds unless set (--lock-timeout, SET lock_timeout), then "table 'x' is busy"
 idle transaction        rolled back after 30 seconds without a statement (--idle-in-transaction-timeout, SET idle_in_transaction_session_timeout)
-open cursors            16 per database, 10 million rows each, closed after 10 unused minutes
+open cursors            16 per database, no row limit (big ones wait on disk), closed after 10 unused minutes
 ```
 
 | What | Limit |
@@ -240,16 +242,19 @@ open cursors            16 per database, 10 million rows each, closed after 10 u
 | Schema changes (`CREATE`, `ALTER`, `DROP`) | `CREATE`, `ALTER` and `DROP TABLE`, `CREATE` and `DROP INDEX` and `CREATE`, `ALTER` and `DROP TRIGGER` wait only for writers of their table (`table 'x' is busy: ...`), and for writers of other tables only until those pause between two statements. So do `TRUNCATE`, `CREATE TABLE ... AS` (the tables its query reads) and materialized views (the view and its table). Views, procedures and functions lock no table, but a procedure or function change waits for a running writer that runs a procedure, function or plpgsql trigger (a long `CALL`), and a view change for a running writer that reads views. Sequences, `BACKUP` and a schema change sent in one request with statements it affects (`CREATE OR REPLACE PROCEDURE p ...; CALL p()`) wait for every table of the database (`database is busy: ...`). A load into a table waits while a schema change is queued for it, unless the schema change itself still waits for a writer that was there first. A statement with nothing to do (`CREATE TABLE IF NOT EXISTS` of a table that is there, `ADD COLUMN IF NOT EXISTS` of a column that is there, `DROP ... IF EXISTS` of something that is not there) waits for nothing. |
 | Readers | any number, and a read never waits for another read. A read does not wait for an open `BEGIN` ... `COMMIT`: it sees the committed rows. |
 | Readers during a long `CALL`, trigger, write request or checkpoint | a read of other tables never waits. A read of a table the writer holds waits until the running statement ends: the writer lets it in between its statements ([reader yield](transactions.md#reader-yield), on by default). With `--reader-yield off` it waits for the whole request. See [readers during a long writer](transactions.md#per-table-reads). |
+| Background work (idle checkpoints, compression, TTL, row TTL and cache sweeps, cold pass, trash; scheduled backup copies apart) | at most `--background-threads` jobs at once in the whole server (default a quarter of the CPUs, at least 1); the others run at their next tick. Scheduled backup copies have one slot of their own: one copy at a time, and the other jobs go on during it. Between two tables or partitions a job lets waiting writes of its own database go first, at most 50 ms a piece. A checkpoint holds at most `--background-memory` of partitions at once (default a quarter of the memory limit), a quarter of that at red memory ([background share](cli-serve.md#background-share)). |
 | An open transaction with no statement | rolled back after 30 seconds. Change it for the server (`--idle-in-transaction-timeout`, `KARELADB_IDLE_IN_TRANSACTION_TIMEOUT`, `idle_in_transaction_timeout_ms` in `kareladb.conf`) or one session (`SET idle_in_transaction_session_timeout = '5min'`); `0` = never ([idle transactions](transactions.md#idle-timeout)). |
 | Statement timeout of `kareladb serve` | 60 s (`--statement-timeout`, `0` = none). A trigger's time counts toward the statement that fired it, also for `POST /write` and `POST /imp`. |
 | How soon a timeout stops a statement | the row path checks every 1,024 rows; the column engine once per batch. One row is never stopped in the middle (a 16 MB value with a slow regular expression runs to its end). |
-| Statements of one user at the same time under `kareladb serve` | 32 (`--max-queries-per-user`, `0` = no limit) |
-| Open cursors | 16 per database. Each keeps at most 10 million rows in memory. An unused cursor is closed after 10 minutes. |
-| Queued `DEFERRED` trigger jobs | no cap yet |
+| Statements of one user at the same time under `kareladb serve` | 32 (`--max-queries-per-user`, `0` = no limit); a user's own with `ALTER USER u SET max_statements = n` ([users](users-and-roles.md#max-statements)) |
+| Statements on one database at the same time | none unless set: `ALTER DATABASE d SET MAX_STATEMENTS = n` (1 to 100,000; admins are not held back) ([databases](databases.md#max-statements)). Over a max_statements a statement waits up to 2 s, then HTTP 429 / SQLSTATE 53300 |
+| Unsaved changes before loads are held back | half of `--memory-limit`: new writes wait up to 2 s, then HTTP 503 / SQLSTATE 53200 ([back-pressure on loads](cli-serve.md#memory-limit)); none without a memory limit |
+| Open cursors | 16 per database, with no row limit: each keeps its first rows in memory (1 MB to 64 MB) and the rest in a temporary file of at most `max_spill_bytes` (16 GB). An unused cursor is closed after 10 minutes. See [limits of cursors](cursors.md#limits). |
+| Queued `DEFERRED` trigger jobs | 10,000 waiting in one database (`--max-trigger-jobs`, `0` = no limit). A write past it is refused with `503` and the reason ([triggers](triggers.md)) |
 | Advisory locks (`pg_advisory_lock`) | wait at most 30 seconds |
 | Programs with the database folder open | one (`the database is open in another program`) |
-| Isolation levels | `SERIALIZABLE` (the default) and `READ COMMITTED` ([isolation](transactions.md#isolation)); `REPEATABLE READ` runs as `SERIALIZABLE` |
-| `READ ONLY` transactions | accepted, not enforced |
+| Isolation levels | `SERIALIZABLE` (the default, by locks) and `READ COMMITTED`; `REPEATABLE READ` runs as `SERIALIZABLE` (there is no snapshot), `READ UNCOMMITTED` as `READ COMMITTED`. The rules of each level: [isolation](transactions.md#isolation-rules) |
+| `READ ONLY` transactions | enforced: a change gets `25006` ([read-only transactions](transactions.md#read-only)) |
 
 See [cursors](cursors.md) and [transactions](transactions.md).
 
@@ -407,7 +412,7 @@ pg connections   500 (--max-connections)
 | What | Limit |
 |---|---|
 | HTTP request body (SQL text, line protocol, CSV) | 64 MB. A body sent with `Content-Encoding: gzip` or `deflate` is unpacked first, and the unpacked body is also at most 64 MB. Send big loads in several requests. |
-| HTTP replies | not compressed |
+| HTTP replies | answers of 2 KB or more are compressed (gzip) for a client that asks for it and is beyond this computer and its private networks; `--http-gzip on` for every client, `off` for none ([compressed answers](http-overview.md#gzip-answers)) |
 | HTTP request headers | 64 KB |
 | Requests handled at the same time | one worker thread per CPU thread, at least 8 and at most 64 by default. Set it with `kareladb serve --http-threads N` (1 to 1024), `KARELADB_HTTP_THREADS` or `http_threads` in `kareladb.conf`. Fast and slow requests share the workers: more slow statements than workers make other requests wait for a free one (in a test with 8 workers, 12 slow scans made a `SELECT 1` wait 18.6 s). |
 | PostgreSQL connections | 500 logged-in connections for the whole server, all databases together. Set it with `kareladb serve --max-connections N` (`0` = no limit), `KARELADB_MAX_CONNECTIONS` or `max_connections` in `kareladb.conf`. A closed connection's place is free again at once. One more gets `53300`. |
@@ -441,12 +446,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -480,10 +486,13 @@ memory for data     --memory, default 512 MB for all open databases together
 | One log record | 256 MB (big changes are split into several records) |
 | Memory for loaded table data | `--memory`, default 512 MB for all open databases of `kareladb serve` together |
 | Memory for one plain or full-text index | 2 GB (`index_memory_bytes`); a bigger index is not built and queries read the table |
-| Memory for repeated query results | `--cache-mb`, default 64 MB for all open databases together. One result may use an eighth of it, a [pinned query](pinned-queries.md) half. |
+| Memory for repeated query results | `--cache-mb`, default 256 MB (at most a tenth of the memory limit) for all open databases together. One result may use a quarter of it, a [pinned query](pinned-queries.md) three quarters. |
 | Temporary files of one big `GROUP BY` or `SAMPLE BY` | 16 GB (`max_spill_bytes`), in `_tmp/` of the database folder; used when the groups need more than half of `--max-result-memory`, removed when the query ends |
+| Temporary files of one big hash join | the same 16 GB (`max_spill_bytes`), in `_tmp/`; used when the joined table needs more than three quarters of the statement's working memory (half for `RIGHT` / `FULL JOIN`; or `SET work_mem`) and both tables fit in the 16 GB, 4 to 256 parts per table, removed when the query ends ([a join bigger than memory](joins.md#join-spill)) |
 | Temporary files of one `INSERT ... SELECT ... ORDER BY` | the same 16 GB (`max_spill_bytes`), in `_tmp/`; the rows are sorted in batches of up to 64 MB, removed when the statement ends |
 | Full-text search: one word | 256 bytes (a longer word is cut) |
+| Full-text search text | 1,024 words, phrases and synonyms after the synonyms are added; parentheses 32 deep; a fuzzy word `~1` or `~2` edits ([search text](full-text-search.md#search-syntax)) |
+| Full-text synonym list | 1 MB; 64 terms in a group; a word in one group only ([synonyms](full-text-search.md#synonyms)) |
 | [Zone maps](performance-tips.md#zone-maps) | skip only partitions that are in memory. A partition not loaded since the open is read, unless a whole-table `count`, `sum`, `min` or `max` is answered from [saved stats](performance-tips.md#saved-stats). |
 
 **Command line: Sizes and log positions of the files** (sample data: sample)
@@ -499,7 +508,7 @@ database        market
 manifest        copy a, sequence 9
 last shutdown   clean
 log position    30 (saved in files up to 30)
-newest change   2026-10-24 13:40:39
+newest change   2026-11-18 13:46:57
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   26
 
@@ -539,31 +548,22 @@ For one query, `/exec?cache=0` skips the result cache (see [performance tips](pe
 Syntax:
 
 ```sql
-NATURAL JOIN   DDL in a transaction
+DDL in a transaction   SELECT ... INTO   microsecond times
 ```
 
 Short list. The details, and the ways around each one, are in [known limitations](../tutorial/known-limitations.md).
 
 | Area | Not there yet |
 |---|---|
-| Statements | `CREATE`/`DROP`/`ALTER` inside a transaction or procedure; `SELECT ... INTO` |
+| Statements | `CREATE`/`DROP`/`ALTER` inside a transaction or procedure; `SELECT ... INTO`; `MERGE` into a table with row-level security policies for the user |
 | Changing a table | `PARTITION BY` and `SORT BY` of an existing table; the type of the time column or of a `SORT BY` / `DEDUP KEY` column; dropping the `PRIMARY KEY` |
-| Queries | `NATURAL JOIN` (write `JOIN ... USING (columns)`); `ASOF JOIN ... TOLERANCE`; a series function inside another (`lag(sma(x, 3))`); `GROUPS` frames, named windows, `IGNORE NULLS` |
-| Procedures and triggers | exception handlers, `LOOP`, `OUT` parameters, functions that return tables, `INSTEAD OF` triggers; row triggers (`FOR EACH ROW`) only as a PostgreSQL `BEFORE UPDATE` trigger |
-| Transactions | Row-level locks cover `UPDATE` / `DELETE` by primary key and `SELECT ... FOR UPDATE` on one table; an `INSERT`, or a change of a table without a primary key or with a secondary `UNIQUE` or a `FOREIGN KEY`, still locks its whole table until `COMMIT`, so `SKIP LOCKED` inside `BEGIN` returns no rows (and `NOWAIT` fails) while another transaction holds that table that way, unless `kareladb serve --skip-locked-beside on`. `FOR SHARE`, `FOR NO KEY UPDATE` and `FOR KEY SHARE` take the same lock as `FOR UPDATE`: two sessions cannot share a row lock, the second one waits (stricter than PostgreSQL, never looser; see [FOR UPDATE](transactions.md#for-update)). |
-| Text and JSON | regular expression back references and look-around, JSON path wildcards (`$.items[*]`), the `jsonb` operator `?` |
-| Time | summer time in `ROUND ... TIME ZONE`, `time IN ... TIME ZONE` and the zone argument of `date_trunc` / `to_char` (fixed offsets only there); a zone name as the third argument of `time_bucket` (TimescaleDB form: give an offset) |
-| Server | CORS, compressed replies, a Windows service mode; TLS certificates are read at start (restart after renewing one) |
-| PostgreSQL port | pgAdmin's own catalog queries (psql `\d` and DBeaver work); API tokens as passwords |
-| Users | `CALL` and triggers do not check table rights (rights per database, table, column and row work: [table rights](table-rights.md)); `kareladb sql` and `kareladb shell` never ask for a login |
+| Queries | A window function inside an aggregate (`sum(lag(x))`: use a subquery); `IGNORE NULLS` only for first_value, last_value, and lag / lead with an offset of 1; `WITHIN GROUP (ORDER BY x DESC)` (use `1 - fraction`); `LIKE ... ESCAPE`, `BETWEEN SYMMETRIC`, `WITH ORDINALITY` |
+| Procedures and triggers | `OUT` parameters of procedures; a plpgsql function that returns one plain value (`RETURNS INT ... RETURN n`) is only recorded, and a plpgsql function a query calls cannot change data ([plpgsql functions](procedure-language.md#plpgsql-functions) with `OUT` parameters, `RETURNS TABLE` and `RETURNS SETOF` work); `INSTEAD OF` triggers; a `BEFORE ... FOR EACH ROW` trigger's statements may not change its own table (refused, see [triggers](triggers.md#for-each-row)) |
+| Transactions | `REPEATABLE READ` is a table lock, not a snapshot ([isolation rules](transactions.md#isolation-rules)). Row-level locks cover `UPDATE` / `DELETE` by primary key and `SELECT ... FOR UPDATE` on one table; an `INSERT`, or a change of a table without a primary key or with a secondary `UNIQUE` or a `FOREIGN KEY`, still locks its whole table until `COMMIT`, so `SKIP LOCKED` inside `BEGIN` returns no rows (and `NOWAIT` fails) while another transaction holds that table that way, unless `kareladb serve --skip-locked-beside on`. `FOR SHARE`, `FOR NO KEY UPDATE` and `FOR KEY SHARE` take the same lock as `FOR UPDATE`: two sessions cannot share a row lock, the second one waits (stricter than PostgreSQL, never looser; see [FOR UPDATE](transactions.md#for-update)). |
+| Text and JSON | regular expression back references and look-around; wildcards in the simple paths of `json_extract` and `->` (`$.items[*]`: use `jsonb_path_query`, which has the whole PostgreSQL JSON path language) |
+| Server | CORS, a Windows service mode; turning TLS on or off, or other certificate file names, need a restart (a renewed certificate in the same files is taken in without one: [renew](tls.md#reload)) |
+| PostgreSQL port | pgAdmin's own catalog queries (psql `\d` and DBeaver work); API tokens as passwords; the error Detail line (`D`) of a duplicate in an expression `UNIQUE` index (`lower(email)`), and the readable columns of a `Failing row` that has a hidden one ([error fields](postgres-protocol.md#errors)) |
+| Users | A view, a `CALL` and a trigger run with the rights of the user who saved them (like `SECURITY DEFINER`): table rights are checked when a `ddl` user saves one, not each time someone uses it ([table rights](table-rights.md)); `kareladb sql` and `kareladb shell` never ask for a login; no two-factor login over HTTP Basic or the PostgreSQL port |
+| Files | `read_csv` options beyond `header`, `delim` / `sep`, `columns` and `auto_detect` (no `quote`, `escape`, `skip`, `nullstr`, `dateformat`, globs, compressed files); no `read_parquet` / `read_json`; `COPY ... FROM 'file'` (use `read_csv`) |
+| Key-value store ([kv](kv.md)) | streams (`XADD` ...), bitmaps (`SETBIT`), HyperLogLog (`PFADD`), geo (`GEOADD`), Lua scripts (`EVAL`), `SELECT n` (use `?db=`), `CLIENT TRACKING`, `DUMP` / `RESTORE`, a RESP port for `redis-cli` (use `POST /kv`). Eviction policies are Redis's six: `noeviction`, `allkeys-lru`, `volatile-lru`, `allkeys-random`, `volatile-random`, `volatile-ttl` |
 | Other databases | writing into another database (`INSERT INTO otherdb.t` is refused; reading it works, see [queries across databases](cross-database-queries.md)) |
-
-**Example: NATURAL JOIN is not there yet** (sample data: sample; shows an error)
-
-```sql
-SELECT * FROM brokers b NATURAL JOIN brokers c;
-```
-
-Result:
-
-Error: `line 1, column 25: expected JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN, ASOF JOIN, LT JOIN, SPLICE JOIN, CROSS JOIN, WHERE, LATEST ON, SAMPLE BY, GROUP BY, UNION ALL, ORDER BY, LIMIT, ';' or the end of the input but found 'NATURAL'`

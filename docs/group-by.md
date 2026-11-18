@@ -3,7 +3,7 @@
 > Make one row per group (per symbol, per broker, per account) with totals like count, sum and max, and filter the groups with HAVING.
 
 - Category: Querying
-- Keywords: group, groups, spill, ROLLUP, CUBE, GROUPING SETS, GROUPING, grand total, rollup, cube, grouping sets, subtotals, temporary files, many groups, max\_groups, window with GROUP BY, GROUP BY, HAVING, aggregate, totals, subtotal, summary, report, implicit GROUP BY, group key, not grouped, count per, sum per, group by, having, implicit
+- Keywords: group, groups, spill, ROLLUP, CUBE, GROUPING SETS, GROUPING, grand total, rollup, cube, grouping sets, subtotals, temporary files, many groups, max\_groups, window with GROUP BY, GROUP BY, HAVING, aggregate, totals, subtotal, summary, report, implicit GROUP BY, group key, not grouped, count per, sum per, group by, having, implicit, GROUP BY ALL, group by every column
 - See also: [Aggregate functions](functions-aggregate.md), [SAMPLE BY](sample-by.md), [SELECT (distinct)](select.md#distinct), [ORDER BY, LIMIT, OFFSET](order-by-limit.md), [Window and series functions](functions-window.md), [Joins](joins.md)
 
 `GROUP BY` puts the rows that have the same value (for example the same symbol) into one **group**, and gives **one output row per group**.
@@ -340,6 +340,35 @@ Result:
 | 2026-09-01T00:00:00.000Z | 500.18 | 508.49 |
 
 (3 rows)
+
+<a id="group-by-all"></a>
+
+## GROUP BY ALL
+
+`GROUP BY ALL` groups by every item of the `SELECT` that has no aggregate (DuckDB). It is the same query with those items written in the `GROUP BY`; a view stores that written-out form.
+
+- **Errors:** with `SELECT *` (name the columns, 0A000).
+
+**Example** (sample data: sample)
+
+```sql
+SELECT symbol, date_trunc('month', time) AS month, sum(volume) AS volume
+FROM ochl_day
+GROUP BY ALL
+ORDER BY ALL
+LIMIT 4;
+```
+
+Result:
+
+| symbol (SYMBOL) | month (TIMESTAMP) | volume (DOUBLE) |
+|---|---|---|
+| CITY | 2025-12-01T00:00:00.000Z | 255090 |
+| CITY | 2026-08-01T00:00:00.000Z | 855550 |
+| CITY | 2026-09-01T00:00:00.000Z | 876210 |
+| COAST | 2025-12-01T00:00:00.000Z | 206980 |
+
+(4 rows)
 
 <a id="grouping-sets"></a>
 

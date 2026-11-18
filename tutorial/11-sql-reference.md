@@ -732,15 +732,7 @@ A NULL argument gives NULL. The random functions give a new value for every row 
 | `--until` of `kareladb restore` | local time of the computer |
 | Backup folder names | UTC |
 
-Time zones for `TIME ZONE` (fixed offsets only, no daylight saving): `UTC`, `GMT`, `Z`, `Etc/UTC`, `Asia/Kathmandu`, `Asia/Katmandu`, `NPT`, `Asia/Kolkata`, `Asia/Calcutta`, `IST`, `Asia/Colombo`, `Asia/Dhaka`, `Asia/Thimphu`, `Asia/Karachi`, `Asia/Dubai`, `Asia/Bangkok`, `Asia/Jakarta`, `Asia/Shanghai`, `Asia/Hong_Kong`, `Asia/Singapore`, `Asia/Taipei`, `Asia/Tokyo`, `Asia/Seoul`, or an offset like `'+05:45'`. Others are refused:
-
-```sql
-SELECT time, count(*) FROM ochl_minutes SAMPLE BY 1h TIME ZONE 'Europe/London';
-```
-
-```text
-error: time zone 'Europe/London' is not supported (it may change for daylight saving); use a fixed offset like '+05:45'
-```
+Time zones for `TIME ZONE`: every name of the IANA time zone list works (`'Asia/Kathmandu'`, `'UTC'`, `'Europe/London'`, `'America/New_York'`, ...), and so does an offset like `'+05:45'`. A zone with summer time uses the offset in force at each moment. The zone files are read from the machine (`KARELADB_ZONEINFO`, `TZDIR`, `/usr/share/zoneinfo`; the Docker image has them); without them only the fixed names `UTC`, `GMT`, `Z`, `Asia/Kathmandu`, `NPT`, `Asia/Kolkata` and the like, and offsets, work. See the help topic `time-and-time-zones`.
 
 ## Reserved words
 
@@ -787,7 +779,7 @@ All other words (`time`, `date`, `timestamp`, `symbol`, `partition`, `open`, `cl
 | Nesting of saved functions, of `CALL`, of triggers | 16 levels each |
 | Rows changed in one transaction (`BEGIN`/`COMMIT`, `CALL`, statement with triggers) | 10 million |
 | Rounds of one `WHILE` loop | 10 million |
-| Open cursors | 16 per database; unused ones close after 10 minutes; 10 million rows each |
+| Open cursors | 16 per database; unused ones close after 10 minutes; no row limit (big ones wait on disk) |
 | Tables in one query | 63 |
 | Rows made by FILL | 10 million |
 | Rows returned by `kareladb sql` | 1000 in table format (`--max-rows`), no limit in csv/json |

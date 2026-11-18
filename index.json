@@ -1,7 +1,7 @@
 {
  "product": "KarelaDB (KARELA DataBase)",
  "version": "0.2.0-dev",
- "built": "2026-10-24",
+ "built": "2026-11-18",
  "base": "https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/",
  "topics": [
   {
@@ -80,6 +80,10 @@
    "summary": "Everything added to KarelaDB since 2026-09-12, grouped by what it does for you, with the measured number and the topic that explains it.",
    "path": "docs/whats-new.md",
    "parts": [
+    {
+     "id": "2026-10-25-column-copy",
+     "name": "2026-10-25: CREATE TABLE ... AS and INSERT ... SELECT copy whole columns"
+    },
     {
      "id": "2026-10-24-charts",
      "name": "2026-10-24: a chart over a table sorted by (symbol, time) is as fast as over one sorted by time"
@@ -2088,6 +2092,11 @@
      "id": "memory",
      "name": "ALTER DATABASE ... SET MEMORY_LIMIT and MEMORY_RESERVED",
      "syntax": "ALTER DATABASE <name> SET MEMORY_LIMIT = '<size>' | OFF | DEFAULT"
+    },
+    {
+     "id": "max-statements",
+     "name": "ALTER DATABASE ... SET MAX_STATEMENTS",
+     "syntax": "ALTER DATABASE <name> SET MAX_STATEMENTS = 16 | OFF | DEFAULT"
     }
    ],
    "keywords": [
@@ -2123,6 +2132,9 @@
     "MEMORY_RESERVED",
     "memory per database",
     "database_memory",
+    "MAX_STATEMENTS",
+    "statements at once per database",
+    "53300",
     "per-column loads",
     "partial_loads",
     "BRANCH OF",
@@ -2933,7 +2945,7 @@
    "id": "update-delete",
    "title": "UPDATE and DELETE",
    "category": "Writing data",
-   "summary": "Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.",
+   "summary": "Change rows with UPDATE, remove rows with DELETE, do both and INSERT in one statement with MERGE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.",
    "path": "docs/update-delete.md",
    "parts": [
     {
@@ -2950,6 +2962,11 @@
      "id": "truncate",
      "name": "TRUNCATE",
      "syntax": "TRUNCATE [TABLE] table [, table ...] [RESTART IDENTITY | CONTINUE IDENTITY] [CASCADE | RESTRICT]"
+    },
+    {
+     "id": "merge",
+     "name": "MERGE",
+     "syntax": "MERGE INTO table [[AS] alias] USING source [[AS] alias] ON condition"
     },
     {
      "id": "returning",
@@ -2991,14 +3008,21 @@
     "UPDATE FROM",
     "FROM other table",
     "update from another table",
-    "DELETE USING"
+    "DELETE USING",
+    "MERGE",
+    "MERGE INTO",
+    "upsert",
+    "WHEN MATCHED",
+    "WHEN NOT MATCHED",
+    "sync a table",
+    "apply changes from a staging table"
    ]
   },
   {
    "id": "loading-data",
    "title": "Loading many rows",
    "category": "Writing data",
-   "summary": "Load thousands or millions of rows: multi-row INSERT, SQL files, CSV files (POST /imp, COPY), the line protocol and the C++ InsertRows API, with speed tips.",
+   "summary": "Load thousands or millions of rows: multi-row INSERT, SQL files, CSV files (POST /imp, COPY, read_csv), the line protocol and the C++ InsertRows API, with speed tips.",
    "path": "docs/loading-data.md",
    "parts": [
     {
@@ -3015,6 +3039,11 @@
      "id": "csv",
      "name": "CSV files",
      "syntax": "POST /imp?name=<table>&db=<database>        body: the CSV file       (kareladb serve running)"
+    },
+    {
+     "id": "read-csv",
+     "name": "read_csv: a file of the server",
+     "syntax": "SELECT * FROM read_csv('file.csv')"
     },
     {
      "id": "http",
@@ -3052,6 +3081,11 @@
     "bulk insert",
     "import",
     "batch insert",
+    "read_csv",
+    "read_csv_auto",
+    "server file",
+    "import folder",
+    "DuckDB read_csv",
     "load data",
     "load file",
     "SQL file",
@@ -3190,6 +3224,11 @@
      "syntax": "SELECT * FROM table"
     },
     {
+     "id": "star-exclude",
+     "name": "* EXCLUDE, * REPLACE",
+     "syntax": "SELECT * EXCLUDE (column, ...) FROM table"
+    },
+    {
      "id": "alias",
      "name": "AS: column names",
      "syntax": "item AS alias"
@@ -3203,6 +3242,11 @@
      "id": "from",
      "name": "FROM",
      "syntax": "FROM table [[AS] alias]"
+    },
+    {
+     "id": "tablesample",
+     "name": "TABLESAMPLE, USING SAMPLE",
+     "syntax": "FROM table [AS alias] TABLESAMPLE BERNOULLI (percent)   -- also SYSTEM (percent), or percent%"
     },
     {
      "id": "distinct",
@@ -3227,7 +3271,18 @@
     "missing comma",
     "select",
     "from",
-    "distinct"
+    "distinct",
+    "EXCLUDE",
+    "REPLACE",
+    "SELECT * EXCLUDE",
+    "SELECT * REPLACE",
+    "all columns but",
+    "except columns",
+    "TABLESAMPLE",
+    "BERNOULLI",
+    "USING SAMPLE",
+    "random sample",
+    "sample rows"
    ]
   },
   {
@@ -3408,6 +3463,10 @@
     {
      "id": "null",
      "name": "NULL rules"
+    },
+    {
+     "id": "bit-operators",
+     "name": "Bit operators: & | # ~ << >>"
     }
    ],
    "keywords": [
@@ -3442,7 +3501,18 @@
     "integer division",
     "integer division",
     "int_division",
-    "7 / 2"
+    "7 / 2",
+    "&",
+    "|",
+    "#",
+    "<<",
+    ">>",
+    "bitwise_and",
+    "bitwise_or",
+    "bitwise_xor",
+    "bitwise_not",
+    "xor",
+    "bit and"
    ]
   },
   {
@@ -3476,6 +3546,11 @@
      "id": "using",
      "name": "USING",
      "syntax": "JOIN right_table [[AS] alias] USING (column, ...)"
+    },
+    {
+     "id": "natural-join",
+     "name": "NATURAL JOIN",
+     "syntax": "FROM a NATURAL [INNER | LEFT | RIGHT | FULL] JOIN b"
     },
     {
      "id": "cross-join",
@@ -3553,7 +3628,14 @@
     "join",
     "left join",
     "asof",
-    "cross join"
+    "cross join",
+    "NATURAL JOIN",
+    "NATURAL",
+    "natural join",
+    "join spill",
+    "join bigger than memory",
+    "grace hash join",
+    "spills to disk"
    ]
   },
   {
@@ -3567,6 +3649,10 @@
      "id": "group-by",
      "name": "GROUP BY",
      "syntax": "SELECT key, ..., aggregate(...), ..."
+    },
+    {
+     "id": "group-by-all",
+     "name": "GROUP BY ALL"
     },
     {
      "id": "grouping-sets",
@@ -3624,7 +3710,9 @@
     "sum per",
     "group by",
     "having",
-    "implicit"
+    "implicit",
+    "GROUP BY ALL",
+    "group by every column"
    ]
   },
   {
@@ -3666,6 +3754,10 @@
      "id": "order-by",
      "name": "ORDER BY",
      "syntax": "ORDER BY sort_key [ASC | DESC] [NULLS FIRST | NULLS LAST], ..."
+    },
+    {
+     "id": "order-by-all",
+     "name": "ORDER BY ALL"
     },
     {
      "id": "asc-desc",
@@ -3726,7 +3818,9 @@
     "offset",
     "asc",
     "desc",
-    "paging"
+    "paging",
+    "ORDER BY ALL",
+    "sort by every column"
    ]
   },
   {
@@ -5002,6 +5096,14 @@
      "id": "normal_inv",
      "name": "normal_inv",
      "syntax": "normal_inv(p)"
+    },
+    {
+     "id": "bits",
+     "name": "Bits and number checks"
+    },
+    {
+     "id": "geo",
+     "name": "Places: great_circle_distance, geohash, point_in_polygon"
     }
    ],
    "keywords": [
@@ -5041,7 +5143,27 @@
     "norm.inv",
     "NORMSINV",
     "quantile of normal",
-    "confidence level"
+    "confidence level",
+    "bit_count",
+    "bin",
+    "to_binary",
+    "to_base",
+    "isnan",
+    "isinf",
+    "isfinite",
+    "popcount",
+    "great_circle_distance",
+    "greatCircleDistance",
+    "geoDistance",
+    "haversine",
+    "geohash_encode",
+    "geohashEncode",
+    "geohash_decode",
+    "geohashDecode",
+    "point_in_polygon",
+    "pointInPolygon",
+    "distance between places",
+    "geospatial"
    ]
   },
   {
@@ -5338,6 +5460,19 @@
      "id": "to_char-number",
      "name": "to_char for numbers",
      "syntax": "to_char(number, format)"
+    },
+    {
+     "id": "fuzzy-text",
+     "name": "Fuzzy text: levenshtein, similarity, jaro_winkler_similarity"
+    },
+    {
+     "id": "url_encode",
+     "name": "url_encode, url_decode",
+     "syntax": "url_encode(text)"
+    },
+    {
+     "id": "printf",
+     "name": "regexp_extract, contains, printf, format_bytes, crc32"
     }
    ],
    "keywords": [
@@ -5395,7 +5530,42 @@
     "quote_ident",
     "quote_literal",
     "quote_nullable",
-    "SQL injection"
+    "SQL injection",
+    "levenshtein",
+    "damerau_levenshtein",
+    "editdist3",
+    "jaccard",
+    "editDistance",
+    "hamming",
+    "mismatches",
+    "jaro_similarity",
+    "jaro_winkler_similarity",
+    "similarity",
+    "pg_trgm",
+    "fuzzystrmatch",
+    "fuzzy search",
+    "typo",
+    "edit distance",
+    "url_encode",
+    "url_decode",
+    "encodeURLComponent",
+    "decodeURLComponent",
+    "regexp_extract",
+    "contains",
+    "printf",
+    "format_bytes",
+    "formatReadableSize",
+    "crc32",
+    "ucase",
+    "lcase",
+    "len",
+    "strlen",
+    "instr",
+    "ifnull",
+    "nvl",
+    "iif",
+    "string_split",
+    "str_split"
    ]
   },
   {
@@ -5604,6 +5774,10 @@
      "id": "justify_days",
      "name": "justify_days, justify_hours, justify_interval",
      "syntax": "justify_days(interval)"
+    },
+    {
+     "id": "strftime",
+     "name": "strftime, epoch_ms, date_diff"
     }
    ],
    "keywords": [
@@ -5697,7 +5871,17 @@
     "sysdate",
     "timestamp_sequence",
     "timestamp_shuffle",
-    "QuestDB"
+    "QuestDB",
+    "strftime",
+    "epoch_ms",
+    "date_diff",
+    "dayname",
+    "monthname",
+    "isodow",
+    "week",
+    "weekofyear",
+    "epoch",
+    "format a time"
    ]
   },
   {
@@ -5999,6 +6183,10 @@
      "id": "json_object_agg",
      "name": "json_object_agg, jsonb_object_agg",
      "syntax": "json_object_agg(key, value)"
+    },
+    {
+     "id": "bit-aggregates",
+     "name": "bit_and, bit_or, bit_xor, histogram, approx_quantile"
     }
    ],
    "keywords": [
@@ -6053,7 +6241,16 @@
     "time weighted average price",
     "TWAP",
     "any_value",
-    "arbitrary"
+    "arbitrary",
+    "bit_and",
+    "bit_or",
+    "bit_xor",
+    "groupBitAnd",
+    "groupBitOr",
+    "groupBitXor",
+    "histogram",
+    "approx_quantile",
+    "quantile"
    ]
   },
   {
@@ -6102,6 +6299,29 @@
      "id": "range",
      "name": "RANGE BETWEEN",
      "syntax": "aggregate(x) OVER ([PARTITION BY ...] ORDER BY value RANGE BETWEEN start AND end)"
+    },
+    {
+     "id": "groups",
+     "name": "GROUPS BETWEEN",
+     "syntax": "aggregate(x) OVER ([PARTITION BY ...] ORDER BY value GROUPS BETWEEN start AND end)"
+    },
+    {
+     "id": "exclude",
+     "name": "EXCLUDE CURRENT ROW | GROUP | TIES",
+     "syntax": "aggregate(x) OVER (... ROWS | RANGE | GROUPS BETWEEN start AND end EXCLUDE CURRENT ROW)"
+    },
+    {
+     "id": "named-window",
+     "name": "WINDOW w AS (...): named windows",
+     "syntax": "SELECT f(...) OVER w, g(...) OVER (w ROWS 4 PRECEDING) FROM table"
+    },
+    {
+     "id": "ignore-nulls",
+     "name": "IGNORE NULLS"
+    },
+    {
+     "id": "qualify",
+     "name": "QUALIFY"
     },
     {
      "id": "lag",
@@ -6190,6 +6410,16 @@
     }
    ],
    "keywords": [
+    "EXCLUDE",
+    "EXCLUDE CURRENT ROW",
+    "EXCLUDE GROUP",
+    "EXCLUDE TIES",
+    "EXCLUDE NO OTHERS",
+    "GROUPS",
+    "GROUPS BETWEEN",
+    "peer groups",
+    "RANGE month",
+    "1 month PRECEDING",
     "window function",
     "series function",
     "analytic function",
@@ -6242,7 +6472,19 @@
     "rownum",
     "row number",
     "QUALIFY",
-    "window with GROUP BY"
+    "window with GROUP BY",
+    "WINDOW",
+    "named window",
+    "WINDOW w AS",
+    "IGNORE NULLS",
+    "RESPECT NULLS",
+    "ignore nulls",
+    "carry forward",
+    "fill forward",
+    "QUALIFY",
+    "qualify",
+    "filter on a window",
+    "top 1 per group"
    ]
   },
   {
@@ -7870,7 +8112,7 @@
    "id": "procedure-language",
    "title": "The procedure language",
    "category": "Stored procedures",
-   "summary": "Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body.",
+   "summary": "Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body; plpgsql functions with OUT parameters, RETURNS TABLE and RETURNS SETOF.",
    "path": "docs/procedure-language.md",
    "parts": [
     {
@@ -7889,14 +8131,29 @@
      "syntax": "IF condition THEN"
     },
     {
+     "id": "case",
+     "name": "CASE (statement)",
+     "syntax": "CASE value"
+    },
+    {
      "id": "while",
      "name": "WHILE",
      "syntax": "WHILE condition DO"
     },
     {
+     "id": "loop",
+     "name": "LOOP, EXIT, CONTINUE",
+     "syntax": "LOOP"
+    },
+    {
      "id": "for",
      "name": "FOR",
      "syntax": "FOR row_name IN (SELECT ...) DO"
+    },
+    {
+     "id": "exception",
+     "name": "BEGIN ... EXCEPTION WHEN ... END",
+     "syntax": "BEGIN"
     },
     {
      "id": "return",
@@ -7924,11 +8181,44 @@
      "syntax": "DECLARE cursor_name CURSOR FOR SELECT ...;"
     },
     {
+     "id": "plpgsql-functions",
+     "name": "plpgsql functions: OUT parameters, RETURNS TABLE, RETURNS SETOF",
+     "syntax": "CREATE [OR REPLACE] FUNCTION name([IN | OUT | INOUT] param TYPE, ...) [RETURNS record] AS $$"
+    },
+    {
      "id": "limits",
      "name": "Limits of the procedure language"
     }
    ],
    "keywords": [
+    "OUT",
+    "INOUT",
+    "OUT parameters",
+    "RETURNS TABLE",
+    "RETURNS SETOF",
+    "SETOF",
+    "RETURN NEXT",
+    "RETURN QUERY",
+    "set-returning function",
+    "table function",
+    "LANGUAGE plpgsql",
+    "FOR i IN 1..10",
+    "WHILE LOOP",
+    "structure of query does not match",
+    "EXCEPTION",
+    "EXCEPTION WHEN",
+    "WHEN OTHERS",
+    "sqlstate",
+    "sqlerrm",
+    "unique_violation",
+    "try catch",
+    "CASE statement",
+    "END CASE",
+    "LOOP",
+    "EXIT",
+    "CONTINUE",
+    "EXIT WHEN",
+    "break",
     "variable",
     "variables",
     "loop",
@@ -8106,6 +8396,11 @@
      "syntax": "SELECT ... FROM NEW"
     },
     {
+     "id": "for-each-row",
+     "name": "PostgreSQL row triggers: FOR EACH ROW",
+     "syntax": "CREATE FUNCTION f() RETURNS trigger AS $$ BEGIN ... END; $$ LANGUAGE plpgsql;"
+    },
+    {
      "id": "once-per-statement",
      "name": "Once per statement",
      "syntax": "INSERT INTO t VALUES (...), (...), (...)   -- the trigger runs once, NEW has 3 rows"
@@ -8156,6 +8451,16 @@
     }
    ],
    "keywords": [
+    "FOR EACH ROW",
+    "PERFORM",
+    "BEFORE UPDATE",
+    "RETURN NULL",
+    "changes its own table",
+    "row trigger",
+    "plpgsql trigger",
+    "TG_OP",
+    "EXECUTE FUNCTION",
+    "RETURNS trigger",
     "trigger",
     "BEFORE",
     "AFTER",
@@ -8251,7 +8556,7 @@
     {
      "id": "isolation",
      "name": "Isolation: what a transaction sees",
-     "syntax": "BEGIN [ISOLATION LEVEL READ COMMITTED | SERIALIZABLE]"
+     "syntax": "BEGIN [ISOLATION LEVEL READ UNCOMMITTED | READ COMMITTED | REPEATABLE READ | SERIALIZABLE]"
     },
     {
      "id": "read-only",
@@ -8462,6 +8767,9 @@
     "read in parts",
     "big result",
     "snapshot",
+    "spill",
+    "temporary file",
+    "cursor_memory_bytes",
     "FETCH NEXT",
     "FETCH ALL",
     "too many open cursors",
@@ -8549,12 +8857,17 @@
     {
      "id": "create-fulltext-index",
      "name": "CREATE FULLTEXT INDEX",
-     "syntax": "CREATE FULLTEXT INDEX [IF NOT EXISTS] name ON table (column [, column ...]) [WITH (language = 'english')]"
+     "syntax": "CREATE FULLTEXT INDEX [IF NOT EXISTS] name ON table (column [, column ...])"
     },
     {
      "id": "language",
      "name": "Language: stems and stop words",
      "syntax": "CREATE FULLTEXT INDEX name ON table (columns) WITH (language = 'english')"
+    },
+    {
+     "id": "synonyms",
+     "name": "Synonyms",
+     "syntax": "CREATE FULLTEXT INDEX name ON table (columns) WITH (synonyms = 'car, auto, automobile; tv, television')"
     },
     {
      "id": "match",
@@ -8584,6 +8897,11 @@
      "id": "search-syntax",
      "name": "Search text",
      "syntax": "word word       every word must be there, anywhere, in any order"
+    },
+    {
+     "id": "fuzzy",
+     "name": "Fuzzy search: typing mistakes",
+     "syntax": "word~       the word, or any word 1 edit away"
     }
    ],
    "keywords": [
@@ -8601,6 +8919,19 @@
     "prefix",
     "wildcard",
     "exclude word",
+    "OR",
+    "either word",
+    "parentheses",
+    "brackets",
+    "websearch_to_tsquery",
+    "fuzzy",
+    "typo",
+    "misspelled",
+    "edit distance",
+    "synonyms",
+    "synonym",
+    "thesaurus",
+    "ALTER INDEX",
     "stemming",
     "stem",
     "stop words",
@@ -8640,6 +8971,11 @@
      "id": "statement-timeout",
      "name": "ALTER USER ... SET statement_timeout",
      "syntax": "ALTER USER name SET statement_timeout = '5s' | 5000 | 0 | DEFAULT"
+    },
+    {
+     "id": "max-statements",
+     "name": "ALTER USER ... SET max_statements",
+     "syntax": "ALTER USER name SET max_statements = 4 | 0 | OFF | DEFAULT"
     },
     {
      "id": "user-timezone",
@@ -8994,6 +9330,11 @@
      "name": "A self-signed certificate (auto)"
     },
     {
+     "id": "reload",
+     "name": "Renew a certificate without a restart",
+     "syntax": "(nothing)                  new connections look at the files at most once a minute"
+    },
+    {
      "id": "clients",
      "name": "What changes for clients"
     },
@@ -9011,6 +9352,11 @@
     "key",
     "PEM",
     "self-signed",
+    "renew",
+    "reload",
+    "SIGHUP",
+    "/api/reload-tls",
+    "certificate renewal",
     "--tls-cert",
     "--tls-key",
     "--tls-required",
@@ -9205,6 +9551,10 @@
      "id": "show-audit",
      "name": "SHOW AUDIT",
      "syntax": "SHOW AUDIT [LIMIT n] [WHERE <condition>] [LIMIT n]"
+    },
+    {
+     "id": "failed-logins",
+     "name": "Failed logins"
     },
     {
      "id": "set-audit",
@@ -9652,6 +10002,7 @@
     "database_settings",
     "dedup_change",
     "plpgsql_triggers",
+    "plpgsql_functions",
     "symbol_partitions",
     "round_time_zone",
     "no feature name",
@@ -10032,6 +10383,10 @@
      "name": "Self-tuning to the CPU and memory limits"
     },
     {
+     "id": "background-share",
+     "name": "Background share"
+    },
+    {
      "id": "pin-threads",
      "name": "Pinning threads to CPUs"
     },
@@ -10079,6 +10434,14 @@
     "--token",
     "--db",
     "--threads",
+    "--background-threads",
+    "KARELADB_BACKGROUND_THREADS",
+    "--background-memory",
+    "KARELADB_BACKGROUND_MEMORY",
+    "background share",
+    "background jobs",
+    "background work",
+    "checkpoint starves writes",
     "--cache-mb",
     "--warm-indexes",
     "KARELADB_WARM_INDEXES",
@@ -11473,6 +11836,14 @@
     "P0001",
     "ConstraintName",
     "TableName",
+    "ColumnName",
+    "Detail",
+    "error detail",
+    "Failing row contains",
+    "already exists",
+    "23502",
+    "23514",
+    "message_detail",
     "ERRCODE",
     "RAISE",
     "55P03",
@@ -11501,6 +11872,106 @@
    ]
   },
   {
+   "id": "postgres-compatibility",
+   "title": "PostgreSQL compatibility matrix",
+   "category": "Postgres protocol",
+   "summary": "One row per PostgreSQL feature - protocol, statements, queries, types, functions, catalogs - saying whether it works and is tested, works with a difference, or is refused, and which test file covers it.",
+   "path": "docs/postgres-compatibility.md",
+   "parts": [
+    {
+     "id": "legend",
+     "name": "How to read the tables"
+    },
+    {
+     "id": "options",
+     "name": "Settings that change the answers"
+    },
+    {
+     "id": "protocol",
+     "name": "Protocol and connection"
+    },
+    {
+     "id": "transactions",
+     "name": "Transactions and locking"
+    },
+    {
+     "id": "dml",
+     "name": "Statements: writing data"
+    },
+    {
+     "id": "objects",
+     "name": "Statements: tables, indexes and other objects"
+    },
+    {
+     "id": "routines",
+     "name": "Functions and procedures"
+    },
+    {
+     "id": "queries",
+     "name": "Queries"
+    },
+    {
+     "id": "types",
+     "name": "Types"
+    },
+    {
+     "id": "functions",
+     "name": "Functions by group"
+    },
+    {
+     "id": "catalogs",
+     "name": "Catalogs and statistics views"
+    },
+    {
+     "id": "drivers",
+     "name": "Drivers and tools"
+    },
+    {
+     "id": "method",
+     "name": "How this page was made"
+    }
+   ],
+   "keywords": [
+    "postgresql compatibility",
+    "compatible with PostgreSQL",
+    "PostgreSQL support",
+    "compatibility matrix",
+    "supported",
+    "not supported",
+    "refused",
+    "differences from PostgreSQL",
+    "PostgreSQL features",
+    "what works",
+    "what does not work",
+    "migrate from PostgreSQL",
+    "ORM",
+    "Prisma",
+    "SQLAlchemy",
+    "Django",
+    "JDBC",
+    "extensions",
+    "pg_stat",
+    "ON CONFLICT",
+    "REPEATABLE READ",
+    "NUMERIC",
+    "schemas",
+    "inheritance",
+    "partitioning",
+    "tablespace",
+    "EXCLUDE",
+    "DEFERRABLE",
+    "tsvector",
+    "range types",
+    "hstore",
+    "PostGIS",
+    "COPY",
+    "LISTEN",
+    "logical replication",
+    "SCRAM",
+    "md5"
+   ]
+  },
+  {
    "id": "functions-postgres",
    "title": "PostgreSQL-compatible functions",
    "category": "Postgres protocol",
@@ -11511,6 +11982,14 @@
      "id": "arrays",
      "name": "Arrays in KarelaDB",
      "syntax": "ARRAY[value, value, ...]        an array value"
+    },
+    {
+     "id": "lists",
+     "name": "Lists: [ ], list_sum, list_sort, list_slice, ..."
+    },
+    {
+     "id": "vectors",
+     "name": "Vectors: array_distance, cosine_distance, <->, <=>, <#>"
     },
     {
      "id": "array-append",
@@ -11576,6 +12055,14 @@
      "id": "setval",
      "name": "setval",
      "syntax": "setval('sequence_name', value)"
+    },
+    {
+     "id": "rows",
+     "name": "Whole rows: t::text, ROW(...)"
+    },
+    {
+     "id": "ip",
+     "name": "IP addresses: host, network, inet_contains, ..."
     },
     {
      "id": "sizes",
@@ -11645,6 +12132,32 @@
    ],
    "keywords": [
     "PostgreSQL functions",
+    "list_transform",
+    "list_filter",
+    "list_reduce",
+    "lambda",
+    "arrayMap",
+    "arrayFilter",
+    "x -> ",
+    "whole row",
+    "row value",
+    "ROW(",
+    "record",
+    "t::text",
+    "inet",
+    "cidr",
+    "IP address",
+    "host",
+    "masklen",
+    "netmask",
+    "network",
+    "broadcast",
+    "inet_contains",
+    "isIPAddressInRange",
+    "IPv4StringToNum",
+    "IPv4NumToString",
+    "isIPv4String",
+    "subnet",
     "to_regclass",
     "pg_relation_size",
     "pg_total_relation_size",
@@ -11657,7 +12170,33 @@
     "current_database",
     "postgres compatibility",
     "array",
-    "ARRAY[]",
+    "ARRAY[",
+    "[1, 2, 3, array_distance, l2_distance, L2Distance, cosine_distance, array_cosine_distance, cosine_similarity, array_cosine_similarity, array_dot_product, inner_product, dotProduct, <->",
+    "list_sum",
+    "list_avg",
+    "list_min",
+    "list_max",
+    "array_sum",
+    "array_avg",
+    "array_min",
+    "array_max",
+    "list_sort",
+    "array_sort",
+    "list_reverse_sort",
+    "list_reverse",
+    "array_reverse",
+    "list_distinct",
+    "array_distinct",
+    "list_slice",
+    "array_slice",
+    "flatten",
+    "list_contains",
+    "array_contains",
+    "has",
+    "len",
+    "list_value",
+    "list_pack",
+    "list functions",
     "arrays",
     "list of values",
     "watchlist",
@@ -11883,6 +12422,10 @@
     {
      "id": "plan-cache",
      "name": "The plan cache"
+    },
+    {
+     "id": "source",
+     "name": "Where a server setting came from"
     },
     {
      "id": "alter-system",
@@ -12961,7 +13504,7 @@
     {
      "id": "not-supported",
      "name": "Not supported yet",
-     "syntax": "NATURAL JOIN   DDL in a transaction"
+     "syntax": "DDL in a transaction   SELECT ... INTO   microsecond times"
     }
    ],
    "keywords": [

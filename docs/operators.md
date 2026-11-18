@@ -3,7 +3,7 @@
 > Every operator of KarelaDB SQL, which one is done first, and what NULL does to each of them.
 
 - Category: Querying
-- Keywords: operator, precedence, order of operations, parentheses, +, -, \*, /, %, ||, concat, join text, -\>, -\>\>, ::, cast, , !, \<\>, NULL rules, three-valued logic, unary minus, precedence, ||, ::, -\>, -\>\>, int\_division, integer division, integer division, int\_division, 7 / 2
+- Keywords: operator, precedence, order of operations, parentheses, +, -, \*, /, %, ||, concat, join text, -\>, -\>\>, ::, cast, , !, \<\>, NULL rules, three-valued logic, unary minus, precedence, ||, ::, -\>, -\>\>, int\_division, integer division, integer division, int\_division, 7 / 2, &, |, #, \<\<, \>\>, bitwise\_and, bitwise\_or, bitwise\_xor, bitwise\_not, xor, bit and
 - See also: [WHERE](where.md), [Math functions (operators)](functions-math.md#operators), [Conversion functions](functions-conversion.md), [JSON functions](functions-json.md), [Conditional and NULL functions](functions-conditional.md), [Text functions](functions-text.md)
 
 An **operator** is a sign or a word between values, like `+`, `=`, `AND` or `||`.
@@ -59,10 +59,11 @@ From loose (done **last**) to tight (done **first**):
 | 2 | `AND` | `a AND b OR c` | `(a AND b) OR c` |
 | 3 | `NOT` | `NOT a = b` | `NOT (a = b)` |
 | 4 | `=` `==` `!=` `<>` `<` `<=` `>` `>=`, `IS [NOT] NULL`, `[NOT] IN`, `[NOT] BETWEEN`, `[NOT] LIKE`, `[NOT] ILIKE` | `a + 1 = b * 2` | `(a + 1) = (b * 2)` |
-| 5 | `+` `-` `\|\|` | `'x' \|\| 1 + 2` | `('x' \|\| 1) + 2` (an error: write `'x' \|\| (1 + 2)`) |
-| 6 | `*` `/` `%` | `2 + 3 * 4` | `2 + (3 * 4)` |
-| 7 | `-` before a value | `-2 * 3` | `(-2) * 3` |
-| 8 | `::` `->` `->>`, then values, columns, function calls, `CASE`, `CAST`, `( )` | `'5'::INT * 2` | `('5'::INT) * 2` |
+| 5 | `&` `\|` `#` `<<` `>>` ([bits](#bit-operators)) | `1 + 2 & 3` | `(1 + 2) & 3` |
+| 6 | `+` `-` `\|\|` | `'x' \|\| 1 + 2` | `('x' \|\| 1) + 2` (an error: write `'x' \|\| (1 + 2)`) |
+| 7 | `*` `/` `%` | `2 + 3 * 4` | `2 + (3 * 4)` |
+| 8 | `-` and `~` before a value | `-2 * 3` | `(-2) * 3` |
+| 9 | `::` `->` `->>`, then values, columns, function calls, `CASE`, `CAST`, `( )` | `'5'::INT * 2` | `('5'::INT) * 2` |
 
 - **Notes:** operators of the same level are done from left to right: `10 - 4 - 3` is `3`, and `a = b IS NULL` means `(a = b) IS NULL`.
 - `a = b = c` is an error when `c` is not true or false: the first `=` gives `true` or `false`, which is then compared with `c`.
@@ -336,7 +337,7 @@ Compare two values and give `true` or `false`. They are mostly used in [WHERE](w
 
 - **Returns:** `BOOL`.
 - **NULL:** `NULL` on either side gives `NULL`.
-- **Notes:** a text compared with a `TIMESTAMP` or `DATE` is read as a time. A whole number compared with a `TIMESTAMP` or `DATE` is read as **milliseconds since 1970-01-01 UTC** (as QuestDB reads a number beside a timestamp, in its own unit), so `time > 1790000000000` works; PostgreSQL refuses that mix. A number compared with a text that holds a number is compared as numbers. Other mixes (text with a number, a BOOL with a number) are an error.
+- **Notes:** a text compared with a `TIMESTAMP` or `DATE` is read as a time. A whole number compared with a `TIMESTAMP` or `DATE` is read as **milliseconds since 1970-01-01 UTC** (as QuestDB reads a number beside a timestamp, in its own unit), so `time > 1790000000000` works; PostgreSQL refuses that mix. A number compared with a text that holds a number is compared as numbers; a column against such a text (`id = '42'`, what a driver sends for a parameter it cannot type) uses the column's index as `id = 42` does. Other mixes (text with a number, a BOOL with a number) are an error.
 - `IS NULL`, `IN`, `BETWEEN`, `LIKE` and `ILIKE` are on the same level; see [WHERE](where.md).
 
 **Example: Up day or down day, as a true/false column** (sample data: sample)
@@ -588,3 +589,34 @@ Result:
 | 5100 | NULL | 25000.00 |
 
 (9 rows)
+
+<a id="bit-operators"></a>
+
+## Bit operators: & | # ~ << >>
+
+PostgreSQL's operators on whole numbers: `&` (and), `|` (or), `#` (xor), `~` (not), `<<` and `>>` (shifts). They bind tighter than `=` and looser than `+` and `-`: `1 + 2 & 3` is `(1 + 2) & 3`.
+
+| Operator | Same as | Example |
+|---|---|---|
+| `a & b` | `bitwise_and(a, b)` | `12 & 10` = `8` |
+| `a \| b` | `bitwise_or(a, b)` | `12 \| 10` = `14` |
+| `a # b` | `bitwise_xor(a, b)`, `xor(a, b)` | `12 # 10` = `6` |
+| `~a` | `bitwise_not(a)` | `~5` = `-6` |
+| `a << n`, `a >> n` | `bitwise_left_shift`, `bitwise_right_shift` | `1 << 3` = `8`, `-16 >> 2` = `-4` |
+
+- **Notes:** a shift counts modulo 64, as PostgreSQL's 64-bit integers; `>>` keeps the sign. `~` before a value is not; `a ~ 'pattern'` between two values is still a [regular expression](functions-regex.md) match.
+- **Errors:** a number that is not whole (SQLSTATE 42883).
+
+**Example** (sample data: sample)
+
+```sql
+SELECT 12 & 10 AS and_, 12 | 10 AS or_, 12 # 10 AS xor_, ~5 AS not_, 1 << 3 AS shl, bit_count(255) AS ones;
+```
+
+Result:
+
+| and_ (LONG) | or_ (LONG) | xor_ (LONG) | not_ (LONG) | shl (LONG) | ones (LONG) |
+|---|---|---|---|---|---|
+| 8 | 14 | 6 | -6 | 8 | 8 |
+
+(1 row)

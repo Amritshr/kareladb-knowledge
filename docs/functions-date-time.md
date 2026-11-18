@@ -3,7 +3,7 @@
 > Take a time apart, find the weekday, quarter and week, cut, add and build times, count days or months between times, fiscal years (also Nepal's), and write a time as text.
 
 - Category: Functions — date and time
-- Keywords: date, time, timestamp, UTC, milliseconds, weekday, weekday, trading day, holiday, truncate time, timestamp\_floor, timestamp floor, local midnight, start of month, start of week, add days, add months, date\_add, timestampadd, interval, month end, difference between dates, age, date\_diff, timestampdiff, format date, strftime, date\_format, format, time zone, timezone, Nepal time, NPT, Asia/Kathmandu, +05:45, 20700000, current\_timestamp, getdate, EXTRACT, datepart, date part, epoch, ISO week, week number, weekofyear, dayofyear, day of year, quarter of the year, end of month, EOMONTH, last day of month, build a date, date from parts, datefromparts, how old, time between, financial year, FY, fiscal year, Nepal fiscal year, Nepali fiscal year, Shrawan, Bikram Sambat, BS year, arthik barsa, to\_timezone, to\_utc, AT TIME ZONE, timestamp\_ceil, round up time, timestamp\_floor\_utc, time\_bucket, date\_bin, bucket, TimescaleDB, today, yesterday, tomorrow, interval\_start, interval\_end, days\_in\_month, is\_leap\_year, leap year, is\_end\_of\_month, day\_of\_week\_sunday\_first, millis, to\_pg\_date, sysdate, timestamp\_sequence, timestamp\_shuffle, QuestDB
+- Keywords: date, time, timestamp, UTC, milliseconds, weekday, weekday, trading day, holiday, truncate time, timestamp\_floor, timestamp floor, local midnight, start of month, start of week, add days, add months, date\_add, timestampadd, interval, month end, difference between dates, age, date\_diff, timestampdiff, format date, strftime, date\_format, format, time zone, timezone, Nepal time, NPT, Asia/Kathmandu, +05:45, 20700000, current\_timestamp, getdate, EXTRACT, datepart, date part, epoch, ISO week, week number, weekofyear, dayofyear, day of year, quarter of the year, end of month, EOMONTH, last day of month, build a date, date from parts, datefromparts, how old, time between, financial year, FY, fiscal year, Nepal fiscal year, Nepali fiscal year, Shrawan, Bikram Sambat, BS year, arthik barsa, to\_timezone, to\_utc, AT TIME ZONE, timestamp\_ceil, round up time, timestamp\_floor\_utc, time\_bucket, date\_bin, bucket, TimescaleDB, today, yesterday, tomorrow, interval\_start, interval\_end, days\_in\_month, is\_leap\_year, leap year, is\_end\_of\_month, day\_of\_week\_sunday\_first, millis, to\_pg\_date, sysdate, timestamp\_sequence, timestamp\_shuffle, QuestDB, strftime, epoch\_ms, date\_diff, dayname, monthname, isodow, week, weekofyear, epoch, format a time
 - See also: [Conversion functions (to_timestamp)](functions-conversion.md#to_timestamp), [Conversion functions (cast)](functions-conversion.md#cast), [Time and time zones](time-and-time-zones.md), [SAMPLE BY](sample-by.md), [SAMPLE BY (time-zone)](sample-by.md#time-zone), [WHERE (in-interval)](where.md#in-interval), [Aggregate functions](functions-aggregate.md), [Finance and price functions](functions-finance.md)
 
 KarelaDB keeps a `TIMESTAMP` as the number of **milliseconds** (1/1000 of a second) since 1970-01-01, in **UTC**. UTC is the world clock time with no time zone. A local time is UTC plus its zone offset: Nepal is `+05:45` (11:00 in Kathmandu is 05:15 UTC), New York is `-04:00` in summer (07:00 there is 11:00 UTC).
@@ -831,7 +831,7 @@ Cuts the time down to the start of its year, month, week, day, hour, minute or s
 - **NULL:** `NULL` when any argument is `NULL`.
 - **Notes:**
   - Without a zone: the [session's clock](time-and-time-zones.md#session-time-zone), which is UTC unless set. Then `date_trunc('day', ...)` gives UTC midnight, which is 05:45 in Nepal. Give the zone, or `SET TIME ZONE 'Asia/Kathmandu'`, for Nepal days, as [SAMPLE BY ... TIME ZONE](sample-by.md#time-zone) does.
-  - Zones that change for summer time (like `Europe/London`) are refused.
+  - A zone with summer time (like `Europe/London`) cuts on that day's clock: `date_trunc('day', t, 'Europe/London')` in July is 23:00 UTC of the day before. A day start that happens twice (when the clocks go back) is taken as the later one, as PostgreSQL does. With `hour`, `minute`, `second` or `ms` each time keeps its own offset, as PostgreSQL's `date_trunc(unit, timestamptz, zone)` does: the hour that happens twice is two hours.
   - `'week'` starts on **Sunday** (as in a Sunday-to-Thursday trading week).
   - Careful: `'w'` and `'weeks'` are not the same as `'week'`. They make 7-day steps counted from 1970-01-01, which was a Thursday, so they start on Thursday.
   - `'m'` is a minute, not a month. `'quarter'` gives 1 January, 1 April, 1 July or 1 October (only this spelling; for the quarter number use [quarter](#quarter)).
@@ -996,10 +996,11 @@ The QuestDB function: cuts the time down to a whole number of units. `timestamp_
 |---|---|---|
 | `unit` | text | an optional count and one letter: `T` millisecond, `s` second, `m` minute, `h` hour, `d` day, `w` week, `M` month, `y` year. `'15m'`, `'4h'`, `'1d'`, `'M'`. Upper and lower case matter (`m` minute, `M` month). |
 | `t` | `TIMESTAMP`, `DATE`, time text or milliseconds | the time |
-| `time_zone` | text | optional: cut on this zone's clock, like `'Asia/Kathmandu'` or `'+05:45'` |
+| `time_zone` | text | optional: cut on this zone's clock, like `'Asia/Kathmandu'`, `'+05:45'`, or one with summer time like `'Europe/London'` |
 | `origin` | a time | optional instead of a zone: count the units from this time, not from 1970-01-01 |
 
 - **Returns:** `TIMESTAMP`, in UTC. With a zone it is the start on that clock: `timestamp_floor('1d', t, 'Asia/Kathmandu')` is Nepal midnight, shown as 18:15 UTC the day before.
+- **Summer time:** a zone like `'Europe/London'` cuts on the clock of that date, so `'1d'` is London midnight (23:00 UTC in July, 00:00 UTC in January) and the day the clocks change is 23 or 25 hours, as PostgreSQL's `date_trunc('day', t AT TIME ZONE zone)`. A start the clock shows twice is its first instant ([summer time](time-and-time-zones.md#summer-time)).
 - **NULL:** `NULL` when any argument is `NULL`.
 - **Notes:**
   - Counts start at 1970-01-01 00:00 (on the zone's clock when one is given): `'2d'` gives days 0, 2, 4, ... from then, `'3M'` gives January, April, July and October. Weeks start on **Monday**; for Sunday weeks use [date_trunc](#date_trunc)`('week', t)` or [SAMPLE BY ... WEEK START SUNDAY](sample-by.md#week-start).
@@ -1046,6 +1047,23 @@ Result:
 
 (4 rows)
 
+**Example: London days with summer time: 23:00 UTC in July, midnight UTC in January**
+
+```sql
+SELECT timestamp_floor('1d', '2026-07-15T12:00:00Z', 'Europe/London') AS july_day,
+       timestamp_floor('1d', '2026-01-15T12:00:00Z', 'Europe/London') AS january_day,
+       timestamp_floor('1d', '2026-10-25T23:30:00Z', 'Europe/London') AS day_of_25_hours,
+       timestamp_ceil('1d', '2026-10-25T12:00:00Z', 'Europe/London') AS next_midnight;
+```
+
+Result:
+
+| july_day (TIMESTAMP) | january_day (TIMESTAMP) | day_of_25_hours (TIMESTAMP) | next_midnight (TIMESTAMP) |
+|---|---|---|---|
+| 2026-07-14T23:00:00.000Z | 2026-01-15T00:00:00.000Z | 2026-10-24T23:00:00.000Z | 2026-10-26T00:00:00.000Z |
+
+(1 row)
+
 **Example: An unknown unit** (shows an error)
 
 ```sql
@@ -1058,7 +1076,7 @@ Error: `line 1, column 8: timestamp_floor: unit must be T, s, m, h, d, w, M or y
 
 `timestamp_floor_utc(unit, t [, zone])` is QuestDB's name for the same function: its answer is in UTC, and KarelaDB's always is.
 
-**Speed:** `GROUP BY timestamp_floor(...)` on a `TIMESTAMP` column is read by the column engine, as fast as [date_trunc](#date_trunc): 3 million rows in 1-minute groups take about 18 ms (it was 1.7 s before 2026-10-24). Only `M` and `y` counted from an origin of your own are worked out row by row.
+**Speed:** `GROUP BY timestamp_floor(...)` on a `TIMESTAMP` column is read by the column engine, as fast as [date_trunc](#date_trunc): 3 million rows in 1-minute groups take about 18 ms (it was 1.7 s before 2026-10-24). A zone with summer time is read there too (2 million rows in London hours: about 4 ms). Only `M` and `y` counted from an origin of your own are worked out row by row, and there the unit and the zone are read once per query, not once per row.
 
 <a id="time_bucket"></a>
 
@@ -1070,6 +1088,7 @@ Syntax:
 time_bucket(width, t)
 time_bucket(width, t, offset)
 time_bucket(width, t, origin)
+time_bucket(width, t, time_zone)
 date_bin(stride, t, origin)
 ```
 
@@ -1081,15 +1100,31 @@ Puts a time into a bucket of a fixed width and gives the bucket's start. `time_b
 | `t` | `TIMESTAMP`, `DATE` or time text | the time |
 | `offset` | interval | optional: move every bucket by this much, like `INTERVAL '5 hours 45 minutes'` for Nepal days |
 | `origin` | a time | a bucket starts here, and every `width` before and after it. Needed for `date_bin` |
+| `time_zone` | text | cut the buckets on this zone's clock, summer time too: `'Europe/Berlin'`, `'Asia/Kathmandu'` (TimescaleDB) |
 
 - **Returns:** `TIMESTAMP`, in UTC. `time_bucket` of a `DATE` gives a `DATE`. `time_bucket(10, n)` on whole numbers gives `n` rounded down to a multiple of 10.
 - **NULL:** `NULL` when any argument is `NULL`.
 - **Notes:**
   - Without an origin, `time_bucket` counts from Monday 2000-01-03 (so `'1 week'` starts on Monday) and month widths from 2000-01-01, as TimescaleDB does.
   - A width mixing months with days or hours (`'1 month 2 days'`) is an error, so is a width of zero or less.
-  - Buckets are cut on UTC's clock, not the session's. For local days give an offset or an origin at local midnight.
-  - TimescaleDB's third-argument form with a zone name (`time_bucket('1 day', t, 'Asia/Kathmandu')`) is not supported: it is an error, never a wrong bucket. Give the offset instead (`INTERVAL '5 hours 45 minutes'`), or use [timestamp_floor](#timestamp_floor) with a zone.
+  - Buckets are cut on UTC's clock, not the session's, unless a zone is given. With a zone each bucket starts at that zone's midnight (or hour), and goes back to UTC with that day's offset: the day summer time starts has 23 hours.
+  - **Speed:** with a zone the buckets are worked out row by row, not by the column engine.
   - **Speed:** as a `GROUP BY` key on a `TIMESTAMP` column both are read by the column engine, as fast as [date_trunc](#date_trunc). Month widths from an origin that is not the first of a month at midnight are worked out row by row.
+
+**Example: Days on the Berlin clock, over the day summer time starts**
+
+```sql
+SELECT time_bucket('1 day', TIMESTAMP '2026-03-29 21:30:00', 'Europe/Berlin') AS berlin_day,
+       time_bucket('1 day', TIMESTAMP '2026-03-28 22:30:00', 'Europe/Berlin') AS day_before;
+```
+
+Result:
+
+| berlin_day (TIMESTAMP) | day_before (TIMESTAMP) |
+|---|---|
+| 2026-03-28T23:00:00.000Z | 2026-03-27T23:00:00.000Z |
+
+(1 row)
 
 **Example: Buckets of one moment**
 
@@ -1243,7 +1278,7 @@ Result:
 
 | rows_today (LONG) | tomorrow_starts (TIMESTAMP) |
 |---|---|
-| 0 | 2026-10-25T00:00:00.000Z |
+| 0 | 2026-11-19T00:00:00.000Z |
 
 (1 row)
 
@@ -1465,7 +1500,7 @@ The QuestDB functions. `to_timezone` shows a UTC time on the clock of a zone: `t
 - **Notes:**
   - The result of `to_timezone` holds the Nepal clock time but still ends with `Z`. Use it for `hour()`, `day()` and showing, not to store.
   - `to_utc(t, 'Asia/Kathmandu')` is the same as `t AT TIME ZONE 'Asia/Kathmandu'`.
-  - Zones that change for summer time are refused.
+  - A zone with summer time uses the offset of that moment: London is `+01:00` in July and `+00:00` in January.
 
 **Example: UTC to the Nepal clock and back**
 
@@ -1567,7 +1602,7 @@ Adds `amount` units to the time. A negative amount goes back. `dateadd('d', 7, '
 
 | Argument | Type | Meaning |
 |---|---|---|
-| `unit` | text | `'y'` (years), `'month'` or `'mo'` (months), `'w'` (weeks), `'d'` (days), `'h'` (hours), `'m'` (minutes), `'s'` (seconds), `'ms'`. Long forms also work: `'year'`, `'months'`, `'week'`, `'day'`, `'hour'`, `'minute'`, ... (any case) |
+| `unit` | text | `'y'` (years), `'M'`, `'month'` or `'mo'` (months), `'w'` (weeks), `'d'` (days), `'h'` (hours), `'m'` (minutes), `'s'` (seconds), `'ms'`. Long forms also work: `'year'`, `'months'`, `'week'`, `'day'`, `'hour'`, `'minute'`, ... (any case) |
 | `amount` | whole number | how many units; negative to go back |
 | `t` | `TIMESTAMP`, `DATE`, time text or milliseconds | the start time |
 
@@ -1575,7 +1610,7 @@ Adds `amount` units to the time. A negative amount goes back. `dateadd('d', 7, '
 - **NULL:** `NULL` when any argument is `NULL`.
 - **Notes:**
   - Months and years follow the calendar. When the day does not exist in the new month, you get the last day of that month: 31 January + 1 month is 28 February.
-  - `'m'` is minutes. Write `'month'` or `'mo'` for months.
+  - `'m'` is minutes and a capital `'M'` is months, as in QuestDB (since 2026-10-24; before, `'M'` was read as minutes too).
   - With a `DATE`, the result is a `DATE`, so hours are cut off: `dateadd('h', 30, date)` gives the next day.
   - `amount` must be a whole number: `1.5` is an error. For 1.5 days use `36` hours.
   - A `TIMESTAMP` plus a number of milliseconds (`time + 3600000`) also works; see [arithmetic operators](functions-math.md#operators).
@@ -1986,7 +2021,7 @@ Time zones: `UTC`, `GMT`, `Z`, `Etc/UTC`, `Asia/Kathmandu`, `Asia/Katmandu`, `NP
 - **Notes:**
   - Every other character is copied as it is: `-`, `/`, `:`, spaces, and letters that are not a code.
   - Careful with words: letters that are a code are replaced. `'Date: DD'` gives `5ate: 10`, because `D` is the weekday number. Put words in double quotes: `'"Date:" DD'`.
-  - Zones that change for summer time (like `Europe/London`) are refused. An offset needs its sign: `'05:45'` and `'+0545'` are errors.
+  - A zone with summer time (like `Europe/London`) shows the clock of that moment. An offset needs its sign: `'05:45'` and `'+0545'` are errors.
   - `WW` (week of the year) and other PostgreSQL codes are not supported; they are copied as text.
   - The result is text, so `ORDER BY` on it sorts like text: `'Aug 2026'` comes before `'Sep 2025'`. Also select a sortable form like `'YYYY-MM'` and order by that (after `GROUP BY`, `ORDER BY` can only use result columns).
 
@@ -2100,15 +2135,20 @@ Result:
 
 (1 row)
 
-**Example: Zones with summer time are refused** (shows an error)
+**Example: A zone with summer time: the London clock in September and in January**
 
 ```sql
-SELECT to_char('2026-09-10T05:15:00Z', 'HH24:MI', 'Europe/London');
+SELECT to_char('2026-09-10T05:15:00Z', 'HH24:MI', 'Europe/London') AS september,
+       to_char('2026-01-10T05:15:00Z', 'HH24:MI', 'Europe/London') AS january;
 ```
 
 Result:
 
-Error: `line 1, column 8: to_char: time zone 'Europe/London' is not supported (it may change for daylight saving); use a fixed offset like '+05:45'`
+| september (STRING) | january (STRING) |
+|---|---|
+| 06:15 | 05:15 |
+
+(1 row)
 
 <a id="fiscal_year"></a>
 
@@ -2472,7 +2512,7 @@ Result:
 
 | utc_day (DATE) | nepal_day (DATE) | same_as_now (BOOL) |
 |---|---|---|
-| 2026-10-24 | 2026-10-24 | true |
+| 2026-11-18 | 2026-11-18 | true |
 
 (1 row)
 
@@ -2507,7 +2547,7 @@ Result:
 
 | utc_time_of_day (STRING) | nepal_clock (STRING) | localtime_is_the_same (BOOL) |
 |---|---|---|
-| 07:56:05.513 | 13:41 | true |
+| 08:02:30.377 | 13:47 | true |
 
 (1 row)
 
@@ -2693,5 +2733,38 @@ Result:
 | book_closure_length (INTERVAL) |
 |---|
 | 1 mon 11 days 06:00:00 |
+
+(1 row)
+
+<a id="strftime"></a>
+
+## strftime, epoch_ms, date_diff
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `strftime(time, format)` | STRING | the time in C's format codes (DuckDB; SQLite's order `strftime(format, time)` works too) |
+| `epoch_ms(n)` / `epoch_ms(time)` | TIMESTAMP / LONG | milliseconds since 1970 to a time, or a time to its milliseconds |
+| `date_diff(part, start, end)` | LONG | how many `part` boundaries lie between: `date_diff('month', '2026-01-31', '2026-02-01')` is 1 (DuckDB); [datediff](#datediff) counts whole months instead (0) |
+
+`strftime` codes: `%Y` year, `%y` two-digit year, `%m` month, `%d` day, `%e` day padded with a space, `%H` hour, `%I` hour of 12, `%p` AM/PM, `%M` minute, `%S` second, `%g` milliseconds, `%f` microseconds (KarelaDB keeps milliseconds, so the last three digits are 0), `%j` day of the year, `%a` / `%A` weekday, `%b` / `%B` month name, `%u` weekday 1 = Monday, `%w` weekday 0 = Sunday, `%U` / `%W` week of the year (from Sunday / Monday), `%F` = `%Y-%m-%d`, `%T` = `%H:%M:%S`, `%R`, `%D`, `%z`, `%Z`, `%%`. `%-d` leaves out the padding. `date_diff` parts: year, quarter, month, week (ISO, from Monday), day, hour, minute, second, millisecond, decade, century (plural names too).
+
+Other engines' names that work: `dayname(t)`, `monthname(t)`, `isodow(t)`, `week(t)` / `weekofyear(t)`, `epoch(t)` (seconds).
+
+- **Errors:** an unknown format code or part (SQLSTATE 22007 / 22023).
+
+**Example**
+
+```sql
+SELECT strftime(CAST('2026-02-10 07:05:09.123' AS TIMESTAMP), '%d %b %Y, %I:%M %p') AS shown,
+       epoch_ms(1700000000000) AS t,
+       date_diff('month', DATE '2026-01-31', DATE '2026-02-01') AS boundaries,
+       dayname(DATE '2026-02-10') AS day;
+```
+
+Result:
+
+| shown (STRING) | t (TIMESTAMP) | boundaries (LONG) | day (STRING) |
+|---|---|---|---|
+| 10 Feb 2026, 07:05 AM | 2023-11-14T22:13:20.000Z | 1 | Tuesday |
 
 (1 row)

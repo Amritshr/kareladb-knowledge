@@ -473,7 +473,7 @@ the time zone of this session is Asia/Kathmandu; times are still stored as UTC
 
 | today_in_nepal (DATE) | nepal_clock (TIMESTAMP) | utc_now (TIMESTAMP) | as_text (STRING) | zone (STRING) |
 |---|---|---|---|---|
-| 2026-10-24 | 2026-10-24T13:41:43.110Z | 2026-10-24T07:56:43.110Z | 2026-10-24 13:41:43.11+05:45 | Asia/Kathmandu |
+| 2026-11-18 | 2026-11-18T13:48:33.206Z | 2026-11-18T08:03:33.206Z | 2026-11-18 13:48:33.206+05:45 | Asia/Kathmandu |
 
 (1 row)
 
@@ -622,10 +622,15 @@ A zone with **summer time** (daylight saving time) has two offsets a year: New Y
 | `t AT TIME ZONE 'zone'`, `to_timezone`, `to_utc` | yes |
 | `SAMPLE BY ... TIME ZONE 'zone'` | yes: a day bucket is 23 or 25 hours on the days the clocks change |
 | [calendars](calendars.md) `TIME ZONE` | yes |
-| `ROUND ... TIME ZONE`, `time IN '...' TIME ZONE`, the zone argument of `date_trunc(unit, t, zone)`, `to_char(t, format, zone)`, `timestamp_floor` | not yet: fixed offsets only (an error says so) |
+| `time IN '...' TIME ZONE`, `date_trunc(unit, t, zone)`, `to_char(t, format, zone)`, `time_bucket(width, t, zone)` | yes: `time IN '2026-10-25' TIME ZONE 'Europe/London'` is that 25-hour day |
+| `timestamp_floor(unit, t, zone)`, `timestamp_ceil(unit, t, zone)` | yes: `timestamp_floor('1d', t, 'Europe/London')` is London midnight of that date |
+| `ROUND ... TIME ZONE` (a column) | yes: `TIMESTAMP ROUND 1d TIME ZONE 'Europe/London'` stores each London day's midnight |
 
+- **The buckets** are those of PostgreSQL's `date_trunc(unit, t AT TIME ZONE zone)`: each time is put on the zone's clock of that moment and cut there. The hour that happens twice is one bucket of the clock. The one exception is `date_trunc(unit, t, zone)` with an hour or less (`hour`, `minute`, `second`, `ms`): as PostgreSQL's `date_trunc(unit, timestamptz, zone)`, each time keeps its own offset, so the two passes of that hour are two hours (00:00 and 01:00 UTC in London). `to_char` shows both as the same text.
 - **Where the files are:** KarelaDB looks in `KARELADB_ZONEINFO`, `TZDIR`, `/usr/share/zoneinfo`, then a `zoneinfo` folder next to the program. The Docker image has them. Without them a zone with summer time is an error that says where KarelaDB looked; fixed zones always work.
-- **A time that happens twice** (the hour after the clocks go back) is the first of the two; **a time that never happens** (the hour skipped when they go forward) is read with the offset from before the change, as in PostgreSQL.
+- **A database with such a column still opens** on a machine without the zone files (a warning names the column). Only writing into that column fails, with a message that says why, until the files are there. Typing `CREATE TABLE` or `ADD COLUMN` with a zone that cannot be read is an error at once.
+- **A time that happens twice** (the hour after the clocks go back) is the first of the two: in `SAMPLE BY`, `timestamp_floor` and `ROUND` a bucket that starts then is stamped with its first instant, so a bucket never starts after its rows. `date_trunc(unit, t, zone)` of a day or longer and `time_bucket(width, t, zone)` take the later one, as PostgreSQL does there; `timestamp_ceil` too, so it is never before `t`. **A time that never happens** (the hour skipped when they go forward) is read with the offset from before the change, as in PostgreSQL.
+- **Speed:** `GROUP BY` of `timestamp_floor`, `time_bucket`, `date_trunc` or `to_char` with a zone that has summer time runs on the column engine, as fast as with a fixed offset (2 million rows in London hours: about 4 ms). So does the plain form of [SAMPLE BY ... TIME ZONE](sample-by.md#time-zone).
 
 **Example: Day buckets in New York around the March change: 8 March is 23 hours long** (sample data: sample)
 
@@ -658,6 +663,80 @@ table 'ticks_ny' created
 | 2026-03-09T04:00:00.000Z | 1 |
 
 (3 rows)
+
+**Example: One London calendar day when the clocks go back: 25 hours** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE TABLE ev_london (time TIMESTAMP, v INT) TIMESERIES(time);
+INSERT INTO ev_london VALUES ('2026-10-24T22:59:00Z', 1), ('2026-10-24T23:00:00Z', 2), ('2026-10-25T23:59:00Z', 3), ('2026-10-26T00:00:00Z', 4);
+```
+
+```sql
+SELECT count(*) AS rows, min(time) AS first_utc, max(time) AS last_utc
+FROM ev_london WHERE time IN '2026-10-25' TIME ZONE 'Europe/London';
+```
+
+Result:
+
+| rows (LONG) | first_utc (TIMESTAMP) | last_utc (TIMESTAMP) |
+|---|---|---|
+| 2 | 2026-10-24T23:00:00.000Z | 2026-10-25T23:59:00.000Z |
+
+(1 row)
+
+**Example: London hours the night the clocks go back: 01:00 happens twice and is one bucket** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE TABLE ev_night (time TIMESTAMP, v INT) TIMESERIES(time);
+INSERT INTO ev_night VALUES ('2026-10-24T23:30:00Z', 1), ('2026-10-25T00:10:00Z', 2), ('2026-10-25T00:50:00Z', 3),
+  ('2026-10-25T01:10:00Z', 4), ('2026-10-25T02:30:00Z', 5);
+```
+
+```sql
+SELECT timestamp_floor('1h', time, 'Europe/London') AS hour_starts_utc,
+       to_char(min(time), 'HH24:MI', 'Europe/London') AS first_on_london_clock, count(*) AS rows
+FROM ev_night GROUP BY 1 ORDER BY 1;
+```
+
+Result:
+
+| hour_starts_utc (TIMESTAMP) | first_on_london_clock (STRING) | rows (LONG) |
+|---|---|---|
+| 2026-10-24T23:00:00.000Z | 00:30 | 1 |
+| 2026-10-25T00:00:00.000Z | 01:10 | 3 |
+| 2026-10-25T02:00:00.000Z | 02:30 | 1 |
+
+(3 rows)
+
+**Example: date_trunc by the hour with a zone: the repeated hour is two hours, as in PostgreSQL** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE TABLE ev_hours (time TIMESTAMP, v INT) TIMESERIES(time);
+INSERT INTO ev_hours VALUES ('2026-10-24T23:30:00Z', 1), ('2026-10-25T00:10:00Z', 2), ('2026-10-25T00:50:00Z', 3),
+  ('2026-10-25T01:10:00Z', 4), ('2026-10-25T02:30:00Z', 5);
+```
+
+```sql
+SELECT date_trunc('hour', time, 'Europe/London') AS hour_starts_utc, count(*) AS rows
+FROM ev_hours GROUP BY 1 ORDER BY 1;
+```
+
+Result:
+
+| hour_starts_utc (TIMESTAMP) | rows (LONG) |
+|---|---|
+| 2026-10-24T23:00:00.000Z | 1 |
+| 2026-10-25T00:00:00.000Z | 2 |
+| 2026-10-25T01:00:00.000Z | 1 |
+| 2026-10-25T02:00:00.000Z | 1 |
+
+(4 rows)
 
 **Example: AT TIME ZONE: noon UTC on the New York clock, summer and winter** (sample data: sample)
 

@@ -14,7 +14,7 @@
 <main>
 <h1 id="group-by-and-having">GROUP BY and HAVING</h1>
 <blockquote><p>Make one row per group (per symbol, per broker, per account) with totals like count, sum and max, and filter the groups with HAVING.</p></blockquote>
-<ul><li>Category: Querying</li><li>Keywords: group, groups, spill, ROLLUP, CUBE, GROUPING SETS, GROUPING, grand total, rollup, cube, grouping sets, subtotals, temporary files, many groups, max_groups, window with GROUP BY, GROUP BY, HAVING, aggregate, totals, subtotal, summary, report, implicit GROUP BY, group key, not grouped, count per, sum per, group by, having, implicit</li><li>See also: <a href="functions-aggregate.html">Aggregate functions</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="select.html#distinct">SELECT (distinct)</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="functions-window.html">Window and series functions</a>, <a href="joins.html">Joins</a></li></ul>
+<ul><li>Category: Querying</li><li>Keywords: group, groups, spill, ROLLUP, CUBE, GROUPING SETS, GROUPING, grand total, rollup, cube, grouping sets, subtotals, temporary files, many groups, max_groups, window with GROUP BY, GROUP BY, HAVING, aggregate, totals, subtotal, summary, report, implicit GROUP BY, group key, not grouped, count per, sum per, group by, having, implicit, GROUP BY ALL, group by every column</li><li>See also: <a href="functions-aggregate.html">Aggregate functions</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="select.html#distinct">SELECT (distinct)</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="functions-window.html">Window and series functions</a>, <a href="joins.html">Joins</a></li></ul>
 <p><code>GROUP BY</code> puts the rows that have the same value (for example the same symbol) into one <strong>group</strong>, and gives <strong>one output row per group</strong>.
 In the select list you use <strong>aggregates</strong> like <code>count(*)</code>, <code>sum(x)</code>, <code>avg(x)</code>, <code>min(x)</code> and <code>max(x)</code>: they make one value from all the rows of a group. The full list is in <a href="functions-aggregate.html">aggregate functions</a>.</p>
 <p><code>HAVING</code> keeps only some groups, like <code>WHERE</code> keeps only some rows.
@@ -158,6 +158,18 @@ ORDER BY month;</code></pre>
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>month (TIMESTAMP)</th><th>avg_close (DOUBLE)</th><th>previous_month (DOUBLE)</th></tr></thead><tbody><tr><td>2025-12-01T00:00:00.000Z</td><td>540.9</td><td>NULL</td></tr><tr><td>2026-08-01T00:00:00.000Z</td><td>508.49</td><td>540.9</td></tr><tr><td>2026-09-01T00:00:00.000Z</td><td>500.18</td><td>508.49</td></tr></tbody></table></div>
 <p>(3 rows)</p>
+<h2 id="group-by-all">GROUP BY ALL</h2>
+<p><code>GROUP BY ALL</code> groups by every item of the <code>SELECT</code> that has no aggregate (DuckDB). It is the same query with those items written in the <code>GROUP BY</code>; a view stores that written-out form.</p>
+<ul><li><strong>Errors:</strong> with <code>SELECT *</code> (name the columns, 0A000).</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, date_trunc(&#39;month&#39;, time) AS month, sum(volume) AS volume
+FROM ochl_day
+GROUP BY ALL
+ORDER BY ALL
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>month (TIMESTAMP)</th><th>volume (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2025-12-01T00:00:00.000Z</td><td>255090</td></tr><tr><td>CITY</td><td>2026-08-01T00:00:00.000Z</td><td>855550</td></tr><tr><td>CITY</td><td>2026-09-01T00:00:00.000Z</td><td>876210</td></tr><tr><td>COAST</td><td>2025-12-01T00:00:00.000Z</td><td>206980</td></tr></tbody></table></div>
+<p>(4 rows)</p>
 <h2 id="grouping-sets">ROLLUP, CUBE and GROUPING SETS</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">GROUP BY ROLLUP (a, b)

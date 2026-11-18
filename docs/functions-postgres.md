@@ -3,7 +3,7 @@
 > Functions a PostgreSQL app expects: arrays, sequence numbers (nextval), who you are and what you may do (current_user, has_table_privilege), comments (COMMENT ON), advisory locks and session settings, so app code runs on KarelaDB without changes.
 
 - Category: Postgres protocol
-- Keywords: PostgreSQL functions, to\_regclass, pg\_relation\_size, pg\_total\_relation\_size, pg\_table\_size, pg\_indexes\_size, pg\_database\_size, pg\_size\_pretty, table size, database size, current\_database, postgres compatibility, array, ARRAY\[\], arrays, list of values, watchlist, tags, sequence, auto number, order number, invoice number, advisory lock, named lock, job lock, one worker at a time, pg\_advisory, nextval, currval, lastval, setval, unnest, cardinality, current\_setting, set\_config, SET LOCAL, session setting, custom setting, current\_user, session\_user, current\_role, current\_schema, current\_schemas, current\_catalog, version, has\_table\_privilege, has\_column\_privilege, has\_database\_privilege, has\_schema\_privilege, pg\_has\_role, privileges, rights, COMMENT ON, comment, description, obj\_description, col\_description, pg\_get\_indexdef, pg\_get\_constraintdef, pg\_get\_viewdef, pg\_get\_expr, format\_type, pg\_table\_is\_visible
+- Keywords: PostgreSQL functions, list\_transform, list\_filter, list\_reduce, lambda, arrayMap, arrayFilter, x -\> , whole row, row value, ROW(, record, t::text, inet, cidr, IP address, host, masklen, netmask, network, broadcast, inet\_contains, isIPAddressInRange, IPv4StringToNum, IPv4NumToString, isIPv4String, subnet, to\_regclass, pg\_relation\_size, pg\_total\_relation\_size, pg\_table\_size, pg\_indexes\_size, pg\_database\_size, pg\_size\_pretty, table size, database size, current\_database, postgres compatibility, array, ARRAY\[, \[1, 2, 3, array\_distance, l2\_distance, L2Distance, cosine\_distance, array\_cosine\_distance, cosine\_similarity, array\_cosine\_similarity, array\_dot\_product, inner\_product, dotProduct, \<-\>, list\_sum, list\_avg, list\_min, list\_max, array\_sum, array\_avg, array\_min, array\_max, list\_sort, array\_sort, list\_reverse\_sort, list\_reverse, array\_reverse, list\_distinct, array\_distinct, list\_slice, array\_slice, flatten, list\_contains, array\_contains, has, len, list\_value, list\_pack, list functions, arrays, list of values, watchlist, tags, sequence, auto number, order number, invoice number, advisory lock, named lock, job lock, one worker at a time, pg\_advisory, nextval, currval, lastval, setval, unnest, cardinality, current\_setting, set\_config, SET LOCAL, session setting, custom setting, current\_user, session\_user, current\_role, current\_schema, current\_schemas, current\_catalog, version, has\_table\_privilege, has\_column\_privilege, has\_database\_privilege, has\_schema\_privilege, pg\_has\_role, privileges, rights, COMMENT ON, comment, description, obj\_description, col\_description, pg\_get\_indexdef, pg\_get\_constraintdef, pg\_get\_viewdef, pg\_get\_expr, format\_type, pg\_table\_is\_visible
 - See also: [PostgreSQL protocol (port 8832)](postgres-protocol.md), [JSON functions](functions-json.md), [Text functions](functions-text.md), [Date and time functions](functions-date-time.md), [Constraints](constraints.md), [Transactions](transactions.md)
 
 A PostgreSQL app sends more than plain SQL. It also calls **arrays**, **sequences** and **advisory locks**.
@@ -73,6 +73,104 @@ Result:
 |---|---|---|---|
 | 1 | ["CITY","COAST"] | 2 | CITY |
 | 2 | ["VOLT","ACME"] | 2 | VOLT |
+
+(2 rows)
+
+<a id="lists"></a>
+
+## Lists: [ ], list_sum, list_sort, list_slice, ...
+
+DuckDB writes a list as `[1, 2, 3]`; it is the same array as `ARRAY[1, 2, 3]`. These functions take any array (DuckDB's `list_` names and ClickHouse's `array` names both work):
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `list_sum`, `list_avg`, `list_min`, `list_max` (`array_sum`, ...) | the type of the values | over the values that are not NULL; NULL for none |
+| `list_sort(l [, 'ASC' \| 'DESC'])`, `list_reverse_sort(l)` | array | sorted, NULLs last |
+| `list_reverse(l)` | array | the other way round |
+| `list_distinct(l)` | array | each value once, in the order first seen, without NULL |
+| `list_slice(l, from, to)` | array | positions `from` to `to` (1 is the first, -1 the last) |
+| `flatten(l)` | array | a list of lists as one list |
+| `list_contains(l, x)`, `has(l, x)` | BOOL | whether `x` is in `l` |
+| `len(l)` | LONG | how many values (`len` of text counts its characters) |
+| `list_value(a, b, ...)` | array | the values as a list |
+
+**Example** (sample data: sample)
+
+```sql
+SELECT [3, 1, 2] AS l, list_sum([3, 1, 2]) AS total, list_sort([3, NULL, 1]) AS sorted,
+       list_slice([10, 20, 30, 40], 2, 3) AS middle, flatten([[1], [2, 3]]) AS flat, len([1, 2]) AS n;
+```
+
+Result:
+
+| l (LONG[]) | total (LONG) | sorted (JSON) | middle (JSON) | flat (JSON) | n (LONG) |
+|---|---|---|---|---|---|
+| [3,1,2] | 6 | [1,3,null] | [20,30] | [1,2,3] | 2 |
+
+(1 row)
+
+<a id="lambdas"></a>
+
+### With a lambda: list_transform, list_filter, list_reduce
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `list_transform(l, x -> expr)` (`array_transform`, `apply`, ClickHouse `arrayMap(x -> expr, l)`) | array | `expr` of each value |
+| `list_filter(l, x -> condition)` (`array_filter`, `filter`, `arrayFilter`) | array | the values the condition is true for |
+| `list_reduce(l, (acc, x) -> expr [, start])` (`array_reduce`, `reduce`) | a value | `expr` of the result so far and the next value, from the first value (or `start`) |
+
+- **Notes:** `(x, i) -> ...` also gets the value's place, from 1. DuckDB's `lambda x: expr` works too. The body may use the query's columns: `list_filter(scores, s -> s > passing_mark)`. A lambda's name hides a column of the same name. `->` is a JSON lookup everywhere else.
+
+**Example: Double, keep the big ones, add up** (sample data: sample)
+
+```sql
+SELECT list_transform([1, 2, 3], x -> x * 2) AS doubled,
+       list_filter([4, 15, 9, 30], x -> x > 10) AS big,
+       list_reduce([1, 2, 3, 4], (total, x) -> total + x) AS added,
+       list_transform(['a', 'b'], (v, i) -> concat(i, ':', v)) AS numbered;
+```
+
+Result:
+
+| doubled (JSON) | big (JSON) | added (LONG) | numbered (JSON) |
+|---|---|---|---|
+| [2,4,6] | [15,30] | 10 | ["1:a","2:b"] |
+
+(1 row)
+
+<a id="vectors"></a>
+
+## Vectors: array_distance, cosine_distance, <->, <=>, <#>
+
+A list of numbers is a vector (an embedding, a set of features). These compare two of the same length:
+
+| Function | Operator (pgvector) | Returns |
+|---|---|---|
+| `array_distance(a, b)` (`l2_distance`, ClickHouse `L2Distance`) | `a <-> b` | the straight-line (L2) distance |
+| `array_cosine_distance(a, b)` (`cosine_distance`) | `a <=> b` | 1 - the cosine similarity |
+| `array_cosine_similarity(a, b)` (`cosine_similarity`) | | from -1 to 1; NULL for a zero vector |
+| `array_dot_product(a, b)` (`inner_product`, ClickHouse `dotProduct`) | | the inner product |
+| `array_negative_inner_product(a, b)` | `a <#> b` | minus the inner product |
+
+More list functions: `list_product`, `list_count` (values that are not NULL), `list_unique` (distinct values), `list_intersect(a, b)`, `list_element(l, i)` (`element_at`, `array_extract`; -1 is the last, outside the list NULL), `array_pop_back`, `array_pop_front`.
+
+- **Errors:** lists of different lengths, or a NULL or text inside (SQLSTATE 22023).
+
+**Example: The nearest of three embeddings** (sample data: sample)
+
+```sql
+SELECT id, round(emb <-> [0.1, 0.9, 0.2], 4) AS l2, round(emb <=> [0.1, 0.9, 0.2], 4) AS cosine
+FROM (VALUES (1, [0.1, 0.8, 0.3]), (2, [0.9, 0.1, 0.0]), (3, [0.2, 0.9, 0.1])) v(id, emb)
+ORDER BY l2, id
+LIMIT 2;
+```
+
+Result:
+
+| id (LONG) | l2 (DOUBLE) | cosine (DOUBLE) |
+|---|---|---|
+| 1 | 0.1414 | 0.0097 |
+| 3 | 0.1414 | 0.0116 |
 
 (2 rows)
 
@@ -694,6 +792,89 @@ Result:
 | 7000 |
 
 (1 row)
+
+<a id="rows"></a>
+
+## Whole rows: t::text, ROW(...)
+
+A table's alias on its own is the **whole row** as one value, as in PostgreSQL: `SELECT t FROM users t`, `t::text`, `string_agg(t::text, '|')`. `ROW(1, 'a')` makes such a value from its parts.
+
+- **Returns:** PostgreSQL's record text: `(1,"a b",,t)`. Fields are joined by commas, a NULL field is empty, `TRUE` / `FALSE` are `t` / `f`, and a field with a comma, a quote, a bracket, a backslash or a space is in double quotes (a quote inside is doubled).
+- **Notes:** `t.col` is still one column. A column named like the alias wins over the whole row. As JSON: [row_to_json(t)](functions-json.md#row_to_json), `to_jsonb(t)`.
+
+**Example: Compare two copies of a table row by row, as text** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE TABLE users_a (id INT PRIMARY KEY, name STRING, vip BOOL);
+CREATE TABLE users_b (id INT PRIMARY KEY, name STRING, vip BOOL);
+INSERT INTO users_a VALUES (1, 'Ram', true), (2, 'Sita K', false);
+INSERT INTO users_b VALUES (1, 'Ram', true), (2, 'Sita', false);
+```
+
+```sql
+SELECT a.id, a::text AS in_a, b::text AS in_b
+FROM users_a a JOIN users_b b ON a.id = b.id
+WHERE a::text <> b::text;
+```
+
+Result:
+
+| id (INT) | in_a (STRING) | in_b (STRING) |
+|---|---|---|
+| 2 | (2,"Sita K",f) | (2,Sita,f) |
+
+(1 row)
+
+<a id="ip"></a>
+
+## IP addresses: host, network, inet_contains, ...
+
+An `inet` or `cidr` column holds its address as text (`'10.1.2.3'`, `'10.1.0.0/16'`, `'2001:db8::1/64'`). These functions read such text, IPv4 and IPv6.
+
+| Function | Gives | Example |
+|---|---|---|
+| `host(a)` | the address, without the mask | `host('10.1.2.3/16')` = `10.1.2.3` |
+| `masklen(a)` | the mask length | `24` |
+| `family(a)` | `4` or `6` | |
+| `netmask(a)`, `hostmask(a)` | the mask as an address, and its other bits | `255.255.255.0`, `0.0.0.255` |
+| `network(a)`, `broadcast(a)` | the first and the last address of the network, with `/n` | `10.1.0.0/16`, `10.1.255.255/16` |
+| `set_masklen(a, n)` | the same address with another mask | |
+| `inet_contains(net, a)` | `true` when `a` is inside `net` (PostgreSQL's `>>=`) | `inet_contains('10.0.0.0/8', '10.2.3.4')` |
+| `isIPAddressInRange(a, net)` | the same, from ClickHouse; `false` when `a` is no address | |
+| `isIPv4String(s)`, `isIPv6String(s)` | `true` when `s` is one whole address | |
+| `IPv4StringToNum(s)`, `IPv4NumToString(n)` | an IPv4 address as a number, and back | `3232235521` = `192.168.0.1` |
+| `IPv4NumToStringClassC(n)`, `IPv4ToIPv6(n)`, `toIPv4(s)`, `IPv4CIDRToRange(a, n)` | ClickHouse's other IPv4 functions | |
+
+- **Notes:** IPv6 is written as RFC 5952 says (lower case, the longest run of zero groups as `::`). Text that is no address is an error (`invalid input syntax for type inet`, 22P02). PostgreSQL's `<<`, `>>` operators on addresses are not there: `<<` and `>>` shift bits; use `inet_contains`.
+
+**Example: Which office network did each login come from?** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE TABLE logins (who STRING, ip STRING);
+CREATE TABLE offices (office STRING, net STRING);
+INSERT INTO logins VALUES ('ram', '10.1.4.20'), ('sita', '10.2.0.7'), ('hari', '192.168.9.1');
+INSERT INTO offices VALUES ('Kathmandu', '10.1.0.0/16'), ('Pokhara', '10.2.0.0/16');
+```
+
+```sql
+SELECT l.who, l.ip, o.office, network(o.net) AS net, broadcast(o.net) AS last
+FROM logins l LEFT JOIN offices o ON inet_contains(o.net, l.ip)
+ORDER BY l.who;
+```
+
+Result:
+
+| who (STRING) | ip (STRING) | office (STRING) | net (STRING) | last (STRING) |
+|---|---|---|---|---|
+| hari | 192.168.9.1 | NULL | NULL | NULL |
+| ram | 10.1.4.20 | Kathmandu | 10.1.0.0/16 | 10.1.255.255/16 |
+| sita | 10.2.0.7 | Pokhara | 10.2.0.0/16 | 10.2.255.255/16 |
+
+(3 rows)
 
 <a id="sizes"></a>
 

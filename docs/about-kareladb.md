@@ -78,7 +78,7 @@ Result:
 | database | demo |
 | features used | batched_log_sync, block_stats, compressed_log, partition_format_2 |
 | feature list | saved: batched_log_sync, block_stats, compressed_log, partition_format_2 |
-| features this KDB reads | 52: views, partition_format_2, block_stats, runs, auto_meta, json, bytes, check, indexes, routines, users, audit, table_grants, totp, trash, database_settings, dialects, pg_catalog_parts, sequences... |
+| features this KDB reads | 55: views, partition_format_2, block_stats, runs, auto_meta, json, bytes, check, indexes, routines, users, audit, table_grants, totp, trash, database_settings, dialects, pg_catalog_parts, sequences... |
 
 (5 rows)
 

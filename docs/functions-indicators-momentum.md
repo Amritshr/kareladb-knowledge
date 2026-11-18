@@ -29,7 +29,7 @@ These are **series functions**, like [sma, ema, rsi and atr](functions-indicator
 - **NULL prices:** `macd`, `stochrsi` and `trix` are built from EMAs or Wilder averages. One NULL price makes that row and **every later** row `NULL`: leave NULL prices out with `WHERE close IS NOT NULL`. The others only look at a window of candles: they are NULL while the window holds the NULL, and then come back.
 - **Same as TA-Lib:** the formulas and the first row with a value match TA-Lib.
 - **Returns** `DOUBLE`.
-- One series function cannot be inside another (`ema(trix(close, 30), 9)`): compute the first one in a subquery.
+- One series function can be inside another when the inner one is written without `OVER` (`ema(trix(close, 30), 9) OVER (...)`).
 
 **Example: Momentum of CITY's one-minute candles: MACD, stochastic, Williams %R and CCI (the last 5)** (sample data: sample)
 

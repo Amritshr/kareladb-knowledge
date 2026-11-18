@@ -27,8 +27,31 @@
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
   &quot;threshold_ms&quot;: 1000,
-  &quot;recorded&quot;: 0,
-  &quot;queries&quot;: []
+  &quot;recorded&quot;: 2,
+  &quot;queries&quot;: [
+    {
+      &quot;ms&quot;: 1794989020518,
+      &quot;took_ms&quot;: 5008,
+      &quot;user&quot;: &quot;&quot;,
+      &quot;client&quot;: &quot;127.0.0.1 (http)&quot;,
+      &quot;database&quot;: &quot;h2128&quot;,
+      &quot;rows&quot;: -1,
+      &quot;ok&quot;: false,
+      &quot;error&quot;: &quot;a row of table &#39;accounts&#39; is locked: another transaction changed it or took it with SELECT ... FOR UPDATE, and is still open; waited 5009 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short&quot;,
+      &quot;sql&quot;: &quot;UPDATE accounts SET balance = 0 WHERE id = 1&quot;
+    },
+    {
+      &quot;ms&quot;: 1794989020518,
+      &quot;took_ms&quot;: 5005,
+      &quot;user&quot;: &quot;&quot;,
+      &quot;client&quot;: &quot;127.0.0.1 (http)&quot;,
+      &quot;database&quot;: &quot;h2129&quot;,
+      &quot;rows&quot;: -1,
+      &quot;ok&quot;: false,
+      &quot;error&quot;: &quot;table &#39;accounts&#39; is busy: another transaction has held it for 5010 ms; waited 5006 ms (lock_timeout: SET lock_timeout, or kareladb serve --lock-timeout). Try again, or keep transactions short&quot;,
+      &quot;sql&quot;: &quot;UPDATE accounts SET balance = 0 WHERE id = 2&quot;
+    }
+  ]
 }</code></pre>
 <p><strong>Example: How much of the table a query reads</strong></p>
 <p>Setup:</p>
@@ -110,7 +133,7 @@ PURGE TRASH;</code></pre>
 <p>Response:</p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;now_ms&quot;: 1792828606039,
+  &quot;now_ms&quot;: 1794989020750,
   &quot;timers&quot;: []
 }</code></pre>
 <h2 id="backup">A backup failed</h2>

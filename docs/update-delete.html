@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UPDATE and DELETE - KarelaDB (KARELA DataBase) docs</title>
-<meta name="description" content="Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.">
+<meta name="description" content="Change rows with UPDATE, remove rows with DELETE, do both and INSERT in one statement with MERGE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.">
 <link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/update-delete.html">
 <link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/update-delete.md">
 <link rel="stylesheet" href="../site.css">
@@ -13,8 +13,8 @@
 <header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
 <main>
 <h1 id="update-and-delete">UPDATE and DELETE</h1>
-<blockquote><p>Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.</p></blockquote>
-<ul><li>Category: Writing data</li><li>Keywords: update, change rows, modify, SET, delete, remove rows, delete rows, WHERE, all rows, RETURNING, fix bad data, wrong data, correct data, undo, rollback, TRUNCATE, TRUNCATE TABLE, RESTART IDENTITY, CONTINUE IDENTITY, empty a table, delete all rows, the update would create a second row, row(s) updated, row(s) deleted, safe workflow, UPDATE FROM, FROM other table, update from another table, DELETE USING</li><li>See also: <a href="insert.html">INSERT</a>, <a href="transactions.html">Transactions</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="constraints.html">Constraints</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="where.html">WHERE</a></li></ul>
+<blockquote><p>Change rows with UPDATE, remove rows with DELETE, do both and INSERT in one statement with MERGE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.</p></blockquote>
+<ul><li>Category: Writing data</li><li>Keywords: update, change rows, modify, SET, delete, remove rows, delete rows, WHERE, all rows, RETURNING, fix bad data, wrong data, correct data, undo, rollback, TRUNCATE, TRUNCATE TABLE, RESTART IDENTITY, CONTINUE IDENTITY, empty a table, delete all rows, the update would create a second row, row(s) updated, row(s) deleted, safe workflow, UPDATE FROM, FROM other table, update from another table, DELETE USING, MERGE, MERGE INTO, upsert, WHEN MATCHED, WHEN NOT MATCHED, sync a table, apply changes from a staging table</li><li>See also: <a href="insert.html">INSERT</a>, <a href="transactions.html">Transactions</a>, <a href="alter-table.html">ALTER, RENAME and DROP TABLE</a>, <a href="constraints.html">Constraints</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="where.html">WHERE</a></li></ul>
 <p><code>UPDATE</code> changes values in rows that are already there. <code>DELETE</code> removes rows. Both take a <code>WHERE</code> condition that says <strong>which</strong> rows. Like <code>INSERT</code>, one statement is all or nothing, and it is saved as soon as KarelaDB says <code>updated</code> or <code>deleted</code>.</p>
 <p><strong>Warning:</strong> without <code>WHERE</code>, <code>UPDATE</code> changes <strong>every row</strong> and <code>DELETE</code> removes <strong>every row</strong>. Before a big change, run <code>SELECT count(*)</code> with the same <code>WHERE</code> and check the number.</p>
 <p><strong>Example: Make every VOLT daily volume of 2026-09 ten percent bigger: count first, then change</strong> (sample data: sample)</p>
@@ -38,7 +38,7 @@ UPDATE ochl_day SET volume = round(volume * 1.1) WHERE symbol = &#39;VOLT&#39; A
 UPDATE table SET column = expression FROM (SELECT ...) alias WHERE join_condition</code></pre>
 <p>Takes the new values from <strong>another table</strong> or from a subquery (PostgreSQL style). <code>FROM</code> can list more than one table, or a <code>JOIN</code>.</p>
 <ul><li><strong>Notes:</strong>
-<ul><li>The <code>WHERE</code> must join the rows: <code>WHERE trade_log.id = fix.id</code>. Without it, <strong>every</strong> row of the table is updated.</li><li>When a column name is in both tables, write <code>table.column</code> (or <code>alias.column</code>), also on the right side of <code>SET</code>. Otherwise: <code>column &#39;price&#39; is in more than one table</code>.</li><li>The table being updated can have an alias too: <code>UPDATE trade_log t SET ... WHERE t.id = f.id</code>.</li><li><code>RETURNING</code> works. For <code>DELETE</code> the same idea is written <code>DELETE FROM table USING other_table WHERE ...</code>.</li></ul></li></ul>
+<ul><li>The <code>WHERE</code> must join the rows: <code>WHERE trade_log.id = fix.id</code>. Without it, <strong>every</strong> row of the table is updated.</li><li>When a column name is in both tables, write <code>table.column</code> (or <code>alias.column</code>), also on the right side of <code>SET</code>. Otherwise: <code>column &#39;price&#39; is in more than one table</code>.</li><li>The table being updated can have an alias too: <code>UPDATE trade_log t SET ... WHERE t.id = f.id</code>.</li><li><code>RETURNING</code> works, also with the other table&#39;s columns: <code>RETURNING trade_log.id, f.price</code>. For <code>DELETE</code> the same idea is written <code>DELETE FROM table USING other_table WHERE ...</code>.</li></ul></li></ul>
 <p><strong>Example: Copy corrected prices from another table</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE trade_log (id LONG PRIMARY KEY, symbol SYMBOL, price DOUBLE);
@@ -241,6 +241,79 @@ TRUNCATE notes;</code></pre>
 <p>Result:</p>
 <pre><code class="language-text">transaction started</code></pre>
 <p>Error: <code>TRUNCATE cannot be used inside a transaction or a procedure: KarelaDB cannot undo it. COMMIT or ROLLBACK first, or use DELETE FROM table, which ROLLBACK undoes (the transaction was rolled back)</code></p>
+<h2 id="merge">MERGE</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">MERGE INTO table [[AS] alias] USING source [[AS] alias] ON condition
+  WHEN MATCHED [AND condition] THEN UPDATE SET column = value, ... | DELETE | DO NOTHING
+  WHEN NOT MATCHED [BY TARGET] [AND condition] THEN INSERT [(columns)] VALUES (...) | INSERT DEFAULT VALUES | DO NOTHING
+  WHEN NOT MATCHED BY SOURCE [AND condition] THEN UPDATE SET ... | DELETE | DO NOTHING
+  [RETURNING expression [[AS] alias], ... | *]</code></pre>
+<p>Updates, deletes and inserts rows of a table by how they match the rows of a <strong>source</strong> (a table or <code>(SELECT ...) AS name</code>). One statement does what an <code>UPDATE</code>, a <code>DELETE</code> and an <code>INSERT</code> would do together, as in PostgreSQL 15 and later.</p>
+<div class="table-wrap"><table><thead><tr><th>Clause</th><th>Its rows</th></tr></thead><tbody><tr><td><code>WHEN MATCHED</code></td><td>a row of the table with a source row that meets <code>ON</code></td></tr><tr><td><code>WHEN NOT MATCHED</code> (or <code>BY TARGET</code>)</td><td>a source row with no row in the table: <code>INSERT</code> it</td></tr><tr><td><code>WHEN NOT MATCHED BY SOURCE</code></td><td>a row of the table that no source row matches</td></tr></tbody></table></div>
+<ul><li><strong>Returns:</strong> the number of rows inserted, updated and deleted (PostgreSQL&#39;s tag <code>MERGE n</code>). With <code>RETURNING</code>, also one row per changed row (see below).</li><li><strong>Notes:</strong>
+<ul><li>For each row, the <strong>first</strong> clause of its kind whose <code>AND</code> condition holds runs. A row no clause takes stays as it is.</li><li>Every clause sees the rows <strong>as they were before</strong> the statement: an update does not make a later <code>DELETE</code> clause take the row.</li><li>When two source rows match one row of the table, the statement fails (<code>MERGE command cannot affect row a second time</code>, 21000) and changes nothing. Make <code>ON</code> match at most one source row.</li><li>All or nothing, also inside <code>BEGIN ... COMMIT</code>. Triggers run for each part: <code>DELETE</code>, <code>UPDATE</code>, then <code>INSERT</code>.</li><li>It needs the <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> rights its clauses use, <code>SELECT</code> on the table and on the source.</li><li>Not supported yet: a table with <a href="table-rights.html#row-rights">row-level security</a> policies for the user.</li></ul></li></ul>
+<p><strong>Example: Apply a day&#39;s stock changes: add, remove what reaches zero, insert new items</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE stock (item STRING PRIMARY KEY, qty LONG);
+CREATE TABLE changes (item STRING, delta LONG);
+INSERT INTO stock VALUES (&#39;bolt&#39;, 40), (&#39;nut&#39;, 5), (&#39;washer&#39;, 12);
+INSERT INTO changes VALUES (&#39;bolt&#39;, 10), (&#39;nut&#39;, -5), (&#39;screw&#39;, 25);</code></pre>
+<pre><code class="language-sql">MERGE INTO stock s USING changes c ON s.item = c.item
+WHEN MATCHED AND s.qty + c.delta &lt;= 0 THEN DELETE
+WHEN MATCHED THEN UPDATE SET qty = s.qty + c.delta
+WHEN NOT MATCHED THEN INSERT (item, qty) VALUES (c.item, c.delta);
+SELECT * FROM stock ORDER BY item;</code></pre>
+<p>Result:</p>
+<p><code>MERGE INTO stock AS s USING changes AS c ON s.item = c.item WHEN MATCHED AND s.qty + c.delta &lt;= 0 TH</code></p>
+<pre><code class="language-text">merged into &#39;stock&#39;: 1 row(s) inserted, 1 updated, 1 deleted</code></pre>
+<p><code>SELECT * FROM stock ORDER BY item</code></p>
+<div class="table-wrap"><table><thead><tr><th>item (STRING)</th><th>qty (LONG)</th></tr></thead><tbody><tr><td>bolt</td><td>50</td></tr><tr><td>screw</td><td>25</td></tr><tr><td>washer</td><td>12</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<p><strong>Example: Make a table the same as a fresh copy (BY SOURCE removes the rest)</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE symbols (symbol STRING PRIMARY KEY, name STRING);
+CREATE TABLE symbols_new (symbol STRING, name STRING);
+INSERT INTO symbols VALUES (&#39;ACME&#39;, &#39;Acme old&#39;), (&#39;GONE&#39;, &#39;Delisted&#39;);
+INSERT INTO symbols_new VALUES (&#39;ACME&#39;, &#39;Acme Ltd&#39;), (&#39;CITY&#39;, &#39;City Bank&#39;);</code></pre>
+<pre><code class="language-sql">MERGE INTO symbols t USING symbols_new n ON t.symbol = n.symbol
+WHEN MATCHED AND t.name &lt;&gt; n.name THEN UPDATE SET name = n.name
+WHEN NOT MATCHED THEN INSERT VALUES (n.symbol, n.name)
+WHEN NOT MATCHED BY SOURCE THEN DELETE;
+SELECT * FROM symbols ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<p><code>MERGE INTO symbols AS t USING symbols_new AS n ON t.symbol = n.symbol WHEN MATCHED AND t.name != n.n</code></p>
+<pre><code class="language-text">merged into &#39;symbols&#39;: 1 row(s) inserted, 1 updated, 1 deleted</code></pre>
+<p><code>SELECT * FROM symbols ORDER BY symbol</code></p>
+<div class="table-wrap"><table><thead><tr><th>symbol (STRING)</th><th>name (STRING)</th></tr></thead><tbody><tr><td>ACME</td><td>Acme Ltd</td></tr><tr><td>CITY</td><td>City Bank</td></tr></tbody></table></div>
+<p>(2 rows)</p>
+<p><strong>Example: Two source rows for one row</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE stock (item STRING PRIMARY KEY, qty LONG);
+CREATE TABLE changes (item STRING, delta LONG);
+INSERT INTO stock VALUES (&#39;bolt&#39;, 40);
+INSERT INTO changes VALUES (&#39;bolt&#39;, 1), (&#39;bolt&#39;, 2);</code></pre>
+<pre><code class="language-sql">MERGE INTO stock s USING changes c ON s.item = c.item WHEN MATCHED THEN UPDATE SET qty = s.qty + c.delta;</code></pre>
+<p>Result:</p>
+<p>Error: <code>MERGE command cannot affect row a second time (more than one source row matches one row of &#39;stock&#39;; make the ON condition match at most one source row)</code></p>
+<h3 id="merge-returning">MERGE ... RETURNING</h3>
+<p>As in PostgreSQL 17, <code>RETURNING</code> after <code>MERGE</code> gives one row for each row it inserted, updated or deleted.</p>
+<div class="table-wrap"><table><thead><tr><th>In <code>RETURNING</code></th><th>Gives</th></tr></thead><tbody><tr><td><code>merge_action()</code></td><td><code>&#39;INSERT&#39;</code>, <code>&#39;UPDATE&#39;</code> or <code>&#39;DELETE&#39;</code></td></tr><tr><td>the table&#39;s columns (<code>s.qty</code>, <code>s.*</code>)</td><td>the new values; for a deleted row, its old values</td></tr><tr><td>the source&#39;s columns (<code>c.delta</code>, <code>c.*</code>)</td><td>the source row that made the change; <code>NULL</code> for a <code>BY SOURCE</code> row</td></tr><tr><td><code>*</code></td><td>the table&#39;s columns, then the source&#39;s</td></tr></tbody></table></div>
+<ul><li>The rows come in the order the statement went through them, as in PostgreSQL: add your own <code>ORDER BY</code> in the app if the order matters.</li><li>A column name both have needs its table (<code>s.item</code>), or it fails (<code>column &#39;item&#39; is in more than one table</code>).</li><li>If the <code>RETURNING</code> list has an error, nothing is changed.</li><li>A <code>BEFORE ... FOR EACH ROW</code> trigger that leaves rows out (<code>RETURN NULL</code>): the source&#39;s columns cannot be returned then (0A000); the table&#39;s columns and <code>merge_action()</code> can.</li></ul>
+<p><strong>Example: Apply stock changes and see what each row did</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE stock (item STRING PRIMARY KEY, qty LONG);
+CREATE TABLE changes (item STRING, delta LONG);
+INSERT INTO stock VALUES (&#39;bolt&#39;, 40), (&#39;nut&#39;, 5);
+INSERT INTO changes VALUES (&#39;bolt&#39;, 10), (&#39;nut&#39;, -5), (&#39;screw&#39;, 25);</code></pre>
+<pre><code class="language-sql">MERGE INTO stock s USING changes c ON s.item = c.item
+WHEN MATCHED AND s.qty + c.delta &lt;= 0 THEN DELETE
+WHEN MATCHED THEN UPDATE SET qty = s.qty + c.delta
+WHEN NOT MATCHED THEN INSERT (item, qty) VALUES (c.item, c.delta)
+RETURNING merge_action() AS action, s.item, s.qty, c.delta;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>action (STRING)</th><th>item (STRING)</th><th>qty (LONG)</th><th>delta (LONG)</th></tr></thead><tbody><tr><td>UPDATE</td><td>bolt</td><td>50</td><td>10</td></tr><tr><td>DELETE</td><td>nut</td><td>5</td><td>-5</td></tr><tr><td>INSERT</td><td>screw</td><td>25</td><td>25</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<pre><code class="language-text">merged into &#39;stock&#39;: 1 row(s) inserted, 1 updated, 1 deleted</code></pre>
 <h2 id="returning">RETURNING</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">UPDATE ... [WHERE ...] RETURNING expression [[AS] alias], ... | *

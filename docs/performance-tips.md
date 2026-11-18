@@ -43,7 +43,7 @@ symbol | avg_close
 -------+----------
 CITY   |    504.24
 COAST  |    378.36
-(2 rows, 0.7 ms)
+(2 rows, 0.6 ms)
 ```
 
 **Example: EXPLAIN: a time filter and a symbol read only one key range** (sample data: sample)
@@ -232,8 +232,8 @@ procedure 'minutes_of' done: 0 row(s) changed
 
 | step (LONG) | routine (STRING) | statement (STRING) | rows (LONG) | time_us (LONG) | changes (STRING) |
 |---|---|---|---|---|---|
-| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 569 | partitions read: 1 |
-| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 527 | partitions read: 1 |
+| 1 |  | CALL minutes_of('2026-09-10') WITH DEBUG | 0 | 782 | partitions read: 1 |
+| 2 | minutes_of | SELECT count(*) AS minutes FROM ochl_minutes WHERE time >= day AND time < dateadd('d', 1, day) | 1 | 719 | partitions read: 1 |
 
 (2 rows)
 
@@ -253,6 +253,7 @@ SELECT ... ORDER BY col DESC LIMIT n
 - Any other `ORDER BY ... LIMIT n` must look at every matching row, but keeps only the best `n` in memory.
 - `ORDER BY` one whole-number, `DATE` or `TIMESTAMP` column with no `LIMIT` (one symbol's trades of a day, newest first) reads the rows straight from the columns and sorts only them: about 3 ms became 1 ms for 5,000 of 64,000 rows (2026-09-25).
 - Top `n` per group, `SELECT ... FROM (SELECT ..., row_number() OVER (PARTITION BY symbol ORDER BY qty DESC) AS rn FROM t WHERE ...) WHERE rn <= 5`: when every window of the inner query is `row_number()` or `rank()` with such a limit, over one `SYMBOL` column and ordered by one number or time column, KarelaDB first finds the `n`-th best value of each symbol and then collects only the rows at least that good. 30 days of 686,000 rows: 57 ms became 4 ms (2026-09-25). A `NULL` or `NaN` in either column makes it read every row, as before.
+- Window functions over number, time, date and `SYMBOL` columns of one table (`row_number`, `rank`, `dense_rank`, `lag`, `lead`, and `count`, `sum`, `avg`, `min`, `max` over the partition, the running frame or `ROWS n PRECEDING`) run on plain arrays on all threads, sorted by a radix sort: one million rows in 25 to 55 ms, 2 to 8 times faster than the general path and faster than DuckDB (2026-10-25). An aggregate over such a subquery (`SELECT max(rn) FROM (SELECT row_number() OVER (...) AS rn FROM t) s`) reads the results without making rows, and an aggregate over a subquery that only renames and filters columns of one table (`SELECT max(x) FROM (SELECT v AS x FROM t) s`) reads the table directly. See [fast windows](functions-window.md#fast-windows) for what is covered.
 - `--max-rows` of `kareladb sql` and `limit=` of HTTP are a safety net that cuts the result. When you want fewer rows, write `LIMIT` in the SQL.
 - For pages of a big result, use keyset pages (`WHERE time < <last time> ORDER BY time DESC LIMIT 20`), not a big `OFFSET`: `OFFSET 20000` still reads the 20,000 rows before.
 
@@ -392,12 +393,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 1 ms (0 transactions), clean-up 0 ms
+  open      opened in 3 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 1 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -545,12 +547,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 4.00 GB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 1.00 GB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -620,12 +623,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 1 query thread (--threads), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -687,12 +691,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```

@@ -115,6 +115,7 @@ DML statements change the **rows** of tables. The table itself stays as it is.
 | `INSERT INTO ... SELECT` | adds the rows a query gives | [insert](insert.md#insert-select) |
 | `UPDATE ... SET ... WHERE` | changes rows | [update-delete](update-delete.md#update) |
 | `DELETE FROM ... WHERE` | removes rows | [update-delete](update-delete.md#delete) |
+| `MERGE INTO ... USING ... WHEN` | updates, deletes and inserts by how rows match a source | [update-delete](update-delete.md#merge) |
 | `... RETURNING` | shows the rows that were added, changed or removed | [update-delete](update-delete.md#returning) |
 | `CALL name(...)` | runs a stored procedure, which changes rows | [procedures](procedures.md) |
 
@@ -235,11 +236,11 @@ user 'shop_app' has role write on database 'demo'
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:41.800Z | 2026-10-24T07:56:41.800Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T07:56:41.991Z | 2026-10-24T07:56:41.991Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-24T07:56:42.058Z | 2026-10-24T07:56:42.059Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:31.345Z | 2026-11-18T08:03:31.345Z | NULL | false | NULL | NULL | NULL |
+| report | read | NULL | 2026-11-18T08:03:31.592Z | 2026-11-18T08:03:31.592Z | NULL | false | NULL | NULL | NULL |
+| shop_app | none | demo=write | 2026-11-18T08:03:31.670Z | 2026-11-18T08:03:31.674Z | NULL | false | NULL | NULL | NULL |
 
 (3 rows)
 

@@ -41,7 +41,7 @@ live_data,symbol=CITY ltp=530.0 1789103700</code></pre>
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 1: timestamps look like seconds (1789103700) but precision= is not set: add ?precision=s (without it they are read as nanoseconds and would land on 1970-01-01T00:00:01.789Z)&quot;,
   &quot;line&quot;: 1,
-  &quot;errorId&quot;: &quot;3258299e591f-1&quot;
+  &quot;errorId&quot;: &quot;d89d304bf68e-1&quot;
 }</code></pre>
 <p><strong>HTTP: The same line with precision=s</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write?precision=s
@@ -71,10 +71,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE 
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 41, &quot;execute_us&quot;: 105}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 118}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 41, &quot;execute_us&quot;: 105}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 39, &quot;execute_us&quot;: 118}
 }</code></pre>
 <p><strong>HTTP: A TIMESTAMP field in milliseconds: refused</strong></p>
 <p>Setup:</p>
@@ -88,7 +88,7 @@ orders_log,symbol=CITY placed=1789103700000t 1789103700000</code></pre>
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 1: table &#39;orders_log&#39;, column &#39;placed&#39; cannot take 1789103700000t: a t value is microseconds, and this number looks like milliseconds (it would be 1970-01-21T16:58:23.700Z); write 1789103700000000t&quot;,
   &quot;line&quot;: 1,
-  &quot;errorId&quot;: &quot;3258299e591f-2&quot;
+  &quot;errorId&quot;: &quot;d89d304bf68e-2&quot;
 }</code></pre>
 <h2 id="merge">Update some columns: upsert=merge</h2>
 <p>By default a line <strong>replaces the whole row</strong> with the same key: a column not in the line becomes its <code>DEFAULT</code> or NULL. With <code>upsert=merge</code>, a column not in the line <strong>keeps the value it has</strong>.</p>
@@ -131,10 +131,10 @@ GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 68}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 29, &quot;execute_us&quot;: 53}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 68}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 29, &quot;execute_us&quot;: 53}
 }</code></pre>
 <p><strong>HTTP: Without merge the missing columns are reset</strong></p>
 <p>Setup:</p>
@@ -173,10 +173,10 @@ GET /exec?compat=0&amp;query=SELECT id, name, balance, plan FROM accounts</code>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 56}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 91}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 56}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 91}
 }</code></pre>
 <h2 id="new-tables">A table that is not there</h2>
 <p>When the lines name a table the database does not have, <code>POST /write</code> makes it, as QuestDB does, and then writes the rows. The columns come from every line of the request for that table, in the order they first appear:</p>
@@ -216,10 +216,10 @@ GET /exec?compat=0&amp;query=SHOW COLUMNS FROM market_index</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 10}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 15}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 7, &quot;execute_us&quot;: 10}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 13, &quot;execute_us&quot;: 15}
 }</code></pre>
 <h2 id="post-write">POST /write</h2>
 <p>Syntax:</p>
@@ -228,7 +228,7 @@ body: lines of the line protocol (UTF-8)</code></pre>
 <p>Parses every line, then writes all the rows in <strong>one transaction</strong>. Rows are <strong>upserted</strong>: a row with the same key as an existing row (its <code>PRIMARY KEY</code> or <code>DEDUP KEY</code>) replaces it, like <code>INSERT OR REPLACE</code>. So sending the same lines twice does not make duplicates in a table with a key.</p>
 <div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Where</th><th>Meaning</th><th>Default</th></tr></thead><tbody><tr><td>body</td><td>body</td><td>The lines</td><td>required</td></tr><tr><td><code>db</code></td><td>URL</td><td>The database (or the header <code>X-KDB-Database</code>). InfluxDB&#39;s <code>bucket</code> and <code>org</code> are ignored.</td><td>the default database</td></tr><tr><td><code>precision</code></td><td>URL</td><td>The unit of the timestamps at the end of the lines: <code>n</code> or <code>ns</code> nanoseconds, <code>u</code> or <code>us</code> microseconds, <code>ms</code> milliseconds, <code>s</code> seconds. Without it, timestamps that plainly are seconds, milliseconds or microseconds are refused (<a href="#wrong-unit">the wrong unit</a>).</td><td><code>n</code></td></tr><tr><td><code>upsert</code></td><td>URL</td><td><code>replace</code>: a line replaces the whole row. <code>merge</code>: columns missing from a line keep their stored values (<a href="#merge">merge</a>).</td><td><code>replace</code></td></tr><tr><td><code>dedup</code></td><td>URL</td><td><code>skip</code>: no duplicate lookups in days that already hold rows, for trusted loads of new rows. <strong>A key already stored may then be there twice</strong>; repair with <code>DEDUP TABLE</code> (<a href="partitions-and-dedup.html#dedup-skip">dedup=skip</a>).</td><td><code>on</code></td></tr><tr><td><code>wait</code></td><td>URL</td><td><code>trigger</code>: answer only after the <a href="triggers.html#deferred">deferred trigger</a> jobs of these rows ended, with <code>200</code> and <code>{&quot;rows&quot;:N,&quot;jobs&quot;:[...],&quot;done&quot;:true}</code>.</td><td>no wait: <code>204</code></td></tr><tr><td><code>wait_timeout</code></td><td>URL</td><td>With <code>wait=trigger</code>: the longest wait, like <code>10min</code>. Jobs still running then show <code>&quot;status&quot;:&quot;running&quot;</code>.</td><td>no limit</td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Answer</th><th>Meaning</th></tr></thead><tbody><tr><td><code>204 No Content</code></td><td>All lines were written and are on disk. There is no body; the <code>Server-Timing</code> header says where the time went (<a href="http-import.html#timings">timings</a>).</td></tr><tr><td><code>code</code></td><td>(error) <code>&quot;invalid&quot;</code> for a bad request or line, <code>&quot;internal error&quot;</code> for trouble on the server</td></tr><tr><td><code>message</code></td><td>(error) what is wrong. About a line it starts with <code>error in line N:</code></td></tr><tr><td><code>line</code></td><td>(error) the line number (from 1), or <code>0</code> when the error is not about one line</td></tr><tr><td><code>errorId</code></td><td>(error) a unique id of this error, to find it in logs</td></tr></tbody></table></div>
-<ul><li><strong>Status codes:</strong> 204 written; 400 a bad line, an unknown column (or table, when making tables is off), a value of the wrong type, a time in the wrong unit, a bad <code>precision</code> or <code>upsert</code>, a damaged compressed body, or a compression other than gzip and deflate; 401/403 login or role (needs <code>write</code>, and <code>ddl</code> to make a table); 404 unknown database; 405 for <code>GET</code>; 408 a trigger ran past the statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble (nothing written); 503 busy: another writer or transaction held the table for longer than the lock wait (5 s), with the message <code>table &#39;x&#39; is busy: ...</code> or <code>database is busy: ...</code> (nothing written; send it again); 507 the disk is full or has less than 64 MB free, with <code>&quot;code&quot;: &quot;disk full&quot;</code> (nothing written; see <a href="loading-data.html#speed">loading data</a>).</li><li><strong>Notes:</strong>
+<ul><li><strong>Status codes:</strong> 204 written; 400 a bad line, an unknown column (or table, when making tables is off), a value of the wrong type, a time in the wrong unit, a bad <code>precision</code> or <code>upsert</code>, a damaged compressed body, or a compression other than gzip and deflate; 401/403 login or role (needs <code>write</code>, and <code>ddl</code> to make a table); 404 unknown database; 405 for <code>GET</code>; 408 a trigger ran past the statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble (nothing written); 503 busy: another writer or transaction held the table for longer than the lock wait (5 s), with the message <code>table &#39;x&#39; is busy: ...</code> or <code>database is busy: ...</code> (nothing written; send it again), or <code>memory full: ...</code> when the server&#39;s unsaved changes are past half of <code>--memory-limit</code> (<a href="cli-serve.html#memory-limit">back-pressure on loads</a>), with <code>Retry-After</code>; 507 the disk is full or has less than 64 MB free, with <code>&quot;code&quot;: &quot;disk full&quot;</code> (nothing written; see <a href="loading-data.html#speed">loading data</a>).</li><li><strong>Notes:</strong>
 <ul><li>When <strong>any</strong> line is wrong, <strong>nothing</strong> of the request is written. Fix the line and send the request again.</li><li><a href="triggers.html">Triggers</a> run <strong>once per request</strong> (not once per line), in the same transaction. <code>CHECK</code>, <code>NOT NULL</code> and <code>REFERENCES</code> rules are checked for every row.</li><li>An immediate <code>INSERT</code> trigger on a table makes the loads <strong>into that table</strong> go row by row, several times slower. A trigger on another table does not slow this one. For a table you load in bulk, make the trigger <a href="triggers.html#deferred">DEFERRED</a>.</li><li>Rows are written as columns, one piece per partition, also into a table with no <code>DEDUP KEY</code>. What a day that already has rows costs depends on the keys: <a href="partitions-and-dedup.html#load-dedup">how loads find duplicates</a>.</li><li>Loads into different tables run at the same time; loads into one table take turns.</li><li><a href="triggers.html#deferred">Deferred triggers</a> do not run inside the request: it returns when the rows are committed, and each deferred trigger gets one job with exactly these rows. Add <code>wait=trigger</code> to wait for the jobs.</li><li>The fastest load is one new day per request: the rows need no duplicate lookups (<a href="performance-tips.html#line-protocol">speed</a>).</li><li>A trigger&#39;s time counts toward the <a href="protection.html#statement-timeout">statement timeout</a> (60 s by default). An admin&#39;s loader may send <code>X-KDB-Statement-Timeout: 5min</code> for triggers that need longer. A trigger that runs too long gives status 408 with <code>&quot;line&quot;: 0</code> and the message <code>trigger &lt;name&gt;: statement timeout (&lt;N&gt; s)</code>: nothing of the request is written, and it is not about a line of the body.</li><li>Big bodies are read on several threads. For speed, send many lines per request (for example 1,000 to 100,000), not one request per line.</li><li>A body may be compressed: send <code>Content-Encoding: gzip</code> or <code>Content-Encoding: deflate</code>. The 64 MB limit counts the <strong>unpacked</strong> lines, so a small body that unpacks to more is refused with 413 <code>request body is too large once decompressed</code>. A damaged body gives 400 <code>the gzip request body could not be decompressed: ...</code> and writes nothing.</li><li>Chunked bodies are not supported: send <code>Content-Length</code>.</li></ul></li></ul>
 <pre><code class="language-bash"># Market ticks from a file, sent gzip-compressed
 gzip -c ticks.lp | curl --data-binary @- -H &quot;Content-Encoding: gzip&quot; &quot;http://127.0.0.1:9900/write?precision=ms&quot;</code></pre>
@@ -267,10 +267,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, ltv, volume FROM liv
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 105}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 62, &quot;execute_us&quot;: 203}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 19, &quot;execute_us&quot;: 105}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 62, &quot;execute_us&quot;: 203}
 }</code></pre>
 <p><strong>HTTP: The same moment in three precisions</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write
@@ -314,10 +314,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE 
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 94}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 107}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 17, &quot;execute_us&quot;: 94}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 20, &quot;execute_us&quot;: 107}
 }</code></pre>
 <p><strong>HTTP: Every kind of value</strong></p>
 <p>Setup:</p>
@@ -370,10 +370,10 @@ GET /exec?compat=0&amp;query=SELECT * FROM feed ORDER BY time</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 143}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 71}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 143}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 10, &quot;execute_us&quot;: 71}
 }</code></pre>
 <p><strong>HTTP: Send a correction: the same key replaces the row</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write?precision=s
@@ -409,10 +409,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp FROM live_data WHERE 
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 141}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 60, &quot;execute_us&quot;: 159}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 141}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 60, &quot;execute_us&quot;: 159}
 }</code></pre>
 <p><strong>HTTP: Line 2 is wrong: nothing is written</strong> (sample data: sample; shows an error)</p>
 <pre><code class="language-http">POST /write?precision=s
@@ -429,7 +429,7 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHE
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 2: table &#39;live_data&#39;, column &#39;volume&#39; is LONG and cannot take a float; write whole numbers with an i suffix, like 3i&quot;,
   &quot;line&quot;: 2,
-  &quot;errorId&quot;: &quot;3258299e591f-3&quot;
+  &quot;errorId&quot;: &quot;d89d304bf68e-3&quot;
 }</code></pre>
 <p><code>GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHERE timestamp = &#39;2026-09-11T05:17:00Z&#39;</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -448,10 +448,10 @@ GET /exec?compat=0&amp;query=SELECT count(*) AS rows_at_05_17 FROM live_data WHE
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 31, &quot;execute_us&quot;: 89}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 111}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 31, &quot;execute_us&quot;: 89}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 22, &quot;execute_us&quot;: 111}
 }</code></pre>
 <p><strong>HTTP: Every column must exist</strong> (sample data: sample)</p>
 <pre><code class="language-http">POST /write
@@ -463,7 +463,7 @@ live_data,symbol=CITY ltp=530.0,turnover=1250000.5 1789103700000000000</code></p
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;error in line 1: table &#39;live_data&#39; has no column &#39;turnover&#39;; add it first (ALTER TABLE live_data ADD COLUMN ...)&quot;,
   &quot;line&quot;: 1,
-  &quot;errorId&quot;: &quot;3258299e591f-4&quot;
+  &quot;errorId&quot;: &quot;d89d304bf68e-4&quot;
 }</code></pre>
 <p><strong>HTTP: A trigger runs once for the whole request</strong> (sample data: sample)</p>
 <p>Setup:</p>
@@ -501,10 +501,10 @@ GET /exec?compat=0&amp;query=SELECT * FROM write_log</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 79}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 82}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 15, &quot;execute_us&quot;: 79}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 16, &quot;execute_us&quot;: 82}
 }</code></pre>
 <p><strong>HTTP: Bad precision</strong></p>
 <pre><code class="language-http">POST /write?precision=minutes
@@ -516,7 +516,7 @@ live_data,symbol=CITY ltp=530.0 1</code></pre>
   &quot;code&quot;: &quot;invalid&quot;,
   &quot;message&quot;: &quot;unsupported precision &#39;minutes&#39;: use n, u, ms or s&quot;,
   &quot;line&quot;: 0,
-  &quot;errorId&quot;: &quot;3258299e591f-5&quot;
+  &quot;errorId&quot;: &quot;d89d304bf68e-5&quot;
 }</code></pre>
 <p><strong>HTTP: Writing needs POST</strong></p>
 <pre><code class="language-http">GET /write</code></pre>
@@ -591,10 +591,10 @@ GET /exec?compat=0&amp;query=SELECT timestamp, symbol, ltp, volume FROM live_dat
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 106}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 178}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 106}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 178}
 }</code></pre>
 </main>
 <footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/line-protocol.md">This page as markdown</a>.</footer>

@@ -1,9 +1,9 @@
 # Loading many rows
 
-> Load thousands or millions of rows: multi-row INSERT, SQL files, CSV files (POST /imp, COPY), the line protocol and the C++ InsertRows API, with speed tips.
+> Load thousands or millions of rows: multi-row INSERT, SQL files, CSV files (POST /imp, COPY, read_csv), the line protocol and the C++ InsertRows API, with speed tips.
 
 - Category: Writing data
-- Keywords: bulk load, bulk insert, import, batch insert, load data, load file, SQL file, pipe, stdin, kareladb sql -, CSV, CSV import, export CSV, --format csv, migrate, migration, QuestDB export, csv-to-sql.ps1, line protocol, ILP, POST /write, POST /imp, COPY, COPY FROM STDIN, pgx CopyFrom, InsertRows, C++ API, InsertMode, InsertRequest, fast insert, speed, sync-commits, disk full, 507, trigger slows load, going back, back to QuestDB, back to PostgreSQL, export-since.mjs, roll back migration, export new rows, shadow period, dual-write, compare QuestDB, compare.mjs, \_shadow\_diffs, nightly compare
+- Keywords: bulk load, bulk insert, import, batch insert, read\_csv, read\_csv\_auto, server file, import folder, DuckDB read\_csv, load data, load file, SQL file, pipe, stdin, kareladb sql -, CSV, CSV import, export CSV, --format csv, migrate, migration, QuestDB export, csv-to-sql.ps1, line protocol, ILP, POST /write, POST /imp, COPY, COPY FROM STDIN, pgx CopyFrom, InsertRows, C++ API, InsertMode, InsertRequest, fast insert, speed, sync-commits, disk full, 507, trigger slows load, going back, back to QuestDB, back to PostgreSQL, export-since.mjs, roll back migration, export new rows, shadow period, dual-write, compare QuestDB, compare.mjs, \_shadow\_diffs, nightly compare
 - See also: [INSERT](insert.md), [Performance tips](performance-tips.md), [Line protocol (POST /write)](line-protocol.md), [kareladb sql and kareladb shell](cli-sql-and-shell.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Partitions, SORT BY and DEDUP KEY](partitions-and-dedup.md)
 
 A daily import can be tens of thousands of rows: trades, minute candles, sensor readings or log lines. There are several ways to load them. All of them check the same rules as `INSERT` (types, keys, `NOT NULL`, `REFERENCES`, `CHECK`).
@@ -14,6 +14,7 @@ A daily import can be tens of thousands of rows: trades, minute candles, sensor 
 | [SQL file with `kareladb sql <db> -`](#sql-files) | a file on the same PC, server stopped | good |
 | [CSV file](#csv) with `POST /imp` | data from Excel, QuestDB or another database | fast: one request |
 | [`COPY ... FROM STDIN`](#csv) on the PostgreSQL port | Go, Python or psql programs | fast |
+| [`read_csv('file.csv')`](#read-csv) in SQL | a CSV file already on the server (admins) | fast: no upload |
 | [HTTP `POST /exec`](#http) | while `kareladb serve` runs | good |
 | [Line protocol `POST /write`](#line-protocol) | live feeds, many rows from programs | fastest over HTTP |
 | [C++ `InsertRows`](#insert-rows) | a program that has KarelaDB inside | fastest |
@@ -201,6 +202,7 @@ There are three ways to load a CSV file:
 |---|---|
 | [POST /imp](http-import.md) | send the file to the running server. It is QuestDB's import route: it can make the table from the file, and it upserts like the line protocol. One request is one transaction |
 | `COPY table FROM STDIN` | on the [PostgreSQL port](postgres-protocol.md): psql `\copy`, pgx `CopyFrom`, psycopg `copy`. Text, CSV and binary format. One `COPY` is one transaction |
+| [`read_csv('file.csv')`](#read-csv) | a file already in the database's import folder on the server: `CREATE TABLE t AS SELECT * FROM read_csv('file.csv')`. Admins only |
 | SQL statements | convert the CSV into `INSERT OR REPLACE` statements and pipe them into `kareladb sql`. The tutorial has a script: `docs/tutorial/examples/10-migrating-from-questdb/csv-to-sql.ps1` ([chapter 10](../tutorial/10-migrating-from-questdb.md)) |
 
 Rules for converting a CSV row into SQL values:
@@ -236,6 +238,184 @@ time,symbol,open,high,low,close,volume
 2026-09-10T00:00:00.000Z,COAST,380.1,382,373.2,376.1,186200
 2026-09-10T00:00:00.000Z,VOLT,185.6,192.1,184.2,191.2,41470
 ```
+
+<a id="read-csv"></a>
+
+## read_csv: a file of the server
+
+Syntax:
+
+```sql
+SELECT * FROM read_csv('file.csv')
+SELECT * FROM read_csv('file.csv', header => true, delim => ';')
+SELECT * FROM read_csv('file.csv', columns => {'name': 'TYPE', ...})
+SELECT * FROM read_csv_auto('file.csv') AS t(a, b [type], ...)
+CREATE TABLE t AS SELECT * FROM read_csv('file.csv')
+INSERT INTO t SELECT ... FROM read_csv('file.csv') [WHERE ...]
+```
+
+`read_csv` (DuckDB's name; `read_csv_auto` is the same) reads a CSV file **that is already on the server** as a table in `FROM`. Use it like any table: `WHERE`, `GROUP BY`, joins, `CREATE TABLE ... AS`, `INSERT ... SELECT`.
+
+**Only an admin, only the import folder.** `COPY` in KarelaDB never reads a server file (only `FROM STDIN`), so `read_csv` is the one way, and it is narrow:
+
+| Rule | What it means |
+|---|---|
+| Who | an admin: a user whose role is `admin`, or the server `--token` (a server without users). Other users get `42501` |
+| Where | only files in the database's **import folder**: `<data folder>/<database>/import/`. Make the folder and copy the file there (Docker: in the data volume) |
+| The name | relative to that folder: `'trades.csv'` or `'2026/trades.csv'`. Refused: `..`, a name or folder starting with a dot, an absolute path (`/etc/...`), a drive (`C:`), a backslash, device names (`NUL`), and a link that leads out of the folder |
+| Where it may be written | only in a statement you send yourself. Not in a view, materialized view, function, procedure, trigger, rule, endpoint, `DO` block or timer: a refused `CREATE` says `cannot be kept`, and a view, materialized view or endpoint made before `read_csv` existed is refused when it runs (`calls read_csv()`). Load the file into a table instead |
+| `kareladb sql`, `kareladb shell` | allowed: they run on the server's own folders anyway |
+
+**Options** (by name, as in DuckDB):
+
+| Option | Default | What |
+|---|---|---|
+| `header => true / false` | guessed: a first line whose values do not look like data (no number, time, true/false or empty value) | the first line holds the column names |
+| `delim => ';'` (also `sep`) | guessed from the first line: comma, semicolon, tab or pipe | one character; `'\t'` or `'tab'` is a tab |
+| `columns => {'a': 'INT', ...}` | guessed | every column's name and type; then the file has no header unless `header => true` (as in DuckDB) |
+| `AS t(a, b TEXT)` | the file's names | new names, and a type where one is written |
+
+**Types.** Without a given type, each column is the first of these that **every** value of the file fits (the whole file is looked at, not a sample; `POST /imp` guesses the same way):
+
+| Type | Values |
+|---|---|
+| `BOOL` | `true`, `false`, `t`, `f` (any case) |
+| `LONG` | whole numbers |
+| `DOUBLE` | numbers |
+| `DATE` | `2026-09-10` |
+| `TIMESTAMP` | `2026-09-10 05:15:00`, `2026-09-10T05:15:00.123Z`, `+05:45` offsets |
+| `STRING` | anything else |
+
+An unquoted empty value is `NULL`; `""` is empty text. Quoted values may hold the separator, line breaks and `""`. A UTF-8 byte order mark and CRLF line ends are fine. A row with a different number of values than the first row is an error that names the row.
+
+**Example: A file in the import folder, as a table**
+
+```sql
+SELECT * FROM read_csv('trades.csv');
+```
+
+Result:
+
+| time (TIMESTAMP) | symbol (STRING) | price (DOUBLE) | qty (LONG) | buyer_is_maker (BOOL) |
+|---|---|---|---|---|
+| 2026-09-10T05:15:00.000Z | CITY | 512.5 | 100 | true |
+| 2026-09-10T05:15:01.000Z | COAST | 380.1 | 250 | false |
+| 2026-09-10T05:15:02.000Z | CITY | 513 | 40 | false |
+| 2026-09-10T05:15:03.000Z | RIVER, LTD | 91.25 | NULL | true |
+
+(4 rows)
+
+**Example: Load it: CREATE TABLE ... AS, then INSERT ... SELECT**
+
+```sql
+CREATE TABLE trades AS SELECT * FROM read_csv('trades.csv');
+INSERT INTO trades SELECT * FROM read_csv('trades.csv') WHERE symbol = 'CITY';
+SELECT symbol, count(*) AS n, sum(qty) AS qty FROM trades GROUP BY symbol ORDER BY symbol;
+```
+
+Result:
+
+`CREATE TABLE trades AS SELECT * FROM read_csv('trades.csv')`
+
+```text
+table 'trades' created with 4 row(s)
+```
+
+`INSERT INTO trades SELECT * FROM read_csv('trades.csv') WHERE symbol = 'CITY'`
+
+```text
+2 row(s) inserted
+```
+
+`SELECT symbol, count(*) AS n, sum(qty) AS qty FROM trades GROUP BY symbol ORDER BY symbol`
+
+| symbol (STRING) | n (LONG) | qty (LONG) |
+|---|---|---|
+| CITY | 4 | 280 |
+| COAST | 1 | 250 |
+| RIVER, LTD | 1 | NULL |
+
+(3 rows)
+
+**Example: No header, ; between values: name the columns**
+
+```sql
+SELECT * FROM read_csv('prices.csv', delim => ';', columns => {'symbol': 'STRING', 'close': 'DOUBLE'});
+```
+
+Result:
+
+| symbol (STRING) | close (DOUBLE) |
+|---|---|
+| CITY | 512.5 |
+| COAST | 380.1 |
+
+(2 rows)
+
+**Example: New names and a type with AS t(...)**
+
+```sql
+SELECT symbol, close * 2 AS doubled FROM read_csv('prices.csv') AS p(symbol, close DOUBLE);
+```
+
+Result:
+
+| symbol (STRING) | doubled (DOUBLE) |
+|---|---|
+| CITY | 1025 |
+| COAST | 760.2 |
+
+(2 rows)
+
+**Example: Only names inside the import folder** (shows an error)
+
+```sql
+SELECT * FROM read_csv('../secret.csv');
+```
+
+Result:
+
+Error: `read_csv: a part of the file name may not start with a dot (no '..')`
+
+**Example: Not kept in a view** (shows an error)
+
+```sql
+CREATE VIEW v AS SELECT * FROM read_csv('trades.csv');
+```
+
+Result:
+
+Error: `read_csv() cannot be kept in a view, materialized view, function, procedure, trigger, rule or DEFAULT: it reads a server file, which only an admin's own statement may do. Load the file once instead: CREATE TABLE t AS SELECT * FROM read_csv('file.csv')`
+
+**Example: Aggregates over the file run column by column**
+
+```sql
+SELECT symbol, count(*) AS n, sum(qty) AS qty, max(price) AS high
+FROM read_csv('trades.csv') WHERE qty > 50 GROUP BY symbol ORDER BY symbol;
+```
+
+Result:
+
+| symbol (STRING) | n (LONG) | qty (LONG) | high (DOUBLE) |
+|---|---|---|---|
+| CITY | 1 | 100 | 512.5 |
+| COAST | 1 | 250 | 380.1 |
+
+(2 rows)
+
+**How the file is read.**
+
+| File | How |
+|---|---|
+| up to 256 MB, whose column arrays fit in 256 MB (and in half of the statement's memory cap) | read **once**, on all threads, into one array per column. A number, date, time or `BOOL` takes 8 bytes whatever its text, so a file of short numbers takes up to about 4 times its size: the start of the file decides, and a file whose arrays grow past the limit anyway streams instead. The types are settled while it is read: a value further on that does not fit the start's type makes only that column of those pieces convert again, so the types are still those of every value |
+| bigger, or arrays too big | one pass for the types, then the rows stream: under `GROUP BY` or an aggregate, and into `INSERT ... SELECT` or `CREATE TABLE ... AS`, they go on as they are read and are never all held |
+
+- **Aggregates column by column:** `count`, `sum`, `avg`, `min` and `max`, with or without `GROUP BY` (columns of text, whole numbers, `BOOL`, `DATE` and `TIMESTAMP`), under a `WHERE` of `column <op> value` and `IS [NOT] NULL` tests joined by `AND`, run straight on the column arrays on all threads. Anything else (an expression, `LIKE`, `count(DISTINCT ...)`, a join) runs on rows made from the same arrays: the file is not read again.
+- **Once per statement:** `CREATE TABLE ... AS SELECT ... FROM read_csv(...)` opens the file twice (once for its columns, once for its rows) but reads it once; a file that changes in between is refused, never read with other types. The next statement, also in the same request, reads the file as it is then, and the arrays are let go when each statement ends.
+- **Speed** (an 80 MB file of 2 million rows: time, symbol, price, quantity): `count(*)` and three sums take 0.10 s on 2 CPU cores, DuckDB 0.19 s; on 16 threads 0.07 s, DuckDB 0.10 s on 32. A `GROUP BY` of the symbol: 0.11 s against 0.16 s on 2 cores. `CREATE TABLE ... AS` spends its time writing the table, not reading the file (about 0.8 s for the 2 million rows; DuckDB's in-memory table 0.23 s).
+- **2 CPUs:** a server that sized its threads by itself has one query thread there (half of the CPUs); `read_csv` then adds one helper thread for its own pieces, so it uses both. Not with `--threads 1` or `SET max_parallel_workers_per_gather = 1`.
+- A plain `SELECT *` keeps its answer like any query (about 8 times the file's size in memory), so load a big file into a table first.
+- The file is read when the query runs, so the answer is never taken from the result cache.
 
 <a id="http"></a>
 
@@ -278,7 +458,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'ochl_day' created",
-      "timings": {"parse_us": 31, "execute_us": 5015}
+      "timings": {"parse_us": 34, "execute_us": 33806}
     },
     {
       "statement": "INSERT OR REPLACE INTO ochl_day VALUES ('2026-09-10', 'CITY', 504.9, 183040), ('2026-09-10', 'COAST', 376.1, 186200)",
@@ -288,13 +468,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 2,
       "message": "2 row(s) inserted",
-      "timings": {"parse_us": 31, "execute_us": 547}
+      "timings": {"parse_us": 34, "execute_us": 4874}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 62, "execute_us": 5562}
+  "timings": {"parse_us": 68, "execute_us": 38680}
 }
 ```
 
@@ -361,7 +541,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 21, "execute_us": 99}
+      "timings": {"parse_us": 24, "execute_us": 101}
     }
   ],
   "columns": [
@@ -375,7 +555,7 @@ HTTP 200 (application/json)
     ["2026-09-10T05:20:00.000Z", "COAST", 380.2, 900]
   ],
   "count": 2,
-  "timings": {"parse_us": 21, "execute_us": 99}
+  "timings": {"parse_us": 24, "execute_us": 101}
 }
 ```
 
@@ -453,7 +633,7 @@ What makes loading fast:
 - **Notes:** do not wrap a load of millions of rows in `BEGIN ... COMMIT`: a transaction keeps the old version of every changed row in memory (at most 10 million). Plain statements are saved one by one. Load the parent tables (brokers) before the child tables (trade_log).
 - **Notes:** an immediate `INSERT` [trigger](triggers.md) on a table makes the loads into **that** table go row by row, several times slower. A trigger on another table does not slow it. For a table loaded in bulk, make the trigger [DEFERRED](triggers.md#deferred): it then runs after the load, once per request.
 - **Notes:** a line protocol or `/imp` load is fastest into a day with no rows yet, or into a table whose `DEDUP KEY` holds every `SORT BY` column. A table with no `DEDUP KEY` loads just as fast. Details: [how loads find duplicates](partitions-and-dedup.md#load-dedup).
-- **Notes:** loads into different tables run at the same time; loads into one table take turns. A load that waits more than 5 s for a table gets `table 'x' is busy: ...` (HTTP 503) and writes nothing: send it again.
+- **Notes:** loads into different tables run at the same time; loads into one table take turns. A load that waits more than 5 s for a table gets `table 'x' is busy: ...` (HTTP 503) and writes nothing: send it again. A load faster than the server writes its changes out gets HTTP 503 `memory full: ... changes are waiting to be written ...` with `Retry-After: 2` (SQLSTATE 53200 for `COPY`) once those pass half of `--memory-limit`: wait that long and send it again ([back-pressure on loads](cli-serve.md#memory-limit)).
 - **Notes:** KarelaDB keeps 64 MB of the disk free. Below that a write is refused with HTTP 507 (`disk full`; SQLSTATE `53100` on the PostgreSQL port) and nothing is written; free some space ([PURGE TRASH](databases.md#purge-trash)) and send it again. If the disk fills up in the middle of writing the log anyway, the write gets 507 too and reads go on; writes work again once space is freed. Rows already confirmed are safe in both cases.
 
 **Example: Check a load: rows, first and last time, total volume**

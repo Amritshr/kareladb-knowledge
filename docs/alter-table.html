@@ -498,8 +498,8 @@ CREATE TABLE posts_old (id LONG PRIMARY KEY);</code></pre>
 <p>Syntax:</p>
 <pre><code class="language-sql">DROP TABLE [IF EXISTS] table [CASCADE | RESTRICT]</code></pre>
 <p>Deletes a table with all its rows and its indexes. With <code>IF EXISTS</code>, a table that is not there is not an error.</p>
-<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; dropped</code>, or <code>table &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong> the table goes to the <a href="trash.html">trash</a> for some days, and <code>UNDROP TABLE</code> brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while anything uses it (another table&#39;s <code>REFERENCES</code>, a view, a materialized view; the error names each, SQLSTATE <code>2BP01</code>), and while it has triggers. To remove all rows and keep the table, use <a href="update-delete.html#truncate">TRUNCATE</a>.</li><li><strong>CASCADE and RESTRICT:</strong> as in PostgreSQL. <code>DROP TABLE t RESTRICT</code> (or no word) refuses while another table&#39;s foreign key, a view or a materialized view uses <code>t</code>. <code>DROP TABLE t CASCADE</code> drops what uses it first, then <code>t</code>:
-<ul><li>the foreign keys of other tables that point at <code>t</code> (<code>ALTER TABLE other DROP CONSTRAINT ...</code>; the other tables and their rows stay),</li><li>the views and materialized views that read <code>t</code>.</li><li>The reply names them: <code>table &#39;t&#39; dropped; drop cascades to constraint orders_customer_fkey on table orders, view big_orders</code>.</li><li>A table with triggers is still refused before anything is dropped: <code>DROP TRIGGER</code> them first.</li><li><code>DROP FUNCTION</code>, <code>DROP PROCEDURE</code> and <code>DROP TRIGGER</code> read both words and ignore them.</li></ul></li></ul>
+<ul><li><strong>Returns:</strong> <code>table &#39;name&#39; dropped</code>, or <code>table &#39;name&#39; does not exist</code> with <code>IF EXISTS</code>.</li><li><strong>Notes:</strong> the table goes to the <a href="trash.html">trash</a> for some days, and <code>UNDROP TABLE</code> brings it back. It answers at once: it waits only for the statements running in the database at that moment, not for its files to be written or moved. Refused while anything uses it (another table&#39;s <code>REFERENCES</code>, a view, a materialized view, a <a href="procedure-language.html#plpgsql-functions">plpgsql function</a> that <code>RETURNS SETOF</code> it; the error names each, SQLSTATE <code>2BP01</code>), and while it has triggers. To remove all rows and keep the table, use <a href="update-delete.html#truncate">TRUNCATE</a>.</li><li><strong>CASCADE and RESTRICT:</strong> as in PostgreSQL. <code>DROP TABLE t RESTRICT</code> (or no word) refuses while another table&#39;s foreign key, a view, a materialized view or a function that <code>RETURNS SETOF t</code> uses <code>t</code>. <code>DROP TABLE t CASCADE</code> drops what uses it first, then <code>t</code>:
+<ul><li>the foreign keys of other tables that point at <code>t</code> (<code>ALTER TABLE other DROP CONSTRAINT ...</code>; the other tables and their rows stay),</li><li>the views and materialized views that read <code>t</code>,</li><li>the plpgsql functions that <code>RETURNS SETOF t</code> (a function whose body only reads <code>t</code> stays, as in PostgreSQL; its calls then fail).</li><li>The reply names them: <code>table &#39;t&#39; dropped; drop cascades to constraint orders_customer_fkey on table orders, view big_orders</code>.</li><li>A table with triggers is still refused before anything is dropped: <code>DROP TRIGGER</code> them first.</li><li><code>DROP FUNCTION</code>, <code>DROP PROCEDURE</code> and <code>DROP TRIGGER</code> read both words and ignore them.</li></ul></li></ul>
 <p><strong>Example: Remove a test table; safe to run twice</strong></p>
 <p>Setup:</p>
 <pre><code class="language-sql">CREATE TABLE test_ticks (time TIMESTAMP, price DOUBLE) TIMESERIES(time);</code></pre>
@@ -553,6 +553,31 @@ SHOW TABLES;</code></pre>
 <p><code>SHOW TABLES</code></p>
 <div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>kind (STRING)</th><th>partition (STRING)</th><th>columns (INT)</th><th>rows (LONG)</th></tr></thead><tbody><tr><td>test_alerts</td><td>relational</td><td>NONE</td><td>2</td><td>0</td></tr></tbody></table></div>
 <p>(1 row)</p>
+<p><strong>Example: A function returns the table&#39;s rows: refused, and CASCADE drops it</strong> (shows an error)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE test_quotes (id INT PRIMARY KEY, price DOUBLE);
+CREATE FUNCTION test_cheap() RETURNS SETOF test_quotes AS $$
+BEGIN
+  RETURN QUERY SELECT * FROM test_quotes WHERE price &lt; 100;
+END $$ LANGUAGE plpgsql;</code></pre>
+<pre><code class="language-sql">DROP TABLE test_quotes;</code></pre>
+<p>Result:</p>
+<p>Error: <code>cannot drop table test_quotes because other objects depend on it: function test_cheap. Drop them first, or use DROP TABLE test_quotes CASCADE to drop them too</code></p>
+<p><strong>Example: DROP TABLE ... CASCADE drops the function too</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE test_quotes (id INT PRIMARY KEY, price DOUBLE);
+CREATE FUNCTION test_cheap() RETURNS SETOF test_quotes AS $$
+BEGIN
+  RETURN QUERY SELECT * FROM test_quotes WHERE price &lt; 100;
+END $$ LANGUAGE plpgsql;</code></pre>
+<pre><code class="language-sql">DROP TABLE test_quotes CASCADE;
+SHOW FUNCTIONS;</code></pre>
+<p>Result:</p>
+<p><code>DROP TABLE test_quotes</code></p>
+<pre><code class="language-text">table &#39;test_quotes&#39; dropped; UNDROP TABLE test_quotes brings it back within 7 days; drop cascades to function test_cheap</code></pre>
+<p><code>SHOW FUNCTIONS</code></p>
+<div class="table-wrap"><table><thead><tr><th>name (STRING)</th><th>arguments (STRING)</th><th>returns (STRING)</th><th>definition (STRING)</th></tr></thead><tbody></tbody></table></div>
+<p>(0 rows)</p>
 <h2 id="resident">SET (resident = on): keep a table in memory</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">ALTER TABLE &lt;t&gt; SET (resident = on | off)

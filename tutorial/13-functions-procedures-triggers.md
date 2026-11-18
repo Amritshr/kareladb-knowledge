@@ -583,7 +583,7 @@ The shell knows that a `CREATE PROCEDURE ... BEGIN ... END;` is one statement, e
 |---|---|
 | Open at the same time | At most 16 cursors per database (SQL and HTTP together). |
 | Unused | A cursor closes after 10 minutes without `FETCH`. |
-| Size | At most 10 million rows. The rows are kept in memory until the cursor closes. |
+| Size | No row limit: the first rows stay in memory (1-64 MB), the rest in a temporary file of at most max_spill_bytes (16 GB). |
 
 ## Debugging: WITH DEBUG
 
@@ -680,7 +680,7 @@ KarelaDB checks a procedure's statements for **syntax** when you create it, and 
 | Rounds of one `WHILE` loop | 10 million |
 | Open cursors per database | 16 (`DatabaseOptions::max_cursors`) |
 | Unused cursor closes after | 10 minutes (`DatabaseOptions::cursor_idle_ms`) |
-| Rows in one cursor | 10 million |
+| Rows in one cursor | no limit (temporary file up to max_spill_bytes, 16 GB) |
 | Steps in a `debug` result | 100,000 |
 
 ## Try it yourself

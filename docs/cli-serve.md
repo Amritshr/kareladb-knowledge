@@ -3,7 +3,7 @@
 > Start the KarelaDB server - web console, HTTP API, line protocol and PostgreSQL port - on one database or on the whole data folder.
 
 - Category: Command line
-- Keywords: server, start server, port 9900, web console, HTTP API, banner, Ctrl+C, stop server, SIGTERM, systemd, service, many databases, default database, --port, --bind, --token, --db, --threads, --cache-mb, --warm-indexes, KARELADB\_WARM\_INDEXES, --reader-yield, KARELADB\_READER\_YIELD, reader yield, --per-table-reads, KARELADB\_PER\_TABLE\_READS, --read-only-calls, KARELADB\_READ\_ONLY\_CALLS, --scoped-ddl, KARELADB\_SCOPED\_DDL, --snapshot-reads, KARELADB\_SNAPSHOT\_READS, snapshot reads, --tail-files, KARELADB\_TAIL\_FILES, tail files, --sync-commits, --pg-port, --pg-timestamptz, --pg-int-division, KARELADB\_PG\_INT\_DIVISION, 0.0.0.0, result cache, --drain-timeout, KARELADB\_DRAIN\_TIMEOUT, drain, graceful shutdown, 503, Retry-After, kareladb.conf, KARELADB\_WAL\_ARCHIVE\_MB, KARELADB\_KEEP\_VERSIONS, KARELADB\_TRASH\_KEEP\_HOURS, worker threads, --http-threads, KARELADB\_HTTP\_THREADS, http\_threads, --http-gzip, KARELADB\_HTTP\_GZIP, gzip answers, --max-connections, KARELADB\_MAX\_CONNECTIONS, max\_connections, --lock-timeout, KARELADB\_LOCK\_TIMEOUT, lock\_timeout\_ms, --idle-in-transaction-timeout, KARELADB\_IDLE\_IN\_TRANSACTION\_TIMEOUT, idle\_in\_transaction\_timeout\_ms, --memory-limit, KARELADB\_MEMORY\_LIMIT, KARELADB\_LEVEL\_FROM\_HEAP, memory limit, memory full, out of memory, 53200, OOM, container memory, --slow-query-ms, KARELADB\_SLOW\_QUERY\_MS, slow\_query\_ms, --token-name, KARELADB\_TOKEN\_NAME, --trash-max-mb, KARELADB\_TRASH\_MAX\_MB, trash\_max\_mb, metrics, self-tuning, cgroup, cpu.max, --cpus, docker update, CPU limit, KARELADB\_SELF\_TUNING\_SECONDS, --pin-threads, KARELADB\_PIN\_THREADS, pin threads, CPU pinning, sched\_setaffinity, cpuset, pinned\_cpus, --snapshot-index-rows, KARELADB\_SNAPSHOT\_INDEX\_ROWS, --txn-spill-mb, KARELADB\_TXN\_SPILL\_MB, txn\_spill\_mb, --ddl-beside-writers, KARELADB\_DDL\_BESIDE\_WRITERS, --skip-locked-beside, KARELADB\_SKIP\_LOCKED\_BESIDE, SKIP LOCKED, options, all options, every option, settings, environment variables, --timer-workers, KARELADB\_TIMER\_WORKERS, timer\_workers, KARELADB\_TTL\_CHECK\_MS, KARELADB\_LAZY\_OPEN, KARELADB\_CACHE\_MB, KARELADB\_TOKEN, KARELADB\_MEMORY, --timezone, KARELADB\_TIMEZONE, --trigger-retries, KARELADB\_TRIGGER\_RETRIES, --max-trigger-jobs, KARELADB\_MAX\_TRIGGER\_JOBS, --alert-webhook, KARELADB\_ALERT\_WEBHOOK, alert\_webhook, rate\_limit\_ip, rate\_limit\_user, KARELADB\_RATE\_LIMIT\_IP, KARELADB\_RATE\_LIMIT\_USER, tls\_cert, tls\_key, KARELADB\_TLS\_CERT, KARELADB\_TLS\_KEY, KARELADB\_TLS\_REQUIRED, http\_functions, http\_timeout\_ms, KARELADB\_HTTP\_FUNCTIONS, KARELADB\_HTTP\_TIMEOUT\_MS, KARELADB\_BACKUP\_DIR, KARELADB\_BACKUP\_SCHEDULE, KARELADB\_BACKUP\_KEEP\_DAILY, KARELADB\_BACKUP\_KEEP\_WEEKLY, KARELADB\_BACKUP\_COMMAND, test switches, KARELADB\_CHECKPOINT\_BESIDE\_WRITERS, checkpoint beside writers, KARELADB\_NO\_ZONE\_MAPS, KARELADB\_NO\_COLUMN\_MASK, KARELADB\_NO\_SYMBOL\_PRUNING, KARELADB\_NO\_TIME\_SPANS, KARELADB\_NO\_PARTITION\_ANSWERS, KARELADB\_NO\_LATEST\_PARTITIONS, KARELADB\_NO\_NEWEST\_FIRST, KARELADB\_NO\_TEXT\_KEYS, KARELADB\_NO\_VECTOR\_EXPR, KARELADB\_NO\_VECTOR\_CASE, KARELADB\_NO\_VECTOR\_DISTINCT, KARELADB\_NO\_UNION\_PUSHDOWN, KARELADB\_NO\_DISTINCT\_GROUP, KARELADB\_NO\_COMMA\_JOIN, KARELADB\_NO\_CTAS\_STREAM, KARELADB\_NO\_RUN\_SPLIT, KARELADB\_NO\_VIEW\_PUSHDOWN, KARELADB\_NO\_SUBQUERY\_STREAM, KARELADB\_NO\_JOIN\_LOOKUP, KARELADB\_NO\_JOIN\_PLACES, KARELADB\_NO\_KEY\_STRETCH, KARELADB\_NO\_POST\_WINDOW\_FILTER, KARELADB\_NO\_WINDOW\_TOP\_PER\_KEY, KARELADB\_WINDOW\_NO\_FAST, KARELADB\_WINDOW\_NO\_VECTOR\_SCAN, KARELADB\_NO\_INSERT\_STREAM, KARELADB\_NO\_INSERT\_RUNS, KARELADB\_NO\_INSERT\_APPLY, KARELADB\_NO\_BATCH\_DEDUP, KARELADB\_NO\_FOREIGN\_PUSH, KARELADB\_NO\_VECTOR\_PRESELECT, KARELADB\_NO\_PREFETCH, KARELADB\_MV\_NO\_DEFER, KARELADB\_WRITE\_TRACE, KARELADB\_CACHE\_VERIFY, KARELADB\_INDEX\_MAX\_VISITS, --stat-statements, KARELADB\_STAT\_STATEMENTS, lanes, priority lanes, admission control, --lanes, KARELADB\_LANES, --heavy-ms, KARELADB\_HEAVY\_MS, --heavy-slots, KARELADB\_HEAVY\_SLOTS, --heavy-queue, KARELADB\_HEAVY\_QUEUE, --read-slots, KARELADB\_READ\_SLOTS, read slots, docker --cpus throughput, kdb.priority, X-KDB-Priority, heavy query, report, chart latency, 53000, server is busy, --log-lock-waits, KARELADB\_LOG\_LOCK\_WAITS, --deadlock-timeout, KARELADB\_DEADLOCK\_TIMEOUT, log\_lock\_waits, deadlock\_timeout, --tcp-keepalives-idle, --tcp-keepalives-interval, --tcp-keepalives-count, KARELADB\_TCP\_KEEPALIVES\_IDLE, tcp\_keepalives\_idle, TCP keepalive, --standby-of, --standby-token, KARELADB\_STANDBY\_OF, standby, kareladb promote
+- Keywords: server, start server, port 9900, web console, HTTP API, banner, Ctrl+C, stop server, SIGTERM, systemd, service, many databases, default database, --port, --bind, --token, --db, --threads, --background-threads, KARELADB\_BACKGROUND\_THREADS, --background-memory, KARELADB\_BACKGROUND\_MEMORY, background share, background jobs, background work, checkpoint starves writes, --cache-mb, --warm-indexes, KARELADB\_WARM\_INDEXES, --reader-yield, KARELADB\_READER\_YIELD, reader yield, --per-table-reads, KARELADB\_PER\_TABLE\_READS, --read-only-calls, KARELADB\_READ\_ONLY\_CALLS, --scoped-ddl, KARELADB\_SCOPED\_DDL, --snapshot-reads, KARELADB\_SNAPSHOT\_READS, snapshot reads, --tail-files, KARELADB\_TAIL\_FILES, tail files, --sync-commits, --pg-port, --pg-timestamptz, --pg-int-division, KARELADB\_PG\_INT\_DIVISION, 0.0.0.0, result cache, --drain-timeout, KARELADB\_DRAIN\_TIMEOUT, drain, graceful shutdown, 503, Retry-After, kareladb.conf, KARELADB\_WAL\_ARCHIVE\_MB, KARELADB\_KEEP\_VERSIONS, KARELADB\_TRASH\_KEEP\_HOURS, worker threads, --http-threads, KARELADB\_HTTP\_THREADS, http\_threads, --http-gzip, KARELADB\_HTTP\_GZIP, gzip answers, --max-connections, KARELADB\_MAX\_CONNECTIONS, max\_connections, --lock-timeout, KARELADB\_LOCK\_TIMEOUT, lock\_timeout\_ms, --idle-in-transaction-timeout, KARELADB\_IDLE\_IN\_TRANSACTION\_TIMEOUT, idle\_in\_transaction\_timeout\_ms, --memory-limit, KARELADB\_MEMORY\_LIMIT, KARELADB\_LEVEL\_FROM\_HEAP, memory limit, memory full, out of memory, 53200, OOM, container memory, --slow-query-ms, KARELADB\_SLOW\_QUERY\_MS, slow\_query\_ms, --token-name, KARELADB\_TOKEN\_NAME, --trash-max-mb, KARELADB\_TRASH\_MAX\_MB, trash\_max\_mb, metrics, self-tuning, cgroup, cpu.max, --cpus, docker update, CPU limit, KARELADB\_SELF\_TUNING\_SECONDS, --pin-threads, KARELADB\_PIN\_THREADS, pin threads, CPU pinning, sched\_setaffinity, cpuset, pinned\_cpus, --snapshot-index-rows, KARELADB\_SNAPSHOT\_INDEX\_ROWS, --txn-spill-mb, KARELADB\_TXN\_SPILL\_MB, txn\_spill\_mb, --ddl-beside-writers, KARELADB\_DDL\_BESIDE\_WRITERS, --skip-locked-beside, KARELADB\_SKIP\_LOCKED\_BESIDE, SKIP LOCKED, options, all options, every option, settings, environment variables, --timer-workers, KARELADB\_TIMER\_WORKERS, timer\_workers, KARELADB\_TTL\_CHECK\_MS, KARELADB\_LAZY\_OPEN, KARELADB\_CACHE\_MB, KARELADB\_TOKEN, KARELADB\_MEMORY, --timezone, KARELADB\_TIMEZONE, --trigger-retries, KARELADB\_TRIGGER\_RETRIES, --max-trigger-jobs, KARELADB\_MAX\_TRIGGER\_JOBS, --alert-webhook, KARELADB\_ALERT\_WEBHOOK, alert\_webhook, rate\_limit\_ip, rate\_limit\_user, KARELADB\_RATE\_LIMIT\_IP, KARELADB\_RATE\_LIMIT\_USER, tls\_cert, tls\_key, KARELADB\_TLS\_CERT, KARELADB\_TLS\_KEY, KARELADB\_TLS\_REQUIRED, http\_functions, http\_timeout\_ms, KARELADB\_HTTP\_FUNCTIONS, KARELADB\_HTTP\_TIMEOUT\_MS, KARELADB\_BACKUP\_DIR, KARELADB\_BACKUP\_SCHEDULE, KARELADB\_BACKUP\_KEEP\_DAILY, KARELADB\_BACKUP\_KEEP\_WEEKLY, KARELADB\_BACKUP\_COMMAND, test switches, KARELADB\_CHECKPOINT\_BESIDE\_WRITERS, checkpoint beside writers, KARELADB\_NO\_ZONE\_MAPS, KARELADB\_NO\_COLUMN\_MASK, KARELADB\_NO\_SYMBOL\_PRUNING, KARELADB\_NO\_TIME\_SPANS, KARELADB\_NO\_PARTITION\_ANSWERS, KARELADB\_NO\_LATEST\_PARTITIONS, KARELADB\_NO\_NEWEST\_FIRST, KARELADB\_NO\_TEXT\_KEYS, KARELADB\_NO\_VECTOR\_EXPR, KARELADB\_NO\_VECTOR\_CASE, KARELADB\_NO\_VECTOR\_DISTINCT, KARELADB\_NO\_UNION\_PUSHDOWN, KARELADB\_NO\_DISTINCT\_GROUP, KARELADB\_NO\_COMMA\_JOIN, KARELADB\_NO\_CTAS\_STREAM, KARELADB\_NO\_RUN\_SPLIT, KARELADB\_NO\_VIEW\_PUSHDOWN, KARELADB\_NO\_SUBQUERY\_STREAM, KARELADB\_NO\_JOIN\_LOOKUP, KARELADB\_NO\_JOIN\_PLACES, KARELADB\_NO\_KEY\_STRETCH, KARELADB\_NO\_POST\_WINDOW\_FILTER, KARELADB\_NO\_WINDOW\_TOP\_PER\_KEY, KARELADB\_WINDOW\_NO\_FAST, KARELADB\_WINDOW\_NO\_VECTOR\_SCAN, KARELADB\_NO\_INSERT\_STREAM, KARELADB\_NO\_INSERT\_RUNS, KARELADB\_NO\_INSERT\_APPLY, KARELADB\_NO\_BATCH\_DEDUP, KARELADB\_NO\_FOREIGN\_PUSH, KARELADB\_NO\_VECTOR\_PRESELECT, KARELADB\_NO\_PREFETCH, KARELADB\_MV\_NO\_DEFER, KARELADB\_WRITE\_TRACE, KARELADB\_CACHE\_VERIFY, KARELADB\_INDEX\_MAX\_VISITS, --stat-statements, KARELADB\_STAT\_STATEMENTS, lanes, priority lanes, admission control, --lanes, KARELADB\_LANES, --heavy-ms, KARELADB\_HEAVY\_MS, --heavy-slots, KARELADB\_HEAVY\_SLOTS, --heavy-queue, KARELADB\_HEAVY\_QUEUE, --read-slots, KARELADB\_READ\_SLOTS, read slots, docker --cpus throughput, kdb.priority, X-KDB-Priority, heavy query, report, chart latency, 53000, server is busy, --log-lock-waits, KARELADB\_LOG\_LOCK\_WAITS, --deadlock-timeout, KARELADB\_DEADLOCK\_TIMEOUT, log\_lock\_waits, deadlock\_timeout, --tcp-keepalives-idle, --tcp-keepalives-interval, --tcp-keepalives-count, KARELADB\_TCP\_KEEPALIVES\_IDLE, tcp\_keepalives\_idle, TCP keepalive, --standby-of, --standby-token, KARELADB\_STANDBY\_OF, standby, kareladb promote
 - See also: [The kareladb program](cli-overview.md), [Web console](web-console.md), [Run SQL over HTTP (/exec, /exp)](http-exec.md), [Databases over HTTP (/api/databases)](http-databases.md), [Keeping kareladb serve safe](server-security.md), [Users and roles](users-and-roles.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Line protocol (POST /write)](line-protocol.md), [Performance tips](performance-tips.md)
 
 `kareladb serve` starts the server. It keeps running until you press Ctrl+C.
@@ -17,7 +17,7 @@ Syntax:
 
 ```sql
 kareladb serve [<db>] [--data-dir <folder>] [--config <file>] [--db <name>] [--port 9900] [--bind 127.0.0.1]
-          [--backups <dir>] [--token <secret>] [--memory <MB>] [--memory-limit <size>] [--threads N] [--cache-mb <MB>]
+          [--backups <dir>] [--token <secret>] [--memory <MB>] [--memory-limit <size>] [--threads N] [--background-threads N] [--background-memory <size>] [--cache-mb <MB>]
           [--sync-commits always|batch] [--pg-port 8832] [--pg-timestamptz] [--pg-int-division on|off]
           [--warm-indexes on|off] [--reader-yield on|off] [--per-table-reads on|off] [--read-only-calls on|off]
           [--scoped-ddl on|off] [--ddl-beside-writers on|off] [--skip-locked-beside on|off]
@@ -45,6 +45,8 @@ kareladb serve [<db>] [--data-dir <folder>] [--config <file>] [--db <name>] [--p
 | `--memory <MB>` | Memory for table data kept loaded, for all open databases together. Data over it is read from disk again when needed. No environment variable in the program; the Docker image passes its `KARELADB_MEMORY` as `--memory`. | `512`, but without the flag at most 40% of the [memory limit](#memory-limit) |
 | `--memory-limit <size>` | One limit for **everything** the server holds: table data, unsaved changes, indexes, results and caches (see [memory limit](#memory-limit)). `3GB`, `512MB`, or a plain number of megabytes. `0` or `off` = no limit. Also `KARELADB_MEMORY_LIMIT`. | 85% of a container's memory limit, else of the machine's memory |
 | `--threads N` | Threads for big queries and writes, shared by all databases. From 1 to half of the machine's CPU threads. A number set here stays; without it the count follows the CPU limit ([self-tuning](#self-tuning)). | half of the CPUs the process may use |
+| `--background-threads N` | Background jobs that run at the same time in the whole server, all databases together: idle checkpoints, the compression pass, TTL drops, row TTL and cache-table sweeps, the cold storage pass, the trash clean-up and the copy of a backup ([background share](#background-share)). From 0 (the default) to 256. Also `KARELADB_BACKGROUND_THREADS`. | a quarter of the CPUs, at least 1; follows the CPU limit |
+| `--background-memory <size>` | The most the partitions a checkpoint is writing may hold in memory at once (also the compression pass, which writes through a checkpoint). `256MB`, `1GB`, or a plain number of megabytes (at least 16 MB); `auto` = the default. Also `KARELADB_BACKGROUND_MEMORY`. | a quarter of the [memory limit](#memory-limit) |
 | `--cache-mb <MB>` | Memory for results of repeated queries, for all open databases together. `0` = no result cache. Else `cache_mb` in kareladb.conf, else `KARELADB_CACHE_MB`. One result may use a quarter of it, a [pinned](pinned-queries.md) one three quarters. | `256`, but at most a tenth of the [memory limit](#memory-limit) |
 | `--warm-indexes on\|off` | Build every index of a database on a background thread right after it opens, so the first query finds it ready (see [indexes](indexes.md#warm)). `off` = build on first use. Also `KARELADB_WARM_INDEXES`. | `on` |
 | `--read-only-calls on\|off` | `on`: a `CALL` of a procedure that changes nothing runs like a `SELECT`: no table locks, no transaction ([a CALL that only reads](procedures.md#read-only-call)). `off`: every `CALL` is a transaction. Also `KARELADB_READ_ONLY_CALLS`. | `on` |
@@ -91,7 +93,7 @@ kareladb serve [<db>] [--data-dir <folder>] [--config <file>] [--db <name>] [--p
 - **Batch commits:** a power cut can lose the writes of the last few milliseconds that were already confirmed. It never damages the data. See [performance tips](performance-tips.md#sync-commits).
 - **Standby:** `--standby-of http://primary:9900 --standby-token <t>` makes the server a read-only copy of another one; `kareladb promote --url <standby>` makes it a primary when the primary is lost. Restart it without `--standby-of` after that. See [standby](standby.md).
 - **Protection and backups:** `--statement-timeout`, `--max-result-memory`, `--max-groups`, `--max-queries-per-user`, `--rate-limit-ip`, `--rate-limit-user`, `--safe-updates`, `--read-only`, `--trash-days`, `--audit`, `--audit-keep-days` and `--activity-log-size` are in [protection](protection.md). `--backup-schedule`, `--backup-copy`, `--backup-command`, `--backup-warn-hours`, `--keep-daily` and `--keep-weekly` are in [backup schedule](backup-schedule.md).
-- **A flag or an environment variable:** `--warm-indexes`, `--reader-yield`, `--per-table-reads`, `--read-only-calls`, `--scoped-ddl`, `--ddl-beside-writers`, `--skip-locked-beside`, `--log-lock-waits`, `--deadlock-timeout`, `--snapshot-reads`, `--snapshot-index-rows`, `--tail-files`, `--table-writers`, `--pg-int-division`, `--drain-timeout`, `--token-name`, `--trigger-retries`, `--max-trigger-jobs`, `--memory-limit` and `--tls-required` can come from the environment instead (`KARELADB_WARM_INDEXES`, `KARELADB_READER_YIELD`, `KARELADB_PER_TABLE_READS`, `KARELADB_READ_ONLY_CALLS`, `KARELADB_SCOPED_DDL`, `KARELADB_DDL_BESIDE_WRITERS`, `KARELADB_SKIP_LOCKED_BESIDE`, `KARELADB_LOG_LOCK_WAITS`, `KARELADB_DEADLOCK_TIMEOUT`, `KARELADB_SNAPSHOT_READS`, `KARELADB_SNAPSHOT_INDEX_ROWS`, `KARELADB_TAIL_FILES`, `KARELADB_TABLE_WRITERS`, `KARELADB_PG_INT_DIVISION`, `KARELADB_DRAIN_TIMEOUT`, `KARELADB_TOKEN_NAME`, `KARELADB_TRIGGER_RETRIES`, `KARELADB_MAX_TRIGGER_JOBS`, `KARELADB_MEMORY_LIMIT`, `KARELADB_TLS_REQUIRED`). A flag always wins. That is how the Docker image sets them ([Docker](install-packages.md#docker)). They have no `kareladb.conf` key. The whole list is in [every option](#all-options).
+- **A flag or an environment variable:** `--warm-indexes`, `--reader-yield`, `--per-table-reads`, `--read-only-calls`, `--scoped-ddl`, `--ddl-beside-writers`, `--skip-locked-beside`, `--log-lock-waits`, `--deadlock-timeout`, `--snapshot-reads`, `--snapshot-index-rows`, `--tail-files`, `--table-writers`, `--pg-int-division`, `--drain-timeout`, `--token-name`, `--trigger-retries`, `--max-trigger-jobs`, `--memory-limit` and `--tls-required` can come from the environment instead (`KARELADB_WARM_INDEXES`, `KARELADB_READER_YIELD`, `KARELADB_PER_TABLE_READS`, `KARELADB_READ_ONLY_CALLS`, `KARELADB_SCOPED_DDL`, `KARELADB_DDL_BESIDE_WRITERS`, `KARELADB_SKIP_LOCKED_BESIDE`, `KARELADB_LOG_LOCK_WAITS`, `KARELADB_DEADLOCK_TIMEOUT`, `KARELADB_SNAPSHOT_READS`, `KARELADB_SNAPSHOT_INDEX_ROWS`, `KARELADB_TAIL_FILES`, `KARELADB_TABLE_WRITERS`, `KARELADB_PG_INT_DIVISION`, `KARELADB_DRAIN_TIMEOUT`, `KARELADB_TOKEN_NAME`, `KARELADB_TRIGGER_RETRIES`, `KARELADB_MAX_TRIGGER_JOBS`, `KARELADB_MEMORY_LIMIT`, `KARELADB_TLS_REQUIRED`). A flag always wins. That is how the Docker image sets them ([Docker](install-packages.md#docker)). Each of them is also a key of `kareladb.conf` (the flag without `--`, `-` as `_`: `reader_yield`; see [the other flags as keys](#conf-flag-keys)). The whole list is in [every option](#all-options).
 - **A flag, kareladb.conf or the environment:** `--http-threads`, `--max-connections`, `--lock-timeout`, `--idle-in-transaction-timeout`, `--rate-limit-ip`, `--rate-limit-user`, `--timer-workers` and the `--tcp-keepalives-*` flags are read in this order: the flag, then `kareladb.conf`, then `KARELADB_HTTP_THREADS`, `KARELADB_MAX_CONNECTIONS`, `KARELADB_LOCK_TIMEOUT`, `KARELADB_IDLE_IN_TRANSACTION_TIMEOUT`, `KARELADB_RATE_LIMIT_IP`, `KARELADB_RATE_LIMIT_USER`, `KARELADB_TIMER_WORKERS`, `KARELADB_TCP_KEEPALIVES_*`, then the default. The start-up lines show them (`capacity  16 HTTP threads (default), 500 PostgreSQL connections (default), lock wait 5 s (default)`), and the console's Settings page shows them with where each came from.
 - **Logs and metrics:** `--slow-query-ms N` sets the [slow-query log](http-server-info.md#slow-queries) threshold, `--token-name NAME` (or `KARELADB_TOKEN_NAME`) is what the [audit log](audit-log.md) calls whoever uses the token (default `token`), and [`GET /metrics`](http-server-info.md#metrics) serves Prometheus metrics. `--stat-statements off` (or `KARELADB_STAT_STATEMENTS=off`) switches off [pg_stat_statements](server-activity.md#pg-stat-statements), which is on by default. The start-up line `logs` says where the slow statements go, and whether pg_stat_statements is on.
 - **Threads:** the HTTP side has one poller thread and a pool of workers (`--http-threads`); `--threads` is for the work inside queries and writes ([limits](http-overview.md#limits)).
@@ -139,6 +141,48 @@ kareladb serve [<db>] [--data-dir <folder>] [--config <file>] [--db <name>] [--p
 - Unknown keys are left alone, so a file written by a newer KarelaDB still loads. A key with a wrong kind of value (text for a number, `"5s"` for `lock_timeout_ms`) stops the start with the key's name.
 - A saved `data_dir` that cannot be used at start (an unplugged disk) does not stop the server: it prints a warning and starts on the usual folder, so the Settings page is there to fix it.
 
+<a id="conf-flag-keys"></a>
+
+#### The other flags as keys
+
+Every other `kareladb serve` flag that takes a setting can be written in `kareladb.conf` too, under the flag's name with `_` for `-` (2026-10-25). Text, a number or `true` / `false` are all accepted:
+
+```json
+{
+  "reader_yield": "off",
+  "statement_timeout": "30s",
+  "heavy_ms": 250,
+  "safe_updates": true,
+  "backup_schedule": "daily 02:00"
+}
+```
+
+| Order, strongest first | Example |
+|---|---|
+| 1. the flag, typed on the command line | `--statement-timeout 5s` |
+| 2. the key in `kareladb.conf` | `"statement_timeout": "30s"` |
+| 3. the environment variable | `KARELADB_HEAVY_MS=900` |
+| 4. the default | `60s` |
+
+- The server turns each key into its flag when it starts (unless that flag was typed), so a key takes exactly the values its flag takes, and a wrong value stops the start with the flag's message.
+- A flag with no value (`--read-only`, `--safe-updates`, `--pg-timestamptz`) is a key set to `true`; `false` leaves it off.
+- Left out on purpose: `--token` and `--cluster-token` (a secret does not belong in a file everyone can read), `--config`, `--threads`, `--db` and the cluster flags (`--node-id`, `--cluster-peers`, `--cluster-learner`). A saved `standby_token` is kept in the file as it is written.
+- The Settings page keeps these keys when it saves the file.
+- `SHOW <key>`, `SHOW ALL` and `pg_settings` list every key with where its value came from: `command line`, `configuration file`, `environment variable` or `default` ([settings](server-settings.md)). A secret (`standby_token`, `backup_command`, `alert_webhook`) shows as `(set)`.
+
+<a id="conf-reload"></a>
+
+#### When a key takes effect
+
+| What you change | Takes effect |
+|---|---|
+| a key of the `system` object (`ALTER SYSTEM SET ...`) | `SELECT pg_reload_conf()`, no restart |
+| `cache_mb`, `wal_archive_mb`, `http_functions`, `http_timeout_ms`, `step_up_actions`, `step_up_minutes` saved on the Settings page | at once |
+| every other key, edited by hand or saved | after **Restart** on the Settings page or `POST /api/restart` (the process reads the file again, the flags and the environment stay as they were) |
+| a flag or an environment variable | when the process is started again (in Docker: the container is made again) |
+
+There is no signal that reads the file again (no `SIGHUP`), and `pg_reload_conf()` reads only the `system` object. The `context` column of `pg_settings` says the same: `postmaster` = restart, `sighup` = `ALTER SYSTEM` + `pg_reload_conf()`.
+
 **Command line: Every database of the data folder**
 
 ```bash
@@ -162,6 +206,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
@@ -193,12 +238,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -225,6 +271,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 2.00 GB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 512.0 MB
   cpu       32 CPUs (the machine's); 1 query thread (--threads), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
@@ -258,6 +305,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
@@ -317,60 +365,62 @@ Old names still work: KarelaDB was called KDB until 2026-10-22 ([why](about-kare
 | `--data-dir` | `KARELADB_DATA_DIR` | `data_dir` | `data` next to kareladb | [data folder](cli-overview.md#data-folder) |
 | `--config` | - (Docker: `KARELADB_CONFIG`) | - | `kareladb.conf` next to kareladb | [kareladb.conf](#kareladb-conf) |
 | `--db` | - | - | `default` | [many databases](#many-databases) |
-| `--port`, `--bind` | - | - | `9900`, `127.0.0.1` | [kareladb serve](#kareladb-serve) |
-| `--pg-port` | - | - | `8832` (`0` = off) | [PostgreSQL port](postgres-protocol.md) |
+| `--port`, `--bind` | - | `port`, `bind` | `9900`, `127.0.0.1` | [kareladb serve](#kareladb-serve) |
+| `--pg-port` | - | `pg_port` | `8832` (`0` = off) | [PostgreSQL port](postgres-protocol.md) |
 | `--token` | - (Docker: `KARELADB_TOKEN`) | - | none | [server security](server-security.md) |
-| `--token-name` | `KARELADB_TOKEN_NAME` | - | `token` | [audit log](audit-log.md) |
-| `--memory` | - (Docker: `KARELADB_MEMORY`) | - | `512`, at most 40% of the memory limit | [kareladb serve](#kareladb-serve) |
-| `--memory-limit` | `KARELADB_MEMORY_LIMIT` | - | 85% of the container's or machine's memory | [memory limit](#memory-limit) |
+| `--token-name` | `KARELADB_TOKEN_NAME` | `token_name` | `token` | [audit log](audit-log.md) |
+| `--memory` | - (Docker: `KARELADB_MEMORY`) | `memory` | `512`, at most 40% of the memory limit | [kareladb serve](#kareladb-serve) |
+| `--memory-limit` | `KARELADB_MEMORY_LIMIT` | `memory_limit` | 85% of the container's or machine's memory | [memory limit](#memory-limit) |
 | `--threads` | - | - | half of the CPUs, follows the CPU limit | [self-tuning](#self-tuning) |
+| `--background-threads` | `KARELADB_BACKGROUND_THREADS` | - | a quarter of the CPUs (at least 1), follows the CPU limit | [background share](#background-share) |
+| `--background-memory` | `KARELADB_BACKGROUND_MEMORY` | - | a quarter of the memory limit | [background share](#background-share) |
 | `--cache-mb` | `KARELADB_CACHE_MB` | `cache_mb` | `256`, at most a tenth of the memory limit | [result cache](performance-tips.md#result-cache) |
-| `--sync-commits` | - | - | `always` | [performance tips](performance-tips.md#sync-commits) |
+| `--sync-commits` | - | `sync_commits` | `always` | [performance tips](performance-tips.md#sync-commits) |
 | `--http-threads` | `KARELADB_HTTP_THREADS` | `http_threads` | the CPUs, 8 to 64 | [kareladb serve](#kareladb-serve) |
-| `--http-gzip` | `KARELADB_HTTP_GZIP` | - | `remote` | [compressed answers](http-overview.md#gzip-answers) |
+| `--http-gzip` | `KARELADB_HTTP_GZIP` | `http_gzip` | `remote` | [compressed answers](http-overview.md#gzip-answers) |
 | `--max-connections` | `KARELADB_MAX_CONNECTIONS` | `max_connections` | `500` | [kareladb serve](#kareladb-serve) |
-| `--lanes` | `KARELADB_LANES` | - | `on` | [priority lanes](#lanes) |
-| `--heavy-ms`, `--heavy-slots`, `--heavy-queue` | `KARELADB_HEAVY_MS`, `KARELADB_HEAVY_SLOTS`, `KARELADB_HEAVY_QUEUE` | - | `100`, half of the CPUs, half of the HTTP threads (at least 4) | [priority lanes](#lanes) |
-| `--read-slots` | `KARELADB_READ_SLOTS` | - | `auto` (the CPUs, at least 2) | [read slots](#read-slots) |
+| `--lanes` | `KARELADB_LANES` | `lanes` | `on` | [priority lanes](#lanes) |
+| `--heavy-ms`, `--heavy-slots`, `--heavy-queue` | `KARELADB_HEAVY_MS`, `KARELADB_HEAVY_SLOTS`, `KARELADB_HEAVY_QUEUE` | `heavy_ms`, `heavy_slots`, `heavy_queue` | `100`, half of the CPUs, half of the HTTP threads (at least 4) | [priority lanes](#lanes) |
+| `--read-slots` | `KARELADB_READ_SLOTS` | `read_slots` | `auto` (the CPUs, at least 2) | [read slots](#read-slots) |
 | `--timer-workers` | `KARELADB_TIMER_WORKERS` | `timer_workers` | `3` | [timers](timers.md) |
 | `--tcp-keepalives-idle`, `--tcp-keepalives-interval`, `--tcp-keepalives-count` | `KARELADB_TCP_KEEPALIVES_IDLE`, `KARELADB_TCP_KEEPALIVES_INTERVAL`, `KARELADB_TCP_KEEPALIVES_COUNT` | `tcp_keepalives_idle`, `tcp_keepalives_interval`, `tcp_keepalives_count` | `0` (the system's) | [idle and vanished clients](server-activity.md#idle-clients) |
 | `--lock-timeout` | `KARELADB_LOCK_TIMEOUT` | `lock_timeout_ms` | `5s` | [lock timeout](transactions.md#lock-timeout) |
 | `--idle-in-transaction-timeout` | `KARELADB_IDLE_IN_TRANSACTION_TIMEOUT` | `idle_in_transaction_timeout_ms` | `30s` | [idle transactions](transactions.md#idle-timeout) |
-| `--reader-yield` | `KARELADB_READER_YIELD` | - | `on` | [reader yield](transactions.md#reader-yield) |
-| `--pin-threads` | `KARELADB_PIN_THREADS` | - | `auto` | [pinning threads](#pin-threads) |
-| `--per-table-reads` | `KARELADB_PER_TABLE_READS` | - | `on` | [per-table reads](transactions.md#per-table-reads) |
-| `--snapshot-reads` | `KARELADB_SNAPSHOT_READS` | - | `off` | [snapshot reads](transactions.md#snapshot-reads) |
-| `--snapshot-index-rows` | `KARELADB_SNAPSHOT_INDEX_ROWS` | - | `1000000` | [kareladb serve](#kareladb-serve) |
-| `--table-writers` | `KARELADB_TABLE_WRITERS` | - | `one` | [several writers of one table](transactions.md#shared-writers) |
-| `--tail-files` | `KARELADB_TAIL_FILES` | - | `off` | [tail files](partitions-and-dedup.md#tail-files) |
-| `--read-only-calls` | `KARELADB_READ_ONLY_CALLS` | - | `on` | [procedures](procedures.md#read-only-call) |
-| `--scoped-ddl` | `KARELADB_SCOPED_DDL` | - | `on` | [schema changes](transactions.md#one-writer) |
-| `--ddl-beside-writers` | `KARELADB_DDL_BESIDE_WRITERS` | - | `on` | [schema changes](transactions.md#one-writer) |
-| `--skip-locked-beside` | `KARELADB_SKIP_LOCKED_BESIDE` | - | `off` | [FOR UPDATE](transactions.md#for-update) |
-| `--log-lock-waits` | `KARELADB_LOG_LOCK_WAITS` | - | `off` | [lock waits](transactions.md#lock-table) |
-| `--deadlock-timeout` | `KARELADB_DEADLOCK_TIMEOUT` | - | `1s` | [lock waits](transactions.md#lock-table) |
-| `--warm-indexes` | `KARELADB_WARM_INDEXES` | - | `on` | [indexes](indexes.md#warm) |
+| `--reader-yield` | `KARELADB_READER_YIELD` | `reader_yield` | `on` | [reader yield](transactions.md#reader-yield) |
+| `--pin-threads` | `KARELADB_PIN_THREADS` | `pin_threads` | `auto` | [pinning threads](#pin-threads) |
+| `--per-table-reads` | `KARELADB_PER_TABLE_READS` | `per_table_reads` | `on` | [per-table reads](transactions.md#per-table-reads) |
+| `--snapshot-reads` | `KARELADB_SNAPSHOT_READS` | `snapshot_reads` | `off` | [snapshot reads](transactions.md#snapshot-reads) |
+| `--snapshot-index-rows` | `KARELADB_SNAPSHOT_INDEX_ROWS` | `snapshot_index_rows` | `1000000` | [kareladb serve](#kareladb-serve) |
+| `--table-writers` | `KARELADB_TABLE_WRITERS` | `table_writers` | `one` | [several writers of one table](transactions.md#shared-writers) |
+| `--tail-files` | `KARELADB_TAIL_FILES` | `tail_files` | `off` | [tail files](partitions-and-dedup.md#tail-files) |
+| `--read-only-calls` | `KARELADB_READ_ONLY_CALLS` | `read_only_calls` | `on` | [procedures](procedures.md#read-only-call) |
+| `--scoped-ddl` | `KARELADB_SCOPED_DDL` | `scoped_ddl` | `on` | [schema changes](transactions.md#one-writer) |
+| `--ddl-beside-writers` | `KARELADB_DDL_BESIDE_WRITERS` | `ddl_beside_writers` | `on` | [schema changes](transactions.md#one-writer) |
+| `--skip-locked-beside` | `KARELADB_SKIP_LOCKED_BESIDE` | `skip_locked_beside` | `off` | [FOR UPDATE](transactions.md#for-update) |
+| `--log-lock-waits` | `KARELADB_LOG_LOCK_WAITS` | `log_lock_waits` | `off` | [lock waits](transactions.md#lock-table) |
+| `--deadlock-timeout` | `KARELADB_DEADLOCK_TIMEOUT` | `deadlock_timeout` | `1s` | [lock waits](transactions.md#lock-table) |
+| `--warm-indexes` | `KARELADB_WARM_INDEXES` | `warm_indexes` | `on` | [indexes](indexes.md#warm) |
 | `--timezone` | `KARELADB_TIMEZONE` | `timezone` | UTC | [time zones](time-and-time-zones.md#session-time-zone) |
-| `--pg-timestamptz` | - | - | off | [PostgreSQL port](postgres-protocol.md) |
-| `--pg-int-division` | `KARELADB_PG_INT_DIVISION` | - | `off` | [integer division](postgres-protocol.md#int-division) |
-| `--pg-compat` | `KARELADB_PG_COMPAT` | - | `off` | [PostgreSQL-compatible results](postgres-protocol.md#pg-compat) |
-| `--trigger-retries` | `KARELADB_TRIGGER_RETRIES` | - | `3` | [deferred triggers](triggers.md#deferred) |
-| `--max-trigger-jobs` | `KARELADB_MAX_TRIGGER_JOBS` | - | `10000` | [deferred triggers](triggers.md#deferred) |
+| `--pg-timestamptz` | - | `pg_timestamptz` | off | [PostgreSQL port](postgres-protocol.md) |
+| `--pg-int-division` | `KARELADB_PG_INT_DIVISION` | `pg_int_division` | `off` | [integer division](postgres-protocol.md#int-division) |
+| `--pg-compat` | `KARELADB_PG_COMPAT` | `pg_compat` | `off` | [PostgreSQL-compatible results](postgres-protocol.md#pg-compat) |
+| `--trigger-retries` | `KARELADB_TRIGGER_RETRIES` | `trigger_retries` | `3` | [deferred triggers](triggers.md#deferred) |
+| `--max-trigger-jobs` | `KARELADB_MAX_TRIGGER_JOBS` | `max_trigger_jobs` | `10000` | [deferred triggers](triggers.md#deferred) |
 | `--alert-webhook` | `KARELADB_ALERT_WEBHOOK` | `alert_webhook` | none | [alerts](triggers.md#deferred-alerts) |
-| `--statement-timeout` | - | - | `60s` | [protection](protection.md#statement-timeout) |
-| `--max-result-memory`, `--max-groups` | - | - | `1GB`, `5000000` | [protection](protection.md#memory-limits) |
-| `--max-queries-per-user` | - | - | `32` | [protection](protection.md#max-queries-per-user) |
+| `--statement-timeout` | - | `statement_timeout` | `60s` | [protection](protection.md#statement-timeout) |
+| `--max-result-memory`, `--max-groups` | - | `max_result_memory`, `max_groups` | `1GB`, `5000000` | [protection](protection.md#memory-limits) |
+| `--max-queries-per-user` | - | `max_queries_per_user` | `32` | [protection](protection.md#max-queries-per-user) |
 | `--rate-limit-ip`, `--rate-limit-user` | `KARELADB_RATE_LIMIT_IP`, `KARELADB_RATE_LIMIT_USER` | `rate_limit_ip`, `rate_limit_user` | `0` (no limit) | [rate limits](protection.md#rate-limits) |
-| `--safe-updates` | - | - | off | [protection](protection.md#safe-updates) |
-| `--read-only` | - | - | off | [protection](protection.md#read-only) |
-| `--standby-of`, `--standby-token` | `KARELADB_STANDBY_OF`, `KARELADB_STANDBY_TOKEN` | - | off | [standby](standby.md) (`kareladb promote` makes it a primary) |
-| `--drain-timeout` | `KARELADB_DRAIN_TIMEOUT` | - | `30s` (Docker image: `5s`) | [stopping](#stop) |
+| `--safe-updates` | - | `safe_updates` | off | [protection](protection.md#safe-updates) |
+| `--read-only` | - | `read_only` | off | [protection](protection.md#read-only) |
+| `--standby-of`, `--standby-token` | `KARELADB_STANDBY_OF`, `KARELADB_STANDBY_TOKEN` | `standby_of`, `standby_token` | off | [standby](standby.md) (`kareladb promote` makes it a primary) |
+| `--drain-timeout` | `KARELADB_DRAIN_TIMEOUT` | `drain_timeout` | `30s` (Docker image: `5s`) | [stopping](#stop) |
 | `--tls-cert`, `--tls-key` | `KARELADB_TLS_CERT`, `KARELADB_TLS_KEY` | `tls_cert`, `tls_key` | off | [TLS](tls.md) |
-| `--tls-required` | `KARELADB_TLS_REQUIRED` | - | `on` | [TLS](tls.md) |
-| `--audit`, `--audit-keep-days` | - | - | `on`, `0` (keep for ever) | [audit log](audit-log.md) |
-| `--activity-log-size` | - | - | `5000` | [monitor](console-monitor.md) |
+| `--tls-required` | `KARELADB_TLS_REQUIRED` | `tls_required` | `on` | [TLS](tls.md) |
+| `--audit`, `--audit-keep-days` | - | `audit`, `audit_keep_days` | `on`, `0` (keep for ever) | [audit log](audit-log.md) |
+| `--activity-log-size` | - | `activity_log_size` | `5000` | [monitor](console-monitor.md) |
 | `--slow-query-ms` | `KARELADB_SLOW_QUERY_MS` | `slow_query_ms` | `1000` | [slow queries](http-server-info.md#slow-queries) |
-| `--trash-days` | - | - | `7` | [trash](trash.md) |
+| `--trash-days` | - | `trash_days` | `7` | [trash](trash.md) |
 | `--trash-max-mb` | `KARELADB_TRASH_MAX_MB` | `trash_max_mb` | a quarter of the data, at least 256 MB | [kareladb.conf](#kareladb-conf) |
 | - | `KARELADB_TRASH_KEEP_HOURS` | `trash_keep_hours` | `1` | [kareladb.conf](#kareladb-conf) |
 | - | `KARELADB_KEEP_VERSIONS` | `keep_versions` | `2` | [kareladb.conf](#kareladb-conf) |
@@ -381,14 +431,14 @@ Old names still work: KarelaDB was called KDB until 2026-10-22 ([why](about-kare
 | `--backup-schedule` | `KARELADB_BACKUP_SCHEDULE` | `backup_schedule` | `off` | [backup schedule](backup-schedule.md) |
 | `--keep-daily`, `--keep-weekly` | `KARELADB_BACKUP_KEEP_DAILY`, `KARELADB_BACKUP_KEEP_WEEKLY` | `backup_keep_daily`, `backup_keep_weekly` | `7`, `4` | [backup schedule](backup-schedule.md) |
 | `--backup-command` | `KARELADB_BACKUP_COMMAND` | `backup_command` | none | [backup command](backup-schedule.md#backup-command) |
-| `--backup-copy` | - | - | none | [backup schedule](backup-schedule.md) |
-| `--backup-warn-hours` | - | - | `26` | [backup schedule](backup-schedule.md) |
+| `--backup-copy` | - | `backup_copy` | none | [backup schedule](backup-schedule.md) |
+| `--backup-warn-hours` | - | `backup_warn_hours` | `26` | [backup schedule](backup-schedule.md) |
 | - | `KARELADB_LAZY_OPEN` | - | `on` | [kareladb serve](#kareladb-serve) (start-up) |
 | - | `KARELADB_SELF_TUNING_SECONDS` | - | `10` (`0` = only at start) | [self-tuning](#self-tuning) |
 | - | `KARELADB_TTL_CHECK_MS` | - | `60000` | how often partitions past their `TTL` are dropped (100 to 86400000 ms) |
 | - | `KARELADB_LEVEL_FROM_HEAP` | - | off | [memory limit](#memory-limit) |
 
-- **What needs a restart:** everything, except `cache_mb`, `wal_archive_mb`, `http_functions` and `http_timeout_ms` saved on the [Settings page](console-settings.md), which apply at once. **Restart** on that page (`POST /api/restart`) re-reads `kareladb.conf`; a flag or an environment variable changes only when the process is started again (in Docker: the container is made again).
+- **What needs a restart:** everything, except `cache_mb`, `wal_archive_mb`, `http_functions` and `http_timeout_ms` saved on the [Settings page](console-settings.md), which apply at once. **Restart** on that page (`POST /api/restart`) re-reads `kareladb.conf`; a flag or an environment variable changes only when the process is started again (in Docker: the container is made again). The full rules: [when a key takes effect](#conf-reload).
 - **Docker:** the image's start script also reads `KARELADB_TOKEN`, `KARELADB_MEMORY`, `KARELADB_CONFIG`, `KARELADB_CORE_DUMPS` and `KARELADB_CORE_KEEP` ([Docker](install-packages.md#docker)). Every environment variable above works there too, with `-e`.
 - **Which values** are in use now: the start-up lines, and `GET /api/settings` (admin), which says where each came from.
 
@@ -452,6 +502,7 @@ KarelaDB <version>
   commits   synced to disk before they are confirmed | synced every 10 ms
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    3.00 GB for the whole process (--memory-limit); table data 1.00 GB of it (--memory)
+  background 1 job at once (default); share 768.0 MB (default), checkpoint waves up to 256.0 MB
   cpu       2 CPUs of the machine's 16 (cgroup v2 cpu.max 2.00); 1 query thread (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 60s, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
@@ -473,6 +524,7 @@ Press Ctrl+C to stop.
 | `commits` | `--sync-commits always` or `batch` |
 | `readers` | Whether a `SELECT` waits for a long trigger or `CALL` ([reader yield](transactions.md#reader-yield)), and after how long an idle open transaction is rolled back ([idle transactions](transactions.md#idle-timeout)) |
 | `memory` | The [memory limit](#memory-limit) and where it came from, and the table data share (`--memory`). Without a limit: `no limit for the whole process`. A `warning` line follows when `--memory` is more than 60% of the limit. |
+| `background` | How many background jobs run at once and the memory share, each with where it came from, and the most a checkpoint's partitions may hold: the smaller of the share and a quarter of `--memory` ([background share](#background-share)) |
 | `cpu` | The CPUs the process may use and what decided it (`the machine's`, a container's `cgroup v2 cpu.max`, `cgroup v1 cpu.cfs_quota_us`, `affinity`, or a Windows `job object CPU rate`), and the query threads chosen from it ([self-tuning](#self-tuning)) |
 | `pinning` | With `--pin-threads on`, or with `auto` inside a CPU quota: the CPUs the threads are pinned to, out of the CPUs the process may run on, or why nothing was pinned ([pinning threads](#pin-threads)) |
 | `limits`, `safety` | The [protection](protection.md) settings in force |
@@ -518,6 +570,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
@@ -543,6 +596,24 @@ Inside `docker run --cpus=1` a program still sees every core of the host. Karela
 - **The log:** each change is one line, like `self-tuning: CPU limit 1 CPU (cgroup v2 cpu.max 1.00, machine 16) -> 4 CPUs (cgroup v2 cpu.max 4.00, machine 16); query threads 1 -> 2`. It shows in the console's activity panel too.
 - **See it:** `limits` in [`GET /api/stats`](http-server-info.md#api-stats), and the `cpu` line at start.
 - **How often:** `KARELADB_SELF_TUNING_SECONDS` (default 10; `0` = read only at start).
+
+<a id="background-share"></a>
+
+## Background share
+
+The server does work of its own beside the requests: it saves changes when writes stop (the idle checkpoint), packs partitions for `SET (compression = on)`, drops partitions past their TTL, deletes expired rows, sweeps cache tables, moves partitions to cold storage, empties old trash and copies scheduled backups. That work gets a share of its own, so a big one never takes the CPUs or the memory the user writes need.
+
+| Part | What it does |
+|---|---|
+| Turns | At most `--background-threads` jobs run at once in the whole server, whatever the number of databases (default a quarter of the CPUs, at least 1: one at 2 CPUs, four at 16). A job that finds no turn free is not queued: it runs at its next tick, a moment later. |
+| Backup slot | A [scheduled backup](backup-schedule.md)'s copy runs for minutes or hours, so it does not take one of the turns: it has a slot of its own, one copy at a time in the server, and waits for it. Idle checkpoints, trash clean-up, TTL drops, compression and the cold pass go on while a backup copies. |
+| Waiting writes first | A TTL drop, row TTL sweep, cache sweep or cold pass works one table or partition at a time. Before each one it looks whether user writes wait for the database or a table lock, and lets them in first: it pauses while they wait, at most 50 ms a piece, so it still moves on under a load that never stops. |
+| Lower CPU priority | A scheduled backup's copy runs below normal priority, where the system lets the thread come back to normal afterwards (Windows; Linux with `CAP_SYS_NICE`, not a plain `docker run`). Work that holds a lock a request waits for keeps its priority: a slow thread holding it would make the request wait longer. The partitions of a checkpoint beside loads were already written below normal priority. |
+| Memory | The partitions a checkpoint writes are in memory at once, a wave at a time. A wave is at most a quarter of `--memory`, at most `--background-memory` (default a quarter of `--memory-limit`), and a quarter of that share while memory is at red, so a big checkpoint cannot push the server into refusing user statements. A wave at red still holds several partitions, so the threads write them side by side and the checkpoint that frees memory is not slowed down. |
+
+- **Not on the share:** what a request asked for - a `CHECKPOINT` statement, `BACKUP DATABASE`, `POST /api/backup`, the `kareladb` commands that make a backup first, the checkpoint a write leaves to the idle thread - and the memory limit's own trims. They serve the request that waits for them.
+- **See it:** the start-up line `background 1 job at once (default); share 768.0 MB (default), checkpoint waves up to 256.0 MB`, and `background` in [`GET /api/stats`](http-server-info.md#api-stats): `threads`, `running` (turns held now), `backups_running` (the backup slot, 0 or 1), `memory_bytes`, `bytes` and `bytes_peak` (a checkpoint wave's partitions in memory), `jobs`, `put_off` (jobs that found no turn free), `waited` (scheduled backups that waited for the slot) and `yields` (pauses for waiting writes).
+- **One database per job:** the pause looks at the writes of the job's own database. A job of one database does not pause for writes to another; the turns keep their number small.
 
 <a id="pin-threads"></a>
 
@@ -681,13 +752,14 @@ KarelaDB looks ten times a second at two numbers: the bytes its objects hold (th
 
 - **The error:** `memory full: 2.9 of 3.0 GB in use (table data 1.0, key maps 0.4, indexes 0.3, pending 0.2, result cache 0.1, queries and other 0.9, allocator 0.2); try again or raise --memory-limit`. HTTP **503** with `Retry-After: 2`; on the PostgreSQL port SQLSTATE **53200** (`out_of_memory`). Nothing of the statement ran, so it is safe to send again.
 - **Over the limit itself:** a statement that is already running keeps going at red. If the heap stays at red, or memory still passes the limit after it is given back, the running statement that holds the most memory is stopped: `memory full: the server went over its memory limit while this statement ran, and it held the most memory (about N MB of rows and working memory), so it was stopped ...`, with the same numbers. Same codes: HTTP **503**, PostgreSQL **53200**. At most one statement is stopped every 0.3 s this way, and only one that holds at least 2% of the limit. A statement that grows while the heap is over the limit and holds at least an eighth of it stops itself at once, without waiting for the next look. The others go on, and the server keeps running; `stopped` in `/api/stats` counts them. Without this, the system could kill the whole server.
-- **Working memory of one statement:** what a query keeps while it works counts too: the values `string_agg`, `array_agg`, `median`, `percentile_*` and `agg(x ORDER BY y)` keep, the sets of `count(DISTINCT ...)` and `SELECT DISTINCT`, and the groups of `GROUP BY` (a join's table and its hash count toward what the statement holds as well). One statement may keep a quarter of the limit in such working memory (and no more than `--max-result-memory`); past that it is stopped: `memory full: this statement needed more than N MB of working memory ...` (HTTP **503**, PostgreSQL **53200**). A `GROUP BY` with many groups writes the groups that do not fit to temporary files first ([protection](protection.md#memory-limits)), and does so earlier when the server is at red. Four `string_agg` over a join took a server with a 3 GB limit to 7.1 GB before this was counted.
+- **Working memory of one statement:** what a query keeps while it works counts too: the values `string_agg`, `array_agg`, `median`, `percentile_*` and `agg(x ORDER BY y)` keep, the sets of `count(DISTINCT ...)` and `SELECT DISTINCT`, the groups of `GROUP BY`, and the rows a plpgsql function call returns with `RETURN NEXT` / `RETURN QUERY` (a join's table and its hash count toward what the statement holds as well). One statement may keep a quarter of the limit in such working memory (and no more than `--max-result-memory`); past that it is stopped: `memory full: this statement needed more than N MB of working memory ...` (HTTP **503**, PostgreSQL **53200**). A `GROUP BY` with many groups writes the groups that do not fit to temporary files first ([protection](protection.md#memory-limits)), and does so earlier when the server is at red. Four `string_agg` over a join took a server with a 3 GB limit to 7.1 GB before this was counted.
 - **Held back at red:** SQL over HTTP (`/exec`, `/exp`) and the PostgreSQL port (quick statements through the reserve first), and loads (`/write`, `/imp`, `COPY`), which never use the reserve. **Never held back:** `/health`, `/api/stats` and the other pages that run no SQL, and `ROLLBACK`, `COMMIT`, `SET`, `SHOW` (ending a transaction frees memory).
 - **Unsaved changes:** when the changes not yet written to partition files pass a quarter of the limit, the database holding the most writes them out. A long `CALL`, trigger or `BEGIN ... COMMIT` no longer holds that off: between two of its statements KarelaDB writes the **committed** changes of other writers and keeps the transaction's own.
+- **Back-pressure on loads:** a loader can add changes faster than they are written out. When the unsaved changes of all databases pass **half** of the limit, new writes and loads (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `COPY`, `CALL`, `DO`, `REFRESH`, `CREATE INDEX`, `CREATE TABLE ... AS SELECT`, a `SELECT` or `WITH` that writes, `POST /write`, `POST /imp`) wait at the door for the writing to catch up, up to 2 s, once per request or statement (never per row). Then they fail with `memory full: 1.6 GB of changes are waiting to be written to the partition files, over half of the 3.0 GB memory limit; ...`: HTTP **503** with `Retry-After: 2`, PostgreSQL **53200**. Nothing of it was written, so it is safe to send again. Everything else goes on: reads (also one whose text has `'insert'` in a string), `CHECKPOINT` (it is what lets writes go again), `COMMIT`, `ROLLBACK`, `SET`, `SHOW`, `USE`, `CANCEL QUERY`, `PREPARE`, `EXECUTE`, `ALTER`, `DROP`, plain `CREATE`. A request with several statements waits when one of them is a write. Over HTTP only an eighth of `--http-threads` (at least 1) wait at once; the next write gets the 503 at once, so reads still find a free thread. Writes go again once the changes are under 40% of the limit. `writes_held`, `pending_seen_bytes` and `writes_refused` in `memory_limit` of `/api/stats` show it. Without `--memory-limit` nothing is held back.
 - **A transaction too big for memory:** its own changes stay in memory until `COMMIT`. When they pass a quarter of the limit it is stopped and rolled back: `transaction too big for memory: ...; split the work into smaller transactions` (HTTP 413, SQLSTATE `53200`). What counts is what the transaction keeps: about 600 bytes for a row written one by one, next to nothing for `DELETE FROM t` without `WHERE` (it drops the table's partitions and keeps them whole for a `ROLLBACK`), and about 50 bytes a row for a big `INSERT ... SELECT` into partitions the transaction emptied or that had no unsaved changes (the rows are kept as columns). So a procedure that rebuilds a table - `DELETE FROM t`, then `INSERT INTO t SELECT ...` of a million rows or two - runs again and again under `--memory-limit 3GB`.
 - **A big `INSERT ... SELECT` into a table with a key** (`DEDUP KEY`, `PRIMARY KEY`), outside `BEGIN ... COMMIT`: past 65,536 rows it runs as a transaction of its own and puts each batch of rows into the table as soon as it is checked, instead of holding every row to the end. Into partitions with no unsaved changes of earlier statements a row then takes about 150 bytes until the commit, not about 1,100: a copy of millions of rows into a `PARTITION BY YEAR, SYMBOL(symbol)` candle table fits. It is still one statement: a bad row anywhere, or a repeated key, writes nothing, and readers see all of it or none. Its limit is half of `--memory-limit`: `memory full: this INSERT ... SELECT's N rows take about M MB until it commits, more than half of the memory limit ...; it was stopped and nothing was written. Copy in parts ...`. `KARELADB_NO_INSERT_APPLY=1` goes back to holding every row to the end.
 - **`SELECT ... FROM otherdb.t`:** a `SELECT` that reads only tables of one other database runs in that database, so `SELECT count(*) FROM otherdb.t` is answered from its row counts and copies nothing ([cross-database queries](cross-database-queries.md)).
-- **Small tables stay loaded:** a table wholly in memory and small (up to 1/32 of `--memory`, all of them together up to 1/8) is unloaded last, and never for another database or the memory limit. A sessions table read by every login is not dropped because another database scanned something big.
+- **Small tables stay loaded:** a table in memory (every partition, whole or just the columns its reads use) and small (up to 1/32 of `--memory`, all of them together up to 1/8) is unloaded last, and never for another database or the memory limit. A sessions table read by every login is not dropped because another database scanned something big.
 - **Default:** 85% of the container's memory limit (`docker run --memory 4g`). Without one (a plain `docker run`, or no container), 85% of the machine's memory; in Docker Desktop that is Docker's VM. Set a smaller one when the machine runs other programs too, and `off` for no limit.
 - **Room:** keep `--memory` well under the limit (at most about half), and `--max-result-memory` too ([protection](protection.md#memory-limits)): the table data, the changes and the queries share it.
 - `GET /api/stats` shows the level and the numbers per kind in `memory_limit` ([server info](http-server-info.md)).
@@ -714,12 +786,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    3.00 GB for the whole process (--memory-limit); table data 1.00 GB of it (--memory)
+  background 8 jobs at once (default); share 768.0 MB (default), checkpoint waves up to 256.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to ./market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 3 ms: manifest 1 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 2 ms: manifest 0 ms, 1 files read 1 ms (8 table files left for their first use), log check 0 ms, replay 0 ms (0 transactions), clean-up 1 ms
 
 Press Ctrl+C to stop.
 ```
@@ -812,12 +885,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
   logs      slow queries >= 1000 ms to ./kdb-data/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 0 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 1 ms: manifest 0 ms, 0 files read 0 ms, log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```

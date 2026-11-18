@@ -91,7 +91,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: timestamps look like seconds (1789103700) but precision= is not set: add ?precision=s (without it they are read as nanoseconds and would land on 1970-01-01T00:00:01.789Z)",
   "line": 1,
-  "errorId": "3258299e591f-1"
+  "errorId": "d89d304bf68e-1"
 }
 ```
 
@@ -133,10 +133,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 41, "execute_us": 105}
+      "timings": {"parse_us": 39, "execute_us": 118}
     }
   ],
-  "timings": {"parse_us": 41, "execute_us": 105}
+  "timings": {"parse_us": 39, "execute_us": 118}
 }
 ```
 
@@ -163,7 +163,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'orders_log', column 'placed' cannot take 1789103700000t: a t value is microseconds, and this number looks like milliseconds (it would be 1970-01-21T16:58:23.700Z); write 1789103700000000t",
   "line": 1,
-  "errorId": "3258299e591f-2"
+  "errorId": "d89d304bf68e-2"
 }
 ```
 
@@ -235,10 +235,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 13, "execute_us": 68}
+      "timings": {"parse_us": 29, "execute_us": 53}
     }
   ],
-  "timings": {"parse_us": 13, "execute_us": 68}
+  "timings": {"parse_us": 29, "execute_us": 53}
 }
 ```
 
@@ -295,10 +295,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 56}
+      "timings": {"parse_us": 22, "execute_us": 91}
     }
   ],
-  "timings": {"parse_us": 27, "execute_us": 56}
+  "timings": {"parse_us": 22, "execute_us": 91}
 }
 ```
 
@@ -369,10 +369,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 7, "execute_us": 10}
+      "timings": {"parse_us": 13, "execute_us": 15}
     }
   ],
-  "timings": {"parse_us": 7, "execute_us": 10}
+  "timings": {"parse_us": 13, "execute_us": 15}
 }
 ```
 
@@ -405,7 +405,7 @@ Parses every line, then writes all the rows in **one transaction**. Rows are **u
 | `line` | (error) the line number (from 1), or `0` when the error is not about one line |
 | `errorId` | (error) a unique id of this error, to find it in logs |
 
-- **Status codes:** 204 written; 400 a bad line, an unknown column (or table, when making tables is off), a value of the wrong type, a time in the wrong unit, a bad `precision` or `upsert`, a damaged compressed body, or a compression other than gzip and deflate; 401/403 login or role (needs `write`, and `ddl` to make a table); 404 unknown database; 405 for `GET`; 408 a trigger ran past the statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble (nothing written); 503 busy: another writer or transaction held the table for longer than the lock wait (5 s), with the message `table 'x' is busy: ...` or `database is busy: ...` (nothing written; send it again); 507 the disk is full or has less than 64 MB free, with `"code": "disk full"` (nothing written; see [loading data](loading-data.md#speed)).
+- **Status codes:** 204 written; 400 a bad line, an unknown column (or table, when making tables is off), a value of the wrong type, a time in the wrong unit, a bad `precision` or `upsert`, a damaged compressed body, or a compression other than gzip and deflate; 401/403 login or role (needs `write`, and `ddl` to make a table); 404 unknown database; 405 for `GET`; 408 a trigger ran past the statement timeout; 413 body over 64 MB (counted after unpacking); 500 server trouble (nothing written); 503 busy: another writer or transaction held the table for longer than the lock wait (5 s), with the message `table 'x' is busy: ...` or `database is busy: ...` (nothing written; send it again), or `memory full: ...` when the server's unsaved changes are past half of `--memory-limit` ([back-pressure on loads](cli-serve.md#memory-limit)), with `Retry-After`; 507 the disk is full or has less than 64 MB free, with `"code": "disk full"` (nothing written; see [loading data](loading-data.md#speed)).
 - **Notes:**
   - When **any** line is wrong, **nothing** of the request is written. Fix the line and send the request again.
   - [Triggers](triggers.md) run **once per request** (not once per line), in the same transaction. `CHECK`, `NOT NULL` and `REFERENCES` rules are checked for every row.
@@ -469,10 +469,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 19, "execute_us": 105}
+      "timings": {"parse_us": 62, "execute_us": 203}
     }
   ],
-  "timings": {"parse_us": 19, "execute_us": 105}
+  "timings": {"parse_us": 62, "execute_us": 203}
 }
 ```
 
@@ -532,10 +532,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 17, "execute_us": 94}
+      "timings": {"parse_us": 20, "execute_us": 107}
     }
   ],
-  "timings": {"parse_us": 17, "execute_us": 94}
+  "timings": {"parse_us": 20, "execute_us": 107}
 }
 ```
 
@@ -604,10 +604,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 27, "execute_us": 143}
+      "timings": {"parse_us": 10, "execute_us": 71}
     }
   ],
-  "timings": {"parse_us": 27, "execute_us": 143}
+  "timings": {"parse_us": 10, "execute_us": 71}
 }
 ```
 
@@ -657,10 +657,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 23, "execute_us": 141}
+      "timings": {"parse_us": 60, "execute_us": 159}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 141}
+  "timings": {"parse_us": 60, "execute_us": 159}
 }
 ```
 
@@ -687,7 +687,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 2: table 'live_data', column 'volume' is LONG and cannot take a float; write whole numbers with an i suffix, like 3i",
   "line": 2,
-  "errorId": "3258299e591f-3"
+  "errorId": "d89d304bf68e-3"
 }
 ```
 
@@ -711,10 +711,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 31, "execute_us": 89}
+      "timings": {"parse_us": 22, "execute_us": 111}
     }
   ],
-  "timings": {"parse_us": 31, "execute_us": 89}
+  "timings": {"parse_us": 22, "execute_us": 111}
 }
 ```
 
@@ -735,7 +735,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "error in line 1: table 'live_data' has no column 'turnover'; add it first (ALTER TABLE live_data ADD COLUMN ...)",
   "line": 1,
-  "errorId": "3258299e591f-4"
+  "errorId": "d89d304bf68e-4"
 }
 ```
 
@@ -789,10 +789,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 15, "execute_us": 79}
+      "timings": {"parse_us": 16, "execute_us": 82}
     }
   ],
-  "timings": {"parse_us": 15, "execute_us": 79}
+  "timings": {"parse_us": 16, "execute_us": 82}
 }
 ```
 
@@ -813,7 +813,7 @@ HTTP 400 (application/json)
   "code": "invalid",
   "message": "unsupported precision 'minutes': use n, u, ms or s",
   "line": 0,
-  "errorId": "3258299e591f-5"
+  "errorId": "d89d304bf68e-5"
 }
 ```
 
@@ -940,9 +940,9 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 21, "execute_us": 106}
+      "timings": {"parse_us": 36, "execute_us": 178}
     }
   ],
-  "timings": {"parse_us": 21, "execute_us": 106}
+  "timings": {"parse_us": 36, "execute_us": 178}
 }
 ```

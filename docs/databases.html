@@ -14,7 +14,7 @@
 <main>
 <h1 id="databases-and-the-data-folder">Databases and the data folder</h1>
 <blockquote><p>Where KarelaDB keeps databases, how to name them, and CREATE DATABASE, DROP DATABASE, SHOW DATABASES and USE.</p></blockquote>
-<ul><li>Category: Databases &amp; folders</li><li>Keywords: database, data folder, PURGE TRASH, PURGE TRASH ALL, data directory, --data-dir, KARELADB_DATA_DIR, default database, _trash, trash, database name, folder path, CREATE DATABASE, IF NOT EXISTS, DROP DATABASE, IF EXISTS, SHOW DATABASES, USE, switch database, many databases, kdb.lock, wal_archive, WAL_ARCHIVE, old log, log archive, KARELADB_WAL_ARCHIVE_MB, RESULT_CACHE, result cache per database, MEMORY_LIMIT, MEMORY_RESERVED, memory per database, database_memory, per-column loads, partial_loads, BRANCH OF, branch, clone database</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="show-tables.html">SHOW TABLES, COLUMNS, CREATE TABLE</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-serve.html">kareladb serve</a>, <a href="cross-database-queries.html">Queries across databases</a>, <a href="as-of-and-branches.html">Time travel and branches: SELECT ... AS OF, CREATE DATABASE ... BRANCH OF</a></li></ul>
+<ul><li>Category: Databases &amp; folders</li><li>Keywords: database, data folder, PURGE TRASH, PURGE TRASH ALL, data directory, --data-dir, KARELADB_DATA_DIR, default database, _trash, trash, database name, folder path, CREATE DATABASE, IF NOT EXISTS, DROP DATABASE, IF EXISTS, SHOW DATABASES, USE, switch database, many databases, kdb.lock, wal_archive, WAL_ARCHIVE, old log, log archive, KARELADB_WAL_ARCHIVE_MB, RESULT_CACHE, result cache per database, MEMORY_LIMIT, MEMORY_RESERVED, memory per database, database_memory, MAX_STATEMENTS, statements at once per database, 53300, per-column loads, partial_loads, BRANCH OF, branch, clone database</li><li>See also: <a href="quick-start.html">Quick start</a>, <a href="create-table.html">CREATE TABLE</a>, <a href="show-tables.html">SHOW TABLES, COLUMNS, CREATE TABLE</a>, <a href="users-and-roles.html">Users and roles</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="cli-serve.html">kareladb serve</a>, <a href="cross-database-queries.html">Queries across databases</a>, <a href="as-of-and-branches.html">Time travel and branches: SELECT ... AS OF, CREATE DATABASE ... BRANCH OF</a></li></ul>
 <p>A <strong>database</strong> is one folder with its own tables, views, triggers and procedures. KarelaDB keeps many databases in one <strong>data folder</strong>: one sub-folder per database. <code>kareladb serve</code> without a database name serves all of them.</p>
 <p>A real setup: one database for market prices, one for the accounting app, one for the forum.</p>
 <p><strong>Example: Three databases for three apps</strong></p>
@@ -57,7 +57,7 @@ kareladb&gt; name    | tables | bytes | current
 --------+--------+-------+--------
 default |      0 |     0 | true   
 market  |      0 |     0 | false  
-(2 rows, 0.2 ms)
+(2 rows, 0.4 ms)
 kareladb&gt;</code></pre>
 <h2 id="names">Database names and folder paths</h2>
 <p>Syntax:</p>
@@ -86,7 +86,7 @@ kareladb sql .\shop &quot;SHOW TABLES&quot;</code></pre>
 <pre><code class="language-text">name     | kind       | partition | columns | rows
 ---------+------------+-----------+---------+-----
 products | relational | NONE      |       2 |    0
-(1 row, 0.1 ms)</code></pre>
+(1 row, 0.0 ms)</code></pre>
 <h2 id="create-database">CREATE DATABASE</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">CREATE DATABASE [IF NOT EXISTS] name [WITH (pg_compat = on | off, encryption = on | off)]</code></pre>
@@ -124,7 +124,7 @@ DROP DATABASE IF EXISTS test_2025;
 SHOW DATABASES;</code></pre>
 <p>Result:</p>
 <p><code>DROP DATABASE test_2025</code></p>
-<pre><code class="language-text">database &#39;test_2025&#39; dropped; its folder was moved to kdb-data/_trash/1792828554564-test_2025</code></pre>
+<pre><code class="language-text">database &#39;test_2025&#39; dropped; its folder was moved to kdb-data/_trash/1794988934796-test_2025</code></pre>
 <p><code>DROP DATABASE IF EXISTS test_2025</code></p>
 <pre><code class="language-text">database &#39;test_2025&#39; does not exist</code></pre>
 <p><code>SHOW DATABASES</code></p>
@@ -136,7 +136,7 @@ SHOW DATABASES;</code></pre>
 <pre><code class="language-sql">DROP DATABASE demo;
 SHOW TABLES;</code></pre>
 <p>Result:</p>
-<pre><code class="language-text">database &#39;demo&#39; dropped; its folder was moved to kdb-data/_trash/1792828554593-demo; no database is selected now (USE &lt;name&gt;)</code></pre>
+<pre><code class="language-text">database &#39;demo&#39; dropped; its folder was moved to kdb-data/_trash/1794988934843-demo; no database is selected now (USE &lt;name&gt;)</code></pre>
 <p>Error: <code>no database is selected; choose one with USE &lt;name&gt;</code></p>
 <p><strong>Example: A database that is not there</strong> (shows an error)</p>
 <pre><code class="language-sql">DROP DATABASE nothing;</code></pre>
@@ -167,7 +167,7 @@ PURGE TRASH;</code></pre>
 PURGE TRASH ALL;</code></pre>
 <p>Result:</p>
 <p><code>DROP DATABASE old_test</code></p>
-<pre><code class="language-text">database &#39;old_test&#39; dropped; its folder was moved to kdb-data/_trash/1792828554729-old_test</code></pre>
+<pre><code class="language-text">database &#39;old_test&#39; dropped; its folder was moved to kdb-data/_trash/1794988934984-old_test</code></pre>
 <p><code>PURGE TRASH ALL</code></p>
 <pre><code class="language-text">removed 1 folder(s) from the trash, freed 680 bytes</code></pre>
 <h2 id="purge-versions">PURGE VERSIONS</h2>
@@ -378,6 +378,25 @@ ALTER DATABASE scratch SET MEMORY_LIMIT = &#39;64MB&#39;;</code></pre>
 <p>A column-engine query (sums, counts, <code>GROUP BY</code> and the like) on a partition that is not in memory reads <strong>only the columns it names</strong> from the file, plus the time column and the key columns. A sum of one column of a 20-column table reads and keeps about a tenth of the bytes, so the same memory holds many more partitions and a repeated query does not read its files again.</p>
 <div class="table-wrap"><table><thead><tr><th>What</th><th>What happens</th></tr></thead><tbody><tr><td>a later query names more columns</td><td>those columns are read and added</td></tr><tr><td>a write, a checkpoint or a row read (<code>SELECT *</code>)</td><td>the whole partition is read first, and replaces the columns read apart</td></tr><tr><td>a partition with changes not yet in its file</td><td>read whole, as before</td></tr><tr><td>memory runs short</td><td>the columns read apart are unloaded like any loaded partition</td></tr></tbody></table></div>
 <p><code>GET /api/stats</code> counts these reads in <code>partial_loads</code> (part of <code>partition_loads</code>). Nothing to set: it is always on.</p>
+<h2 id="max-statements">ALTER DATABASE ... SET MAX_STATEMENTS</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">ALTER DATABASE &lt;name&gt; SET MAX_STATEMENTS = 16 | OFF | DEFAULT</code></pre>
+<p>How many statements may run on one database <strong>at the same time</strong>, all users together, over the HTTP API and the PostgreSQL port. A busy app on one database then cannot take every thread from the apps on the others. For one user: <a href="users-and-roles.html#max-statements">ALTER USER ... SET max_statements</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td><code>1</code> to <code>100000</code></td><td>at most this many at once</td></tr><tr><td><code>OFF</code>, <code>DEFAULT</code>, <code>0</code></td><td>no limit</td></tr></tbody></table></div>
+<ul><li><strong>Over the limit:</strong> the next statement waits up to 2 s for one to end, then fails and nothing of it ran: HTTP <strong>429</strong> with <code>Retry-After: 1</code>, PostgreSQL SQLSTATE <strong>53300</strong>, error <code>too many statements: database &#39;shop&#39; already runs 16 statements at the same time (...)</code>.</li><li><strong>Over HTTP:</strong> only an eighth of <code>--http-threads</code> (at least 1) wait at once; the next request gets the 429 at once, so a flood on one database cannot take every request thread. A PostgreSQL connection always waits.</li><li><strong>Not held back:</strong> an admin (and the <code>--token</code>), so an admin can always get in to look and to lift the limit; a statement inside an open <code>BEGIN ... COMMIT</code> (counted, never waits).</li><li><strong>Notes:</strong> needs a server admin. Kept in the data folder (<code>_system</code>), read when the server starts, works from the next statement.</li></ul>
+<p><strong>Example: The shop&#39;s app runs at most 16 statements at once</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE shop;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE shop SET MAX_STATEMENTS = 16;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">database &#39;shop&#39; may run at most 16 statements at the same time over HTTP and PostgreSQL (from the next statement); more wait up to 2 s for one to finish, then fail with SQLSTATE 53300 (HTTP 429)</code></pre>
+<p><strong>Example: No limit again</strong></p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE DATABASE shop;
+ALTER DATABASE shop SET MAX_STATEMENTS = 16;</code></pre>
+<pre><code class="language-sql">ALTER DATABASE shop SET MAX_STATEMENTS = OFF;</code></pre>
+<p>Result:</p>
+<pre><code class="language-text">database &#39;shop&#39; has no max_statements of its own now: its statements are not counted</code></pre>
 </main>
 <footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/databases.md">This page as markdown</a>.</footer>
 </body>

@@ -632,6 +632,34 @@ column NUMERIC(precision, scale)
 
 An **exact** number with `scale` digits after the point. `DECIMAL(2)` is right for dollars and cents: `0.10 + 0.20` is exactly `0.30`.
 
+> **Warning: `NUMERIC` with no precision is a `DOUBLE`, not an exact number.**
+> `CREATE TABLE t (amount NUMERIC)` makes a `DOUBLE` column. `CAST(x AS NUMERIC)` and `x::numeric` give a `DOUBLE`.
+> A decimal written in a query (`0.1`, `1.15`) is a `DOUBLE` too, so `0.1 + 0.2 = 0.3` is `false`.
+> PostgreSQL does it the other way: there `NUMERIC` is exact and `0.1 + 0.2 = 0.3` is `true`.
+> **For money, always write the places:** `DECIMAL(2)` (up to 18 digits) or `NUMERIC(p, s)` (up to 38 digits).
+> An app moved from PostgreSQL that has `NUMERIC` columns without `(p, s)` loses exactness silently: change them.
+> `SET kdb.pg_compat = on` ([PostgreSQL results](postgres-protocol.md#pg-compat)) makes literals and `::numeric` exact in a query, but a `NUMERIC` **column** with no precision is still a `DOUBLE` with it on.
+
+**Example: NUMERIC without a precision becomes a DOUBLE column**
+
+Setup:
+
+```sql
+CREATE TABLE price_demo (a NUMERIC, b NUMERIC(12,2), c DECIMAL(2));
+```
+
+```sql
+SHOW CREATE TABLE price_demo;
+```
+
+Result:
+
+| create_sql (STRING) |
+|---|
+| CREATE TABLE price_demo (   a DOUBLE,   b NUMERIC(12,2),   c DECIMAL(2) ) |
+
+(1 row)
+
 | Argument | Type | Meaning |
 |---|---|---|
 | `scale` | 0 to 18 (`DECIMAL(s)`), 0 to 38 (`NUMERIC(p, s)`) | digits after the point |
@@ -1279,6 +1307,7 @@ Any text in UTF-8 (any language: English, Nepali, Chinese, emoji), up to 16 MB p
 
 - Accepts anything; a number, `BOOL` or time is written as its text (`12` becomes `'12'`, a time becomes `'2026-09-10T00:00:00.000Z'`).
 - **NULL:** `NULL` is allowed; it is kept as a special length. The empty text `''` is not `NULL`.
+- **Errors:** bytes that are not UTF-8, and the NUL byte, are refused wherever text comes in - SQL, PostgreSQL parameters, `COPY FROM`, the line protocol (`/write`) and `/imp` - with SQLSTATE 22021 (HTTP 400), as PostgreSQL does. Keep raw bytes in a `BYTES` column.
 - **Notes:** KarelaDB has no length limit on text. `VARCHAR(255)` is **read and the number ignored**, so a PostgreSQL script runs; nothing is cut at 255. Keep PDF files and images outside the database, and store their path or URL.
 
 **Example: A news article in two languages**

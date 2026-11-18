@@ -14,7 +14,7 @@
 <main>
 <h1 id="order-by-limit-offset">ORDER BY, LIMIT, OFFSET</h1>
 <blockquote><p>Sort the result, and give back only the first rows or one page of rows.</p></blockquote>
-<ul><li>Category: Querying</li><li>Keywords: sort, order, sorting, ORDER BY, ASC, DESC, ascending, descending, NULLS FIRST, NULLS LAST, NULLS, FIRST, LAST, LIMIT, OFFSET, top N, first rows, paging, pagination, page, next page, LIMIT a, b, order by, limit, offset, asc, desc, paging</li><li>See also: <a href="select.html">SELECT</a>, <a href="where.html#row-comparison">WHERE (row-comparison)</a>, <a href="group-by.html">GROUP BY and HAVING</a>, <a href="union-subqueries.html#union-all">UNION and subqueries (union-all)</a>, <a href="functions-window.html">Window and series functions</a>, <a href="explain.html">EXPLAIN</a></li></ul>
+<ul><li>Category: Querying</li><li>Keywords: sort, order, sorting, ORDER BY, ASC, DESC, ascending, descending, NULLS FIRST, NULLS LAST, NULLS, FIRST, LAST, LIMIT, OFFSET, top N, first rows, paging, pagination, page, next page, LIMIT a, b, order by, limit, offset, asc, desc, paging, ORDER BY ALL, sort by every column</li><li>See also: <a href="select.html">SELECT</a>, <a href="where.html#row-comparison">WHERE (row-comparison)</a>, <a href="group-by.html">GROUP BY and HAVING</a>, <a href="union-subqueries.html#union-all">UNION and subqueries (union-all)</a>, <a href="functions-window.html">Window and series functions</a>, <a href="explain.html">EXPLAIN</a></li></ul>
 <p><code>ORDER BY</code> sorts the rows of the result. <code>LIMIT</code> keeps only the first rows, and <code>OFFSET</code> skips rows before them.
 They run <strong>last</strong>, after <code>WHERE</code>, <code>GROUP BY</code> and the select list, so they work on the final result.</p>
 <p>Without <code>ORDER BY</code>, the order of the rows is not promised. Always add <code>ORDER BY</code> when the order matters (a &quot;top 10&quot;, a page of posts, a report).</p>
@@ -81,6 +81,14 @@ SELECT email FROM app_users WHERE id IN (2, 4, 6) ORDER BY lower(email);</code><
 <pre><code class="language-sql">SELECT id, name FROM brokers ORDER BY 3;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 39: ORDER BY 3: there are only 2 columns</code></p>
+<h2 id="order-by-all">ORDER BY ALL</h2>
+<p><code>ORDER BY ALL</code> sorts by every column of the result, the first one first (DuckDB): <code>ORDER BY 1, 2, 3, ...</code>. <code>ASC</code> / <code>DESC</code> and <code>NULLS FIRST</code> / <code>NULLS LAST</code> after it apply to every column.</p>
+<ul><li><strong>Errors:</strong> with <code>SELECT *</code> (name the columns, 0A000).</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT sector, symbol FROM securities ORDER BY ALL DESC LIMIT 3;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>sector (STRING)</th><th>symbol (SYMBOL)</th></tr></thead><tbody><tr><td>Telecom</td><td>TELCO</td></tr><tr><td>Investment</td><td>ACME</td></tr><tr><td>Energy</td><td>VOLT</td></tr></tbody></table></div>
+<p>(3 rows)</p>
 <h2 id="asc-desc">ASC, DESC</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">ORDER BY sort_key ASC

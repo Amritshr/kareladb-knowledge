@@ -111,7 +111,7 @@ A command that fails does not stop the ones after it, as in a Redis pipeline. A 
 
 - **Expiry:** a key whose time has come is gone at once for every command and for `SELECT`. A `SET` without `KEEPTTL` removes the old expiry, as in Redis.
 - **Errors** read as Redis's: `ERR wrong number of arguments for 'get' command`, `ERR syntax error`, `ERR value is not an integer or out of range`, `ERR no such key`.
-- **Not here (yet):** streams (`XADD` ...), `SELECT n` (use `?db=`), Lua scripts, `CLIENT TRACKING`, `DUMP`/`RESTORE`.
+- **Not here (yet):** streams (`XADD` ...), bitmaps (`SETBIT`), HyperLogLog (`PFADD`), geo (`GEOADD`), `SELECT n` (use `?db=`), Lua scripts (`EVAL`), `CLIENT TRACKING`, `DUMP`/`RESTORE`, a RESP port for `redis-cli` (use `POST /kv`).
 
 <a id="kv-pubsub"></a>
 

@@ -19,7 +19,7 @@
 <ul><li>A <strong>route</strong> is a method and a path, like <code>POST /exec</code>. The method says what you want: <code>GET</code> reads, <code>POST</code> changes or runs something, <code>DELETE</code> removes.</li><li>The address is <code>http://127.0.0.1:9900</code> by default. <code>--port</code> and <code>--bind</code> of <a href="cli-serve.html">kareladb serve</a> change it.</li><li>The same server also gives the <a href="web-console.html">web console</a> (<code>GET /</code>) and the <a href="postgres-protocol.html">PostgreSQL port</a>.</li></ul>
 <p>Tutorial: <a href="../tutorial/08-http-api.html">chapter 8, HTTP API</a>.</p>
 <h2 id="routes">All routes</h2>
-<div class="table-wrap"><table><thead><tr><th>Method and path</th><th>What it does</th><th>Help</th></tr></thead><tbody><tr><td><code>GET /health</code></td><td>Is the server alive?</td><td><a href="http-server-info.html#get-health">GET /health</a></td></tr><tr><td><code>GET /exec?query=SQL</code></td><td>Run SQL that only reads</td><td><a href="http-exec.html#get-exec">GET /exec</a></td></tr><tr><td><code>POST /exec</code></td><td>Run any SQL</td><td><a href="http-exec.html#post-exec">POST /exec</a></td></tr><tr><td><code>GET /exp</code>, <code>POST /exp</code></td><td>Run a SELECT, answer as a CSV file</td><td><a href="http-exec.html#get-exp">GET /exp</a></td></tr><tr><td><code>GET /v/&lt;name&gt;?param=value</code></td><td>Run a saved query with its parameters (CREATE ENDPOINT)</td><td><a href="http-endpoints.html">endpoints</a></td></tr><tr><td><code>POST /write</code>, <code>POST /api/v2/write</code></td><td>Load rows in the InfluxDB line format</td><td><a href="line-protocol.html">line protocol</a></td></tr><tr><td><code>POST /imp</code></td><td>Load a CSV file into a table</td><td><a href="http-import.html#post-imp">POST /imp</a></td></tr><tr><td><code>DELETE /exec/&lt;id&gt;</code></td><td>Stop a running statement</td><td><a href="protection.html#delete-exec">DELETE /exec/&lt;id&gt;</a></td></tr><tr><td><code>GET /api/info</code></td><td>Tables, columns, sizes, damage, last backup</td><td><a href="http-server-info.html#get-api-info">GET /api/info</a></td></tr><tr><td><code>GET /api/disk</code></td><td>What a database takes on disk, part by part</td><td><a href="http-server-info.html#api-disk">GET /api/disk</a></td></tr><tr><td><code>GET /api/rev</code></td><td>Committed revision of a table and of each symbol: poll it, read again only on a change</td><td><a href="revisions.html#api-rev">GET /api/rev</a></td></tr><tr><td><code>GET /api/changes</code></td><td>Every committed change of a table after an LSN, in order (server-sent events or JSON)</td><td><a href="change-stream.html#api-changes">GET /api/changes</a></td></tr><tr><td><code>GET /api/subscribe</code></td><td>A live query: its answer, then the rows each commit changed</td><td><a href="change-stream.html#api-subscribe">GET /api/subscribe</a></td></tr><tr><td><code>POST /api/check</code></td><td>Read every file and look for damage</td><td><a href="http-server-info.html#post-api-check">POST /api/check</a></td></tr><tr><td><code>POST /api/backup</code>, <code>GET /api/backups</code></td><td>Make a backup, list backups</td><td><a href="http-server-info.html#post-api-backup">POST /api/backup</a></td></tr><tr><td><code>GET /api/trigger-queue</code></td><td>Queues of deferred triggers, and a wait for their jobs</td><td><a href="http-server-info.html#api-trigger-queue">GET /api/trigger-queue</a></td></tr><tr><td><code>GET /api/stats</code></td><td>Memory, processor, running statements, open databases</td><td><a href="http-server-info.html#api-stats">GET /api/stats</a></td></tr><tr><td><code>GET /api/settings</code>, <code>POST /api/settings</code>, <code>POST /api/restart</code></td><td>The data folder and other saved settings; restart in place</td><td><a href="http-server-info.html#api-settings">GET /api/settings</a></td></tr><tr><td><code>GET /api/activity</code></td><td>Recent server events for the console&#39;s activity panel</td><td><a href="console-monitor.html#activity">activity</a></td></tr><tr><td><code>GET /api/audit</code></td><td>The audit log</td><td><a href="audit-log.html#api-audit">GET /api/audit</a></td></tr><tr><td><code>GET /api/timers</code>, <code>POST /api/timers</code>, <code>POST /api/timers/&lt;name&gt;/...</code></td><td>SQL that runs on a schedule (admins)</td><td><a href="timers.html">timers</a></td></tr><tr><td><code>GET /api/pins</code>, <code>POST /api/pins</code>, <code>DELETE /api/pins</code></td><td>Statements whose results are kept ready (admins)</td><td><a href="pinned-queries.html">pinned queries</a></td></tr><tr><td><code>GET /api/databases</code>, <code>POST /api/databases</code>, <code>DELETE /api/databases/&lt;name&gt;</code></td><td>List, create and drop databases</td><td><a href="http-databases.html">databases</a></td></tr><tr><td><code>POST /session</code>, <code>DELETE /session/&lt;id&gt;</code></td><td>A transaction over many requests</td><td><a href="http-sessions-and-cursors.html#post-session">sessions</a></td></tr><tr><td><code>POST /cursor</code>, <code>GET /cursor/&lt;id&gt;</code>, <code>DELETE /cursor/&lt;id&gt;</code></td><td>Read a big result a part at a time</td><td><a href="http-sessions-and-cursors.html#post-cursor">cursors</a></td></tr><tr><td><code>POST /api/login</code>, <code>POST /api/logout</code>, <code>GET /api/me</code></td><td>Log in and out, who am I</td><td><a href="http-login.html">logins</a></td></tr><tr><td><code>POST /api/feedback</code>, <code>GET /api/feedback</code>, <code>POST /api/feedback/&lt;id&gt;</code></td><td>Send comments and suggestions; admins read and mark them</td><td><a href="feedback.html">comments and suggestions</a></td></tr><tr><td><code>GET /</code></td><td>The web console</td><td><a href="http-overview.html#get">GET /</a></td></tr><tr><td><code>GET /help</code></td><td>This help page</td><td><a href="http-overview.html#get-help">GET /help</a></td></tr><tr><td><code>GET /skill.md</code></td><td>The Claude skill file</td><td><a href="http-overview.html#get-skill">GET /skill.md</a></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Method and path</th><th>What it does</th><th>Help</th></tr></thead><tbody><tr><td><code>GET /health</code></td><td>Is the server alive?</td><td><a href="http-server-info.html#get-health">GET /health</a></td></tr><tr><td><code>GET /exec?query=SQL</code></td><td>Run SQL that only reads</td><td><a href="http-exec.html#get-exec">GET /exec</a></td></tr><tr><td><code>POST /exec</code></td><td>Run any SQL</td><td><a href="http-exec.html#post-exec">POST /exec</a></td></tr><tr><td><code>GET /exp</code>, <code>POST /exp</code></td><td>Run a SELECT, answer as a CSV file</td><td><a href="http-exec.html#get-exp">GET /exp</a></td></tr><tr><td><code>GET /v/&lt;name&gt;?param=value</code></td><td>Run a saved query with its parameters (CREATE ENDPOINT)</td><td><a href="http-endpoints.html">endpoints</a></td></tr><tr><td><code>POST /write</code>, <code>POST /api/v2/write</code></td><td>Load rows in the InfluxDB line format</td><td><a href="line-protocol.html">line protocol</a></td></tr><tr><td><code>POST /imp</code></td><td>Load a CSV file into a table</td><td><a href="http-import.html#post-imp">POST /imp</a></td></tr><tr><td><code>DELETE /exec/&lt;id&gt;</code></td><td>Stop a running statement</td><td><a href="protection.html#delete-exec">DELETE /exec/&lt;id&gt;</a></td></tr><tr><td><code>GET /api/info</code></td><td>Tables, columns, sizes, damage, last backup</td><td><a href="http-server-info.html#get-api-info">GET /api/info</a></td></tr><tr><td><code>GET /api/disk</code></td><td>What a database takes on disk, part by part</td><td><a href="http-server-info.html#api-disk">GET /api/disk</a></td></tr><tr><td><code>GET /api/rev</code></td><td>Committed revision of a table and of each symbol: poll it, read again only on a change</td><td><a href="revisions.html#api-rev">GET /api/rev</a></td></tr><tr><td><code>GET /api/changes</code></td><td>Every committed change of a table after an LSN, in order (server-sent events or JSON)</td><td><a href="change-stream.html#api-changes">GET /api/changes</a></td></tr><tr><td><code>GET /api/subscribe</code></td><td>A live query: its answer, then the rows each commit changed</td><td><a href="change-stream.html#api-subscribe">GET /api/subscribe</a></td></tr><tr><td><code>POST /api/check</code></td><td>Read every file and look for damage</td><td><a href="http-server-info.html#post-api-check">POST /api/check</a></td></tr><tr><td><code>POST /api/backup</code>, <code>GET /api/backups</code></td><td>Make a backup, list backups</td><td><a href="http-server-info.html#post-api-backup">POST /api/backup</a></td></tr><tr><td><code>GET /api/trigger-queue</code></td><td>Queues of deferred triggers, and a wait for their jobs</td><td><a href="http-server-info.html#api-trigger-queue">GET /api/trigger-queue</a></td></tr><tr><td><code>GET /api/stats</code></td><td>Memory, processor, running statements, open databases</td><td><a href="http-server-info.html#api-stats">GET /api/stats</a></td></tr><tr><td><code>GET /api/settings</code>, <code>POST /api/settings</code>, <code>POST /api/restart</code></td><td>The data folder and other saved settings; restart in place</td><td><a href="http-server-info.html#api-settings">GET /api/settings</a></td></tr><tr><td><code>POST /api/reload-tls</code></td><td>Read a renewed TLS certificate now (admin), without a restart</td><td><a href="tls.html#reload">renew a certificate</a></td></tr><tr><td><code>GET /api/activity</code></td><td>Recent server events for the console&#39;s activity panel</td><td><a href="console-monitor.html#activity">activity</a></td></tr><tr><td><code>GET /api/audit</code></td><td>The audit log</td><td><a href="audit-log.html#api-audit">GET /api/audit</a></td></tr><tr><td><code>GET /api/timers</code>, <code>POST /api/timers</code>, <code>POST /api/timers/&lt;name&gt;/...</code></td><td>SQL that runs on a schedule (admins)</td><td><a href="timers.html">timers</a></td></tr><tr><td><code>GET /api/pins</code>, <code>POST /api/pins</code>, <code>DELETE /api/pins</code></td><td>Statements whose results are kept ready (admins)</td><td><a href="pinned-queries.html">pinned queries</a></td></tr><tr><td><code>GET /api/databases</code>, <code>POST /api/databases</code>, <code>DELETE /api/databases/&lt;name&gt;</code></td><td>List, create and drop databases</td><td><a href="http-databases.html">databases</a></td></tr><tr><td><code>POST /session</code>, <code>DELETE /session/&lt;id&gt;</code></td><td>A transaction over many requests</td><td><a href="http-sessions-and-cursors.html#post-session">sessions</a></td></tr><tr><td><code>POST /cursor</code>, <code>GET /cursor/&lt;id&gt;</code>, <code>DELETE /cursor/&lt;id&gt;</code></td><td>Read a big result a part at a time</td><td><a href="http-sessions-and-cursors.html#post-cursor">cursors</a></td></tr><tr><td><code>POST /api/login</code>, <code>POST /api/logout</code>, <code>GET /api/me</code></td><td>Log in and out, who am I</td><td><a href="http-login.html">logins</a></td></tr><tr><td><code>POST /api/feedback</code>, <code>GET /api/feedback</code>, <code>POST /api/feedback/&lt;id&gt;</code></td><td>Send comments and suggestions; admins read and mark them</td><td><a href="feedback.html">comments and suggestions</a></td></tr><tr><td><code>GET /</code></td><td>The web console</td><td><a href="http-overview.html#get">GET /</a></td></tr><tr><td><code>GET /help</code></td><td>This help page</td><td><a href="http-overview.html#get-help">GET /help</a></td></tr><tr><td><code>GET /skill.md</code></td><td>The Claude skill file</td><td><a href="http-overview.html#get-skill">GET /skill.md</a></td></tr></tbody></table></div>
 <p>Every <code>GET</code> route also answers <code>HEAD</code>: the same answer without the body.</p>
 <h2 id="database">Choosing the database</h2>
 <p>One server can serve many databases. Each request picks <strong>one</strong>:</p>
@@ -53,10 +53,10 @@ SELECT symbol, name FROM securities ORDER BY symbol LIMIT 2</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 66}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 71}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 25, &quot;execute_us&quot;: 66}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 27, &quot;execute_us&quot;: 71}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -77,10 +77,10 @@ SELECT symbol, name FROM securities ORDER BY symbol LIMIT 2</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 40, &quot;execute_us&quot;: 183}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 194}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 40, &quot;execute_us&quot;: 183}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 194}
 }</code></pre>
 <p><strong>HTTP: A database that does not exist</strong></p>
 <pre><code class="language-http">GET /exec?db=no_such_db&amp;query=SELECT 1</code></pre>
@@ -162,10 +162,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;table &#39;idem_orders&#39; created&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 1847}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 43, &quot;execute_us&quot;: 7332}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 1847}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 43, &quot;execute_us&quot;: 7332}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -180,10 +180,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 36}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 31}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 36}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 31}
 }</code></pre>
 <p><code>POST /exec?compat=0</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -198,10 +198,10 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 1,
       &quot;message&quot;: &quot;1 row(s) inserted&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 36}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 31}
     }
   ],
-  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 36}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 21, &quot;execute_us&quot;: 31}
 }</code></pre>
 <p><code>GET /exec?query=SELECT count(*) FROM idem_orders</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -220,7 +220,7 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 141}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 28, &quot;execute_us&quot;: 100}
     }
   ],
   &quot;columns&quot;: [
@@ -230,7 +230,7 @@ GET /exec?query=SELECT count(*) FROM idem_orders</code></pre>
     [1]
   ],
   &quot;count&quot;: 1,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 38, &quot;execute_us&quot;: 141}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 28, &quot;execute_us&quot;: 100}
 }</code></pre>
 <div class="table-wrap"><table><thead><tr><th>Case</th><th>Answer</th></tr></thead><tbody><tr><td>the same key and the same request again</td><td>the first answer, with the header <code>Idempotent-Replayed: true</code></td></tr><tr><td>the same key while the first request still runs</td><td>waits for it, then its answer</td></tr><tr><td>the same key with a different request (another body or query string)</td><td><code>422</code>: a new request needs a new key</td></tr><tr><td>the first answer was over 1 MB (a big <code>SELECT</code>)</td><td><code>409</code>: it was done already, the answer was not kept</td></tr><tr><td>the first answer was <code>500</code> or more (busy, stopping)</td><td>not kept: the retry runs for real</td></tr></tbody></table></div>
 <ul><li><strong>Where:</strong> <code>POST /exec</code>, <code>POST /write</code>, <code>POST /api/v2/write</code> and <code>POST /imp</code>. A request without the header runs as always.</li><li><strong>Whose:</strong> a key belongs to the user (or token) and the database (<code>?db=</code>), so two users never share one.</li><li><strong>How long:</strong> keys are kept 24 hours, in memory, at most 64 MB of answers (the oldest go first). A restart forgets them.</li></ul>

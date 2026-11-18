@@ -68,10 +68,10 @@ granted SELECT on table 'securities' of database 'demo' to user 'viewer'
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:41.932Z | 2026-10-24T07:56:41.932Z | NULL | false | NULL | NULL |
-| viewer | none | NULL | 2026-10-24T07:56:41.997Z | 2026-10-24T07:56:42.008Z | demo.securities: +SELECT | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:31.479Z | 2026-11-18T08:03:31.479Z | NULL | false | NULL | NULL | NULL |
+| viewer | none | NULL | 2026-11-18T08:03:31.552Z | 2026-11-18T08:03:31.614Z | demo.securities: +SELECT | false | NULL | NULL | NULL |
 
 (2 rows)
 
@@ -132,10 +132,10 @@ revoked UPDATE, DELETE on table 'ledger' of database 'demo' from user 'app'
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:41.938Z | 2026-10-24T07:56:41.938Z | NULL | false | NULL | NULL |
-| app | none | demo=write | 2026-10-24T07:56:42.004Z | 2026-10-24T07:56:42.015Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:31.515Z | 2026-11-18T08:03:31.515Z | NULL | false | NULL | NULL | NULL |
+| app | none | demo=write | 2026-11-18T08:03:31.591Z | 2026-11-18T08:03:31.664Z | demo.ledger: -UPDATE -DELETE | false | NULL | NULL | NULL |
 
 (2 rows)
 

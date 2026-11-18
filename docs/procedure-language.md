@@ -1,9 +1,9 @@
 # The procedure language
 
-> Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body.
+> Variables, IF, WHILE, FOR, RETURN, RAISE, PRINT and cursors inside a procedure or trigger body; plpgsql functions with OUT parameters, RETURNS TABLE and RETURNS SETOF.
 
 - Category: Stored procedures
-- Keywords: variable, variables, loop, THEN, DO, IN, INTO, OPEN, FOUND, EXECUTE, dynamic SQL, EXECUTE format, USING, INTO STRICT, table name in a variable, sp\_executesql, PREPARE, END IF, END WHILE, END FOR, FETCH INTO, OPEN cursor, declared twice, column name wins, WHILE loop ran, body, procedure body, trigger body
+- Keywords: OUT, INOUT, OUT parameters, RETURNS TABLE, RETURNS SETOF, SETOF, RETURN NEXT, RETURN QUERY, set-returning function, table function, LANGUAGE plpgsql, FOR i IN 1..10, WHILE LOOP, structure of query does not match, EXCEPTION, EXCEPTION WHEN, WHEN OTHERS, sqlstate, sqlerrm, unique\_violation, try catch, CASE statement, END CASE, LOOP, EXIT, CONTINUE, EXIT WHEN, break, variable, variables, loop, THEN, DO, IN, INTO, OPEN, FOUND, EXECUTE, dynamic SQL, EXECUTE format, USING, INTO STRICT, table name in a variable, sp\_executesql, PREPARE, END IF, END WHILE, END FOR, FETCH INTO, OPEN cursor, declared twice, column name wins, WHILE loop ran, body, procedure body, trigger body
 - See also: [Stored procedures](procedures.md), [Triggers](triggers.md), [Cursors](cursors.md), [Transactions](transactions.md), [13. Functions, procedures and triggers](../tutorial/13-functions-procedures-triggers.md)
 
 These statements work only inside the body (`BEGIN ... END`) of a [procedure](procedures.md) or a [trigger](triggers.md).
@@ -698,6 +698,82 @@ Result:
 
 Error: `line 4, column 6: expected IF after END to close the IF that starts at line 2 but found ';'`
 
+<a id="case"></a>
+
+## CASE (statement)
+
+Syntax:
+
+```sql
+CASE value
+  WHEN a [, b ...] THEN statements;
+  ...
+  [ELSE statements;]
+END CASE
+
+CASE
+  WHEN condition THEN statements;
+  ...
+  [ELSE statements;]
+END CASE
+```
+
+Runs the statements of the first `WHEN` that fits: the value is one of the listed ones, or (the second form) the condition is true. It is the same as an `IF ... ELSIF ...`.
+
+- **Notes:** without `ELSE`, a value that no `WHEN` takes is an error (`case not found`), as in PostgreSQL, and the `CALL` is undone. Inside a `SELECT`, `CASE ... END` is the [expression](functions-conditional.md#case).
+
+**Example: Sort orders by size**
+
+Setup:
+
+```sql
+CREATE TABLE order_size (id LONG, size STRING);
+CREATE PROCEDURE note_size(id LONG, qty LONG) AS BEGIN
+  CASE
+    WHEN qty >= 1000 THEN INSERT INTO order_size VALUES (id, 'large');
+    WHEN qty >= 100 THEN INSERT INTO order_size VALUES (id, 'medium');
+    ELSE INSERT INTO order_size VALUES (id, 'small');
+  END CASE;
+END;
+```
+
+```sql
+CALL note_size(1, 5000);
+CALL note_size(2, 150);
+CALL note_size(3, 10);
+SELECT * FROM order_size ORDER BY id;
+```
+
+Result:
+
+`CALL note_size(1, 5000)`
+
+```text
+procedure 'note_size' done: 1 row(s) changed
+```
+
+`CALL note_size(2, 150)`
+
+```text
+procedure 'note_size' done: 1 row(s) changed
+```
+
+`CALL note_size(3, 10)`
+
+```text
+procedure 'note_size' done: 1 row(s) changed
+```
+
+`SELECT * FROM order_size ORDER BY id`
+
+| id (LONG) | size (STRING) |
+|---|---|
+| 1 | large |
+| 2 | medium |
+| 3 | small |
+
+(3 rows)
+
 <a id="while"></a>
 
 ## WHILE
@@ -775,6 +851,108 @@ procedure 'forever' created
 ```
 
 Error: `procedure 'forever', line 3: the WHILE loop ran 10000000 times and was stopped (does its condition ever become false?)`
+
+<a id="loop"></a>
+
+## LOOP, EXIT, CONTINUE
+
+Syntax:
+
+```sql
+LOOP
+  statements;
+END LOOP
+EXIT [WHEN condition];
+CONTINUE [WHEN condition];
+```
+
+`LOOP` runs its statements again and again until an `EXIT`. `EXIT` leaves the innermost `LOOP`, `WHILE` or `FOR` at once; `CONTINUE` skips the rest of this round and starts the next one (a `FOR` takes its next row). With `WHEN`, only when the condition is true.
+
+- **Notes:**
+  - `EXIT` and `CONTINUE` work from inside an `IF` too. Outside a loop they are an error when the procedure is made.
+  - A `LOOP` that never reaches `EXIT` stops with an error after **10 million rounds**, as `WHILE` does; the `CALL` is undone.
+  - `RETURN` inside a loop stops the whole procedure.
+
+**Example: Odd numbers up to 7, skipping the even ones**
+
+Setup:
+
+```sql
+CREATE TABLE odd_numbers (n LONG);
+CREATE PROCEDURE fill_odd() AS BEGIN
+  DECLARE i LONG DEFAULT 0;
+  LOOP
+    SET i = i + 1;
+    CONTINUE WHEN i % 2 = 0;
+    INSERT INTO odd_numbers VALUES (i);
+    EXIT WHEN i >= 7;
+  END LOOP;
+END;
+```
+
+```sql
+CALL fill_odd();
+SELECT n FROM odd_numbers ORDER BY n;
+```
+
+Result:
+
+`CALL fill_odd()`
+
+```text
+procedure 'fill_odd' done: 4 row(s) changed
+```
+
+`SELECT n FROM odd_numbers ORDER BY n`
+
+| n (LONG) |
+|---|
+| 1 |
+| 3 |
+| 5 |
+| 7 |
+
+(4 rows)
+
+**Example: Stop a FOR loop at the first big order**
+
+Setup:
+
+```sql
+CREATE TABLE orders_in (id LONG, qty LONG);
+CREATE TABLE first_orders (id LONG, qty LONG);
+INSERT INTO orders_in VALUES (1, 50), (2, 200), (3, 5000), (4, 10);
+CREATE PROCEDURE until_big() AS BEGIN
+  FOR r IN (SELECT id, qty FROM orders_in ORDER BY id) DO
+    IF r.qty >= 1000 THEN
+      EXIT;
+    END IF;
+    INSERT INTO first_orders VALUES (r.id, r.qty);
+  END FOR;
+END;
+```
+
+```sql
+CALL until_big();
+SELECT id, qty FROM first_orders ORDER BY id;
+```
+
+Result:
+
+`CALL until_big()`
+
+```text
+procedure 'until_big' done: 2 row(s) changed
+```
+
+`SELECT id, qty FROM first_orders ORDER BY id`
+
+| id (LONG) | qty (LONG) |
+|---|---|
+| 1 | 50 |
+| 2 | 200 |
+
+(2 rows)
 
 <a id="for"></a>
 
@@ -933,6 +1111,93 @@ procedure 'p' created
 ```
 
 Error: `procedure 'p', line 3 col 11: row 'r' has no column 'price' (it has: symbol ltp)`
+
+<a id="exception"></a>
+
+## BEGIN ... EXCEPTION WHEN ... END
+
+Syntax:
+
+```sql
+BEGIN
+  statements;
+EXCEPTION
+  WHEN condition [OR condition ...] THEN
+    statements;
+  [WHEN ... THEN statements; ...]
+END;
+```
+
+A block inside a body. When one of its statements fails with an error a `WHEN` names, the block's own changes are undone, the statements of that `WHEN` run, and the procedure goes on after `END`. Without `EXCEPTION`, `BEGIN ... END` just groups statements.
+
+| Condition | Takes |
+|---|---|
+| `unique_violation`, `foreign_key_violation`, `not_null_violation`, `check_violation`, `division_by_zero`, `raise_exception`, ... | that error (PostgreSQL's condition names) |
+| `data_exception`, `integrity_constraint_violation`, ... | every error of that class |
+| `SQLSTATE '23505'` | the error with that code |
+| `OTHERS` | any error |
+
+- **Notes:**
+  - In the handler, `sqlstate` is the error's code and `sqlerrm` its message.
+  - An error no `WHEN` names ends the `CALL`, which is undone, as without the block.
+  - Never taken, also not by `OTHERS`: a statement timeout or cancel, and a lock error (a deadlock, a lock wait that timed out). These end the `CALL`.
+  - The block works inside `BEGIN ... COMMIT` too, beside the transaction's own `SAVEPOINT`s. Variables keep the values they got in the block.
+
+**Example: Add a user; a taken email is noted, not an error**
+
+Setup:
+
+```sql
+CREATE TABLE app_users (id LONG PRIMARY KEY, email STRING UNIQUE);
+CREATE TABLE signup_log (email STRING, result STRING);
+CREATE PROCEDURE sign_up(uid LONG, mail STRING) AS BEGIN
+  BEGIN
+    INSERT INTO app_users VALUES (uid, mail);
+    INSERT INTO signup_log VALUES (mail, 'ok');
+  EXCEPTION
+    WHEN unique_violation THEN
+      INSERT INTO signup_log VALUES (mail, concat('taken (', sqlstate, ')'));
+  END;
+END;
+```
+
+```sql
+CALL sign_up(1, 'ram@example.com');
+CALL sign_up(2, 'ram@example.com');
+SELECT * FROM signup_log;
+SELECT count(*) AS users FROM app_users;
+```
+
+Result:
+
+`CALL sign_up(1, 'ram@example.com')`
+
+```text
+procedure 'sign_up' done: 2 row(s) changed
+```
+
+`CALL sign_up(2, 'ram@example.com')`
+
+```text
+procedure 'sign_up' done: 1 row(s) changed
+```
+
+`SELECT * FROM signup_log`
+
+| email (STRING) | result (STRING) |
+|---|---|
+| ram@example.com | ok |
+| ram@example.com | taken (23505) |
+
+(2 rows)
+
+`SELECT count(*) AS users FROM app_users`
+
+| users (LONG) |
+|---|
+| 1 |
+
+(1 row)
 
 <a id="return"></a>
 
@@ -1389,7 +1654,7 @@ Result:
 procedure 'make_table' created
 ```
 
-Error: `procedure 'make_table', line 2: EXECUTE runs SELECT, INSERT, UPDATE, DELETE, CALL, EXPLAIN or SHOW, the statements a procedure body may hold; not CREATE TABLE t2 (   a INT )`
+Error: `procedure 'make_table', line 2: EXECUTE runs SELECT, INSERT, UPDATE, DELETE, MERGE, CALL, EXPLAIN or SHOW, the statements a procedure body may hold; not CREATE TABLE t2 (   a INT )`
 
 <a id="local-cursors"></a>
 
@@ -1548,6 +1813,254 @@ procedure 'p' created
 
 Error: `procedure 'p', line 4: cursor 'c' is not open (OPEN c first)`
 
+<a id="plpgsql-functions"></a>
+
+## plpgsql functions: OUT parameters, RETURNS TABLE, RETURNS SETOF
+
+Syntax:
+
+```sql
+CREATE [OR REPLACE] FUNCTION name([IN | OUT | INOUT] param TYPE, ...) [RETURNS record] AS $$
+  [DECLARE name TYPE [:= value]; ...]
+  BEGIN statements END
+$$ LANGUAGE plpgsql
+CREATE [OR REPLACE] FUNCTION name(param TYPE, ...) RETURNS TABLE (column TYPE, ...) AS $$ ... $$ LANGUAGE plpgsql
+CREATE [OR REPLACE] FUNCTION name(param TYPE, ...) RETURNS SETOF type | SETOF table | SETOF record AS $$ ... $$ LANGUAGE plpgsql
+```
+
+PostgreSQL's plpgsql functions that a **query** calls, written as in PostgreSQL. An app's functions work unchanged.
+
+| The function | It gives | Call it |
+|---|---|---|
+| `OUT` / `INOUT` parameters | one row: the `OUT` values at the end | `SELECT * FROM f(1)` gives the columns; `SELECT f(1)` gives the value (one `OUT`) or the row as text, like `(4,0.15)` |
+| `RETURNS TABLE (a INT, b TEXT)` | a row for each `RETURN NEXT` (the columns' values now), and the rows of each `RETURN QUERY` | `SELECT * FROM f(3)`, in a join, a subquery, `WITH` or `LATERAL` |
+| `RETURNS SETOF INT` | a row for each `RETURN NEXT value`, and the rows of `RETURN QUERY` | the same; the column is named after the function, or after the alias (`AS x`) |
+| `RETURNS SETOF trades` | rows with the table's columns: `RETURN QUERY SELECT * FROM trades ...`, or `RETURN NEXT r` for a `FOR` row | the same |
+| `RETURNS SETOF record` and `OUT` parameters | a row of the `OUT` values for each `RETURN NEXT` | the same |
+
+The body is plpgsql:
+
+| Statement | What it does |
+|---|---|
+| `name := value;` | gives a variable, a parameter or a `TABLE` column a value (`=` works too) |
+| `IF`, `CASE`, `LOOP`, `EXIT`, `CONTINUE`, `BEGIN ... EXCEPTION ... END` | as in a procedure ([IF](procedure-language.md#if), [LOOP](procedure-language.md#loop), [EXCEPTION](procedure-language.md#exception)) |
+| `WHILE cond LOOP ... END LOOP;` | repeats while `cond` is true |
+| `FOR i IN [REVERSE] 1..n [BY 2] LOOP ... END LOOP;` | counts; `i` is an `INT` variable. The ends are worked out once |
+| `FOR r IN SELECT ... LOOP ... END LOOP;` | runs once for every row; read a column as `r.column` |
+| `RETURN NEXT [value];` | adds a row |
+| `RETURN QUERY SELECT ...;` | adds the rows of the query |
+| `RETURN;` | ends the function |
+| `RAISE EXCEPTION 'text %', value;` | stops the query with that text; each `%` takes the next value (`%%` is `%`). `RAISE NOTICE` does nothing: a query has no place to show it |
+| `NULL;` | does nothing |
+
+- **Notes:**
+  - The function runs **once per call**, when the query starts. So its arguments must be known then: values, `$1` parameters, a procedure's variables, or a subquery that stands alone. For a column of another table, write `LATERAL (SELECT * FROM f(t.col)) AS x`: it runs once for each value.
+  - The body **only reads**. `INSERT`, `UPDATE`, `DELETE`, `CALL` and `EXECUTE` are refused when you create the function. A `SELECT` must say where its rows go: `RETURN QUERY SELECT ...`, `x := (SELECT ...)` or a `FOR` loop. To change data, write a [procedure](procedures.md).
+  - A column name wins over a variable with the same name. In `RETURN QUERY SELECT ...`, write `t.symbol` when the function has a column `symbol` too.
+  - `RETURN QUERY` must give as many columns as the function returns, or the call fails: `structure of query does not match function result type`.
+  - Every parameter needs a name (`f(qty INT)`, not `f(INT)`). `DEFAULT` values, `VARIADIC`, `%TYPE`, cursors and `RAISE ... USING ERRCODE` are refused.
+  - A plpgsql function **without** `OUT` parameters that returns one plain value (`RETURNS INT ... RETURN n`) is only recorded, with a warning. For a formula, use a [saved function](saved-functions.md).
+  - Calls nest at most 16 levels deep (also into itself). One call gives at most 10 million rows. Its rows are kept in memory until the query has read them, so they count against the statement's memory like other kept rows (`max_result_memory`, and a quarter of `--memory-limit`): a call that needs more stops with the usual memory error (`the query keeps too many rows in memory`, SQLSTATE `54000`, or `memory full`, `53200`).
+  - In a procedure, a value such as `IF f() > 25 THEN` is worked out again on every `CALL` and every pass of a loop: the function's tables may have changed.
+  - A function that `RETURNS SETOF t` uses table `t`: `DROP TABLE t` is refused while it exists, and `DROP TABLE t CASCADE` drops the function too, as in PostgreSQL ([DROP TABLE](alter-table.md#drop-table)).
+  - What the body reads is checked against the rights of the user who creates the function, as for a procedure.
+
+**Example: OUT parameters: the fees of a trade as one row, or as a record**
+
+```sql
+CREATE FUNCTION split_fee(amount DOUBLE, OUT broker DOUBLE, OUT sebon DOUBLE) AS $$
+BEGIN
+  broker := amount * 0.004;
+  sebon := amount * 0.00015;
+END $$ LANGUAGE plpgsql;
+
+SELECT * FROM split_fee(1000);
+SELECT split_fee(1000) AS fees;
+```
+
+Result:
+
+`CREATE FUNCTION split_fee(amount DOUBLE, OUT broker DOUBLE, OUT sebon DOUBLE) AS $$`
+
+```text
+function 'split_fee' created (plpgsql: its OUT parameters are one row, SELECT * FROM split_fee(...) or SELECT split_fee(...))
+```
+
+`SELECT * FROM split_fee(1000)`
+
+| broker (DOUBLE) | sebon (DOUBLE) |
+|---|---|
+| 4 | 0.15 |
+
+(1 row)
+
+`SELECT split_fee(1000) AS fees`
+
+| fees (STRING) |
+|---|
+| (4,0.15) |
+
+(1 row)
+
+**Example: RETURNS TABLE with RETURN QUERY, used like a table**
+
+```sql
+CREATE TABLE trades (id INT PRIMARY KEY, symbol STRING, qty INT, price DOUBLE);
+INSERT INTO trades VALUES (1, 'NABIL', 10, 500), (2, 'NABIL', 5, 510), (3, 'CITY', 20, 300), (4, 'CITY', 1, 305);
+
+CREATE FUNCTION turnover(min_qty INT) RETURNS TABLE (symbol TEXT, amount DOUBLE) AS $$
+BEGIN
+  RETURN QUERY SELECT t.symbol, sum(t.qty * t.price) FROM trades t
+    WHERE t.qty >= min_qty GROUP BY t.symbol ORDER BY t.symbol;
+END $$ LANGUAGE plpgsql;
+
+SELECT * FROM turnover(5);
+SELECT x.symbol, x.amount, count(*) AS big_trades
+FROM turnover(5) x JOIN trades t ON t.symbol = x.symbol AND t.qty >= 5
+GROUP BY x.symbol, x.amount ORDER BY x.symbol;
+```
+
+Result:
+
+`CREATE TABLE trades (`
+
+```text
+table 'trades' created
+```
+
+`INSERT INTO trades VALUES (1, 'NABIL', 10, 500), (2, 'NABIL', 5, 510), (3, 'CITY', 20, 300), (4, 'CI`
+
+```text
+4 row(s) inserted
+```
+
+`CREATE FUNCTION turnover(min_qty INT) RETURNS TABLE (symbol STRING, amount DOUBLE) AS $$`
+
+```text
+function 'turnover' created (plpgsql: it returns rows, SELECT * FROM turnover(...))
+```
+
+`SELECT * FROM turnover(5)`
+
+| symbol (STRING) | amount (DOUBLE) |
+|---|---|
+| CITY | 6000 |
+| NABIL | 7550 |
+
+(2 rows)
+
+`SELECT x.symbol, x.amount, count(*) AS big_trades FROM turnover(5) AS x JOIN trades AS t ON t.symbol`
+
+| symbol (STRING) | amount (DOUBLE) | big_trades (LONG) |
+|---|---|---|
+| CITY | 6000 | 1 |
+| NABIL | 7550 | 2 |
+
+(2 rows)
+
+**Example: RETURNS SETOF INT with WHILE and RETURN NEXT: a big order in lots**
+
+```sql
+CREATE FUNCTION lots(total INT, lot INT) RETURNS SETOF INT AS $$
+DECLARE left_over INT := total;
+BEGIN
+  WHILE left_over > 0 LOOP
+    RETURN NEXT least(lot, left_over);
+    left_over := left_over - lot;
+  END LOOP;
+END $$ LANGUAGE plpgsql;
+
+SELECT * FROM lots(250, 100);
+SELECT * FROM lots(250, 100) AS qty;
+```
+
+Result:
+
+`CREATE FUNCTION lots(total INT, lot INT) RETURNS SETOF INT AS $$`
+
+```text
+function 'lots' created (plpgsql: it returns rows, SELECT * FROM lots(...))
+```
+
+`SELECT * FROM lots(250, 100)`
+
+| lots (INT) |
+|---|
+| 100 |
+| 100 |
+| 50 |
+
+(3 rows)
+
+`SELECT * FROM lots(250, 100) AS qty`
+
+| qty (INT) |
+|---|
+| 100 |
+| 100 |
+| 50 |
+
+(3 rows)
+
+**Example: A counting FOR, and the function once for each row with LATERAL**
+
+```sql
+CREATE FUNCTION squares(n INT) RETURNS TABLE (i INT, sq INT) AS $$
+BEGIN
+  FOR k IN 1..n LOOP
+    i := k;
+    sq := k * k;
+    RETURN NEXT;
+  END LOOP;
+END $$ LANGUAGE plpgsql;
+
+SELECT * FROM squares(3);
+SELECT v.n, s.sq FROM (VALUES (1), (2)) v(n), LATERAL (SELECT * FROM squares(v.n)) s ORDER BY v.n, s.sq;
+```
+
+Result:
+
+`CREATE FUNCTION squares(n INT) RETURNS TABLE (i INT, sq INT) AS $$`
+
+```text
+function 'squares' created (plpgsql: it returns rows, SELECT * FROM squares(...))
+```
+
+`SELECT * FROM squares(3)`
+
+| i (INT) | sq (INT) |
+|---|---|
+| 1 | 1 |
+| 2 | 4 |
+| 3 | 9 |
+
+(3 rows)
+
+`SELECT v.n, s.sq FROM (VALUES (1), (2)) AS v(n) CROSS JOIN LATERAL (SELECT * FROM squares(v.n)) AS s`
+
+| n (LONG) | sq (INT) |
+|---|---|
+| 1 | 1 |
+| 2 | 1 |
+| 2 | 4 |
+
+(3 rows)
+
+**Example: A function that changes data is refused** (shows an error)
+
+```sql
+CREATE TABLE notes (txt STRING);
+CREATE FUNCTION add_note(t TEXT) RETURNS SETOF TEXT AS $$
+BEGIN
+  INSERT INTO notes VALUES (t);
+  RETURN NEXT t;
+END $$ LANGUAGE plpgsql;
+```
+
+Result:
+
+Error: `line 2, column 56: in the body of plpgsql function 'add_note' (CREATE at line 2; positions below count from the opening $$): line 3, column 3: INSERT in a plpgsql function is not supported by KarelaDB: a function a query calls only reads (write a procedure, CREATE PROCEDURE ... AS BEGIN ... END, to change data)`
+
 <a id="limits"></a>
 
 ## Limits of the procedure language
@@ -1560,8 +2073,10 @@ Error: `procedure 'p', line 4: cursor 'c' is not open (OPEN c first)`
 | Rows changed in one `CALL` (one transaction) | 10 million |
 | Steps kept by `WITH DEBUG` | 100,000 |
 | Text of one statement in a debug row | 200 characters |
+| plpgsql functions calling functions (also itself) | 16 levels |
+| Rows one plpgsql function call gives | 10 million, within the statement's memory (`max_result_memory`) |
 
-- **Notes:** there is no `LOOP`, `CASE` statement (the `CASE` expression works), `EXCEPTION` block, `EXIT` or `CONTINUE`. Use `WHILE` with a variable, and `RETURN`.
+- **Notes:** a procedure has no `OUT` parameters: give results back with `SELECT` (an extra result) or `PRINT`. A function that gives rows is a [plpgsql function](procedure-language.md#plpgsql-functions).
 
 **Example: A syntax error is found when you create the procedure** (shows an error)
 

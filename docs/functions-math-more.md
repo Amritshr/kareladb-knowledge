@@ -3,7 +3,7 @@
 > Sine, cosine, tangent and their inverses, hyperbolic functions, and the normal distribution (chance, bell height and inverse).
 
 - Category: Functions — math
-- Keywords: trigonometry, angle, radian, degree, circle, cycle, wave, seasonality, sine, cosine, tangent, cotangent, arc sine, arcsin, arc cosine, arccos, arc tangent, arctan, arctan2, trend angle, hyperbolic, squash, fisher transform, normal distribution, bell curve, gaussian, probability, chance, z-score, cumulative distribution, norm.dist, NORMSDIST, density, norm.inv, NORMSINV, quantile of normal, confidence level
+- Keywords: trigonometry, angle, radian, degree, circle, cycle, wave, seasonality, sine, cosine, tangent, cotangent, arc sine, arcsin, arc cosine, arccos, arc tangent, arctan, arctan2, trend angle, hyperbolic, squash, fisher transform, normal distribution, bell curve, gaussian, probability, chance, z-score, cumulative distribution, norm.dist, NORMSDIST, density, norm.inv, NORMSINV, quantile of normal, confidence level, bit\_count, bin, to\_binary, to\_base, isnan, isinf, isfinite, popcount, great\_circle\_distance, greatCircleDistance, geoDistance, haversine, geohash\_encode, geohashEncode, geohash\_decode, geohashDecode, point\_in\_polygon, pointInPolygon, distance between places, geospatial
 - See also: [Math functions](functions-math.md), [Statistics functions](functions-statistics.md), [Returns and risk](functions-returns-risk.md), [Finance and price functions](functions-finance.md)
 
 These functions work with **angles** and with **chances**.
@@ -675,3 +675,58 @@ SELECT normal_inv(1);
 Result:
 
 Error: `line 1, column 8: normal_inv: the probability must be more than 0 and less than 1`
+
+<a id="bits"></a>
+
+## Bits and number checks
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `bit_count(n)` | LONG | how many bits of `n` are 1 (`bit_count(255)` = 8) |
+| `bin(n)`, `to_binary(n)` | STRING | `n` in base 2 (`bin(5)` = `'101'`) |
+| `to_base(n, base)` | STRING | `n` in a base from 2 to 36 (`to_base(255, 16)` = `'ff'`) |
+| `isnan(x)`, `isinf(x)`, `isfinite(x)` | BOOL | whether a DOUBLE is NaN, infinite, or neither |
+
+**Example** (sample data: sample)
+
+```sql
+SELECT bit_count(7) AS ones, bin(5) AS b, to_base(255, 16) AS hex,
+       isnan(CAST('NaN' AS DOUBLE)) AS nan, isfinite(2.5) AS finite;
+```
+
+Result:
+
+| ones (LONG) | b (STRING) | hex (STRING) | nan (BOOL) | finite (BOOL) |
+|---|---|---|---|---|
+| 3 | 101 | ff | true | true |
+
+(1 row)
+
+<a id="geo"></a>
+
+## Places: great_circle_distance, geohash, point_in_polygon
+
+ClickHouse's names and order: longitude first, then latitude, in degrees.
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `great_circle_distance(lon1, lat1, lon2, lat2)` (`greatCircleDistance`, `geoDistance`) | DOUBLE | metres between two places on a sphere of 6,372,797.56 m (ClickHouse's), by the haversine formula |
+| `geohash_encode(lon, lat [, precision])` (`geohashEncode`) | STRING | the geohash of the place, 1 to 12 characters (12 by default) |
+| `geohash_decode(hash)` (`geohashDecode`) | list | `[lon, lat]` of the middle of the hash's cell |
+| `point_in_polygon(x, y, polygon)` (`pointInPolygon`) | BOOL | whether the point is inside a ring written `[[x1, y1], [x2, y2], ...]` (even-odd rule) |
+
+**Example: Kathmandu to Pokhara** (sample data: sample)
+
+```sql
+SELECT round(great_circle_distance(85.324, 27.7172, 83.9856, 28.2096) / 1000, 1) AS km,
+       geohash_encode(85.324, 27.7172, 6) AS cell,
+       point_in_polygon(85.3, 27.7, [[85.2, 27.6], [85.5, 27.6], [85.5, 27.8], [85.2, 27.8]]) AS in_valley;
+```
+
+Result:
+
+| km (DOUBLE) | cell (STRING) | in_valley (BOOL) |
+|---|---|---|
+| 142.4 | tuuttt | true |
+
+(1 row)

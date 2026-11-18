@@ -3,7 +3,7 @@
 > Look at a series of rows: previous and next values, running totals, moving windows, time windows and ranks, with OVER (...).
 
 - Category: Functions — window and series
-- Keywords: window function, series function, analytic function, OVER, PARTITION BY, ROWS, PRECEDING, FOLLOWING, UNBOUNDED, UNBOUNDED FOLLOWING, CURRENT ROW, RANGE, RANGE BETWEEN, INTERVAL, frame, centered moving average, future rows, time window, last 7 days, running total, running product, cumulative product, running max, high so far, running min, percentile rank, cumulative distribution, quartile, decile, bucket, first value, last value, cumulative sum, moving sum, moving max, rolling, previous row, next row, previous close, change from yesterday, top N per group, ranking, running sum, cumulative, prev, shift, diff, next, percent change, rownum, row number, QUALIFY, window with GROUP BY
+- Keywords: EXCLUDE, EXCLUDE CURRENT ROW, EXCLUDE GROUP, EXCLUDE TIES, EXCLUDE NO OTHERS, GROUPS, GROUPS BETWEEN, peer groups, RANGE month, 1 month PRECEDING, window function, series function, analytic function, OVER, PARTITION BY, ROWS, PRECEDING, FOLLOWING, UNBOUNDED, UNBOUNDED FOLLOWING, CURRENT ROW, RANGE, RANGE BETWEEN, INTERVAL, frame, centered moving average, future rows, time window, last 7 days, running total, running product, cumulative product, running max, high so far, running min, percentile rank, cumulative distribution, quartile, decile, bucket, first value, last value, cumulative sum, moving sum, moving max, rolling, previous row, next row, previous close, change from yesterday, top N per group, ranking, running sum, cumulative, prev, shift, diff, next, percent change, rownum, row number, QUALIFY, window with GROUP BY, WINDOW, named window, WINDOW w AS, IGNORE NULLS, RESPECT NULLS, ignore nulls, carry forward, fill forward, QUALIFY, qualify, filter on a window, top 1 per group
 - See also: [Technical indicators](functions-indicators.md), [Aggregate functions](functions-aggregate.md), [Statistics functions](functions-statistics.md), [SAMPLE BY](sample-by.md), [UNION and subqueries](union-subqueries.md), [WHERE](where.md)
 
 A **window function** (or series function) gives a value for **every row**, and it may look at other rows to make it: the row before, the rows of the same symbol, the last 5 rows. Unlike `GROUP BY`, the rows stay; nothing is merged.
@@ -20,7 +20,7 @@ A **window function** (or series function) gives a value for **every row**, and 
 2. The rows of the result are **not** sorted in series order by themselves. Add `ORDER BY time` (or `ORDER BY symbol, time`) to read them.
 3. Window functions can only be in the **select list**. To filter on one (`WHERE rn = 1`), put the query in a subquery.
 4. With `GROUP BY` or `SAMPLE BY` in the same `SELECT`, the window runs over the **groups**, after they are made: `sum(sum(qty)) OVER (ORDER BY time)` is a running total of the grouped sums. Inside `OVER`, use the group keys or aggregates, not the raw columns.
-5. One window function cannot be inside another (`lag(sma(close, 3))`), and an aggregate cannot take a window function (`sum(lag(close) OVER (...))`). The error says so (PostgreSQL `42803`). Use one subquery level per step: `SELECT sum(x) FROM (SELECT lag(close) OVER (...) AS x FROM t) s`.
+5. A series function can be inside another one when the inner one is written without `OVER` (`lag(sma(close, 3)) OVER (...)`; see the [cookbook](candles-cookbook.md)). An aggregate cannot take a window function (`sum(lag(close) OVER (...))`). The error says so (PostgreSQL `42803`). Use one subquery level per step: `SELECT sum(x) FROM (SELECT lag(close) OVER (...) AS x FROM t) s`.
 
 **Example: Yesterday's close, change and running volume of VOLT** (sample data: sample)
 
@@ -158,6 +158,38 @@ SELECT upper(symbol) OVER () FROM ochl_day;
 Result:
 
 Error: `line 1, column 8: 'upper' cannot be used with OVER`
+
+<a id="fast-windows"></a>
+
+### Fast windows over number columns
+
+A window query of one table runs on plain arrays of numbers, on all threads, when:
+
+| Part | Allowed |
+|---|---|
+| Functions | `row_number`, `rank`, `dense_rank`, `lag`, `lead` (offset a number), and `count`, `sum`, `avg`, `min`, `max` |
+| Frames | the whole partition, the running frame (`ORDER BY` without `ROWS`), `ROWS n PRECEDING`, `ROWS BETWEEN n PRECEDING AND CURRENT ROW`, `... UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` |
+| Columns | whole numbers, `FLOAT`, `DOUBLE`, `TIMESTAMP`, `DATE`, `SYMBOL`; `PARTITION BY` any of those but `FLOAT` / `DOUBLE`; one `ORDER BY` column that is not a `SYMBOL` |
+| SELECT list | those columns and the window calls themselves |
+
+The answers are the same as the general way, bit for bit. One million rows on 2 CPUs: `row_number() OVER (ORDER BY v)` 45 ms (was 210, DuckDB 82), `sum(v) OVER (PARTITION BY g ORDER BY t)` 32 ms (was 297, DuckDB 252), `lag(v) OVER (PARTITION BY symbol ORDER BY t)` 41 ms (was 439). An aggregate over such a subquery, `SELECT max(rn) FROM (SELECT row_number() OVER (...) AS rn FROM t) s`, reads the results without making a row. `STRING` columns, expressions, an `ORDER BY` of the query, a `NaN` in an `ORDER BY` or `min` / `max` column, and other functions or frames run the general way.
+
+**Example: A running sum and a rank, on arrays** (sample data: sample)
+
+```sql
+SELECT max(running), max(r)
+FROM (SELECT sum(volume) OVER (ORDER BY time) AS running,
+             rank() OVER (ORDER BY volume DESC) AS r
+      FROM ochl_day) s;
+```
+
+Result:
+
+| max(running) (DOUBLE) | max(r) (LONG) |
+|---|---|
+| 5461390 | 57 |
+
+(1 row)
 
 <a id="partition-by"></a>
 
@@ -551,13 +583,13 @@ A frame by **value**, not by row count. `RANGE BETWEEN '7 days' PRECEDING AND CU
 |---|---|
 | `n PRECEDING`, `n FOLLOWING` | rows whose `ORDER BY` value is at most `n` before or after this row's value |
 | `'7 days'`, `INTERVAL '1 hour'` | a distance of time, for a `TIMESTAMP` or `DATE` `ORDER BY` value. Units: `ms`, `s`/`seconds`, `m`/`minutes`, `h`/`hours`, `d`/`days`, `w`/`weeks` |
+| `'1 month'`, `'3 mons'`, `'1 year'` | calendar months and years from this row's time, as PostgreSQL adds an interval: Jan 31 plus a month is Feb 28 |
 | a plain number | milliseconds for a `TIMESTAMP`, days for a `DATE`, the value itself for a number |
 | `CURRENT ROW` | this row **and its peers**: the rows with the same `ORDER BY` value |
 
 - **NULL:** NULL values of `x` are skipped. Rows whose `ORDER BY` value is NULL are only peers of each other.
 - **Notes:**
   - A distance needs exactly **one** `ORDER BY` value, and it must be a number or a time.
-  - `'1 month'` and `'1 year'` are refused: they have no fixed length.
   - The distance must be 0 or more. With `ORDER BY ... DESC`, `PRECEDING` means the later times.
   - `RANGE '2 days' PRECEDING` (without BETWEEN) is short for `RANGE BETWEEN '2 days' PRECEDING AND CURRENT ROW`.
 
@@ -646,15 +678,285 @@ Result:
 
 (11 rows)
 
-**Example: Months have no fixed length** (sample data: sample; shows an error)
+**Example: Volume of the last calendar month, for each day** (sample data: sample)
 
 ```sql
-SELECT sum(volume) OVER (ORDER BY time RANGE BETWEEN '1 month' PRECEDING AND CURRENT ROW) FROM ochl_day;
+SELECT time, volume,
+       sum(volume) OVER (ORDER BY time RANGE BETWEEN '1 month' PRECEDING AND CURRENT ROW) AS volume_last_month
+FROM ochl_day
+WHERE symbol = 'CITY'
+ORDER BY time DESC
+LIMIT 3;
 ```
 
 Result:
 
-Error: `line 1, column 8: sum: '1 month' is not a distance like '5 days', '2 hours' or '30 minutes' (months and years are not supported)`
+| time (TIMESTAMP) | volume (DOUBLE) | volume_last_month (DOUBLE) |
+|---|---|---|
+| 2026-09-10T00:00:00.000Z | 183040 | 1731760 |
+| 2026-09-09T00:00:00.000Z | 182390 | 1548720 |
+| 2026-09-08T00:00:00.000Z | 34400 | 1366330 |
+
+(3 rows)
+
+<a id="groups"></a>
+
+## GROUPS BETWEEN
+
+Syntax:
+
+```sql
+aggregate(x) OVER ([PARTITION BY ...] ORDER BY value GROUPS BETWEEN start AND end)
+aggregate(x) OVER ([PARTITION BY ...] ORDER BY value GROUPS n PRECEDING)
+```
+
+A frame by **peer groups**: the rows with the same `ORDER BY` value are one group, and `n PRECEDING` / `n FOLLOWING` count groups, not rows (PostgreSQL 11 and later).
+
+| Part | Meaning |
+|---|---|
+| `n PRECEDING`, `n FOLLOWING` | the groups up to `n` before or after this row's group |
+| `CURRENT ROW` | this row's group |
+| `UNBOUNDED PRECEDING` / `FOLLOWING` | from the first row, or to the last |
+
+- **Notes:** `GROUPS` needs an `ORDER BY` in the window (`GROUPS mode requires an ORDER BY clause`). `GROUPS 1 PRECEDING` without BETWEEN ends at the current row's group.
+
+**Example: This trading day and the one before it, whatever the gaps** (sample data: sample)
+
+```sql
+SELECT time::date AS day, symbol, close,
+       round(avg(close) OVER (PARTITION BY symbol ORDER BY time::date GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW), 2) AS avg_2_days
+FROM ochl_day
+WHERE symbol IN ('CITY', 'COAST') AND time >= '2026-09-07'
+ORDER BY symbol, day
+LIMIT 6;
+```
+
+Result:
+
+| day (DATE) | symbol (SYMBOL) | close (DOUBLE) | avg_2_days (DOUBLE) |
+|---|---|---|---|
+| 2026-09-07 | CITY | 498.7 | 498.7 |
+| 2026-09-08 | CITY | 497.5 | 498.1 |
+| 2026-09-09 | CITY | 504.6 | 501.05 |
+| 2026-09-10 | CITY | 504.9 | 504.75 |
+| 2026-09-07 | COAST | 379.2 | 379.2 |
+| 2026-09-08 | COAST | 377.2 | 378.2 |
+
+(6 rows)
+
+**Example: Ties are one group** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE TABLE scores (who STRING, points INT);
+INSERT INTO scores VALUES ('a', 10), ('b', 10), ('c', 20), ('d', 30), ('e', 30);
+```
+
+```sql
+SELECT who, points, sum(points) OVER (ORDER BY points GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS with_group_before
+FROM scores ORDER BY points, who;
+```
+
+Result:
+
+| who (STRING) | points (INT) | with_group_before (LONG) |
+|---|---|---|
+| a | 10 | 20 |
+| b | 10 | 20 |
+| c | 20 | 40 |
+| d | 30 | 80 |
+| e | 30 | 80 |
+
+(5 rows)
+
+<a id="exclude"></a>
+
+## EXCLUDE CURRENT ROW | GROUP | TIES
+
+Syntax:
+
+```sql
+aggregate(x) OVER (... ROWS | RANGE | GROUPS BETWEEN start AND end EXCLUDE CURRENT ROW)
+aggregate(x) OVER (... ROWS | RANGE | GROUPS BETWEEN start AND end EXCLUDE GROUP)
+aggregate(x) OVER (... ROWS | RANGE | GROUPS BETWEEN start AND end EXCLUDE TIES)
+```
+
+Takes rows out of every frame, after the frame is found (PostgreSQL 11 and later). **Peers** are the rows with the same `ORDER BY` value; without `ORDER BY` every row is a peer.
+
+| Clause | Taken out of the frame |
+|---|---|
+| `EXCLUDE CURRENT ROW` | this row |
+| `EXCLUDE GROUP` | this row and its peers |
+| `EXCLUDE TIES` | the peers, but not this row |
+| `EXCLUDE NO OTHERS` | nothing (the default) |
+
+- **Notes:** works with every aggregate (`sum`, `count`, `avg`, `min`, `max`, `string_agg`, `median`, ...), with `first_value`, `last_value` and `nth_value`, and with `zscore(x)` and `minmax_scale(x)` (this row against the other rows of its frame). It needs a frame clause (`ROWS`, `RANGE` or `GROUPS`), as in PostgreSQL. `TIES` puts this row back only when it was in the frame. A frame without `EXCLUDE` runs exactly as before.
+- **Speed:** the frame is not added up again for each row. What is left of a frame is at most two runs of rows (and this row), and each run's total comes from tables made once per partition:
+
+  | Aggregate | Cost per row |
+  |---|---|
+  | `count`, `sum` and `avg` of LONG / DECIMAL (exact), `min`, `max`, `first`, `last`, `first_value`, `last_value`, `nth_value` | constant |
+  | `sum`, `avg`, `stddev`, `variance` of DOUBLE | constant for frames that reach the start or end of the partition; a few steps (log of the rows) for other long frames |
+  | `string_agg`, `median`, `percentile`, `count_distinct`, `vwap`, `corr` and the other statistics, `zscore`, `minmax_scale` | adds the frame up again: slow for frames of many thousand rows |
+
+  A DOUBLE total is put together from compensated pieces, so it can differ from a frame added row by row in the last digit.
+
+**Example: Each row against the average of the others** (sample data: sample)
+
+Setup:
+
+```sql
+CREATE TABLE marks (who STRING, points INT);
+INSERT INTO marks VALUES ('a', 10), ('b', 20), ('c', 20), ('d', 40);
+```
+
+```sql
+SELECT who, points,
+       avg(points) OVER (ORDER BY points ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW) AS others,
+       sum(points) OVER (ORDER BY points ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP) AS not_my_group,
+       count(*) OVER (ORDER BY points RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES) AS ties_left_out,
+       round(zscore(points) OVER (ORDER BY points ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW), 2) AS z_vs_others
+FROM marks ORDER BY points, who;
+```
+
+Result:
+
+| who (STRING) | points (INT) | others (DOUBLE) | not_my_group (LONG) | ties_left_out (LONG) | z_vs_others (DOUBLE) |
+|---|---|---|---|---|---|
+| a | 10 | 26.6666666666667 | 80 | 1 | -1.44 |
+| b | 20 | 23.3333333333333 | 50 | 2 | -0.22 |
+| c | 20 | 23.3333333333333 | 50 | 2 | -0.22 |
+| d | 40 | 16.6666666666667 | 50 | 4 | 4.04 |
+
+(4 rows)
+
+**Example: Last week's average close, not counting today** (sample data: sample)
+
+```sql
+SELECT time::date AS day, close,
+       round(avg(close) OVER (ORDER BY time::date ROWS BETWEEN 5 PRECEDING AND CURRENT ROW EXCLUDE CURRENT ROW), 2) AS avg_5_before
+FROM ochl_day
+WHERE symbol = 'CITY' AND time >= '2026-09-01'
+ORDER BY day
+LIMIT 6;
+```
+
+Result:
+
+| day (DATE) | close (DOUBLE) | avg_5_before (DOUBLE) |
+|---|---|---|
+| 2026-09-01 | 502.4 | NULL |
+| 2026-09-02 | 496.4 | 502.4 |
+| 2026-09-03 | 497.9 | 499.4 |
+| 2026-09-06 | 499 | 498.9 |
+| 2026-09-07 | 498.7 | 498.93 |
+| 2026-09-08 | 497.5 | 498.88 |
+
+(6 rows)
+
+<a id="named-window"></a>
+
+## WINDOW w AS (...): named windows
+
+Syntax:
+
+```sql
+SELECT f(...) OVER w, g(...) OVER (w ROWS 4 PRECEDING) FROM table
+WINDOW w AS (PARTITION BY ... ORDER BY ...)
+```
+
+A window written once and used by many calls. `OVER (w ...)` takes `w` and adds an `ORDER BY` (when `w` has none) or a frame. A window may build on one defined before it: `WINDOW w1 AS (PARTITION BY symbol), w2 AS (w1 ORDER BY time)`.
+
+- **Errors:** a name no `WINDOW` defines; adding `PARTITION BY` to a named window, or an `ORDER BY` to one that has it.
+
+**Example** (sample data: sample)
+
+```sql
+SELECT symbol, time, close,
+       avg(close) OVER (w ROWS 2 PRECEDING) AS avg3,
+       max(close) OVER w AS high_so_far
+FROM ochl_day
+WHERE symbol = 'CITY'
+WINDOW w AS (PARTITION BY symbol ORDER BY time)
+ORDER BY time
+LIMIT 4;
+```
+
+Result:
+
+| symbol (SYMBOL) | time (TIMESTAMP) | close (DOUBLE) | avg3 (DOUBLE) | high_so_far (DOUBLE) |
+|---|---|---|---|---|
+| CITY | 2025-12-28T00:00:00.000Z | 542.2 | 542.2 | 542.2 |
+| CITY | 2025-12-29T00:00:00.000Z | 539.7 | 540.95 | 542.2 |
+| CITY | 2025-12-30T00:00:00.000Z | 539.3 | 540.4 | 542.2 |
+| CITY | 2025-12-31T00:00:00.000Z | 542.4 | 540.466666666667 | 542.4 |
+
+(4 rows)
+
+<a id="ignore-nulls"></a>
+
+## IGNORE NULLS
+
+`first_value`, `last_value`, `lag` and `lead` take `IGNORE NULLS`, inside the brackets or after them: the nearest value that is not `NULL`. It is the usual way to carry the last known price forward over gaps. `RESPECT NULLS` is the default and changes nothing.
+
+| Written | Same as |
+|---|---|
+| `last_value(x IGNORE NULLS) OVER (...)` | `last_not_null(x) OVER (...)` |
+| `first_value(x IGNORE NULLS) OVER (...)` | `first_not_null(x) OVER (...)` |
+| `lag(x) IGNORE NULLS OVER (P ORDER BY t)` | `last_not_null(x) OVER (P ORDER BY t ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)` |
+| `lead(x, 1, d) IGNORE NULLS OVER (...)` | `coalesce(first_not_null(x) OVER (... ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING), d)` |
+
+- **Errors:** `lag` / `lead` with an offset other than 1, and other functions (`nth_value`), are refused with IGNORE NULLS.
+
+**Example** (sample data: sample)
+
+```sql
+SELECT t, x,
+       last_value(x IGNORE NULLS) OVER (ORDER BY t) AS carried,
+       lag(x) IGNORE NULLS OVER (ORDER BY t) AS previous
+FROM (VALUES (1, 10.5), (2, NULL), (3, NULL), (4, 12.0)) v(t, x)
+ORDER BY t;
+```
+
+Result:
+
+| t (LONG) | x (DOUBLE) | carried (DOUBLE) | previous (DOUBLE) |
+|---|---|---|---|
+| 1 | 10.5 | 10.5 | NULL |
+| 2 | NULL | 10.5 | 10.5 |
+| 3 | NULL | 10.5 | 10.5 |
+| 4 | 12 | 12 | 10.5 |
+
+(4 rows)
+
+<a id="qualify"></a>
+
+## QUALIFY
+
+`QUALIFY condition` keeps the rows where the condition holds after the window functions are worked out, without a subquery around the query (DuckDB, ClickHouse, Snowflake). It comes after `HAVING` (and `WINDOW`), before `ORDER BY` and `LIMIT`.
+
+- **Notes:** it runs as `SELECT * FROM (the query with the condition as a column) WHERE condition`, then `ORDER BY` and `LIMIT`. A view keeps it.
+- **Errors:** with `UNION` or `DISTINCT`, `ORDER BY` must name a result column or its position.
+
+**Example: The last bar of each symbol** (sample data: sample)
+
+```sql
+SELECT symbol, time, close
+FROM ochl_day
+QUALIFY row_number() OVER (PARTITION BY symbol ORDER BY time DESC) = 1
+ORDER BY symbol;
+```
+
+Result:
+
+| symbol (SYMBOL) | time (TIMESTAMP) | close (DOUBLE) |
+|---|---|---|
+| CITY | 2026-09-10T00:00:00.000Z | 504.9 |
+| COAST | 2026-09-10T00:00:00.000Z | 376.1 |
+| VOLT | 2026-09-10T00:00:00.000Z | 191.2 |
+
+(3 rows)
 
 ## lag
 

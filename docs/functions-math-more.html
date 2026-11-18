@@ -14,7 +14,7 @@
 <main>
 <h1 id="trigonometry-and-probability">Trigonometry and probability</h1>
 <blockquote><p>Sine, cosine, tangent and their inverses, hyperbolic functions, and the normal distribution (chance, bell height and inverse).</p></blockquote>
-<ul><li>Category: Functions — math</li><li>Keywords: trigonometry, angle, radian, degree, circle, cycle, wave, seasonality, sine, cosine, tangent, cotangent, arc sine, arcsin, arc cosine, arccos, arc tangent, arctan, arctan2, trend angle, hyperbolic, squash, fisher transform, normal distribution, bell curve, gaussian, probability, chance, z-score, cumulative distribution, norm.dist, NORMSDIST, density, norm.inv, NORMSINV, quantile of normal, confidence level</li><li>See also: <a href="functions-math.html">Math functions</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="functions-returns-risk.html">Returns and risk</a>, <a href="functions-finance.html">Finance and price functions</a></li></ul>
+<ul><li>Category: Functions — math</li><li>Keywords: trigonometry, angle, radian, degree, circle, cycle, wave, seasonality, sine, cosine, tangent, cotangent, arc sine, arcsin, arc cosine, arccos, arc tangent, arctan, arctan2, trend angle, hyperbolic, squash, fisher transform, normal distribution, bell curve, gaussian, probability, chance, z-score, cumulative distribution, norm.dist, NORMSDIST, density, norm.inv, NORMSINV, quantile of normal, confidence level, bit_count, bin, to_binary, to_base, isnan, isinf, isfinite, popcount, great_circle_distance, greatCircleDistance, geoDistance, haversine, geohash_encode, geohashEncode, geohash_decode, geohashDecode, point_in_polygon, pointInPolygon, distance between places, geospatial</li><li>See also: <a href="functions-math.html">Math functions</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="functions-returns-risk.html">Returns and risk</a>, <a href="functions-finance.html">Finance and price functions</a></li></ul>
 <p>These functions work with <strong>angles</strong> and with <strong>chances</strong>.</p>
 <p><strong>Angles.</strong> An angle can be measured in <strong>degrees</strong> (a full circle is 360°) or in <strong>radians</strong> (a full circle is 2π, about 6.28). All functions here use <strong>radians</strong>. Change degrees to radians with <a href="functions-math.html#radians">radians</a>, and back with <a href="functions-math.html#degrees">degrees</a>: <code>sin(radians(30))</code> is <code>0.5</code>.</p>
 <p><strong>Rules</strong></p>
@@ -263,6 +263,24 @@ ORDER BY symbol;</code></pre>
 <pre><code class="language-sql">SELECT normal_inv(1);</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: normal_inv: the probability must be more than 0 and less than 1</code></p>
+<h2 id="bits">Bits and number checks</h2>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th><th>Meaning</th></tr></thead><tbody><tr><td><code>bit_count(n)</code></td><td>LONG</td><td>how many bits of <code>n</code> are 1 (<code>bit_count(255)</code> = 8)</td></tr><tr><td><code>bin(n)</code>, <code>to_binary(n)</code></td><td>STRING</td><td><code>n</code> in base 2 (<code>bin(5)</code> = <code>&#39;101&#39;</code>)</td></tr><tr><td><code>to_base(n, base)</code></td><td>STRING</td><td><code>n</code> in a base from 2 to 36 (<code>to_base(255, 16)</code> = <code>&#39;ff&#39;</code>)</td></tr><tr><td><code>isnan(x)</code>, <code>isinf(x)</code>, <code>isfinite(x)</code></td><td>BOOL</td><td>whether a DOUBLE is NaN, infinite, or neither</td></tr></tbody></table></div>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT bit_count(7) AS ones, bin(5) AS b, to_base(255, 16) AS hex,
+       isnan(CAST(&#39;NaN&#39; AS DOUBLE)) AS nan, isfinite(2.5) AS finite;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>ones (LONG)</th><th>b (STRING)</th><th>hex (STRING)</th><th>nan (BOOL)</th><th>finite (BOOL)</th></tr></thead><tbody><tr><td>3</td><td>101</td><td>ff</td><td>true</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
+<h2 id="geo">Places: great_circle_distance, geohash, point_in_polygon</h2>
+<p>ClickHouse&#39;s names and order: longitude first, then latitude, in degrees.</p>
+<div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th><th>Meaning</th></tr></thead><tbody><tr><td><code>great_circle_distance(lon1, lat1, lon2, lat2)</code> (<code>greatCircleDistance</code>, <code>geoDistance</code>)</td><td>DOUBLE</td><td>metres between two places on a sphere of 6,372,797.56 m (ClickHouse&#39;s), by the haversine formula</td></tr><tr><td><code>geohash_encode(lon, lat [, precision])</code> (<code>geohashEncode</code>)</td><td>STRING</td><td>the geohash of the place, 1 to 12 characters (12 by default)</td></tr><tr><td><code>geohash_decode(hash)</code> (<code>geohashDecode</code>)</td><td>list</td><td><code>[lon, lat]</code> of the middle of the hash&#39;s cell</td></tr><tr><td><code>point_in_polygon(x, y, polygon)</code> (<code>pointInPolygon</code>)</td><td>BOOL</td><td>whether the point is inside a ring written <code>[[x1, y1], [x2, y2], ...]</code> (even-odd rule)</td></tr></tbody></table></div>
+<p><strong>Example: Kathmandu to Pokhara</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT round(great_circle_distance(85.324, 27.7172, 83.9856, 28.2096) / 1000, 1) AS km,
+       geohash_encode(85.324, 27.7172, 6) AS cell,
+       point_in_polygon(85.3, 27.7, [[85.2, 27.6], [85.5, 27.6], [85.5, 27.8], [85.2, 27.8]]) AS in_valley;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>km (DOUBLE)</th><th>cell (STRING)</th><th>in_valley (BOOL)</th></tr></thead><tbody><tr><td>142.4</td><td>tuuttt</td><td>true</td></tr></tbody></table></div>
+<p>(1 row)</p>
 </main>
 <footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/functions-math-more.md">This page as markdown</a>.</footer>
 </body>

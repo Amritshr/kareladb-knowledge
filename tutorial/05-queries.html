@@ -571,7 +571,7 @@ FROM (
 2026-09-06T00:00:00.000Z | 504.9 | 501.4
 (3 rows, 0.4 ms)</code></pre>
 <p>The same works with <code>GROUP BY</code>, for example a rank of the groups: <code>SELECT symbol, sum(volume) AS volume, rank() OVER (ORDER BY sum(volume) DESC) AS place FROM ochl_day GROUP BY symbol</code>.</p>
-<p>A series function cannot be inside another one (<code>lag(sma(close, 3))</code>). Use one subquery level per step (see the moving average crossover in the cookbook).</p>
+<p>A series function can be inside another one when the inner one has no <code>OVER</code> (<code>lag(sma(close, 3)) OVER (...)</code>). A window function cannot be inside an aggregate (<code>sum(lag(close))</code>): use one subquery level per step (see the moving average crossover in the cookbook).</p>
 <h2 id="views">Views</h2>
 <p>A view is a saved query with a name. You use it like a table.</p>
 <pre><code class="language-sql">CREATE VIEW candles_1w AS

@@ -37,7 +37,7 @@ HTTP 200 (application/json)
   "status": "ok",
   "version": "0.2.0-dev",
   "product": "KarelaDB",
-  "server_time_ms": 1792828587233,
+  "server_time_ms": 1794988987212,
   "auth_required": false,
   "login": false,
   "tls": false,
@@ -156,7 +156,7 @@ Result:
 
 | token_for_kdb_serve (STRING) | password_for_a_program (STRING) |
 |---|---|
-| qCZzClhfBMAIXFreG1EJv80ToGq_tfipDK2rjAEr02A | 2_6igyVB8Jhxl-B-sMKPIeW7FXkKJncs |
+| HpGx22gnfZThyEeWr-jIF00oaPKBoXD_V0rl4eouPbw | dWjxTkbcrkIbFEQgr8c_4FjbPSyafMpR |
 
 (1 row)
 
@@ -183,6 +183,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
@@ -258,6 +259,7 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)

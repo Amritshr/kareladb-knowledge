@@ -3,7 +3,7 @@
 > A new KarelaDB opens the data of an older KarelaDB. An older KarelaDB refuses the data of a newer KarelaDB with "needs a newer KarelaDB" and changes nothing.
 
 - Category: Backup, check, repair, restore
-- Keywords: version, versions, upgrade, kareladb upgrade, kareladb version, SHOW VERSION, VERSION, feature list, stored-format feature, needs a newer KarelaDB, needs a newer KDB, newer KarelaDB, older KarelaDB, old data, compatibility, exit code 3, Newer format, 0A000, KDB\_TEST\_HIDE\_FEATURES, partition\_format\_2, block\_stats, auto\_meta, table\_grants, pg\_catalog\_parts, batched\_log\_sync, database\_settings, dedup\_change, plpgsql\_triggers, symbol\_partitions, round\_time\_zone, no feature name, catalog part, downgrade, kareladb downgrade, kareladb features, going back, older version, go back to an older KarelaDB, rollback
+- Keywords: version, versions, upgrade, kareladb upgrade, kareladb version, SHOW VERSION, VERSION, feature list, stored-format feature, needs a newer KarelaDB, needs a newer KDB, newer KarelaDB, older KarelaDB, old data, compatibility, exit code 3, Newer format, 0A000, KDB\_TEST\_HIDE\_FEATURES, partition\_format\_2, block\_stats, auto\_meta, table\_grants, pg\_catalog\_parts, batched\_log\_sync, database\_settings, dedup\_change, plpgsql\_triggers, plpgsql\_functions, symbol\_partitions, round\_time\_zone, no feature name, catalog part, downgrade, kareladb downgrade, kareladb features, going back, older version, go back to an older KarelaDB, rollback
 - See also: [Backup, check, repair and restore](backup-and-safety.md), [kareladb info, check, repair, dump-file](cli-maintenance.md), [The kareladb program (exit-codes)](cli-overview.md#exit-codes), [How KarelaDB stores data](data-formats.md), [Versions and upgrades (downgrade)](versions.md#downgrade)
 
 The rule:
@@ -43,7 +43,7 @@ Output:
 KarelaDB 0.2.0-dev (crc32c hardware: yes)
 tls: OpenSSL 3.6.3 9 Jun 2026
 
-Stored-format features this build reads (52):
+Stored-format features this build reads (55):
   views                0.2.0-dev (2026-09-10)   CREATE VIEW: the "views" file
   partition_format_2   0.2.0-dev (2026-09-11)   table partition files in format 2 (one raw block per column)
   block_stats          0.2.0-dev (2026-09-11)   column stats section in partition files (count, min, max, sum per column)
@@ -96,6 +96,9 @@ Stored-format features this build reads (52):
   rules                0.2.0-dev (2026-10-03)   CREATE RULE: named checks, session hours and settings of a table (catalog part 'Q')
   sync_commit_tables   0.2.0-dev (2026-10-03)   WITH (synchronous_commit = on | off) of a table: catalog part 'G'
   cold_storage         0.2.0-dev (2026-10-22)   cold storage: WITH / SET (cold_storage, cold_after), catalog part 'O', and partitions moved to an object store, kept as stub files (t/<id>/<partition>.cold.v<N>.kdb, header flag 1)
+  plpgsql_functions    0.2.0-dev (2026-10-25)   plpgsql functions a query calls: OUT / INOUT parameters, RETURNS TABLE and RETURNS SETOF (kind 'G' in the routines file)
+  round_time_zone_rules 0.2.0-dev (2026-10-25)   TIMESTAMP ROUND ... TIME ZONE with a zone that has summer time ('Europe/London') in catalog part 'R'
+  search_synonyms      0.2.0-dev (2026-10-25)   CREATE FULLTEXT INDEX ... WITH (synonyms = '...'): synonym groups a search reads, catalog part 'V'
 
 A database that uses a feature not in this list needs a newer KarelaDB (kareladb check exits with 3).
 ```
@@ -150,7 +153,7 @@ Result:
 | database | demo |
 | features used | batched_log_sync, block_stats, compressed_log, partition_format_2 |
 | feature list | saved: batched_log_sync, block_stats, compressed_log, partition_format_2 |
-| features this KDB reads | 52: views, partition_format_2, block_stats, runs, auto_meta, json, bytes, check, indexes, routines, users, audit, table_grants, totp, trash, database_settings, dialects, pg_catalog_parts, sequences... |
+| features this KDB reads | 55: views, partition_format_2, block_stats, runs, auto_meta, json, bytes, check, indexes, routines, users, audit, table_grants, totp, trash, database_settings, dialects, pg_catalog_parts, sequences... |
 
 (5 rows)
 
@@ -184,7 +187,7 @@ Output:
 KarelaDB 0.2.0-dev, database market
 saved feature list: batched_log_sync, block_stats, compressed_log, partition_format_2
 1/3 verified backup into backups ...
-    backups/20261024-075651-902 (9 files, 190.0 KB)
+    backups/20261118-080349-780 (9 files, 190.0 KB)
 2/3 saving the feature list ...
     features used: batched_log_sync, block_stats, compressed_log, partition_format_2
     (no files need to be written again for this KarelaDB version)
@@ -265,7 +268,7 @@ KarelaDB 0.2.0-dev: downgrade to 2026-09-24
 
 database market
 1/3 verified backup into backups ...
-    backups/20261024-075652-034 (9 files, 190.0 KB)
+    backups/20261118-080349-867 (9 files, 190.0 KB)
 2/3 checkpoint, then the feature list ...
     list before: batched_log_sync, block_stats, compressed_log, partition_format_2
     list now:    batched_log_sync, block_stats, partition_format_2
@@ -371,9 +374,12 @@ A build from before the KarelaDB name (2026-10-22) says the same with the old na
 | `partition_deltas` | [delta files](partitions-and-dedup.md#delta-files) (on unless `KARELADB_NO_PARTITION_DELTA=1`): a few rows of a partition replaced, updated or deleted, saved in one extra file next to it; `kareladb downgrade` writes those partitions whole again | 2026-10-02 |
 | `compressed_log` | [compressed log](backup-and-safety.md#compressed-log): a big commit's log records written packed (on unless `KARELADB_WAL_COMPRESS=off`), so every database this KarelaDB opens has it; `kareladb downgrade` to an older KarelaDB turns packing off by itself while it works | 2026-10-02 |
 | `search_analyzer` | `CREATE FULLTEXT INDEX ... WITH (language = 'english')`: the [word analyzer](full-text-search.md#language) of a full-text index, kept in the catalog | 2026-10-02 |
+| `plpgsql_functions` | plpgsql functions a query calls: `OUT` / `INOUT` parameters, `RETURNS TABLE` and `RETURNS SETOF` ([plpgsql functions](procedure-language.md#plpgsql-functions)) | 2026-10-25 |
 | `fulltext_segments` | the words of full-text and JSON indexes saved in the folder `fts/` ([segments on disk](full-text-search.md#segments)). **Never put in a database's list:** an older KarelaDB ignores the folder, so it still opens the database; `kareladb downgrade` to a KarelaDB without it moves the folder's files to `_trash` | 2026-10-02 |
 | `endpoints` | `CREATE ENDPOINT`: [saved queries served at GET /v/name](http-endpoints.md), kept with the functions and procedures | 2026-10-03 |
 | `cold_storage` | `SET (cold_storage = ...)` on a table and its partitions moved to an object store ([cold storage](cold-storage.md)), kept as small stub files; an older build would take a stub for a damaged partition. The way back: `RESET (cold_storage)`, then `ALTER TABLE ... MOVE PARTITION ... FROM COLD` | 2026-10-22 |
+| `round_time_zone_rules` | a column `TIMESTAMP ROUND 1d TIME ZONE 'Europe/London'`: a zone with summer time, or any zone that is not a fixed offset ([summer time](time-and-time-zones.md#summer-time)); an older build reads only fixed offsets there and would call the catalog damaged | 2026-10-25 |
+| `search_synonyms` | `CREATE FULLTEXT INDEX ... WITH (synonyms = ...)` and `ALTER INDEX ... SET (synonyms = ...)`: the [synonym list](full-text-search.md#synonyms) of a full-text index, kept in the catalog; an older build would search without it. The way back: `ALTER INDEX ... RESET (synonyms)` | 2026-10-25 |
 
 - A feature stays in the list once it is there, even when you drop the table that used it. [kareladb downgrade](#downgrade) takes such names off.
 - Programs made **before** feature lists do not read the list. They still refuse most new data (catalog parts, file formats) but not all of it: do not open new data with them.

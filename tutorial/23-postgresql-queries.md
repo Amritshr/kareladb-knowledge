@@ -32,7 +32,7 @@ The output under each example is real (`kareladb sql`). Times print in KarelaDB'
 | `FILTER (WHERE ...)`, `agg(x ORDER BY y)`, `DISTINCT ON`, `GROUP BY 1`, `NULLS FIRST` | Works. |
 | `UNION`, `INTERSECT`, `EXCEPT` (with or without `ALL`), `(VALUES ...) AS v(a, b)` | Works. |
 | `x::type`, `CAST`, `DATE '...'`, `INTERVAL '...'`, `E'...'`, `CURRENT_TIMESTAMP` | Works. Casts round numbers as PostgreSQL does. |
-| `INTERVAL` arithmetic, `AT TIME ZONE`, `EXTRACT(EPOCH FROM interval)`, `make_interval` | Works (time zones: fixed offsets and zones without daylight saving, such as `Asia/Kathmandu`; see Part F). |
+| `INTERVAL` arithmetic, `AT TIME ZONE`, `EXTRACT(EPOCH FROM interval)`, `make_interval` | Works (time zones: every IANA name, also zones with summer time such as `Europe/London`, when the machine has the zone files; see Part F). |
 | `= ANY($1)` with Go slices, `ARRAY[...]`, `array_agg`, `unnest`, `TEXT[]` results | Works, in text and binary form. |
 | `jsonb_build_object`, `json_agg`, `jsonb_set`, `->`, `->>`, `#>>` | Works. JSON sorts like `jsonb` (9 before 10). |
 | `pg_advisory_lock`, `pg_try_advisory_xact_lock`, ... | Real locks between sessions. |
@@ -395,7 +395,7 @@ curl -F "data=@Ochl_Day.csv" "http://127.0.0.1:9900/imp?name=Ochl_Day&timestamp=
 - `WITH` queries that change data run before the main query and the main query sees their changes (PostgreSQL uses one snapshot). The app's statements give the same answers.
 - A recursive `WITH` query stops with an error after 100,000 rounds or 10 million rows.
 - Advisory locks wait at most 30 seconds.
-- Time zones are fixed offsets; `AT TIME ZONE 'Europe/London'` is refused.
+- `AT TIME ZONE 'Europe/London'` works when the machine has the zone files (the Docker image does); without them only fixed-offset names work.
 - A plain column name in `ON CONFLICT DO UPDATE SET` means the row that is there (PostgreSQL calls it ambiguous).
 - Casting a whole number from `double precision` rounds half away from zero (PostgreSQL: to the nearest even number).
 - Arrays have one dimension in binary form; nested arrays are sent as text.

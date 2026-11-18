@@ -3,12 +3,12 @@
 > Connect to KarelaDB with PostgreSQL tools and drivers - psql, DBeaver, Python, Node, C#, Go - and what works and what does not.
 
 - Category: Postgres protocol
-- Keywords: postgres, postgresql, pg, wire protocol, port 8832, --pg-port, --pg-timestamptz, --pg-int-division, int\_division, integer division, pg\_compat, kdb.pg\_compat, --pg-compat, PostgreSQL-compatible results, NUMERIC, RANGE UNBOUNDED PRECEDING, NULLS FIRST, collation, en\_US, wall clock, psql, DBeaver, psycopg, psycopg2, pg8000, node-pg, Npgsql, pgx, Go, driver, SCRAM-SHA-256, sslmode, TLS, SSH tunnel, SQLSTATE, OID, timestamptz, $1, parameters, prepared statement, RETURNING, 25P02, 23505, 23503, 23001, P0001, ConstraintName, TableName, ERRCODE, RAISE, 55P03, 42501, 3D000, 28P01, 53100, disk full, 57014, pg\_catalog, information\_schema, COPY, COPY FROM STDIN, COPY TO STDOUT, CancelRequest, cancel query, streaming, big result, whole table, fetch size, setFetchSize, portal, max\_rows, PortalSuspended, max\_result\_memory
-- See also: [Logins, tokens and roles over HTTP](http-login.md), [Users and roles](users-and-roles.md), [Transactions](transactions.md), [Column types](column-types.md), [Time and time zones](time-and-time-zones.md), [Keeping kareladb serve safe](server-security.md), [kareladb serve](cli-serve.md), [Grafana and Prometheus](grafana.md)
+- Keywords: postgres, postgresql, pg, wire protocol, port 8832, --pg-port, --pg-timestamptz, --pg-int-division, int\_division, integer division, pg\_compat, kdb.pg\_compat, --pg-compat, PostgreSQL-compatible results, NUMERIC, RANGE UNBOUNDED PRECEDING, NULLS FIRST, collation, en\_US, wall clock, psql, DBeaver, psycopg, psycopg2, pg8000, node-pg, Npgsql, pgx, Go, driver, SCRAM-SHA-256, sslmode, TLS, SSH tunnel, SQLSTATE, OID, timestamptz, $1, parameters, prepared statement, RETURNING, 25P02, 23505, 23503, 23001, P0001, ConstraintName, TableName, ColumnName, Detail, error detail, Failing row contains, already exists, 23502, 23514, message\_detail, ERRCODE, RAISE, 55P03, 42501, 3D000, 28P01, 53100, disk full, 57014, pg\_catalog, information\_schema, COPY, COPY FROM STDIN, COPY TO STDOUT, CancelRequest, cancel query, streaming, big result, whole table, fetch size, setFetchSize, portal, max\_rows, PortalSuspended, max\_result\_memory
+- See also: [PostgreSQL compatibility matrix](postgres-compatibility.md), [Logins, tokens and roles over HTTP](http-login.md), [Users and roles](users-and-roles.md), [Transactions](transactions.md), [Column types](column-types.md), [Time and time zones](time-and-time-zones.md), [Keeping kareladb serve safe](server-security.md), [kareladb serve](cli-serve.md), [Grafana and Prometheus](grafana.md)
 
 KarelaDB is not PostgreSQL, but `kareladb serve` speaks PostgreSQL's **wire protocol**: the messages a Postgres driver and the database send each other. So a normal Postgres driver or tool can connect to KarelaDB, send SQL and read the rows.
 
-- You write **KarelaDB SQL** (the SQL of this help), not PostgreSQL's SQL.
+- You write **KarelaDB SQL** (the SQL of this help), not PostgreSQL's SQL. Most of PostgreSQL's SQL works. For each feature, whether it works, differs or is refused, see the [PostgreSQL compatibility matrix](postgres-compatibility.md).
 - The port is **8832** (QuestDB uses 8812). It starts together with the HTTP port.
 - Without [TLS](tls.md) the data is not encrypted: keep the port on `127.0.0.1`, or use an SSH tunnel. With `kareladb serve --tls-cert ...` clients connect with `sslmode=require`.
 
@@ -374,7 +374,7 @@ COMMIT | END
 ROLLBACK | ABORT
 ```
 
-`BEGIN`, `COMMIT` and `ROLLBACK` work across messages, one transaction per connection. Every KarelaDB transaction is serializable; an isolation level you name is accepted and ignored. More: [transactions](transactions.md).
+`BEGIN`, `COMMIT` and `ROLLBACK` work across messages, one transaction per connection. A transaction is `SERIALIZABLE` (by table and row locks) unless it asks for `READ COMMITTED`; `REPEATABLE READ` runs as `SERIALIZABLE` and `READ UNCOMMITTED` as `READ COMMITTED`. The rules of each level are in [transactions](transactions.md#isolation-rules).
 
 - When a statement fails inside a transaction, the transaction is **aborted**, like in PostgreSQL. The failed statement itself gets its own code (`23505` for a duplicate key, `23503` for a foreign key, ...). Every next statement gets `25P02` (`current transaction is aborted, commands ignored until end of transaction block`) until you send `ROLLBACK`. A `COMMIT` then also rolls back (its tag is `ROLLBACK`).
 - **One writer per table.** While one connection has an open transaction, a change of one of its tables from another connection waits up to the lock timeout (5 seconds unless set; `SET lock_timeout = '20s'` for this connection, see [lock timeout](transactions.md#lock-timeout)), then fails with `55P03` (`table 'x' is busy`). Changes of other tables go on. Two transactions that would wait for each other: one fails at once with `40P01` (`deadlock`). Reads do not wait. Keep transactions short.
@@ -423,16 +423,31 @@ Errors carry a **SQLSTATE**: a five-character code that drivers show (`pgErr.Cod
 | `08P01` | A message KarelaDB does not support (old function calls) |
 | `XX000` | Anything else: read the message |
 
-**Which constraint.** A `23505` or `23503` error also says which table and which constraint it was about. The constraint has the name PostgreSQL would give it, or the name you gave it with `CONSTRAINT name`:
+**Which constraint.** A constraint error also says which table, which constraint or column, and which values it was about. KarelaDB sends the same error fields PostgreSQL sends. The constraint has the name PostgreSQL would give it, or the name you gave it with `CONSTRAINT name`:
 
-| Error field | Go (pgx) | Example |
-|---|---|---|
-| `s` schema | `pgErr.SchemaName` | `public` |
-| `t` table | `pgErr.TableName` | `users` |
-| `n` constraint | `pgErr.ConstraintName` | `users_pkey`, `users_email_key` (a `UNIQUE` column), `orders_user_id_fkey` (a `REFERENCES` column) |
-| `c` column | `pgErr.ColumnName` | `email` (when the constraint has one column) |
+| Error field | Go (pgx) | Python (psycopg 3) | Java (JDBC) | Example |
+|---|---|---|---|---|
+| `s` schema | `pgErr.SchemaName` | `e.diag.schema_name` | `getSchema()` | `public` |
+| `t` table | `pgErr.TableName` | `e.diag.table_name` | `getTable()` | `users` |
+| `n` constraint | `pgErr.ConstraintName` | `e.diag.constraint_name` | `getConstraint()` | `users_pkey`, `users_email_key` (a `UNIQUE` column), `orders_user_id_fkey` (a `REFERENCES` column), `users_age_check` |
+| `c` column | `pgErr.ColumnName` | `e.diag.column_name` | `getColumn()` | `email` |
+| `D` detail | `pgErr.Detail` | `e.diag.message_detail` | `getDetail()` | `Key (email)=(a@x.np) already exists.` |
 
-When a row is still referred to (`DELETE` of a parent row), the table is the one that refers to it, as in PostgreSQL.
+Which fields each error has, as in PostgreSQL:
+
+| Error | `s` `t` | `n` | `c` | `D` |
+|---|---|---|---|---|
+| `23505` duplicate key | yes | yes | - | `Key (id)=(1) already exists.` |
+| `23503` no parent row | yes | yes | - | `Key (user_id)=(9) is not present in table "users".` |
+| `23503` parent still referred to | yes (the referring table) | yes | - | `Key (id)=(1) is still referenced from table "orders".` |
+| `23502` NULL in a NOT NULL column | yes | - | yes | `Failing row contains (1, null, 5).` |
+| `23514` CHECK | yes | yes | - | `Failing row contains (2, x, -1).` |
+
+- `Failing row contains` lists every stored column of the row, in table order, defaults included. `NULL` shows as `null`. Each value is written as a result cell of its type on this connection (time zone, `t`/`f`), and cut to 64 bytes with `...`, as PostgreSQL cuts it.
+- In `Key (...)`, a column name is in double quotes when PostgreSQL would quote it: a name that is not all lower case (`"Email"`), or one of its keywords that is not unreserved (`"time"`, `"timestamp"`, `"position"`, `"user"`). The foreign key forms keep names bare, as PostgreSQL does.
+- A NULL for a NOT NULL column is reported once the whole row is made. So a bad value in a later column of the same row is reported first (`22P02`), as in PostgreSQL.
+- The values are only for a user who may read them. With [row-level security](table-rights.md#row-rights) on the table, or a [column right](table-rights.md#column-rights) that hides a value it would show, there is no `D` line. A foreign key error says `Key is not present in table "users".` instead, without the values, as PostgreSQL does. (For a `Failing row` with a hidden column, PostgreSQL lists the readable columns; KarelaDB leaves the line out.)
+- The HTTP API puts `table`, `constraint` and `column_name` in its JSON error. It does not send the Detail line.
 
 **Your own code.** A trigger function or a `DO` block can choose the code with `RAISE EXCEPTION '...' USING ERRCODE = '23001'`. A condition name works too (`ERRCODE = 'restrict_violation'`), and so do `RAISE SQLSTATE '23001' USING MESSAGE = '...'` and `RAISE unique_violation`. The client gets that code, so it can tell your rule from a real duplicate key. A name KarelaDB does not know gives `P0001`.
 
@@ -445,10 +460,10 @@ Drivers and tools send a few PostgreSQL commands that KarelaDB SQL does not have
 | Command | Answer |
 |---|---|
 | `SET name = value`, `SET name TO value`, `SET NAMES ...` | checked against KarelaDB's list of settings and remembered; some change what KarelaDB does (`work_mem`, `enable_hashjoin`, ...), a restart-only one gives `55P02`. See [settings](server-settings.md). `client_encoding` must be UTF8 (`22023` otherwise) |
-| `SET TIME ZONE 'Asia/Kathmandu'`, `SET timezone = ...`, `RESET TIME ZONE` | the session's clock for `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, `to_char` ([time zones](time-and-time-zones.md#session-time-zone)); the driver gets `TimeZone` back. A zone with daylight saving time gives `22023` |
+| `SET TIME ZONE 'Asia/Kathmandu'`, `SET timezone = ...`, `RESET TIME ZONE` | the session's clock for `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, `to_char` ([time zones](time-and-time-zones.md#session-time-zone)); the driver gets `TimeZone` back. A zone with summer time works when the machine has the zone files (else the error says where KarelaDB looked) |
 | `SET app.name = 'value'`, `SET LOCAL app.name = 'value'` | your own setting for this connection; `current_setting('app.name')` reads it, in triggers too. `LOCAL` ends with the transaction; outside `BEGIN` it only warns (`25P01`). See [session settings](functions-postgres.md#settings) |
 | `SET synchronous_commit = off`, `SET LOCAL synchronous_commit = off` | this connection's commits (or this transaction's) do not wait for the disk sync, which follows within about 10 ms; a power cut or a crash of the program can lose the last of them. `SHOW` and `RESET` work. See [performance tips](performance-tips.md#synchronous-commit) |
-| `SET SESSION CHARACTERISTICS ...`, `SET TRANSACTION ...` | accepted, ignored |
+| `SET SESSION CHARACTERISTICS ...`, `SET TRANSACTION ...` | the isolation level and `READ ONLY` / `READ WRITE` are kept ([isolation](transactions.md#isolation-rules)); `DEFERRABLE` is accepted and changes nothing |
 | `SHOW server_version`, `SHOW TimeZone`, `SHOW transaction_isolation`, ... | the setting (`server_version` is `14.0 (KarelaDB ...)`, `TimeZone` is the session's zone, `UTC` unless set); an unknown name gives `42704`. `SHOW ALL` lists every setting ([settings](server-settings.md)) |
 | `SELECT version()` | `PostgreSQL 14.0 (KDB 0.2.0-dev), compatible server` |
 | `SELECT current_database()` | the KarelaDB database name |
@@ -532,6 +547,7 @@ With `pg_compat` on, a statement gives PostgreSQL 14's answer where KarelaDB's o
 | `ORDER BY name` | byte order: `Banana, Zebra, apple` | locale order: `apple, Banana, Zebra` |
 | `'apple' < 'Banana'`, `name BETWEEN 'a' AND 'c'` | byte order | locale order |
 | a plain `TIMESTAMP` on this port | UTC | the session's wall clock (see below) |
+| a time inside JSON (`to_json`, `json_build_object`, `json_agg`, `row_to_json`, ...) | `"2026-09-10T05:15:00.000Z"` | `"2026-09-10T05:15:00"`, a `TIMESTAMPTZ` `"2026-09-10T05:15:00+00:00"` with the session's offset ([times in JSON](functions-json.md#pg-compat-times)) |
 
 - **Where it comes from.** The session's `SET kdb.pg_compat` wins; then the connection string (`kdb.pg_compat=on` as a startup parameter, or `options=-c kdb.pg_compat=on`); then the database's own setting; then `kareladb serve --pg-compat`. `default` and `RESET` go back to the one before. It works over HTTP too (`SET kdb.pg_compat = on; SELECT ...`).
 - **Text order.** The locale order is `"pg_en_US"`, which KarelaDB has built in (no ICU, no glibc): it follows PostgreSQL on Linux with `en_US.UTF-8`. Letters and digits first, then accents, then case (`apple` before `Apple`), and only then spaces and punctuation, so `'10.15% Prime'` sorts before `'10 % NMB'`. Among texts with the same letters, a mark that comes after fewer letters sorts first, and no mark at all sorts last (`'GBILD84/85'` before `'GBILD8485'`, as in PostgreSQL and in byte order). It follows glibc for Latin, Greek and Cyrillic text, not for every script. `=` and `<>` still compare the exact text. `COLLATE "C"` keeps byte order, and `COLLATE "pg_en_US"` gives this order in any session. `COLLATE "en_US"` stays KarelaDB's own dictionary order.
@@ -595,7 +611,8 @@ On the PostgreSQL port, the catalog functions tools call work too: `pg_get_index
 - Encryption **without** [TLS](tls.md) turned on. Use `127.0.0.1` or an SSH tunnel then: `ssh -N -L 8832:127.0.0.1:8832 user@your-vps`, and connect to `127.0.0.1:8832` on your PC.
 - `COPY` with a file on the server (`COPY t FROM '/path'`): use `FROM STDIN` ([COPY](#copy)).
 - The parts of the Postgres catalog that are not in the list above. An ORM that reads more of it (Entity Framework, Prisma introspection) may fail.
-- **PostgreSQL SQL** that KarelaDB does not have (for example `::regclass`). `ON CONFLICT`, `WITH`, correlated subqueries, arrays (`= ANY($1)` with Go slices) and advisory locks work (tutorial chapter 23).
+- **PostgreSQL SQL** that KarelaDB does not have (see the [compatibility matrix](postgres-compatibility.md)). `ON CONFLICT`, `WITH`, correlated subqueries, arrays (`= ANY($1)` with Go slices) and advisory locks work (tutorial chapter 23).
 - The old function-call messages.
+- The error message (`M`) of a constraint error is KarelaDB's own words; the code and the fields (`t`, `n`, `c`, `D`) are PostgreSQL's ([error fields](#errors)). A duplicate in an expression `UNIQUE` index (`lower(email)`) has no `D` line.
 - `CREATE ROLE`: KarelaDB users and rights are per database ([users and roles](users-and-roles.md)). `SET ROLE name` takes the rights of a KarelaDB user ([SET ROLE](users-and-roles.md#set-role)).
 - A prepared statement whose tables changed shape (a column added) gets `0A000` `cached plan must not change result type`: prepare it again (pgx does this by itself).

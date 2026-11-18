@@ -52,11 +52,11 @@ user 'report' created with role read
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:49.380Z | 2026-10-24T07:56:49.380Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T07:56:49.505Z | 2026-10-24T07:56:49.505Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-24T07:56:49.443Z | 2026-10-24T07:56:49.444Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:44.770Z | 2026-11-18T08:03:44.770Z | NULL | false | NULL | NULL | NULL |
+| report | read | NULL | 2026-11-18T08:03:44.923Z | 2026-11-18T08:03:44.923Z | NULL | false | NULL | NULL | NULL |
+| shop_app | none | demo=write | 2026-11-18T08:03:44.844Z | 2026-11-18T08:03:44.850Z | NULL | false | NULL | NULL | NULL |
 
 (3 rows)
 
@@ -77,9 +77,9 @@ SHOW USER report;
 
 Result:
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| report | read | NULL | 2026-10-24T07:56:49.524Z | 2026-10-24T07:56:49.524Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| report | read | NULL | 2026-11-18T08:03:44.942Z | 2026-11-18T08:03:44.942Z | NULL | false | NULL | NULL | NULL |
 
 (1 row)
 
@@ -238,10 +238,10 @@ user 'report' changed: role write
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:49.840Z | 2026-10-24T07:56:49.840Z | NULL | false | NULL | NULL |
-| report | write | NULL | 2026-10-24T07:56:49.904Z | 2026-10-24T07:56:50.076Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:45.593Z | 2026-11-18T08:03:45.593Z | NULL | false | NULL | NULL | NULL |
+| report | write | NULL | 2026-11-18T08:03:45.667Z | 2026-11-18T08:03:45.965Z | NULL | false | NULL | NULL | NULL |
 
 (2 rows)
 
@@ -337,11 +337,11 @@ statement_timeout of user 'report' is 10 min (from their next statement)
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:50.079Z | 2026-10-24T07:56:50.079Z | NULL | false | NULL | NULL |
-| charts | read | NULL | 2026-10-24T07:56:50.144Z | 2026-10-24T07:56:50.332Z | NULL | false | 2 s | NULL |
-| report | read | NULL | 2026-10-24T07:56:50.207Z | 2026-10-24T07:56:50.334Z | NULL | false | 10 min | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:46.103Z | 2026-11-18T08:03:46.103Z | NULL | false | NULL | NULL | NULL |
+| charts | read | NULL | 2026-11-18T08:03:46.179Z | 2026-11-18T08:03:46.427Z | NULL | false | 2 s | NULL | NULL |
+| report | read | NULL | 2026-11-18T08:03:46.254Z | 2026-11-18T08:03:46.434Z | NULL | false | 10 min | NULL | NULL |
 
 (3 rows)
 
@@ -380,6 +380,100 @@ ALTER USER admin SET statement_timeout = 'soon';
 Result:
 
 Error: `line 1, column 42: statement_timeout needs a time like '30s', '500ms', '2min', 0 (no limit) or DEFAULT, not 'soon'`
+
+<a id="max-statements"></a>
+
+## ALTER USER ... SET max_statements
+
+Syntax:
+
+```sql
+ALTER USER name SET max_statements = 4 | 0 | OFF | DEFAULT
+ALTER USER name RESET max_statements
+```
+
+How many statements one user may run **at the same time**, over the HTTP API and the PostgreSQL port together. One busy script or a pool that is too big can then not take every thread from the others. The same for a whole database: [ALTER DATABASE ... SET MAX_STATEMENTS](databases.md#max-statements).
+
+| Value | Meaning |
+|---|---|
+| `1` to `100000` | at most this many at once |
+| `0`, `OFF`, `DEFAULT`, or `RESET` | no limit of its own (the server's `--max-queries-per-user` still counts) |
+
+- **Over the limit:** the next statement waits up to 2 s for one of the others to end. Then it fails, and nothing of it ran:
+  - HTTP: status **429** with `Retry-After: 1`, error `too many statements: user 'bob' already runs 4 statements at the same time (...)`.
+  - PostgreSQL: SQLSTATE **53300** (`too_many_connections`). A pool treats it as "full, try again".
+  - A cancel or the statement's own `statement_timeout` ends the wait sooner.
+  - Over HTTP each waiting request holds one of the server's request threads, so only an eighth of `--http-threads` (at least 1) wait at once. The next one gets the 429 at once (`... HTTP requests wait for one to finish already, so this one did not wait`), and the other users keep their threads. A PostgreSQL connection has its own thread and always waits.
+- **Never held back:** a statement inside an open `BEGIN ... COMMIT` (it is counted, but it may hold locks the others wait for, so it does not wait).
+- **Returns:** `user 'bob' may run at most 4 statements at the same time ...`. `SHOW USERS` shows it in the column `max_statements`.
+- **Role:** an admin sets it, for any user. It counts for an admin user too when set on him.
+- **Kept:** with the user, across restarts. It counts from the user's next statement.
+
+**Example: The report script runs at most two queries at once**
+
+Setup:
+
+```sql
+CREATE USER admin WITH PASSWORD 'Long-Admin-Passw0rd' ROLE admin;
+CREATE USER report WITH PASSWORD 'Reports-only-secret-7' ROLE read;
+```
+
+```sql
+ALTER USER report SET max_statements = 2;
+SHOW USER report;
+```
+
+Result:
+
+`ALTER USER report SET max_statements = 2`
+
+```text
+user 'report' may run at most 2 statements at the same time over HTTP and PostgreSQL (from the next statement); more wait up to 2 s for one to finish, then fail with SQLSTATE 53300 (HTTP 429)
+```
+
+`SHOW USERS`
+
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| report | read | NULL | 2026-11-18T08:03:46.486Z | 2026-11-18T08:03:46.691Z | NULL | false | NULL | NULL | 2 |
+
+(1 row)
+
+**Example: No limit again**
+
+Setup:
+
+```sql
+CREATE USER admin WITH PASSWORD 'Long-Admin-Passw0rd' ROLE admin;
+CREATE USER report WITH PASSWORD 'Reports-only-secret-7' ROLE read;
+ALTER USER report SET max_statements = 2;
+```
+
+```sql
+ALTER USER report RESET max_statements;
+```
+
+Result:
+
+```text
+user 'report' has no max_statements of its own now: its statements are not counted
+```
+
+**Example: Only a whole number** (shows an error)
+
+Setup:
+
+```sql
+CREATE USER admin WITH PASSWORD 'Long-Admin-Passw0rd' ROLE admin;
+```
+
+```sql
+ALTER USER admin SET max_statements = -1;
+```
+
+Result:
+
+Error: `line 1, column 39: SET max_statements needs a number of statements from 1 to 100000, or 0, OFF or DEFAULT for no limit`
 
 <a id="user-timezone"></a>
 
@@ -470,9 +564,9 @@ user 'report' does not exist
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:50.568Z | 2026-10-24T07:56:50.568Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:47.110Z | 2026-11-18T08:03:47.110Z | NULL | false | NULL | NULL | NULL |
 
 (1 row)
 
@@ -539,11 +633,11 @@ SHOW USERS;
 
 Result:
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:50.604Z | 2026-10-24T07:56:50.604Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T07:56:50.728Z | 2026-10-24T07:56:50.728Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=read, shop=write | 2026-10-24T07:56:50.667Z | 2026-10-24T07:56:50.733Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:47.617Z | 2026-11-18T08:03:47.617Z | NULL | false | NULL | NULL | NULL |
+| report | read | NULL | 2026-11-18T08:03:47.765Z | 2026-11-18T08:03:47.765Z | NULL | false | NULL | NULL | NULL |
+| shop_app | none | demo=read, shop=write | 2026-11-18T08:03:47.693Z | 2026-11-18T08:03:47.803Z | NULL | false | NULL | NULL | NULL |
 
 (3 rows)
 
@@ -604,10 +698,10 @@ user 'shop_app' has role admin on database 'demo'
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:50.712Z | 2026-10-24T07:56:50.712Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=admin, shop=write | 2026-10-24T07:56:50.773Z | 2026-10-24T07:56:50.891Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:47.805Z | 2026-11-18T08:03:47.805Z | NULL | false | NULL | NULL | NULL |
+| shop_app | none | demo=admin, shop=write | 2026-11-18T08:03:47.880Z | 2026-11-18T08:03:48.142Z | NULL | false | NULL | NULL | NULL |
 
 (2 rows)
 
@@ -632,15 +726,15 @@ Result:
 `DROP DATABASE shop`
 
 ```text
-database 'shop' dropped; its folder was moved to kdb-data/_trash/1792828611152-shop
+database 'shop' dropped; its folder was moved to kdb-data/_trash/1794989028134-shop
 ```
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:50.970Z | 2026-10-24T07:56:50.970Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-24T07:56:51.032Z | 2026-10-24T07:56:51.153Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:47.812Z | 2026-11-18T08:03:47.812Z | NULL | false | NULL | NULL | NULL |
+| shop_app | none | NULL | 2026-11-18T08:03:47.888Z | 2026-11-18T08:03:48.144Z | NULL | false | NULL | NULL | NULL |
 
 (2 rows)
 
@@ -725,10 +819,10 @@ user 'shop_app' has no grant on database 'demo' now
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:51.111Z | 2026-10-24T07:56:51.111Z | NULL | false | NULL | NULL |
-| shop_app | none | NULL | 2026-10-24T07:56:51.174Z | 2026-10-24T07:56:51.293Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:48.555Z | 2026-11-18T08:03:48.555Z | NULL | false | NULL | NULL | NULL |
+| shop_app | none | NULL | 2026-11-18T08:03:48.630Z | 2026-11-18T08:03:48.826Z | NULL | false | NULL | NULL | NULL |
 
 (2 rows)
 
@@ -757,10 +851,10 @@ user 'report' keeps role write on database 'demo': REVOKE read takes away only a
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:51.398Z | 2026-10-24T07:56:51.398Z | NULL | false | NULL | NULL |
-| report | read | demo=write | 2026-10-24T07:56:51.461Z | 2026-10-24T07:56:51.461Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:48.569Z | 2026-11-18T08:03:48.569Z | NULL | false | NULL | NULL | NULL |
+| report | read | demo=write | 2026-11-18T08:03:48.644Z | 2026-11-18T08:03:48.649Z | NULL | false | NULL | NULL | NULL |
 
 (2 rows)
 
@@ -935,11 +1029,11 @@ user 'shop_app' has role write on database 'demo'
 
 `SHOW USERS`
 
-| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) |
-|---|---|---|---|---|---|---|---|---|
-| admin | admin | NULL | 2026-10-24T07:56:51.555Z | 2026-10-24T07:56:51.555Z | NULL | false | NULL | NULL |
-| report | read | NULL | 2026-10-24T07:56:51.726Z | 2026-10-24T07:56:51.726Z | NULL | false | NULL | NULL |
-| shop_app | none | demo=write | 2026-10-24T07:56:51.791Z | 2026-10-24T07:56:51.791Z | NULL | false | NULL | NULL |
+| name (STRING) | role (STRING) | grants (STRING) | created (TIMESTAMP) | changed (TIMESTAMP) | table_grants (STRING) | two_factor (BOOL) | statement_timeout (STRING) | priority (STRING) | max_statements (LONG) |
+|---|---|---|---|---|---|---|---|---|---|
+| admin | admin | NULL | 2026-11-18T08:03:49.260Z | 2026-11-18T08:03:49.260Z | NULL | false | NULL | NULL | NULL |
+| report | read | NULL | 2026-11-18T08:03:49.537Z | 2026-11-18T08:03:49.537Z | NULL | false | NULL | NULL | NULL |
+| shop_app | none | demo=write | 2026-11-18T08:03:49.612Z | 2026-11-18T08:03:49.618Z | NULL | false | NULL | NULL | NULL |
 
 (3 rows)
 
@@ -1077,7 +1171,7 @@ user 'admin' added with role admin in ./kdb-data
 
 ```text
 USER                     ROLE   GRANTS                         CHANGED
-admin                    admin  -                              2026-10-24 13:41:51
+admin                    admin  -                              2026-11-18 13:48:49
 1 user in ./kdb-data
 ```
 
@@ -1092,10 +1186,10 @@ table 'orders' created
 ```text
 user 'report' created with role read
 
-name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority
--------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+---------
-admin  | admin | NULL   | 2026-10-24T07:56:51.870Z | 2026-10-24T07:56:51.870Z | NULL         | false      | NULL              | NULL    
-report | read  | NULL   | 2026-10-24T07:56:52.226Z | 2026-10-24T07:56:52.226Z | NULL         | false      | NULL              | NULL    
+name   | role  | grants | created                  | changed                  | table_grants | two_factor | statement_timeout | priority | max_statements
+-------+-------+--------+--------------------------+--------------------------+--------------+------------+-------------------+----------+---------------
+admin  | admin | NULL   | 2026-11-18T08:03:49.725Z | 2026-11-18T08:03:49.725Z | NULL         | false      | NULL              | NULL     |           NULL
+report | read  | NULL   | 2026-11-18T08:03:50.291Z | 2026-11-18T08:03:50.291Z | NULL         | false      | NULL              | NULL     |           NULL
 (2 rows, 0.0 ms)
 ```
 

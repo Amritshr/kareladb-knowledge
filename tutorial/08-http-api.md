@@ -223,7 +223,7 @@ HTTP status: 400
 | 405 | GET /exec with SQL that changes data |
 | 408 | The request did not arrive within 30 seconds, or the statement was stopped: statement timeout, `DELETE /exec/<id>`, server shutdown |
 | 413 | Request body bigger than 64 MB, or the query keeps too much in memory (`--max-result-memory`, `--max-groups`) |
-| 429 | Too many failed logins, or the user already runs `--max-queries-per-user` statements |
+| 429 | Too many failed logins, or the user already runs `--max-queries-per-user` statements, or a `max_statements` of the user or database was full for 2 s (`too many statements: ...`, PostgreSQL 53300) |
 | 431 | Request headers bigger than 64 KB |
 | 500 | Problem on the server: a damaged file, or the database is locked by another program |
 | 503 | Busy: a table stayed locked by another transaction too long (`table 'x' is busy`), a `deadlock`, or the server is stopping. Try again a moment later. |
@@ -639,8 +639,8 @@ True
 HTTP 404
 ```
 
-- The rows are a snapshot: changes after `POST /cursor` do not change them. They stay in the server's memory until the cursor is closed.
-- A cursor closes by itself after 10 minutes without a `GET`. At most 16 cursors per database are open at the same time (SQL cursors from chapter 13 count too). At most 10 million rows per cursor.
+- The rows are a snapshot: changes after `POST /cursor` do not change them. They stay on the server (memory, then a temporary file) until the cursor is closed.
+- A cursor closes by itself after 10 minutes without a `GET`. At most 16 cursors per database are open at the same time (SQL cursors from chapter 13 count too).
 - `GET /cursor/<id>` only reads (the rule above: GET never changes data). Opening needs POST, closing needs DELETE.
 - Use the same `db=` for all three requests: a cursor belongs to one database.
 

@@ -25,7 +25,14 @@ means a rate limit or too many statements at once: wait that many seconds.
 A server started with TLS (`--tls-cert`, or `KARELADB_TLS_CERT=auto` in Docker) wants
 `https://` and PostgreSQL `sslmode=require` from other computers (`curl -k` or
 `--cacert <data>/_tls/kdb-cert.pem` for its self-signed certificate); plain
-`http://` from the same computer still works.
+`http://` from the same computer still works. A renewed certificate written over
+the same files is used without a restart: new connections pick it up within a
+minute, at once after `POST /api/reload-tls` (admin) or `SIGHUP`; open connections
+keep theirs, and a bad pair is refused with the old one kept.
+
+Every failed login (wrong password, code, token or cookie, on HTTP and the
+PostgreSQL port) is a `login_failed` row in `SHOW AUDIT`, with the user, the
+address and port, and `detail` = `<method>: <reason>`.
 
 Set the two names once per shell, so the commands below also work where only the
 old `KDB_URL` / `KDB_TOKEN` are set, then check it is up first:
@@ -72,13 +79,16 @@ Rows are in `dataset` as arrays in `columns` order. On failure the JSON has
 `sqlstate` (the PostgreSQL code: `23505` duplicate key, `23503` foreign key, or
 the code a trigger's `RAISE ... USING ERRCODE` chose). A `23505`/`23503` also
 has `table` and `constraint` (like `users_email_key`), as the PostgreSQL port
-sends in `ConstraintName`/`TableName`. Status
+sends in `ConstraintName`/`TableName`. The PostgreSQL port sends the fields
+PostgreSQL sends for 23502/23503/23505/23514: schema, table, constraint (column
+for 23502) and the Detail line (`Key (id)=(1) already exists.`, `Failing row
+contains (...)`; pgx `PgError.Detail`, psycopg `diag.message_detail`). Status
 codes: 400 bad SQL, 401 or 403 auth, 404 unknown database, 408 statement
 timeout, 413 body over 64 MB or a memory limit, 503 a table is busy (another
 writer held it past the lock timeout, 5 s unless set), the server is stopping
 or its memory is full (`memory full: ...` under `--memory-limit`; retry after
 2 s; PostgreSQL `53200`; a running statement that held the most memory when the
-server went over its limit gets it too - read less at once and retry), 507 the disk is full (nothing of the request was saved, unless the
+server went over its limit gets it too - read less at once and retry; a write or load also gets it while the unsaved changes are past half the limit - wait the Retry-After and send it again; reads, CHECKPOINT, COMMIT, SET and USE are never held), 429 the user or database already runs its `max_statements` (`too many statements: ...`, PostgreSQL `53300`; it waited 2 s first, nothing ran - retry after `Retry-After`, or use a smaller pool), 507 the disk is full (nothing of the request was saved, unless the
 message says `applied in memory`: those rows are in, so do not send them again). With several statements in one
 body, each is saved on its own as it finishes, and the body stops at the first statement that fails: the answer is
 an error, `results` holds only the statements before it, `saved` says how many of them are saved, and the statements
@@ -92,10 +102,32 @@ instead of one per row (smaller, faster to chart), `cache=0` skips the result
 cache. Every answer with rows carries an `ETag`; send it back as
 `If-None-Match` and an unchanged result costs a `304` with no body.
 
+A `GROUP BY` and a hash join (its first join, of a stored table) past the
+query's memory go to temporary files and give the same answers, slower; a
+spilled join's rows come in another order, so add `ORDER BY` when order
+matters. `EXPLAIN` says `spills to disk in N parts`.
+
 A big copy needs no chunking: `INSERT INTO t SELECT ... FROM src WHERE ...`
 (also `UNION ALL` of such reads) writes rows while it reads them, so the 1 GB
 per-query memory limit does not stop it. With `GROUP BY`, `DISTINCT`, a window,
 `ORDER BY` or `LIMIT` the rows are kept first and that limit applies.
+Into a table without a key, a copy of columns as they are (`SELECT *` or
+`SELECT a, b` of one table or a held `read_csv` file, same types, every column
+given, `WHERE` only `col op constant` joined by `AND`) is copied column by
+column on all threads: 2M rows in about 0.1 s. Keep a bulk copy in that shape;
+an `OR`, a function or a cast in it sends it row by row (same answer, slower).
+
+A CSV file already on the server: `CREATE TABLE t AS SELECT * FROM
+read_csv('trades.csv')` (DuckDB's table function; options `header => true`,
+`delim => ';'`, `columns => {'a': 'INT', ...}`, or `AS t(a, b TEXT)`). Admins
+only, and only files in `<data folder>/<database>/import/` (a relative name, no
+`..`); it cannot be kept in a view, function, trigger or endpoint. Types are guessed from
+every value (BOOL, LONG, DOUBLE, DATE, TIMESTAMP, STRING). A file up to 256 MB
+is read once per statement into columns: `count/sum/avg/min/max` with or
+without `GROUP BY`, under `WHERE col <op> value AND ...`, run on them directly
+(faster than DuckDB's `read_csv`), so querying the file itself is fine for a
+one-off; for repeated queries still load it into a table. A file on the
+client goes through `POST /imp` instead.
 
 One query may read a table of another database on the same server as
 `otherdb.table` (joins, subqueries, `INSERT INTO t SELECT ... FROM otherdb.t2`).
@@ -134,7 +166,7 @@ shares the data files, made in about a second; admin only), then `DROP DATABASE 
 | `GET /api/slow-queries` | statements over the slow threshold (`--slow-query-ms`, default 1000 ms), newest first, kept on disk across restarts |
 | `GET /api/rev?table=candles&symbol=NABIL` | committed revision per symbol (and `table_rev`): poll it and read the candles again only when it changed; never waits for writers. SQL: `kdb_rev('candles', 'NABIL')` |
 | `GET /listen?channel=orders` | LISTEN as server-sent events (`EventSource`): one JSON event per `NOTIFY orders, '...'` or `pg_notify('orders', ...)`, sent when its transaction commits; `&pattern=price.*` = PSUBSCRIBE (events then carry `"pattern"`). On the pg port use `LISTEN orders` as in PostgreSQL; triggers can NOTIFY |
-| `POST /kv` | Redis-like key-value store: body `["INCR","hits"]` or a pipeline `[["SET","otp:1","123456","EX",120],["GET","otp:1"]]` -> `["OK","123456"]` (one reply per command; errors as `{"error":"..."}`). GET/SET (NX XX EX PX GET KEEPTTL), INCR/INCRBY/INCRBYFLOAT, MGET/MSET, EXPIRE/TTL/PERSIST, DEL, EXISTS, KEYS, SCAN, RENAME, FLUSHDB ... Keys live in memory and in table `_kv` (SELECT only). `?sync=off` answers before the disk sync (fastest). SQL: `kv_get(k)`, `kv_set(k, v[, ttl_s])`, `kv_incr(k[, n])`, `kv('MGET','a','b')`. Pub/sub: `PUBLISH ch msg` (sent at once, answers listener count; reaches /listen and pg LISTEN), `PUBSUB CHANNELS|NUMSUB|NUMPAT`; keyspace events with `CONFIG SET notify-keyspace-events Ex` (server admin) on `__keyevent@0__:expired` / `__keyspace@0__:<key>` (evictions send `__keyevent@0__:evicted`, class `e`). Memory cap: `["CONFIG","SET","maxmemory","64mb","maxmemory-policy","allkeys-lru"]`, `MEMORY USAGE k`, `kv_memory()`. Cache tables: `CREATE TABLE c (k TEXT PRIMARY KEY, v TEXT) WITH (max_bytes='64MB', evict='lru' \| 'volatile_ttl' \| ..., durability='none')` |
+| `POST /kv` | Redis-like key-value store: body `["INCR","hits"]` or a pipeline `[["SET","otp:1","123456","EX",120],["GET","otp:1"]]` -> `["OK","123456"]` (one reply per command; errors as `{"error":"..."}`). GET/SET (NX XX EX PX GET KEEPTTL), INCR/INCRBY/INCRBYFLOAT, MGET/MSET, EXPIRE/TTL/PERSIST, DEL, EXISTS, KEYS, SCAN, RENAME, FLUSHDB, TYPE ... Hashes (HSET/HGET/HDEL/HGETALL/HINCRBY), lists (LPUSH/RPUSH/LPOP/RPOP/LRANGE/LLEN, BLPOP waits), sets (SADD/SREM/SMEMBERS/SISMEMBER/SCARD/SINTER), sorted sets (ZADD/ZREM/ZRANGE/ZRANGEBYSCORE/ZSCORE/ZCARD/ZRANK), SORT, WATCH/MULTI/EXEC with `?session=`; a command on a key of another type answers Redis's `WRONGTYPE ...` error. Keys live in memory and in tables `_kv` and `_kv_items` (SELECT only). `?sync=off` answers before the disk sync (fastest). SQL: `kv_get(k)`, `kv_set(k, v[, ttl_s])`, `kv_incr(k[, n])`, `kv('MGET','a','b')`. Pub/sub: `PUBLISH ch msg` (sent at once, answers listener count; reaches /listen and pg LISTEN), `PUBSUB CHANNELS|NUMSUB|NUMPAT`; keyspace events with `CONFIG SET notify-keyspace-events Ex` (server admin) on `__keyevent@0__:expired` / `__keyspace@0__:<key>` (evictions send `__keyevent@0__:evicted`, class `e`). Memory cap: `["CONFIG","SET","maxmemory","64mb","maxmemory-policy","allkeys-lru"]`, `MEMORY USAGE k`, `kv_memory()`. Cache tables: `CREATE TABLE c (k TEXT PRIMARY KEY, v TEXT) WITH (max_bytes='64MB', evict='lru' \| 'volatile_ttl' \| ..., durability='none')` |
 | `CREATE TABLE ... WITH (ttl_column = expires_at)` | rows that expire one by one, like Redis keys: gone at once for every read and write, deleted within a second; `INSERT ... ON CONFLICT DO UPDATE` on an expired key starts over (an INCR with EXPIRE) |
 | `GET /api/disk` | what a database takes on disk: data, older file copies, trash, log. Space back: `PURGE VERSIONS KEEP 1` (older copies) and `PURGE TRASH` (this database; `PURGE TRASH ALL` = the whole server, dropped databases too); old trash also goes by itself every minute (`KARELADB_TRASH_KEEP_HOURS`, `KARELADB_TRASH_MAX_MB` caps its size, `KARELADB_KEEP_VERSIONS`). Console: Keep data page, **Save disk** |
 | `GET /` | the web console |
@@ -163,7 +195,9 @@ connection pools to fit.
   server's `--timezone`) makes `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`,
   `to_char` and `ts >= CURRENT_DATE` use that clock, and the driver gets
   `TimeZone` back. Zones with summer time (America/New_York) work from the
-  system's zone files (tzdata); `SAMPLE BY`, time
+  system's zone files (tzdata), also in `SAMPLE BY ... TIME ZONE`,
+  `timestamp_floor(unit, t, zone)` and a column's `ROUND ... TIME ZONE` (each
+  date's own offset; fast on the column engine); `SAMPLE BY` without a zone, time
   text without an offset and materialized view buckets stay UTC. Over HTTP: the same SQL, or the header
   `X-KDB-Time-Zone`.
 - `/` gives a DOUBLE in KarelaDB (`7 / 2` = `3.5`). For PostgreSQL's whole-number
@@ -177,8 +211,10 @@ connection pools to fit.
   connection string `options=-c kdb.pg_compat=on`) gives PostgreSQL 14's
   answers: integer division, `1.5` and `x::numeric` as exact NUMERIC, a window
   with ORDER BY and no frame is `RANGE UNBOUNDED PRECEDING`, window NULLs as in
-  PostgreSQL, text ORDER BY / `<` by an en_US-like order, and on the PG port a
-  plain TIMESTAMP is the session's wall clock. Off by default (held for the
+  PostgreSQL, text ORDER BY / `<` by an en_US-like order, on the PG port a
+  plain TIMESTAMP is the session's wall clock, and times inside JSON
+  (`to_json`, `json_build_object`, `json_agg`, `row_to_json`) are PostgreSQL's
+  `"2026-09-10T05:15:00"` / `"...+05:45"` instead of `"...05:15:00.000Z"`. Off by default (held for the
   owner); KarelaDB's own answers never change while it is off.
 - `JSON`/`JSONB` columns take `?`, `?|`, `?&`, `@>` / `<@` (nested objects too)
   and `jsonb_path_exists`; `CREATE INDEX ... USING GIN (doc)` indexes the keys and
@@ -201,6 +237,11 @@ connection pools to fit.
 
 Ordinary SQL (PostgreSQL-like: `TRUNCATE`, `CREATE TABLE AS`, `ALTER COLUMN
 TYPE`, `ON DELETE CASCADE`, `WITH RECURSIVE`, `INSERT ... ON CONFLICT`,
+`MERGE INTO ... USING ... WHEN [NOT] MATCHED [BY SOURCE] ... RETURNING merge_action(), t.*, s.*`, `ASOF JOIN ... TOLERANCE`, plpgsql
+`AFTER` and `BEFORE INSERT / UPDATE / DELETE ... FOR EACH ROW` triggers (NEW, OLD, TG_OP, statements on other tables, PERFORM; a BEFORE UPDATE's RETURN NULL skips the row, RETURN OLD keeps it),
+plpgsql functions a query calls - `OUT` / `INOUT` parameters, `RETURNS TABLE (...)`, `RETURNS SETOF type|table`
+with `RETURN NEXT` / `RETURN QUERY`, called as `SELECT * FROM f(3)` (joinable, `LATERAL`) or `SELECT f(1)`
+(the OUT value, or record text); their body only reads, and SELECT-list arguments must be constants,
 window functions also over `GROUP BY` results, `GROUP BY ROLLUP / CUBE /
 GROUPING SETS` with `GROUPING()`, `CREATE TYPE ... AS ENUM` with `ALTER TYPE
 ... ADD VALUE` - an ENUM column takes only its labels and sorts in label
@@ -219,6 +260,22 @@ whose total passes 64 bits is an error (`22003`), not a NUMERIC - write
 DECIMAL arithmetic, `sum` and `avg` give DECIMAL (up to 38 digits; `avg` has
 at least 16 significant digits), `NUMERIC(p, s)` holds `p` digits up to 38,
 and a number literal of more than 15 digits is read exactly.
+DuckDB shorthands work: `SELECT * EXCLUDE (col)`, `SELECT * REPLACE (expr AS
+col)`, `GROUP BY ALL`, `ORDER BY ALL`, `QUALIFY`, `WINDOW w AS (...)`, and
+`IGNORE NULLS` for first_value / last_value / lag / lead. Fuzzy text: `levenshtein`,
+`damerau_levenshtein`, `jaro_winkler_similarity`, `similarity` (pg_trgm),
+`hamming`, `jaccard`; also `url_encode` / `url_decode`.
+
+Full-text search: `CREATE FULLTEXT INDEX ix ON t (title, body) [WITH (language =
+'english', synonyms = 'car, auto; tv, television')]`, then `WHERE MATCH(title,
+body, 'text')`, `ORDER BY search_rank(title, body, 'text') DESC LIMIT n`,
+`highlight(...)`. The search text (websearch-like): words (all needed),
+`"a phrase"`, `pref*`, `-word`, `a | b` or `a OR b` (OR in capitals; AND binds
+first: `a b | c` is (a and b) or c), `(a | b) c`, `-(a | b)`, and typo-tolerant
+`bnak~` / `bnak~2` (1 or 2 edits). Put alternatives in ONE search text
+(`MATCH(body, 'a | b')` uses the index; `MATCH(body, 'a') OR MATCH(body, 'b')`
+reads every row). Change synonyms without a rebuild: `ALTER INDEX ix SET
+(synonyms = '...')` / `RESET (synonyms)`.
 
 Text compares and sorts byte by byte, like PostgreSQL's `COLLATE "C"`
 (`'Zebra' < 'apple'`). For dictionary order write `ORDER BY name COLLATE "en_US"`;
@@ -324,7 +381,9 @@ SELECT * FROM cold_partitions();                                            -- w
   row-by-row engine (100x slower): math or a function on a column in `WHERE`
   (`price * qty > X`, `abs(x) > 5`: store the value as a column instead), `OR`
   of anything but `col = a OR col = b` on one column, a `JOIN`, a subquery in `FROM` that is not a `UNION ALL` of plain
-  SELECTs, window functions, and a table with computed columns. One such part
+  SELECTs or a plain filter of one table (renamed columns are fine: `SELECT max(x) FROM
+  (SELECT v AS x FROM t WHERE ...) s` reads `t` directly), window functions other
+  than the fast ones below, and a table with computed columns. One such part
   of an `AND` sends the whole query there. `EXPLAIN <query>` says which
   partitions are read, and its last line names the engine: `engine: column`,
   or `engine: row (why)`.
@@ -332,6 +391,14 @@ SELECT * FROM cold_partitions();                                            -- w
   no `WHERE` (or only a time range) are answered from the files' saved stats
   without reading rows: 69M rows in under 1 ms. `EXPLAIN` says "answer from
   saved stats".
+- **Fast window functions**: `row_number`, `rank`, `dense_rank`, `lag`, `lead`,
+  and `count` / `sum` / `avg` / `min` / `max` over the whole partition, the
+  running frame or `ROWS n PRECEDING`, with `PARTITION BY` number, time or
+  `SYMBOL` columns and one `ORDER BY` number or time column, run on arrays on
+  all threads (1M rows in 25-55 ms, faster than DuckDB). Keep the SELECT list
+  to plain columns and the window calls (wrap any math in an outer query), no
+  `ORDER BY` in that query: then an outer `count` / `sum` / `avg` / `min` /
+  `max` over it reads the results without making rows.
 - **Name the columns you need** instead of `SELECT *`: the slow path then builds
   only those columns (2x on a wide table).
 - **Clustered columns skip files by themselves**: a `WHERE` on a column whose
@@ -442,8 +509,8 @@ SELECT * FROM cold_partitions();                                            -- w
   (`--reader-yield`, on by default). With `--snapshot-reads on`
   (`KARELADB_SNAPSHOT_READS=on`) they do not wait at all: they read a snapshot of
   the committed rows. An indexed table is read that way too while a writer is
-  busy on it, at any size, and plain or expression indexes are still used
-  (since 2026-10-02); only a table with a full-text or JSON index over
+  busy on it, at any size, and plain, expression and bitmap indexes are still
+  used (bitmap since 2026-10-25); only a table with a full-text or JSON index over
   `--snapshot-index-rows` rows (1,000,000) still waits. A read of `information_schema` /
   `pg_catalog` or `SHOW` still waits for every writer. For a job queue use
   `BEGIN; SELECT ... ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED` on a table
@@ -512,11 +579,12 @@ The most useful ones:
 | `--memory-limit` / `KARELADB_MEMORY_LIMIT` | 85% of the container's memory limit, else of the machine's | one cap for everything. At 80% memory is given back; at 95% new statements wait 2 s, then get 503 / `53200` "memory full" (safe to retry). A reserve of 8 places lets quick reads like `SELECT 1` through even then |
 | `--cache-mb` / `KARELADB_CACHE_MB` / `cache_mb` | 256, at most a tenth of the memory limit | the result cache of all databases; one result may use a quarter of it |
 | `--threads` | half the CPUs the process may use (follows `docker update --cpus`) | threads inside one big query or load |
+| `--background-threads` / `KARELADB_BACKGROUND_THREADS`, `--background-memory` / `KARELADB_BACKGROUND_MEMORY` | a quarter of the CPUs (min 1); a quarter of `--memory-limit` | the background share: at most that many server jobs at once (idle checkpoints, compression, TTL, cache/cold sweeps, trash), each letting waiting writes of its database go first between tables; scheduled backup copies use one slot of their own (one at a time, below normal priority), request backups none; a checkpoint holds at most that much of partitions at once (a quarter of it at red memory). `background` in `/api/stats` |
 | `--http-threads` / `KARELADB_HTTP_THREADS` / `http_threads` | the CPUs, at least 8, at most 64 | HTTP requests that run at once; a slow query holds one until it ends |
 | `--max-connections` / `KARELADB_MAX_CONNECTIONS` / `max_connections` | 100 | PostgreSQL logins at once, all databases (0 = no limit) |
 | `--statement-timeout` | 60s | longest statement: 408 / `57014` after it. A session: `SET statement_timeout = '5s'` |
 | `--max-result-memory`, `--max-groups` | 1GB, 5000000 | what one query may hold: 413 / `54000` past it |
-| `--max-queries-per-user` | 32 | statements one user runs at once (the token is not counted) |
+| `--max-queries-per-user` | 32 | statements one user runs at once (the token is not counted). One user or one database of its own: `ALTER USER u SET max_statements = 4`, `ALTER DATABASE d SET MAX_STATEMENTS = 16` (admins not held back by the database one): over it a statement waits 2 s, then 429 / `53300` |
 | `--sync-commits always\|batch` | always | `batch`: a write is confirmed at once and on disk within 10 ms; a crash may lose the last few ms. A session: `SET synchronous_commit = off` |
 | `--timezone` / `KARELADB_TIMEZONE` / `timezone` | UTC | clock of `CURRENT_DATE`, `::date`, `date_trunc`, `EXTRACT`, timers and backups. A session: `SET TIME ZONE` |
 | `--slow-query-ms` / `KARELADB_SLOW_QUERY_MS` / `slow_query_ms` | 1000 | statements this slow go to `GET /api/slow-queries` (0 = off) |
@@ -551,7 +619,7 @@ Security and the PostgreSQL port:
 |---|---|---|
 | `--bind`, `--port`, `--pg-port` | 127.0.0.1, 9900, 8832 | where it listens; `--pg-port 0` turns the PostgreSQL port off. Another address than 127.x needs a token or users |
 | `--token`, `--token-name` / `KARELADB_TOKEN_NAME` | none, `token` | the shared admin secret, and the name the audit log gives it. `kareladb serve` reads no `KARELADB_TOKEN`: the Docker image passes it as `--token` |
-| `--tls-cert`, `--tls-key` / `KARELADB_TLS_CERT`, `KARELADB_TLS_KEY` / `tls_cert`, `tls_key` | off | TLS on both ports; `auto` makes a self-signed pair |
+| `--tls-cert`, `--tls-key` / `KARELADB_TLS_CERT`, `KARELADB_TLS_KEY` / `tls_cert`, `tls_key` | off | TLS on both ports; `auto` makes a self-signed pair; new files are read again without a restart |
 | `--tls-required` / `KARELADB_TLS_REQUIRED` | on | with TLS, plain connections are refused except from 127.x |
 | `--rate-limit-ip`, `--rate-limit-user` / `KARELADB_RATE_LIMIT_IP`, `KARELADB_RATE_LIMIT_USER` / `rate_limit_ip`, `rate_limit_user` | 0 (off) | requests per second per address / per user: 429 with `Retry-After` |
 | `--safe-updates`, `--read-only` | off | refuse `UPDATE` / `DELETE` without `WHERE`; a whole server that only reads |
@@ -623,13 +691,23 @@ the examples are known to work.
   or a folder on the host (`docker inspect <container>` shows which). Never
   remove it without asking.
 - Prefer `--data-binary` over `--data` with curl so line breaks survive.
-- `DROP TABLE t` is refused (2BP01) while a view, materialized view or foreign key
-  uses `t`; the error names each. `DROP TABLE t CASCADE` drops them too.
+- `DROP TABLE t` is refused (2BP01) while a view, materialized view, foreign key
+  or plpgsql function `RETURNS SETOF t` uses `t`; the error names each.
+  `DROP TABLE t CASCADE` drops them too.
 - A `DOUBLE` keeps full precision (`9609.0/17` is `565.2352941176471`). When a
   procedure replaces a program that stores rates rounded (often to 6 places),
   store `round(x, 6)` and round both sides of filter comparisons, or rows
   differ in the last digit. Money that must add up exactly belongs in `DECIMAL(s)`
   (18 digits) or `NUMERIC(p, s)` (up to 38).
+- Isolation: `REPEATABLE READ` runs as `SERIALIZABLE` (table locks, no snapshot) and `READ UNCOMMITTED` as
+  `READ COMMITTED`; the rules are in the help topic `transactions`. For what works, differs or is
+  refused against PostgreSQL, read the help topic `postgres-compatibility`.
+- WARNING: `NUMERIC` with no precision is a `DOUBLE`, not exact. A column
+  `amount NUMERIC`, `CAST(x AS NUMERIC)`, `x::numeric` and a decimal written in
+  a query (`0.1`) all give a `DOUBLE` (`0.1 + 0.2 = 0.3` is `false`), unlike
+  PostgreSQL. `SET kdb.pg_compat = on` makes literals and `::numeric` exact in a
+  query, but a `NUMERIC` column without `(p, s)` stays a `DOUBLE`. For money
+  always write the places: `DECIMAL(2)` or `NUMERIC(p, s)`.
 
 ---
 

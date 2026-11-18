@@ -37,7 +37,7 @@ Rules for window and series functions (the same as in chapter 5):
 - Without `OVER`, all result rows are **one series** in time order. With many symbols, always write `OVER (PARTITION BY symbol ORDER BY time)`.
 - `WHERE` runs first. An indicator only sees the rows that `WHERE` keeps. Compute on more history in a subquery, filter outside.
 - With `GROUP BY` or `SAMPLE BY`, a window function works on the **groups**: its arguments must be aggregates or group keys, for example `sma(last(close), 2)` or `rank() OVER (ORDER BY sum(volume) DESC)`. A plain column that is not a group key (`sma(close, 2)`) gives `column 'close' is used by a window function in a query with aggregates, so it must be a key of the groups`.
-- One window function cannot be inside another (`macd(sma(close, 3))`). Use one subquery per step.
+- A series function can be inside another one when the inner one has no `OVER` (`macd(sma(close, 3)) OVER (...)`). A window function cannot be inside an aggregate: use one subquery per step.
 - The new aggregates work only in the row engine. Queries that use them do not use the fast column engine, so they are slower on very big tables (see [Speed](#speed)).
 
 ### The sample candles

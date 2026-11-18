@@ -124,6 +124,8 @@ Data folder: --data-dir <folder>, else kareladb.conf, else the KARELADB_DATA_DIR
   http_functions, http_timeout_ms, ilp_auto_create, step_up_actions, step_up_minutes, alert_webhook,
   tls_cert, tls_key, the backup_*
   settings, and "system" (what ALTER SYSTEM SET saved; SELECT pg_reload_conf() puts it in use).
+  Every other serve flag is a key too: the flag without --, - as _ (reader_yield, statement_timeout, safe_updates ...;
+  help topic cli-serve, "The other flags as keys"). Order: the flag, kareladb.conf, the environment, the default.
   A database folder served by its path (kareladb serve D:\kdb\market) reads only the three folders below.
   web_dir, help_dir and skill_dir name the folders of the console, the help and the Claude skill
   (else KARELADB_WEB_DIR, KARELADB_HELP_DIR, KARELADB_SKILL_DIR, else web/, help/ and skill/ next to kareladb).
@@ -135,6 +137,13 @@ Data folder: --data-dir <folder>, else kareladb.conf, else the KARELADB_DATA_DIR
   holds the most is stopped with 'memory full'. Default: 85% of a container's
   memory limit, else of the machine's memory (env KARELADB_MEMORY_LIMIT; 0 or off = no limit).
 --threads <N>: threads for big queries and writes (default and most: half of the CPU threads).
+--background-threads <N>: background jobs (idle checkpoints, compression, TTL, cache and cold passes,
+  trash clean-up, backups) that run at once in the whole server (default a quarter of the CPUs, at
+  least 1; env KARELADB_BACKGROUND_THREADS). The others wait for their next turn; backups copy below
+  normal CPU priority. Between two tables or partitions a job lets waiting user writes go first.
+--background-memory <size>: the most a checkpoint's partitions being written may hold at once, like
+  256MB or 512 (MB) (default a quarter of --memory-limit; env KARELADB_BACKGROUND_MEMORY). At red
+  memory a checkpoint writes one partition at a time.
 --cache-mb <MB>: memory for results of repeated queries, all databases together (default 256,
   0 = off; else kareladb.conf cache_mb, else env KARELADB_CACHE_MB). A result is used again only while no
   table it read has changed; a quick one (under 1 ms) is kept when asked twice. Queries with
@@ -324,7 +333,7 @@ Output:
 KarelaDB 0.2.0-dev (crc32c hardware: yes)
 tls: OpenSSL 3.6.3 9 Jun 2026
 
-Stored-format features this build reads (52):
+Stored-format features this build reads (55):
   views                0.2.0-dev (2026-09-10)   CREATE VIEW: the "views" file
   partition_format_2   0.2.0-dev (2026-09-11)   table partition files in format 2 (one raw block per column)
   block_stats          0.2.0-dev (2026-09-11)   column stats section in partition files (count, min, max, sum per column)
@@ -377,6 +386,9 @@ Stored-format features this build reads (52):
   rules                0.2.0-dev (2026-10-03)   CREATE RULE: named checks, session hours and settings of a table (catalog part 'Q')
   sync_commit_tables   0.2.0-dev (2026-10-03)   WITH (synchronous_commit = on | off) of a table: catalog part 'G'
   cold_storage         0.2.0-dev (2026-10-22)   cold storage: WITH / SET (cold_storage, cold_after), catalog part 'O', and partitions moved to an object store, kept as stub files (t/<id>/<partition>.cold.v<N>.kdb, header flag 1)
+  plpgsql_functions    0.2.0-dev (2026-10-25)   plpgsql functions a query calls: OUT / INOUT parameters, RETURNS TABLE and RETURNS SETOF (kind 'G' in the routines file)
+  round_time_zone_rules 0.2.0-dev (2026-10-25)   TIMESTAMP ROUND ... TIME ZONE with a zone that has summer time ('Europe/London') in catalog part 'R'
+  search_synonyms      0.2.0-dev (2026-10-25)   CREATE FULLTEXT INDEX ... WITH (synonyms = '...'): synonym groups a search reads, catalog part 'V'
 
 A database that uses a feature not in this list needs a newer KarelaDB (kareladb check exits with 3).
 ```
@@ -442,7 +454,7 @@ database        ./kdb-data/reports
 manifest        copy a, sequence 7
 last shutdown   clean
 log position    4 (saved in files up to 4)
-newest change   2026-10-24 13:40:45
+newest change   2026-11-18 13:47:04
 features        batched_log_sync, block_stats, compressed_log, partition_format_2
 manifest keys   8
 
@@ -545,12 +557,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log on (SHOW AUDIT)
   logs      slow queries >= 1000 ms to my-data/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 1 ms: manifest 0 ms, 0 files read 0 ms, log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
+  open      opened in 2 ms: manifest 1 ms, 0 files read 0 ms, log check 0 ms, replay 1 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```
@@ -611,7 +624,7 @@ Output:
 n
 -
 5
-(1 row, 0.2 ms)
+(1 row, 0.4 ms)
 ```
 
 `> kareladb sql market "SELECT count(*) FROM brokerz"`

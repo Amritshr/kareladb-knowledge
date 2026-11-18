@@ -3,7 +3,7 @@
 > Make one value from many rows: count, sum, avg, min, max, first, last, median, percentile, vwap, twap, conditional counts and sums, the row of the maximum, and lists of text.
 
 - Category: Functions — aggregate
-- Keywords: aggregate, group, total, average, mean, count rows, how many, number of rows, biggest, smallest, highest, lowest, open high low close, candle, turnover, count(), distinct count, uniq, quantile, p90, p95, volume weighted average price, implicit GROUP BY, HAVING, aggregate in WHERE, conditional count, countif, COUNT FILTER, sumif, SUM FILTER, averageif, multiply all, all true, any true, bool\_all, row of the maximum, day of the highest close, row of the minimum, group\_concat, join text, comma list, collect list, JSON array, jsonb\_agg, JSON object, jsonb\_object\_agg, weighted average, SUMPRODUCT, time weighted average price, TWAP, any\_value, arbitrary
+- Keywords: aggregate, group, total, average, mean, count rows, how many, number of rows, biggest, smallest, highest, lowest, open high low close, candle, turnover, count(), distinct count, uniq, quantile, p90, p95, volume weighted average price, implicit GROUP BY, HAVING, aggregate in WHERE, conditional count, countif, COUNT FILTER, sumif, SUM FILTER, averageif, multiply all, all true, any true, bool\_all, row of the maximum, day of the highest close, row of the minimum, group\_concat, join text, comma list, collect list, JSON array, jsonb\_agg, JSON object, jsonb\_object\_agg, weighted average, SUMPRODUCT, time weighted average price, TWAP, any\_value, arbitrary, bit\_and, bit\_or, bit\_xor, groupBitAnd, groupBitOr, groupBitXor, histogram, approx\_quantile, quantile
 - See also: [GROUP BY and HAVING](group-by.md), [SAMPLE BY](sample-by.md), [Statistics functions](functions-statistics.md), [Window and series functions (aggregates)](functions-window.md#aggregates), [Conditional and NULL functions (coalesce)](functions-conditional.md#coalesce), [Candles cookbook](candles-cookbook.md), [PIVOT](pivot.md)
 
 An **aggregate** function reads many rows and gives back one value. For example, `sum(quantity)` adds up the quantity of every row.
@@ -1740,3 +1740,35 @@ Result:
 | {"CITY":527.1,"COAST":401.9,"TELCO":897.7,"VOLT":184} |
 
 (1 row)
+
+<a id="bit-aggregates"></a>
+
+## bit_and, bit_or, bit_xor, histogram, approx_quantile
+
+| Function | Returns | Meaning |
+|---|---|---|
+| `bit_and(n)`, `bit_or(n)`, `bit_xor(n)` | LONG | the bits of every whole number combined (PostgreSQL; ClickHouse's `groupBitAnd`, `groupBitOr`, `groupBitXor`) |
+| `histogram(x)` | JSON | each value and how many rows have it, smallest value first: `{"x":2,"y":1}` (DuckDB gives a MAP) |
+| `approx_quantile(x, q)`, `quantile(x, q)` | DOUBLE | the quantile `q` - KarelaDB answers exactly, as `percentile_cont` |
+
+- **NULL:** NULL values are left out; no value gives NULL.
+
+**Example** (sample data: sample)
+
+```sql
+SELECT symbol, histogram(CAST(close > open AS STRING)) AS up_days, approx_quantile(volume, 0.5) AS median_volume
+FROM ochl_day
+GROUP BY symbol
+ORDER BY symbol
+LIMIT 3;
+```
+
+Result:
+
+| symbol (SYMBOL) | up_days (JSON) | median_volume (DOUBLE) |
+|---|---|---|
+| CITY | {"false":7,"true":12} | 100350 |
+| COAST | {"false":11,"true":8} | 78480 |
+| VOLT | {"false":9,"true":10} | 94410 |
+
+(3 rows)

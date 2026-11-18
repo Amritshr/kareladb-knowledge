@@ -323,7 +323,8 @@ A FULLTEXT index works on STRING (and SYMBOL, JSON) columns. With several column
 | Punctuation separates words, also `।` and `॥` | `छ।` is the word `छ` |
 | A number keeps its dot; a comma inside a number is dropped | `12.5` is one word; `1,234.5` is `1234.5` |
 | Devanagari digits are the same as 0-9 | `१२.५` = `12.5` |
-| Words must be the same; there is no stemming | `bank` does not find `banks`; `बैंक` does not find `बैंकले` (use `बैंक*`) |
+| Words must be the same; there is no stemming unless the index is English | `bank` does not find `banks`; `बैंक` does not find `बैंकले` (use `बैंक*`); `WITH (language = 'english')` stems English words |
+| Either word, typos, synonyms | `bank \| merger`, `bnak~`, `WITH (synonyms = 'bank, lender')` (help topic *Full-text search*) |
 
 ### Searching
 

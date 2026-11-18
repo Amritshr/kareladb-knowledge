@@ -3,7 +3,7 @@
 > Run a query once, keep its rows, and read them a few at a time.
 
 - Category: Cursors
-- Keywords: cursor, CURSOR, DECLARE CURSOR, NEXT, ALL, paging, page by page, read in parts, big result, snapshot, FETCH NEXT, FETCH ALL, too many open cursors, is not open
+- Keywords: cursor, CURSOR, DECLARE CURSOR, NEXT, ALL, paging, page by page, read in parts, big result, snapshot, spill, temporary file, cursor\_memory\_bytes, FETCH NEXT, FETCH ALL, too many open cursors, is not open
 - See also: [Sessions and cursors over HTTP](http-sessions-and-cursors.md), [The procedure language (local-cursors)](procedure-language.md#local-cursors), [Transactions](transactions.md), [ORDER BY, LIMIT, OFFSET](order-by-limit.md), [13. Functions, procedures and triggers](../tutorial/13-functions-procedures-triggers.md)
 
 A **cursor** runs a `SELECT` once and keeps its rows. Then you read the rows a part at a time with `FETCH`, and end with `CLOSE`.
@@ -81,7 +81,7 @@ Syntax:
 DECLARE name CURSOR FOR SELECT ...
 ```
 
-Runs the query at once and keeps all its rows under a name.
+Runs the query at once and keeps all its rows under a name: the first ones in memory, the rest in a temporary file on disk.
 
 | Part | Meaning |
 |---|---|
@@ -90,10 +90,10 @@ Runs the query at once and keeps all its rows under a name.
 
 - **Returns:** `cursor 'name' declared: N row(s)`.
 - **Notes:**
-  - The query runs **once**, now. Its rows stay in memory until the cursor is closed.
+  - The query runs **once**, now. Its rows stay until the cursor is closed: a small result in memory, a big one mostly in a temporary file (see [memory and disk](cursors.md#limits)).
   - A name that is already open in the same text or session is an error: `CLOSE` it first.
   - `DECLARE name TYPE` (a variable) works only inside a procedure or trigger body.
-  - At most 16 open cursors per database, and at most 10 million rows per cursor (see [limits](cursors.md#limits)).
+  - At most 16 open cursors per database. There is no row limit per cursor (see [limits](cursors.md#limits)).
   - `DECLARE ... CURSOR` works inside `BEGIN ... COMMIT`, and then it sees the changes of the transaction.
 
 **Example: A snapshot: rows deleted after DECLARE are still fetched** (sample data: sample)
@@ -367,7 +367,7 @@ Syntax:
 CLOSE name
 ```
 
-Closes the cursor and frees the memory of its rows.
+Closes the cursor and frees its rows: their memory, and the temporary file if it had one.
 
 - **Returns:** `cursor 'name' closed`.
 - **Notes:** closing a cursor that is not open is an error. Cursors also close by themselves at the end of the text, the end of the session, and after 10 minutes without `FETCH`. Still, close them when you are done: only 16 can be open.
@@ -540,7 +540,7 @@ Response:
 HTTP 200 (application/json)
 
 ```text
-{"session": "81a9d62a6e093ebca035ee104ee87800", "idle_timeout_ms": 600000}
+{"session": "e937adcd6259f579a54ae2ed00bb0ec9", "idle_timeout_ms": 600000}
 ```
 
 `POST /exec`
@@ -559,13 +559,13 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "cursor 'b' declared: 5 row(s)",
-      "timings": {"parse_us": 33, "execute_us": 196}
+      "timings": {"parse_us": 36, "execute_us": 356}
     }
   ],
   "columns": [],
   "dataset": [],
   "count": 0,
-  "timings": {"parse_us": 33, "execute_us": 196}
+  "timings": {"parse_us": 36, "execute_us": 356}
 }
 ```
 
@@ -592,7 +592,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "3 row(s) fetched, 2 left",
-      "timings": {"parse_us": 12, "execute_us": 10}
+      "timings": {"parse_us": 23, "execute_us": 12}
     }
   ],
   "columns": [
@@ -605,7 +605,7 @@ HTTP 200 (application/json)
     [45, "Imperial Securities"]
   ],
   "count": 3,
-  "timings": {"parse_us": 12, "execute_us": 10}
+  "timings": {"parse_us": 23, "execute_us": 12}
 }
 ```
 
@@ -614,7 +614,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"session": "81a9d62a6e093ebca035ee104ee87800", "closed": true}
+{"session": "e937adcd6259f579a54ae2ed00bb0ec9", "closed": true}
 ```
 
 <a id="http"></a>
@@ -663,7 +663,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "144c141f7f848b30",
+  "cursor": "c28b729b81b9cda8",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -680,7 +680,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "144c141f7f848b30",
+  "cursor": "c28b729b81b9cda8",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -703,7 +703,7 @@ HTTP 200 (application/json)
 
 ```text
 {
-  "cursor": "144c141f7f848b30",
+  "cursor": "c28b729b81b9cda8",
   "columns": [
     {"name": "transaction_id", "type": "LONG"},
     {"name": "symbol", "type": "SYMBOL"},
@@ -725,7 +725,7 @@ HTTP 200 (application/json)
 HTTP 200 (application/json)
 
 ```text
-{"cursor": "144c141f7f848b30", "closed": true}
+{"cursor": "c28b729b81b9cda8", "closed": true}
 ```
 
 `GET /cursor/{{cursor}}?fetch=3`
@@ -733,7 +733,7 @@ HTTP 200 (application/json)
 HTTP 404 (application/json)
 
 ```text
-{"error": "cursor '144c141f7f848b30' does not exist (an unused cursor closes after 10 minutes)"}
+{"error": "cursor 'c28b729b81b9cda8' does not exist (an unused cursor closes after 10 minutes)"}
 ```
 
 <a id="limits"></a>
@@ -750,9 +750,17 @@ DECLARE c17 CURSOR FOR SELECT ...   -- error when 16 cursors are open in the dat
 |---|---|
 | Open cursors in one database (SQL and HTTP together) | 16 (`DatabaseOptions::max_cursors`) |
 | A cursor without `FETCH` closes after | 10 minutes (`DatabaseOptions::cursor_idle_ms`) |
-| Rows in one cursor | 10 million. A bigger query is refused: narrow it with `WHERE`. |
-| Rows of one `FETCH` | the row limit of the request (for example `/exec` returns at most 1,000,000 rows) |
-| Memory | all rows of an open cursor are kept in memory until it closes |
+| Rows in one cursor | no fixed limit (until 2026-10-25: 10 million). Only the disk limit below. |
+| Memory of one cursor | its first rows, up to a 128th of the server's memory limit (between 1 MB and 64 MB, and at most half of `max-result-memory`; `DatabaseOptions::cursor_memory_bytes` sets it). The rest wait in a temporary file. |
+| Disk of one cursor | its temporary file grows to at most `max_spill_bytes` (16 GB). Past it `DECLARE` is refused: `the cursor needs more than ... MB of temporary files`. |
+| Rows of one `FETCH` | the row limit of the request (for example `/exec` returns at most 1,000,000 rows), and the statement's `max-result-memory`: a bigger `FETCH` is refused and the cursor stays where it was, so a smaller `FETCH` can follow |
+
+How the rows are kept:
+
+- **A plain read** (no `ORDER BY`, `DISTINCT`, `OFFSET` or `GROUP BY`) is written to the file while it is read, so `DECLARE` never holds more than the cursor's memory share, however many rows there are.
+- **Any other query** (with `ORDER BY`, a `GROUP BY`, ...) makes its whole result first, within `max-result-memory`, as a plain `SELECT` does. Then the rows past the memory share go to the file, so the open cursor holds little memory between `FETCH`es.
+- The file is in the database folder's `_tmp/` (encrypted when the database is). It is removed at `CLOSE`, at the end of the text or session, when an unused cursor closes after 10 minutes, when an HTTP cursor has given its last row, and when the database closes. A file a crash left behind is removed when the database opens.
+- A read-only database has no place for the file: there all rows stay in memory, within `max-result-memory`.
 
 **Example: The 17th open cursor** (shows an error)
 

@@ -12,6 +12,15 @@ This page lists what was added to KarelaDB from 2026-09-12 to 2026-09-24. Each l
 - "A -> B" means before -> after, on the same machine in the same minutes.
 - A switch like `KARELADB_NO_ZONE_MAPS=1` turns a new speed-up off. It is there so an answer can be checked against the old path, not for normal use.
 
+<a id="2026-10-25-column-copy"></a>
+
+## 2026-10-25: CREATE TABLE ... AS and INSERT ... SELECT copy whole columns
+
+| What changed | Measured (2M rows: ts, sym, px, qty; HTTP, best of 3, the builds before and after side by side; DuckDB 1.x into a file database) | Read more |
+|---|---|---|
+| A copy of stored columns as they are - `SELECT *` or columns of one table or of a held `read_csv` file, no `WHERE` or one of `column op constant` terms joined by `AND` - into a table without a key copies the column arrays on all threads, with no row made per row. Its log records go through the column codecs. `KARELADB_NO_COLUMN_COPY=1` goes back. | `CREATE TABLE ... AS SELECT *`: 0.89 -> 0.04 s (DuckDB 0.08 s); on 2 CPUs 1.10 -> 0.15 s (DuckDB `threads=2` 0.19 s). `INSERT ... SELECT`: 0.70 -> 0.04 s (DuckDB 0.08 s); 2 CPUs 0.85 -> 0.10 s (0.17 s). With `WHERE qty > 0`: 0.96 -> 0.06 s (0.34 s); 2 CPUs 1.18 -> 0.16 s (0.19 s). From `read_csv`: 1.00 -> 0.14 s (0.30 s); 2 CPUs 1.31 -> 0.28 s (0.61 s). `/imp`, `COPY FROM STDIN` and `INSERT ... VALUES`: unchanged | [INSERT ... SELECT](insert.md#insert-select) |
+| `CREATE TABLE ... AS` of a plain read answers once its rows are in the log and leaves the files to the next checkpoint, as `INSERT` does; `WITH NO DATA` of one reads no rows. | the same copy waited 0.14 s for its checkpoint; `WITH NO DATA` of 2M rows 0.5 s -> a few ms | [CREATE TABLE ... AS](create-table.md#create-table-as) |
+
 <a id="2026-10-24-charts"></a>
 
 ## 2026-10-24: a chart over a table sorted by (symbol, time) is as fast as over one sorted by time

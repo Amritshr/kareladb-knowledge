@@ -3,7 +3,7 @@
 > Find rows that contain words, rank the best matches first, and mark the found words in bold.
 
 - Category: Indexes & search
-- Keywords: full-text, fulltext, text search, search engine, find words, FULLTEXT, BM25, relevance, ranking, best matches, phrase, prefix, wildcard, exclude word, stemming, stem, stop words, language, case folding, Porter, Nepali search, Devanagari, bold, search result page, news search, forum search, how the index is used, count from the index, text match is checked on them, word positions
+- Keywords: full-text, fulltext, text search, search engine, find words, FULLTEXT, BM25, relevance, ranking, best matches, phrase, prefix, wildcard, exclude word, OR, either word, parentheses, brackets, websearch\_to\_tsquery, fuzzy, typo, misspelled, edit distance, synonyms, synonym, thesaurus, ALTER INDEX, stemming, stem, stop words, language, case folding, Porter, Nepali search, Devanagari, bold, search result page, news search, forum search, how the index is used, count from the index, text match is checked on them, word positions
 - See also: [Indexes](indexes.md), [Text functions](functions-text.md), [Regular expressions](functions-regex.md), [WHERE](where.md), [EXPLAIN](explain.md)
 
 **Full-text search** finds rows that contain some **words**, like a search box on a website. `LIKE '%bank%'` must read every row and check every letter; it also finds `bank` inside `embankment`. A **FULLTEXT index** keeps a list of words, and for each word the rows that have it. So a search in 200,000 news articles takes a few milliseconds.
@@ -51,7 +51,8 @@ Result:
 Syntax:
 
 ```sql
-CREATE FULLTEXT INDEX [IF NOT EXISTS] name ON table (column [, column ...]) [WITH (language = 'english')]
+CREATE FULLTEXT INDEX [IF NOT EXISTS] name ON table (column [, column ...])
+    [WITH (language = 'english', synonyms = 'car, auto; tv, television')]
 ```
 
 Makes a full-text index on one or more text columns. With several columns, they are searched together as one text.
@@ -62,6 +63,7 @@ Makes a full-text index on one or more text columns. With several columns, they 
 | `table` | name | the table |
 | `column` | names | 1 to 16 `STRING`, `SYMBOL` or `JSON` columns |
 | `language` | text | optional: `'english'` cuts words to their stem and leaves out stop words (see [Language](full-text-search.md#language)); `'simple'` is the default |
+| `synonyms` | text | optional: groups of words that a search treats as one (see [Synonyms](full-text-search.md#synonyms)) |
 
 - **Returns:** a message: `index 'name' created on table 'table' (N rows)`.
 - **NULL:** a `NULL` column counts as empty text.
@@ -326,6 +328,121 @@ Result:
 
 Error: `index 'news_fr' on table 'news' has language 'french'; expected 'english' or 'simple'`
 
+<a id="synonyms"></a>
+
+## Synonyms
+
+Syntax:
+
+```sql
+CREATE FULLTEXT INDEX name ON table (columns) WITH (synonyms = 'car, auto, automobile; tv, television')
+ALTER INDEX [IF EXISTS] name [ON table] SET (synonyms = '...')
+ALTER INDEX [IF EXISTS] name [ON table] RESET (synonyms)
+```
+
+A **synonym list** says which words mean the same. A search for one word of a group finds rows with any word of its group: with `'car, auto, automobile'`, `MATCH(body, 'car')` is `MATCH(body, 'car | auto | automobile')`.
+
+| Rule | Example |
+|---|---|
+| Groups are split by `;`, the words of a group by `,` | `'car, auto; tv, television'` is two groups |
+| A term of several words is a phrase | `'nyc, new york'`: `nyc` also finds `New York` |
+| A word with `-` leaves its whole group out | `bank -tv` leaves out rows with `tv` or `television` |
+| The terms go through the index's [language](full-text-search.md#language) | in an English index, `cars` finds what `car` finds |
+
+- **Notes:**
+  - Synonyms are used when a search is **read**, never when rows are indexed. So `ALTER INDEX ... SET (synonyms = ...)` works at once and builds nothing again, and `RESET (synonyms)` goes back to plain words.
+  - `match`, `search_rank` and `highlight` on the columns of the index use its synonyms, also when they read the rows instead of the index. `highlight` marks the synonym found (`car` marks `auto`).
+  - A prefix (`car*`) and a fuzzy word (`car~`) do not use synonyms. A phrase in quotes uses them when the whole phrase is a term (`"new york"`).
+  - Refused lists: a term in two groups, a group of one term, a term of only stop words or punctuation, two terms that the language makes one word (`run, running` in English), a group of more than 64 terms, a list over 1 MB.
+  - `ALTER INDEX` without `ON table` finds the table of the index; with it, the table must be the index's own. It needs the same rights as `CREATE INDEX` on that table. `SHOW CREATE TABLE` shows the list.
+  - Data with synonyms needs KarelaDB 2026-10-25 or newer (feature `search_synonyms`, see [versions](versions.md)).
+
+**Example: One word finds its synonyms** (sample data: content-news)
+
+Setup:
+
+```sql
+CREATE FULLTEXT INDEX news_syn ON news (title, body) WITH (synonyms = 'merger, takeover, acquisition; profit, earnings');
+```
+
+```sql
+SELECT id, highlight(title, body, 'earnings') AS text FROM news WHERE MATCH(title, body, 'earnings') ORDER BY id;
+SELECT id FROM news WHERE MATCH(title, body, 'takeover') ORDER BY id;
+```
+
+Result:
+
+`SELECT id, highlight(title, body, 'earnings') AS text FROM news WHERE match(title, body, 'earnings')`
+
+| id (LONG) | text (STRING) |
+|---|---|
+| 1 | City Bank <b>profit</b> rises 18% City Bank reported a net <b>profit</b> of $3.27 billion. The bank will pay a 12.5% dividend. |
+
+(1 row)
+
+`SELECT id FROM news WHERE match(title, body, 'takeover') ORDER BY id`
+
+| id (LONG) |
+|---|
+| 5 |
+
+(1 row)
+
+**Example: A new list at once, then none** (sample data: content-news)
+
+Setup:
+
+```sql
+CREATE FULLTEXT INDEX news_syn ON news (title, body) WITH (synonyms = 'merger, takeover');
+```
+
+```sql
+ALTER INDEX news_syn SET (synonyms = 'bank, lender');
+SELECT count(*) AS found FROM news WHERE MATCH(title, body, 'lender');
+ALTER INDEX news_syn RESET (synonyms);
+SELECT count(*) AS found FROM news WHERE MATCH(title, body, 'lender');
+```
+
+Result:
+
+`ALTER INDEX news_syn ON news SET (synonyms = 'bank, lender')`
+
+```text
+index 'news_syn' has new synonyms
+```
+
+`SELECT count(*) AS found FROM news WHERE match(title, body, 'lender')`
+
+| found (LONG) |
+|---|
+| 3 |
+
+(1 row)
+
+`ALTER INDEX news_syn ON news RESET (synonyms)`
+
+```text
+index 'news_syn' has no synonyms now
+```
+
+`SELECT count(*) AS found FROM news WHERE match(title, body, 'lender')`
+
+| found (LONG) |
+|---|
+| 0 |
+
+(1 row)
+
+**Example: A word may be in one group only** (sample data: content-news; shows an error)
+
+```sql
+CREATE FULLTEXT INDEX news_syn ON news (title, body) WITH (synonyms = 'bank, lender; lender, creditor');
+```
+
+Result:
+
+Error: `cannot create index news_syn: the synonym 'lender' is in two groups; a word may be in one group only`
+
 <a id="match"></a>
 
 ## match
@@ -349,7 +466,8 @@ MATCH(column [, column ...], 'words')
 - **Notes:**
   - English letters A-Z: case does not matter. Other letters must be the same.
   - Whole words only, no stemming: `bank` does not find `banks`. Use a prefix (`bank*`), or an index made [WITH (language = 'english')](full-text-search.md#language).
-  - Every word must be there. There is no `OR` inside the search text. For "one word or the other" write two calls: `MATCH(body, 'bonus') OR MATCH(body, 'dividend')` (this reads every row).
+  - Every word must be there, unless the search text says `OR`: `MATCH(body, 'bonus | dividend')` finds either word, from the index (see [Search text](full-text-search.md#search-syntax)). Two calls, `MATCH(body, 'bonus') OR MATCH(body, 'dividend')`, give the same rows but read every row.
+  - A word with `~` at the end also finds words with a typo (see [Fuzzy search](full-text-search.md#fuzzy)).
   - A search with no word to find (empty, only `-word`, only `*`) finds nothing.
   - At least 2 arguments (1 column and the words), at most 64.
 
@@ -460,7 +578,9 @@ With a FULLTEXT index on the same columns as `match`, KarelaDB **always** uses i
 | `ORDER BY search_rank(...) DESC LIMIT n` | takes the `n` best rows from the index (see [search_rank](full-text-search.md#search-rank)) |
 | `ORDER BY id LIMIT n`, or no `ORDER BY`, on a table with `id` as its `PRIMARY KEY` | reads only the first `n` matching rows |
 | `MATCH(...) AND symbol = 'COAST'`, with an index on `symbol` too | uses the index that finds fewer rows; the other condition is checked on those rows only |
-| `MATCH(...) OR MATCH(...)` | no index: every row is read |
+| `MATCH(..., 'bank \| merger')`, `OR`, `(...)` in the search text | one index search per word, then the rows are put together as the search text says |
+| `MATCH(..., 'bnak~')` | the words of the index within 1 edit are found first, then their rows |
+| `MATCH(...) OR MATCH(...)` | no index: every row is read; write one search text with `\|` instead |
 
 - **Notes:**
   - The `ORDER BY ... LIMIT` shortcut is for relational tables only, when `ORDER BY` is the first key columns, ascending, and those columns are numbers or times that cannot be `NULL`. On a time-series table the matching rows are sorted after they are found.
@@ -592,6 +712,7 @@ A number that says how well a row matches: higher is better, `0` when the row do
 - **Notes:**
   - The number depends on **all rows** of the table (how rare each word is). Compare ranks only inside one query. When rows change, the rank of the same row can change.
   - Words with `-` do not add to the rank.
+  - With `OR` (`'bank | merger'`), synonyms or a group, a row's rank adds up the words it **has**; a word of another alternative adds nothing. Such a top-n search ranks every match (no blocks are skipped), still from the index.
   - **The fastest form:** `WHERE MATCH(cols, 'words') ORDER BY search_rank(cols, 'words') DESC LIMIT n`, with the same columns and the same words, and a FULLTEXT index on those columns. KarelaDB takes the `n` best rows straight from the index. [EXPLAIN](explain.md) then says `best n row(s) by search_rank, top-k by rank (WAND)`.
   - **Only the best rows are ranked:** in that form KarelaDB keeps the `n` best rows found so far. A row, or a whole block of 128 rows of a word, that cannot rank above the `n`-th best even with the most mentions of each word is skipped without working out its rank. The answer is the same as ranking every match. Conditions on other columns (`AND category = 3`) are fine: when they turn rows down, KarelaDB looks for more. `search` in [`GET /api/stats`](http-server-info.md#api-stats) counts the ranks worked out (`bm25_evaluations`), the top-n searches (`top_k_searches`) and what they skipped (`skipped_blocks`, `skipped_docs`).
   - Without a FULLTEXT index on the same columns, `search_rank` reads the whole table once per query.
@@ -715,7 +836,7 @@ Returns the text with every found word inside `<b>` and `</b>`, for a search res
 - **NULL:** `NULL` search text gives `NULL`. A `NULL` column is left out; when every column is `NULL` the result is `NULL`.
 - **Notes:**
   - `highlight` does not check that the row matches. A row may match because of its `body`, while you highlight only its `title` (the title then has no `<b>`).
-  - Each word of a phrase is marked alone, wherever it is. A prefix (`bank*`) marks the whole word (`<b>Banks</b>`). Words with `-` are not marked.
+  - Each word of a phrase is marked alone, wherever it is. A prefix (`bank*`) marks the whole word (`<b>Banks</b>`), a fuzzy word (`bnak~`) every close word. Words with `-`, and words inside `-( ... )`, are not marked.
   - **Web pages:** `highlight` changes no other character. When users can type `<` or `&` (in a forum they can), escape the text first. See the last example.
 
 **Example: Mark the search word in the titles** (sample data: content-news)
@@ -800,7 +921,21 @@ word word       every word must be there, anywhere, in any order
 word*           a word that starts with these letters
 -word           this word must not be there
 -"word word"    this phrase must not be there
+word | word     either word (also: word OR word, with OR in capitals)
+(a | b) c       parentheses group: c, and a or b
+-(a | b)        rows with a or b are left out
+word~  word~2   the word, or a word 1 (or 2) typing mistakes away (see Fuzzy search)
 ```
+
+How the parts combine, as PostgreSQL's `websearch_to_tsquery` reads them:
+
+| Search text | Finds rows with |
+|---|---|
+| `bank merger` | `bank` and `merger` |
+| `bank \| merger`, `bank OR merger` | `bank`, or `merger`, or both |
+| `city bank \| hydro` | (`city` and `bank`) or `hydro`: without parentheses, AND goes first |
+| `(city \| coastal) bank` | `bank`, and `city` or `coastal` |
+| `bank -(merger \| loss)` | `bank`, but neither `merger` nor `loss` |
 
 How KarelaDB cuts text (and the search text) into **words**:
 
@@ -815,7 +950,11 @@ How KarelaDB cuts text (and the search text) into **words**:
 | No stemming | `bank` does not find `banks`; `बैंक` does not find `बैंकले` (use `बैंक*`); an English index stems, see [Language](full-text-search.md#language) |
 
 - **Notes:**
-  - There is no `OR`, no `AND` word, no brackets, no fuzzy search, no synonyms, and no stop words unless the index is [English](full-text-search.md#language). `bank OR merger` looks for three words, and one of them is `or`.
+  - `OR` is an operator only in capitals, as a word of its own: `black or white` still looks for three words (`or` is one of them). `|` always means OR. There is no `AND` word: words next to each other must all be there.
+  - A dangling `OR` (`bank |`) or a missing `)` is ignored, as `websearch_to_tsquery` does. Parentheses go 32 deep at most, and a search text holds at most 1,024 words, phrases and synonyms; more gives an error.
+  - A part that must not be there cannot be the whole answer: `-merger`, `-(a | b)` and `bank | -merger` ("every row but ...") find nothing. Put a word without `-` next to it: `bank -merger`.
+  - Since 2026-10-25. Before, `|` and `(` separated words and `OR` was the word `or`: a search text with them may find other rows now.
+  - Synonyms only if the index has them ([Synonyms](full-text-search.md#synonyms)); no stop words unless the index is [English](full-text-search.md#language).
   - A phrase does not cross from one column to the next: the end of `title` and the start of `body` are not "next to each other".
   - Words joined by punctuation in the search text work like a phrase: `city-bank` is the same as `"city bank"`.
   - A prefix works on one word only: `net-prof*` and `"net prof*"` do not find `net profit`.
@@ -906,22 +1045,88 @@ Result:
 
 (1 row)
 
-**Example: OR is not an operator, and a search needs a word to find** (sample data: content-news)
+**Example: Either word: | or OR, in one search text** (sample data: content-news)
+
+Setup:
 
 ```sql
-SELECT id FROM news WHERE MATCH(title, body, 'bank OR merger') ORDER BY id;
-SELECT id FROM news WHERE MATCH(title, body, '-merger') ORDER BY id;
-SELECT id FROM news WHERE MATCH(title, body, 'bank') OR MATCH(title, body, 'hydropower') ORDER BY id;
+CREATE FULLTEXT INDEX news_text ON news (title, body);
+```
+
+```sql
+SELECT id FROM news WHERE MATCH(title, body, 'merger | hydropower') ORDER BY id;
+SELECT id FROM news WHERE MATCH(title, body, 'merger OR hydropower') ORDER BY id;
+EXPLAIN SELECT id FROM news WHERE MATCH(title, body, 'merger | hydropower');
 ```
 
 Result:
 
-`SELECT id FROM news WHERE match(title, body, 'bank OR merger') ORDER BY id`
+`SELECT id FROM news WHERE match(title, body, 'merger | hydropower') ORDER BY id`
 
 | id (LONG) |
 |---|
+| 3 |
+| 4 |
+| 5 |
 
-(0 rows)
+(3 rows)
+
+`SELECT id FROM news WHERE match(title, body, 'merger OR hydropower') ORDER BY id`
+
+| id (LONG) |
+|---|
+| 3 |
+| 4 |
+| 5 |
+
+(3 rows)
+
+`EXPLAIN SELECT id FROM news WHERE match(title, body, 'merger | hydropower')`
+
+| plan (STRING) |
+|---|
+| scan table news (1 of 1 partitions, about 5 rows) |
+| use index news_text (full-text search) |
+| build 1 of 5 stored column(s) per row: id |
+| engine: column |
+
+(4 rows)
+
+**Example: Parentheses, and a group left out** (sample data: content-news)
+
+```sql
+SELECT id FROM news WHERE MATCH(title, body, '(city | coastal) bank') ORDER BY id;
+SELECT id FROM news WHERE MATCH(title, body, 'bank -(merger | dividend)') ORDER BY id;
+```
+
+Result:
+
+`SELECT id FROM news WHERE match(title, body, '(city | coastal) bank') ORDER BY id`
+
+| id (LONG) |
+|---|
+| 1 |
+| 4 |
+| 5 |
+
+(3 rows)
+
+`SELECT id FROM news WHERE match(title, body, 'bank -(merger | dividend)') ORDER BY id`
+
+| id (LONG) |
+|---|
+| 4 |
+
+(1 row)
+
+**Example: A search needs a word to find; 'or' in small letters is a word** (sample data: content-news)
+
+```sql
+SELECT id FROM news WHERE MATCH(title, body, '-merger') ORDER BY id;
+SELECT count(*) AS found FROM news WHERE MATCH(title, body, 'bank or merger');
+```
+
+Result:
 
 `SELECT id FROM news WHERE match(title, body, '-merger') ORDER BY id`
 
@@ -930,13 +1135,86 @@ Result:
 
 (0 rows)
 
-`SELECT id FROM news WHERE match(title, body, 'bank') OR match(title, body, 'hydropower') ORDER BY id`
+`SELECT count(*) AS found FROM news WHERE match(title, body, 'bank or merger')`
+
+| found (LONG) |
+|---|
+| 0 |
+
+(1 row)
+
+<a id="fuzzy"></a>
+
+## Fuzzy search: typing mistakes
+
+Syntax:
+
+```sql
+word~       the word, or any word 1 edit away
+word~2      the word, or any word up to 2 edits away
+```
+
+A word with `~` at the end also finds words with a **typing mistake**. One edit is one letter added, dropped or changed, or two letters next to each other swapped: `bnak~` finds `bank`, `banks~` finds `bank`, `teh~` finds `the`.
+
+- **Notes:**
+  - Letters are counted, not bytes: `kathmandu~` finds `kāthmandu`, and Nepali words work the same way.
+  - With an index, KarelaDB first looks through the **words** of the index (not the rows) for the close ones, then reads their rows: one pass over the distinct words, most of them ruled out by their length alone.
+  - Short words find many: `ab~2` finds every word of two letters (two changes) and more. Keep `~2` for long words.
+  - In an [English](full-text-search.md#language) index the word is stemmed first, like a prefix, and is never a stop word.
+  - All the close words count as **one** word for [search_rank](full-text-search.md#search-rank), as a prefix does. [highlight](full-text-search.md#highlight) marks each of them.
+  - Only `~`, `~1` and `~2`; `~3` and a word that is both a prefix and fuzzy (`bank*~`) give an error. A phrase cannot be fuzzy: `"city bnak"~` is not a fuzzy phrase.
+  - To compare two values instead of searching, use the [fuzzy text functions](functions-text.md#fuzzy-text) (`levenshtein`, `similarity`, ...).
+
+**Example: A typing mistake still finds the word** (sample data: content-news)
+
+Setup:
+
+```sql
+CREATE FULLTEXT INDEX news_text ON news (title, body);
+```
+
+```sql
+SELECT id, highlight(title, 'bnak~') AS title FROM news WHERE MATCH(title, body, 'bnak~') ORDER BY id;
+SELECT id FROM news WHERE MATCH(title, body, 'mreger~ | hydropowr~') ORDER BY id;
+SELECT match('Coastal Bank plans', 'bnk~') AS one_edit, match('Coastal Bank plans', 'bnk~2') AS up_to_two;
+```
+
+Result:
+
+`SELECT id, highlight(title, 'bnak~') AS title FROM news WHERE match(title, body, 'bnak~') ORDER BY i`
+
+| id (LONG) | title (STRING) |
+|---|---|
+| 1 | City <b>Bank</b> profit rises 18% |
+| 4 | Market index closes at 2,840 |
+| 5 | Coastal <b>Bank</b> merger talks |
+
+(3 rows)
+
+`SELECT id FROM news WHERE match(title, body, 'mreger~ | hydropowr~') ORDER BY id`
 
 | id (LONG) |
 |---|
-| 1 |
 | 3 |
 | 4 |
 | 5 |
 
-(4 rows)
+(3 rows)
+
+`SELECT match('Coastal Bank plans', 'bnk~') AS one_edit, match('Coastal Bank plans', 'bnk~2') AS up_t`
+
+| one_edit (BOOL) | up_to_two (BOOL) |
+|---|---|
+| true | true |
+
+(1 row)
+
+**Example: At most 2 edits** (sample data: content-news; shows an error)
+
+```sql
+SELECT id FROM news WHERE MATCH(title, body, 'bank~3');
+```
+
+Result:
+
+Error: `match: a fuzzy word takes ~1 or ~2 edits at most, not ~3`

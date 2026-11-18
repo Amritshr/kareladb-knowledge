@@ -38,6 +38,7 @@ Tutorial: [chapter 8, HTTP API](../tutorial/08-http-api.md).
 | `GET /api/trigger-queue` | Queues of deferred triggers, and a wait for their jobs | [GET /api/trigger-queue](http-server-info.md#api-trigger-queue) |
 | `GET /api/stats` | Memory, processor, running statements, open databases | [GET /api/stats](http-server-info.md#api-stats) |
 | `GET /api/settings`, `POST /api/settings`, `POST /api/restart` | The data folder and other saved settings; restart in place | [GET /api/settings](http-server-info.md#api-settings) |
+| `POST /api/reload-tls` | Read a renewed TLS certificate now (admin), without a restart | [renew a certificate](tls.md#reload) |
 | `GET /api/activity` | Recent server events for the console's activity panel | [activity](console-monitor.md#activity) |
 | `GET /api/audit` | The audit log | [GET /api/audit](audit-log.md#api-audit) |
 | `GET /api/timers`, `POST /api/timers`, `POST /api/timers/<name>/...` | SQL that runs on a schedule (admins) | [timers](timers.md) |
@@ -111,10 +112,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 25, "execute_us": 66}
+      "timings": {"parse_us": 27, "execute_us": 71}
     }
   ],
-  "timings": {"parse_us": 25, "execute_us": 66}
+  "timings": {"parse_us": 27, "execute_us": 71}
 }
 ```
 
@@ -140,10 +141,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 40, "execute_us": 183}
+      "timings": {"parse_us": 36, "execute_us": 194}
     }
   ],
-  "timings": {"parse_us": 40, "execute_us": 183}
+  "timings": {"parse_us": 36, "execute_us": 194}
 }
 ```
 
@@ -317,10 +318,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "table 'idem_orders' created",
-      "timings": {"parse_us": 23, "execute_us": 1847}
+      "timings": {"parse_us": 43, "execute_us": 7332}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 1847}
+  "timings": {"parse_us": 43, "execute_us": 7332}
 }
 ```
 
@@ -340,10 +341,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 23, "execute_us": 36}
+      "timings": {"parse_us": 21, "execute_us": 31}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 36}
+  "timings": {"parse_us": 21, "execute_us": 31}
 }
 ```
 
@@ -363,10 +364,10 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 1,
       "message": "1 row(s) inserted",
-      "timings": {"parse_us": 23, "execute_us": 36}
+      "timings": {"parse_us": 21, "execute_us": 31}
     }
   ],
-  "timings": {"parse_us": 23, "execute_us": 36}
+  "timings": {"parse_us": 21, "execute_us": 31}
 }
 ```
 
@@ -390,7 +391,7 @@ HTTP 200 (application/json)
       "truncated": false,
       "rows_affected": 0,
       "message": "",
-      "timings": {"parse_us": 38, "execute_us": 141}
+      "timings": {"parse_us": 28, "execute_us": 100}
     }
   ],
   "columns": [
@@ -400,7 +401,7 @@ HTTP 200 (application/json)
     [1]
   ],
   "count": 1,
-  "timings": {"parse_us": 38, "execute_us": 141}
+  "timings": {"parse_us": 28, "execute_us": 100}
 }
 ```
 

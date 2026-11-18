@@ -14,12 +14,12 @@
 <main>
 <h1 id="window-and-series-functions">Window and series functions</h1>
 <blockquote><p>Look at a series of rows: previous and next values, running totals, moving windows, time windows and ranks, with OVER (...).</p></blockquote>
-<ul><li>Category: Functions — window and series</li><li>Keywords: window function, series function, analytic function, OVER, PARTITION BY, ROWS, PRECEDING, FOLLOWING, UNBOUNDED, UNBOUNDED FOLLOWING, CURRENT ROW, RANGE, RANGE BETWEEN, INTERVAL, frame, centered moving average, future rows, time window, last 7 days, running total, running product, cumulative product, running max, high so far, running min, percentile rank, cumulative distribution, quartile, decile, bucket, first value, last value, cumulative sum, moving sum, moving max, rolling, previous row, next row, previous close, change from yesterday, top N per group, ranking, running sum, cumulative, prev, shift, diff, next, percent change, rownum, row number, QUALIFY, window with GROUP BY</li><li>See also: <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-aggregate.html">Aggregate functions</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="where.html">WHERE</a></li></ul>
+<ul><li>Category: Functions — window and series</li><li>Keywords: EXCLUDE, EXCLUDE CURRENT ROW, EXCLUDE GROUP, EXCLUDE TIES, EXCLUDE NO OTHERS, GROUPS, GROUPS BETWEEN, peer groups, RANGE month, 1 month PRECEDING, window function, series function, analytic function, OVER, PARTITION BY, ROWS, PRECEDING, FOLLOWING, UNBOUNDED, UNBOUNDED FOLLOWING, CURRENT ROW, RANGE, RANGE BETWEEN, INTERVAL, frame, centered moving average, future rows, time window, last 7 days, running total, running product, cumulative product, running max, high so far, running min, percentile rank, cumulative distribution, quartile, decile, bucket, first value, last value, cumulative sum, moving sum, moving max, rolling, previous row, next row, previous close, change from yesterday, top N per group, ranking, running sum, cumulative, prev, shift, diff, next, percent change, rownum, row number, QUALIFY, window with GROUP BY, WINDOW, named window, WINDOW w AS, IGNORE NULLS, RESPECT NULLS, ignore nulls, carry forward, fill forward, QUALIFY, qualify, filter on a window, top 1 per group</li><li>See also: <a href="functions-indicators.html">Technical indicators</a>, <a href="functions-aggregate.html">Aggregate functions</a>, <a href="functions-statistics.html">Statistics functions</a>, <a href="sample-by.html">SAMPLE BY</a>, <a href="union-subqueries.html">UNION and subqueries</a>, <a href="where.html">WHERE</a></li></ul>
 <p>A <strong>window function</strong> (or series function) gives a value for <strong>every row</strong>, and it may look at other rows to make it: the row before, the rows of the same symbol, the last 5 rows. Unlike <code>GROUP BY</code>, the rows stay; nothing is merged.</p>
 <ul><li><strong>Series functions</strong> always work on a series: <code>lag</code>, <code>lead</code>, <code>cumsum</code>, <code>cumprod</code>, <code>cummax</code>, <code>cummin</code>, <code>pct_change</code>, <code>row_number</code>, <code>rank</code>, <code>dense_rank</code>, <code>percent_rank</code>, <code>cume_dist</code>, <code>ntile</code>, <code>first_value</code>, <code>last_value</code>, <code>nth_value</code>, and the indicators <code>sma</code>, <code>ema</code>, <code>rsi</code>, <code>atr</code> (<a href="functions-indicators.html">technical indicators</a>).</li><li>More series functions have their own pages: returns, drawdown and z-score (<a href="functions-returns-risk.html">returns and risk</a>), and the indicator families <a href="functions-indicators-momentum.html">momentum</a> (MACD, stochastic), <a href="functions-indicators-volatility.html">volatility</a> (Bollinger bands), <a href="functions-indicators-trend.html">trend</a> (ADX, supertrend) and <a href="functions-indicators-volume.html">volume</a> (OBV, MFI).</li><li><strong>Aggregates</strong> (<code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>count</code>, ...) become window functions when you write <code>OVER (...)</code> after them.</li></ul>
 <p><strong>The order of the series.</strong> Without <code>OVER</code>, or with <code>OVER</code> but without <code>ORDER BY</code>, the series is <strong>all result rows in time order</strong> (the time column of the table). A table or subquery without a time column keeps the order the rows come in. Rows with the same time keep their storage order.</p>
 <p><strong>Rules</strong></p>
-<ol><li><code>WHERE</code> runs first: the series only has the rows that <code>WHERE</code> keeps. <code>LIMIT</code> and <code>ORDER BY</code> run after: they do not change the values.</li><li>The rows of the result are <strong>not</strong> sorted in series order by themselves. Add <code>ORDER BY time</code> (or <code>ORDER BY symbol, time</code>) to read them.</li><li>Window functions can only be in the <strong>select list</strong>. To filter on one (<code>WHERE rn = 1</code>), put the query in a subquery.</li><li>With <code>GROUP BY</code> or <code>SAMPLE BY</code> in the same <code>SELECT</code>, the window runs over the <strong>groups</strong>, after they are made: <code>sum(sum(qty)) OVER (ORDER BY time)</code> is a running total of the grouped sums. Inside <code>OVER</code>, use the group keys or aggregates, not the raw columns.</li><li>One window function cannot be inside another (<code>lag(sma(close, 3))</code>), and an aggregate cannot take a window function (<code>sum(lag(close) OVER (...))</code>). The error says so (PostgreSQL <code>42803</code>). Use one subquery level per step: <code>SELECT sum(x) FROM (SELECT lag(close) OVER (...) AS x FROM t) s</code>.</li></ol>
+<ol><li><code>WHERE</code> runs first: the series only has the rows that <code>WHERE</code> keeps. <code>LIMIT</code> and <code>ORDER BY</code> run after: they do not change the values.</li><li>The rows of the result are <strong>not</strong> sorted in series order by themselves. Add <code>ORDER BY time</code> (or <code>ORDER BY symbol, time</code>) to read them.</li><li>Window functions can only be in the <strong>select list</strong>. To filter on one (<code>WHERE rn = 1</code>), put the query in a subquery.</li><li>With <code>GROUP BY</code> or <code>SAMPLE BY</code> in the same <code>SELECT</code>, the window runs over the <strong>groups</strong>, after they are made: <code>sum(sum(qty)) OVER (ORDER BY time)</code> is a running total of the grouped sums. Inside <code>OVER</code>, use the group keys or aggregates, not the raw columns.</li><li>A series function can be inside another one when the inner one is written without <code>OVER</code> (<code>lag(sma(close, 3)) OVER (...)</code>; see the <a href="candles-cookbook.html">cookbook</a>). An aggregate cannot take a window function (<code>sum(lag(close) OVER (...))</code>). The error says so (PostgreSQL <code>42803</code>). Use one subquery level per step: <code>SELECT sum(x) FROM (SELECT lag(close) OVER (...) AS x FROM t) s</code>.</li></ol>
 <p><strong>Example: Yesterday&#39;s close, change and running volume of VOLT</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT time, close,
        lag(close) AS prev_close,
@@ -80,6 +80,18 @@ ORDER BY time;</code></pre>
 <pre><code class="language-sql">SELECT upper(symbol) OVER () FROM ochl_day;</code></pre>
 <p>Result:</p>
 <p>Error: <code>line 1, column 8: &#39;upper&#39; cannot be used with OVER</code></p>
+<h3 id="fast-windows">Fast windows over number columns</h3>
+<p>A window query of one table runs on plain arrays of numbers, on all threads, when:</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Allowed</th></tr></thead><tbody><tr><td>Functions</td><td><code>row_number</code>, <code>rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code> (offset a number), and <code>count</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code></td></tr><tr><td>Frames</td><td>the whole partition, the running frame (<code>ORDER BY</code> without <code>ROWS</code>), <code>ROWS n PRECEDING</code>, <code>ROWS BETWEEN n PRECEDING AND CURRENT ROW</code>, <code>... UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code></td></tr><tr><td>Columns</td><td>whole numbers, <code>FLOAT</code>, <code>DOUBLE</code>, <code>TIMESTAMP</code>, <code>DATE</code>, <code>SYMBOL</code>; <code>PARTITION BY</code> any of those but <code>FLOAT</code> / <code>DOUBLE</code>; one <code>ORDER BY</code> column that is not a <code>SYMBOL</code></td></tr><tr><td>SELECT list</td><td>those columns and the window calls themselves</td></tr></tbody></table></div>
+<p>The answers are the same as the general way, bit for bit. One million rows on 2 CPUs: <code>row_number() OVER (ORDER BY v)</code> 45 ms (was 210, DuckDB 82), <code>sum(v) OVER (PARTITION BY g ORDER BY t)</code> 32 ms (was 297, DuckDB 252), <code>lag(v) OVER (PARTITION BY symbol ORDER BY t)</code> 41 ms (was 439). An aggregate over such a subquery, <code>SELECT max(rn) FROM (SELECT row_number() OVER (...) AS rn FROM t) s</code>, reads the results without making a row. <code>STRING</code> columns, expressions, an <code>ORDER BY</code> of the query, a <code>NaN</code> in an <code>ORDER BY</code> or <code>min</code> / <code>max</code> column, and other functions or frames run the general way.</p>
+<p><strong>Example: A running sum and a rank, on arrays</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT max(running), max(r)
+FROM (SELECT sum(volume) OVER (ORDER BY time) AS running,
+             rank() OVER (ORDER BY volume DESC) AS r
+      FROM ochl_day) s;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>max(running) (DOUBLE)</th><th>max(r) (LONG)</th></tr></thead><tbody><tr><td>5461390</td><td>57</td></tr></tbody></table></div>
+<p>(1 row)</p>
 <h2 id="partition-by">PARTITION BY (window)</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">function(arguments) OVER (PARTITION BY expr [, expr ...] ...)</code></pre>
@@ -228,9 +240,9 @@ aggregate(x) OVER ([PARTITION BY ...] ORDER BY value RANGE distance PRECEDING)
 
 distance:  number | &#39;interval text&#39; | INTERVAL &#39;interval text&#39;</code></pre>
 <p>A frame by <strong>value</strong>, not by row count. <code>RANGE BETWEEN &#39;7 days&#39; PRECEDING AND CURRENT ROW</code> reads every row whose time is at most 7 days before this row&#39;s time. This is what you want when rows are missing: a week has 5 trading days, and holidays make it fewer, so <code>ROWS 6 PRECEDING</code> is not always &quot;one week&quot;.</p>
-<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n PRECEDING</code>, <code>n FOLLOWING</code></td><td>rows whose <code>ORDER BY</code> value is at most <code>n</code> before or after this row&#39;s value</td></tr><tr><td><code>&#39;7 days&#39;</code>, <code>INTERVAL &#39;1 hour&#39;</code></td><td>a distance of time, for a <code>TIMESTAMP</code> or <code>DATE</code> <code>ORDER BY</code> value. Units: <code>ms</code>, <code>s</code>/<code>seconds</code>, <code>m</code>/<code>minutes</code>, <code>h</code>/<code>hours</code>, <code>d</code>/<code>days</code>, <code>w</code>/<code>weeks</code></td></tr><tr><td>a plain number</td><td>milliseconds for a <code>TIMESTAMP</code>, days for a <code>DATE</code>, the value itself for a number</td></tr><tr><td><code>CURRENT ROW</code></td><td>this row <strong>and its peers</strong>: the rows with the same <code>ORDER BY</code> value</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n PRECEDING</code>, <code>n FOLLOWING</code></td><td>rows whose <code>ORDER BY</code> value is at most <code>n</code> before or after this row&#39;s value</td></tr><tr><td><code>&#39;7 days&#39;</code>, <code>INTERVAL &#39;1 hour&#39;</code></td><td>a distance of time, for a <code>TIMESTAMP</code> or <code>DATE</code> <code>ORDER BY</code> value. Units: <code>ms</code>, <code>s</code>/<code>seconds</code>, <code>m</code>/<code>minutes</code>, <code>h</code>/<code>hours</code>, <code>d</code>/<code>days</code>, <code>w</code>/<code>weeks</code></td></tr><tr><td><code>&#39;1 month&#39;</code>, <code>&#39;3 mons&#39;</code>, <code>&#39;1 year&#39;</code></td><td>calendar months and years from this row&#39;s time, as PostgreSQL adds an interval: Jan 31 plus a month is Feb 28</td></tr><tr><td>a plain number</td><td>milliseconds for a <code>TIMESTAMP</code>, days for a <code>DATE</code>, the value itself for a number</td></tr><tr><td><code>CURRENT ROW</code></td><td>this row <strong>and its peers</strong>: the rows with the same <code>ORDER BY</code> value</td></tr></tbody></table></div>
 <ul><li><strong>NULL:</strong> NULL values of <code>x</code> are skipped. Rows whose <code>ORDER BY</code> value is NULL are only peers of each other.</li><li><strong>Notes:</strong>
-<ul><li>A distance needs exactly <strong>one</strong> <code>ORDER BY</code> value, and it must be a number or a time.</li><li><code>&#39;1 month&#39;</code> and <code>&#39;1 year&#39;</code> are refused: they have no fixed length.</li><li>The distance must be 0 or more. With <code>ORDER BY ... DESC</code>, <code>PRECEDING</code> means the later times.</li><li><code>RANGE &#39;2 days&#39; PRECEDING</code> (without BETWEEN) is short for <code>RANGE BETWEEN &#39;2 days&#39; PRECEDING AND CURRENT ROW</code>.</li></ul></li></ul>
+<ul><li>A distance needs exactly <strong>one</strong> <code>ORDER BY</code> value, and it must be a number or a time.</li><li>The distance must be 0 or more. With <code>ORDER BY ... DESC</code>, <code>PRECEDING</code> means the later times.</li><li><code>RANGE &#39;2 days&#39; PRECEDING</code> (without BETWEEN) is short for <code>RANGE BETWEEN &#39;2 days&#39; PRECEDING AND CURRENT ROW</code>.</li></ul></li></ul>
 <p><strong>Example: 7-day window by time against 7 rows: holidays make the difference</strong> (sample data: sample)</p>
 <pre><code class="language-sql">SELECT time, close,
        count(*) OVER (ORDER BY time RANGE BETWEEN &#39;7 days&#39; PRECEDING AND CURRENT ROW) AS rows_in_7_days,
@@ -263,10 +275,117 @@ ORDER BY quantity, transaction_id;</code></pre>
 <p>Result:</p>
 <div class="table-wrap"><table><thead><tr><th>transaction_id (LONG)</th><th>quantity (LONG)</th><th>similar_trades (LONG)</th><th>running_with_peers (LONG)</th><th>running_row_by_row (LONG)</th></tr></thead><tbody><tr><td>100019</td><td>10</td><td>4</td><td>10</td><td>10</td></tr><tr><td>100008</td><td>20</td><td>4</td><td>70</td><td>30</td></tr><tr><td>100014</td><td>20</td><td>4</td><td>70</td><td>50</td></tr><tr><td>100028</td><td>20</td><td>4</td><td>70</td><td>70</td></tr><tr><td>100009</td><td>50</td><td>2</td><td>170</td><td>120</td></tr><tr><td>100013</td><td>50</td><td>2</td><td>170</td><td>170</td></tr><tr><td>100006</td><td>200</td><td>2</td><td>570</td><td>370</td></tr><tr><td>100026</td><td>200</td><td>2</td><td>570</td><td>570</td></tr><tr><td>100023</td><td>500</td><td>1</td><td>1070</td><td>1070</td></tr><tr><td>100015</td><td>1000</td><td>2</td><td>3070</td><td>2070</td></tr><tr><td>100031</td><td>1000</td><td>2</td><td>3070</td><td>3070</td></tr></tbody></table></div>
 <p>(11 rows)</p>
-<p><strong>Example: Months have no fixed length</strong> (sample data: sample; shows an error)</p>
-<pre><code class="language-sql">SELECT sum(volume) OVER (ORDER BY time RANGE BETWEEN &#39;1 month&#39; PRECEDING AND CURRENT ROW) FROM ochl_day;</code></pre>
+<p><strong>Example: Volume of the last calendar month, for each day</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time, volume,
+       sum(volume) OVER (ORDER BY time RANGE BETWEEN &#39;1 month&#39; PRECEDING AND CURRENT ROW) AS volume_last_month
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+ORDER BY time DESC
+LIMIT 3;</code></pre>
 <p>Result:</p>
-<p>Error: <code>line 1, column 8: sum: &#39;1 month&#39; is not a distance like &#39;5 days&#39;, &#39;2 hours&#39; or &#39;30 minutes&#39; (months and years are not supported)</code></p>
+<div class="table-wrap"><table><thead><tr><th>time (TIMESTAMP)</th><th>volume (DOUBLE)</th><th>volume_last_month (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-10T00:00:00.000Z</td><td>183040</td><td>1731760</td></tr><tr><td>2026-09-09T00:00:00.000Z</td><td>182390</td><td>1548720</td></tr><tr><td>2026-09-08T00:00:00.000Z</td><td>34400</td><td>1366330</td></tr></tbody></table></div>
+<p>(3 rows)</p>
+<h2 id="groups">GROUPS BETWEEN</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregate(x) OVER ([PARTITION BY ...] ORDER BY value GROUPS BETWEEN start AND end)
+aggregate(x) OVER ([PARTITION BY ...] ORDER BY value GROUPS n PRECEDING)</code></pre>
+<p>A frame by <strong>peer groups</strong>: the rows with the same <code>ORDER BY</code> value are one group, and <code>n PRECEDING</code> / <code>n FOLLOWING</code> count groups, not rows (PostgreSQL 11 and later).</p>
+<div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>n PRECEDING</code>, <code>n FOLLOWING</code></td><td>the groups up to <code>n</code> before or after this row&#39;s group</td></tr><tr><td><code>CURRENT ROW</code></td><td>this row&#39;s group</td></tr><tr><td><code>UNBOUNDED PRECEDING</code> / <code>FOLLOWING</code></td><td>from the first row, or to the last</td></tr></tbody></table></div>
+<ul><li><strong>Notes:</strong> <code>GROUPS</code> needs an <code>ORDER BY</code> in the window (<code>GROUPS mode requires an ORDER BY clause</code>). <code>GROUPS 1 PRECEDING</code> without BETWEEN ends at the current row&#39;s group.</li></ul>
+<p><strong>Example: This trading day and the one before it, whatever the gaps</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time::date AS day, symbol, close,
+       round(avg(close) OVER (PARTITION BY symbol ORDER BY time::date GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW), 2) AS avg_2_days
+FROM ochl_day
+WHERE symbol IN (&#39;CITY&#39;, &#39;COAST&#39;) AND time &gt;= &#39;2026-09-07&#39;
+ORDER BY symbol, day
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th><th>symbol (SYMBOL)</th><th>close (DOUBLE)</th><th>avg_2_days (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-07</td><td>CITY</td><td>498.7</td><td>498.7</td></tr><tr><td>2026-09-08</td><td>CITY</td><td>497.5</td><td>498.1</td></tr><tr><td>2026-09-09</td><td>CITY</td><td>504.6</td><td>501.05</td></tr><tr><td>2026-09-10</td><td>CITY</td><td>504.9</td><td>504.75</td></tr><tr><td>2026-09-07</td><td>COAST</td><td>379.2</td><td>379.2</td></tr><tr><td>2026-09-08</td><td>COAST</td><td>377.2</td><td>378.2</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<p><strong>Example: Ties are one group</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE scores (who STRING, points INT);
+INSERT INTO scores VALUES (&#39;a&#39;, 10), (&#39;b&#39;, 10), (&#39;c&#39;, 20), (&#39;d&#39;, 30), (&#39;e&#39;, 30);</code></pre>
+<pre><code class="language-sql">SELECT who, points, sum(points) OVER (ORDER BY points GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS with_group_before
+FROM scores ORDER BY points, who;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>who (STRING)</th><th>points (INT)</th><th>with_group_before (LONG)</th></tr></thead><tbody><tr><td>a</td><td>10</td><td>20</td></tr><tr><td>b</td><td>10</td><td>20</td></tr><tr><td>c</td><td>20</td><td>40</td></tr><tr><td>d</td><td>30</td><td>80</td></tr><tr><td>e</td><td>30</td><td>80</td></tr></tbody></table></div>
+<p>(5 rows)</p>
+<h2 id="exclude">EXCLUDE CURRENT ROW | GROUP | TIES</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">aggregate(x) OVER (... ROWS | RANGE | GROUPS BETWEEN start AND end EXCLUDE CURRENT ROW)
+aggregate(x) OVER (... ROWS | RANGE | GROUPS BETWEEN start AND end EXCLUDE GROUP)
+aggregate(x) OVER (... ROWS | RANGE | GROUPS BETWEEN start AND end EXCLUDE TIES)</code></pre>
+<p>Takes rows out of every frame, after the frame is found (PostgreSQL 11 and later). <strong>Peers</strong> are the rows with the same <code>ORDER BY</code> value; without <code>ORDER BY</code> every row is a peer.</p>
+<div class="table-wrap"><table><thead><tr><th>Clause</th><th>Taken out of the frame</th></tr></thead><tbody><tr><td><code>EXCLUDE CURRENT ROW</code></td><td>this row</td></tr><tr><td><code>EXCLUDE GROUP</code></td><td>this row and its peers</td></tr><tr><td><code>EXCLUDE TIES</code></td><td>the peers, but not this row</td></tr><tr><td><code>EXCLUDE NO OTHERS</code></td><td>nothing (the default)</td></tr></tbody></table></div>
+<ul><li><p><strong>Notes:</strong> works with every aggregate (<code>sum</code>, <code>count</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>string_agg</code>, <code>median</code>, ...), with <code>first_value</code>, <code>last_value</code> and <code>nth_value</code>, and with <code>zscore(x)</code> and <code>minmax_scale(x)</code> (this row against the other rows of its frame). It needs a frame clause (<code>ROWS</code>, <code>RANGE</code> or <code>GROUPS</code>), as in PostgreSQL. <code>TIES</code> puts this row back only when it was in the frame. A frame without <code>EXCLUDE</code> runs exactly as before.</p></li><li><p><strong>Speed:</strong> the frame is not added up again for each row. What is left of a frame is at most two runs of rows (and this row), and each run&#39;s total comes from tables made once per partition:</p>
+<div class="table-wrap"><table><thead><tr><th>Aggregate</th><th>Cost per row</th></tr></thead><tbody><tr><td><code>count</code>, <code>sum</code> and <code>avg</code> of LONG / DECIMAL (exact), <code>min</code>, <code>max</code>, <code>first</code>, <code>last</code>, <code>first_value</code>, <code>last_value</code>, <code>nth_value</code></td><td>constant</td></tr><tr><td><code>sum</code>, <code>avg</code>, <code>stddev</code>, <code>variance</code> of DOUBLE</td><td>constant for frames that reach the start or end of the partition; a few steps (log of the rows) for other long frames</td></tr><tr><td><code>string_agg</code>, <code>median</code>, <code>percentile</code>, <code>count_distinct</code>, <code>vwap</code>, <code>corr</code> and the other statistics, <code>zscore</code>, <code>minmax_scale</code></td><td>adds the frame up again: slow for frames of many thousand rows</td></tr></tbody></table></div>
+<p>A DOUBLE total is put together from compensated pieces, so it can differ from a frame added row by row in the last digit.</p></li></ul>
+<p><strong>Example: Each row against the average of the others</strong> (sample data: sample)</p>
+<p>Setup:</p>
+<pre><code class="language-sql">CREATE TABLE marks (who STRING, points INT);
+INSERT INTO marks VALUES (&#39;a&#39;, 10), (&#39;b&#39;, 20), (&#39;c&#39;, 20), (&#39;d&#39;, 40);</code></pre>
+<pre><code class="language-sql">SELECT who, points,
+       avg(points) OVER (ORDER BY points ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW) AS others,
+       sum(points) OVER (ORDER BY points ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP) AS not_my_group,
+       count(*) OVER (ORDER BY points RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES) AS ties_left_out,
+       round(zscore(points) OVER (ORDER BY points ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW), 2) AS z_vs_others
+FROM marks ORDER BY points, who;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>who (STRING)</th><th>points (INT)</th><th>others (DOUBLE)</th><th>not_my_group (LONG)</th><th>ties_left_out (LONG)</th><th>z_vs_others (DOUBLE)</th></tr></thead><tbody><tr><td>a</td><td>10</td><td>26.6666666666667</td><td>80</td><td>1</td><td>-1.44</td></tr><tr><td>b</td><td>20</td><td>23.3333333333333</td><td>50</td><td>2</td><td>-0.22</td></tr><tr><td>c</td><td>20</td><td>23.3333333333333</td><td>50</td><td>2</td><td>-0.22</td></tr><tr><td>d</td><td>40</td><td>16.6666666666667</td><td>50</td><td>4</td><td>4.04</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<p><strong>Example: Last week&#39;s average close, not counting today</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT time::date AS day, close,
+       round(avg(close) OVER (ORDER BY time::date ROWS BETWEEN 5 PRECEDING AND CURRENT ROW EXCLUDE CURRENT ROW), 2) AS avg_5_before
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39; AND time &gt;= &#39;2026-09-01&#39;
+ORDER BY day
+LIMIT 6;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>day (DATE)</th><th>close (DOUBLE)</th><th>avg_5_before (DOUBLE)</th></tr></thead><tbody><tr><td>2026-09-01</td><td>502.4</td><td>NULL</td></tr><tr><td>2026-09-02</td><td>496.4</td><td>502.4</td></tr><tr><td>2026-09-03</td><td>497.9</td><td>499.4</td></tr><tr><td>2026-09-06</td><td>499</td><td>498.9</td></tr><tr><td>2026-09-07</td><td>498.7</td><td>498.93</td></tr><tr><td>2026-09-08</td><td>497.5</td><td>498.88</td></tr></tbody></table></div>
+<p>(6 rows)</p>
+<h2 id="named-window">WINDOW w AS (...): named windows</h2>
+<p>Syntax:</p>
+<pre><code class="language-sql">SELECT f(...) OVER w, g(...) OVER (w ROWS 4 PRECEDING) FROM table
+WINDOW w AS (PARTITION BY ... ORDER BY ...)</code></pre>
+<p>A window written once and used by many calls. <code>OVER (w ...)</code> takes <code>w</code> and adds an <code>ORDER BY</code> (when <code>w</code> has none) or a frame. A window may build on one defined before it: <code>WINDOW w1 AS (PARTITION BY symbol), w2 AS (w1 ORDER BY time)</code>.</p>
+<ul><li><strong>Errors:</strong> a name no <code>WINDOW</code> defines; adding <code>PARTITION BY</code> to a named window, or an <code>ORDER BY</code> to one that has it.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, time, close,
+       avg(close) OVER (w ROWS 2 PRECEDING) AS avg3,
+       max(close) OVER w AS high_so_far
+FROM ochl_day
+WHERE symbol = &#39;CITY&#39;
+WINDOW w AS (PARTITION BY symbol ORDER BY time)
+ORDER BY time
+LIMIT 4;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th><th>avg3 (DOUBLE)</th><th>high_so_far (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2025-12-28T00:00:00.000Z</td><td>542.2</td><td>542.2</td><td>542.2</td></tr><tr><td>CITY</td><td>2025-12-29T00:00:00.000Z</td><td>539.7</td><td>540.95</td><td>542.2</td></tr><tr><td>CITY</td><td>2025-12-30T00:00:00.000Z</td><td>539.3</td><td>540.4</td><td>542.2</td></tr><tr><td>CITY</td><td>2025-12-31T00:00:00.000Z</td><td>542.4</td><td>540.466666666667</td><td>542.4</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="ignore-nulls">IGNORE NULLS</h2>
+<p><code>first_value</code>, <code>last_value</code>, <code>lag</code> and <code>lead</code> take <code>IGNORE NULLS</code>, inside the brackets or after them: the nearest value that is not <code>NULL</code>. It is the usual way to carry the last known price forward over gaps. <code>RESPECT NULLS</code> is the default and changes nothing.</p>
+<div class="table-wrap"><table><thead><tr><th>Written</th><th>Same as</th></tr></thead><tbody><tr><td><code>last_value(x IGNORE NULLS) OVER (...)</code></td><td><code>last_not_null(x) OVER (...)</code></td></tr><tr><td><code>first_value(x IGNORE NULLS) OVER (...)</code></td><td><code>first_not_null(x) OVER (...)</code></td></tr><tr><td><code>lag(x) IGNORE NULLS OVER (P ORDER BY t)</code></td><td><code>last_not_null(x) OVER (P ORDER BY t ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)</code></td></tr><tr><td><code>lead(x, 1, d) IGNORE NULLS OVER (...)</code></td><td><code>coalesce(first_not_null(x) OVER (... ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING), d)</code></td></tr></tbody></table></div>
+<ul><li><strong>Errors:</strong> <code>lag</code> / <code>lead</code> with an offset other than 1, and other functions (<code>nth_value</code>), are refused with IGNORE NULLS.</li></ul>
+<p><strong>Example</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT t, x,
+       last_value(x IGNORE NULLS) OVER (ORDER BY t) AS carried,
+       lag(x) IGNORE NULLS OVER (ORDER BY t) AS previous
+FROM (VALUES (1, 10.5), (2, NULL), (3, NULL), (4, 12.0)) v(t, x)
+ORDER BY t;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>t (LONG)</th><th>x (DOUBLE)</th><th>carried (DOUBLE)</th><th>previous (DOUBLE)</th></tr></thead><tbody><tr><td>1</td><td>10.5</td><td>10.5</td><td>NULL</td></tr><tr><td>2</td><td>NULL</td><td>10.5</td><td>10.5</td></tr><tr><td>3</td><td>NULL</td><td>10.5</td><td>10.5</td></tr><tr><td>4</td><td>12</td><td>12</td><td>10.5</td></tr></tbody></table></div>
+<p>(4 rows)</p>
+<h2 id="qualify">QUALIFY</h2>
+<p><code>QUALIFY condition</code> keeps the rows where the condition holds after the window functions are worked out, without a subquery around the query (DuckDB, ClickHouse, Snowflake). It comes after <code>HAVING</code> (and <code>WINDOW</code>), before <code>ORDER BY</code> and <code>LIMIT</code>.</p>
+<ul><li><strong>Notes:</strong> it runs as <code>SELECT * FROM (the query with the condition as a column) WHERE condition</code>, then <code>ORDER BY</code> and <code>LIMIT</code>. A view keeps it.</li><li><strong>Errors:</strong> with <code>UNION</code> or <code>DISTINCT</code>, <code>ORDER BY</code> must name a result column or its position.</li></ul>
+<p><strong>Example: The last bar of each symbol</strong> (sample data: sample)</p>
+<pre><code class="language-sql">SELECT symbol, time, close
+FROM ochl_day
+QUALIFY row_number() OVER (PARTITION BY symbol ORDER BY time DESC) = 1
+ORDER BY symbol;</code></pre>
+<p>Result:</p>
+<div class="table-wrap"><table><thead><tr><th>symbol (SYMBOL)</th><th>time (TIMESTAMP)</th><th>close (DOUBLE)</th></tr></thead><tbody><tr><td>CITY</td><td>2026-09-10T00:00:00.000Z</td><td>504.9</td></tr><tr><td>COAST</td><td>2026-09-10T00:00:00.000Z</td><td>376.1</td></tr><tr><td>VOLT</td><td>2026-09-10T00:00:00.000Z</td><td>191.2</td></tr></tbody></table></div>
+<p>(3 rows)</p>
 <h2 id="lag">lag</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">lag(x)

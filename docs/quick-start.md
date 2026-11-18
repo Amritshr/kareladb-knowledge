@@ -121,7 +121,7 @@ Output:
 KarelaDB 0.2.0-dev (crc32c hardware: yes)
 tls: OpenSSL 3.6.3 9 Jun 2026
 
-Stored-format features this build reads (52):
+Stored-format features this build reads (55):
   views                0.2.0-dev (2026-09-10)   CREATE VIEW: the "views" file
   partition_format_2   0.2.0-dev (2026-09-11)   table partition files in format 2 (one raw block per column)
   block_stats          0.2.0-dev (2026-09-11)   column stats section in partition files (count, min, max, sum per column)
@@ -174,6 +174,9 @@ Stored-format features this build reads (52):
   rules                0.2.0-dev (2026-10-03)   CREATE RULE: named checks, session hours and settings of a table (catalog part 'Q')
   sync_commit_tables   0.2.0-dev (2026-10-03)   WITH (synchronous_commit = on | off) of a table: catalog part 'G'
   cold_storage         0.2.0-dev (2026-10-22)   cold storage: WITH / SET (cold_storage, cold_after), catalog part 'O', and partitions moved to an object store, kept as stub files (t/<id>/<partition>.cold.v<N>.kdb, header flag 1)
+  plpgsql_functions    0.2.0-dev (2026-10-25)   plpgsql functions a query calls: OUT / INOUT parameters, RETURNS TABLE and RETURNS SETOF (kind 'G' in the routines file)
+  round_time_zone_rules 0.2.0-dev (2026-10-25)   TIMESTAMP ROUND ... TIME ZONE with a zone that has summer time ('Europe/London') in catalog part 'R'
+  search_synonyms      0.2.0-dev (2026-10-25)   CREATE FULLTEXT INDEX ... WITH (synonyms = '...'): synonym groups a search reads, catalog part 'V'
 
 A database that uses a feature not in this list needs a newer KarelaDB (kareladb check exits with 3).
 ```
@@ -227,7 +230,7 @@ id | name
 ---+---------------------
 45 | Imperial Securities 
 58 | Northgate Securities
-(2 rows, 0.6 ms)
+(2 rows, 0.4 ms)
 ```
 
 A mistake gives a clear message and exit code 1:
@@ -475,12 +478,13 @@ KarelaDB 0.2.0-dev
   time zone Asia/Katmandu (the computer's); also timers and backup schedules
   readers   read while a long trigger or CALL writes (--reader-yield on); idle open transaction rolled back after 30 s (default)
   memory    26.95 GB for the whole process (85% of the machine's memory); table data 512.0 MB of it (--memory)
+  background 8 jobs at once (default); share 6.74 GB (default), checkpoint waves up to 128.0 MB
   cpu       32 CPUs (the machine's); 16 query threads (half of the CPUs, follows the limit), limits checked every 10 s
   limits    statement timeout 1 min, result memory 1.00 GB, 5000000 groups, 32 statements per user
   safety    writes allowed; DROP TABLE kept 7 days (UNDROP TABLE); audit log off
   logs      slow queries >= 1000 ms to market/_logs/slow_queries.jsonl; pg_stat_statements on; metrics at /metrics
   recovery  manifest copy: a, last shutdown: clean
-  open      opened in 2 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 1 ms
+  open      opened in 1 ms: manifest 0 ms, 1 files read 0 ms (8 table files left for their first use), log check 1 ms, replay 0 ms (0 transactions), clean-up 0 ms
 
 Press Ctrl+C to stop.
 ```

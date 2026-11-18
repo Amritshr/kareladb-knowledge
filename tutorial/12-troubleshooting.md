@@ -265,7 +265,7 @@ error: line 1, column 8: sum needs numbers, got 'CITY'
 |---|---|
 | `SAMPLE BY needs a table with a time column (a TIMESERIES table)` | SAMPLE BY only works on time-series tables. Use GROUP BY. |
 | `column 'close' is used by a window function in a query with aggregates, so it must be a key of the groups: add it to the SELECT list or to GROUP BY` | With `GROUP BY` or `SAMPLE BY`, a window function reads the groups, not the rows. Give it an aggregate (`sma(last(close), 2)`) or a group key, or aggregate in a subquery and put the indicator outside (chapter 5). |
-| `'sma' works over a series of rows and can only be used in a SELECT list` | Not in WHERE and not inside another series function. Use a subquery. |
+| `'sma' works over a series of rows and can only be used in a SELECT list` | Not in WHERE. Compute it in a subquery and filter outside. |
 | `column 'amount' is computed and cannot be set` | Computed columns (`AS (...)`) are not stored. Change the columns it is computed from. |
 | `in subquery: ... unknown column 's.symbol'` | The name is wrong, or `s` is not a table of the outer query. Correlated subqueries work (chapter 23). |
 | `subquery returned 3 rows; a value needs exactly one (add LIMIT 1?)` | A `(SELECT ...)` used as a value must return one row. |

@@ -3,7 +3,7 @@
 > SQL that runs by itself when rows of a table are inserted, updated or deleted.
 
 - Category: Triggers
-- Keywords: trigger, BEFORE, AFTER, EXECUTE, TRIGGERS, CREATE OR REPLACE TRIGGER, ENABLE TRIGGER, DISABLE TRIGGER, ENABLE, DISABLE, EXECUTE PROCEDURE, EXECUTE CALL, statement level, triggers are nested too deeply, has triggers, audit log, DEFERRED, deferred trigger, RETRY TRIGGER QUEUE, SKIP TRIGGER JOB, trigger queue, /api/trigger-queue, wait
+- Keywords: FOR EACH ROW, PERFORM, BEFORE UPDATE, RETURN NULL, changes its own table, row trigger, plpgsql trigger, TG\_OP, EXECUTE FUNCTION, RETURNS trigger, trigger, BEFORE, AFTER, EXECUTE, TRIGGERS, CREATE OR REPLACE TRIGGER, ENABLE TRIGGER, DISABLE TRIGGER, ENABLE, DISABLE, EXECUTE PROCEDURE, EXECUTE CALL, statement level, triggers are nested too deeply, has triggers, audit log, DEFERRED, deferred trigger, RETRY TRIGGER QUEUE, SKIP TRIGGER JOB, trigger queue, /api/trigger-queue, wait
 - See also: [Stored procedures](procedures.md), [The procedure language](procedure-language.md), [Transactions](transactions.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [13. Functions, procedures and triggers](../tutorial/13-functions-procedures-triggers.md)
 
 A **trigger** is SQL that KarelaDB runs by itself every time a table changes. You do not call it.
@@ -715,6 +715,379 @@ trigger 'fix_value' created on table 't'
 ```
 
 Error: `trigger 'fix_value', line 2: table 'NEW' does not exist`
+
+<a id="for-each-row"></a>
+
+## PostgreSQL row triggers: FOR EACH ROW
+
+Syntax:
+
+```sql
+CREATE FUNCTION f() RETURNS trigger AS $$ BEGIN ... END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER name AFTER {INSERT | UPDATE | DELETE} [OR ...] ON table
+  FOR EACH ROW [WHEN (condition)] EXECUTE FUNCTION f();
+CREATE TRIGGER name BEFORE {INSERT | UPDATE | DELETE} [OR ...] ON table FOR EACH ROW [WHEN (condition)] EXECUTE FUNCTION f();
+```
+
+A PostgreSQL trigger runs its plpgsql function **once for every changed row**, with that row as `NEW` and `OLD`. KarelaDB runs these as PostgreSQL does, so an app's triggers work unchanged.
+
+| In the function | Meaning |
+|---|---|
+| `NEW.col`, `OLD.col` | the row after and before the change. `OLD` of an `INSERT` and `NEW` of a `DELETE` read `NULL`. |
+| `TG_OP` | `'INSERT'`, `'UPDATE'` or `'DELETE'`; also `TG_NAME`, `TG_TABLE_NAME`, `TG_WHEN`, `TG_LEVEL` |
+| `IF ... THEN ... ELSIF ... ELSE ... END IF` | conditions |
+| `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CALL` | change other tables, in `BEFORE` and `AFTER` triggers |
+| `PERFORM expr [FROM ...]` | runs a query and drops its rows (`FOUND` says if there was one) |
+| `RAISE EXCEPTION 'text %', value [USING ERRCODE = '...']` | stops the statement and undoes it |
+| `NEW.col := value` | changes the row being written (`BEFORE INSERT` / `BEFORE UPDATE`) |
+| `RETURN NEW` / `OLD` / `NULL` | ends the function. See the table below. An `AFTER` trigger's value is not used. |
+
+What a `BEFORE` trigger's `RETURN` does, as in PostgreSQL:
+
+| Trigger | `RETURN NEW` | `RETURN OLD` | `RETURN NULL` |
+|---|---|---|---|
+| `BEFORE INSERT` | the row goes in | the row is left out | the row is left out |
+| `BEFORE UPDATE` | the row is updated | the row stays as it was (still counted) | the row is not updated, not counted, not returned |
+| `BEFORE DELETE` | the row stays | the row is deleted | the row stays |
+
+- **Notes:**
+  - `AFTER` triggers run after the statement's rows are in, once per row, in trigger name order. `WHEN (OLD.price IS DISTINCT FROM NEW.price)` skips the rows it does not keep.
+  - They run for every way rows come in: `INSERT`, `INSERT ... SELECT`, `MERGE`, `COPY`, `POST /write` and `/imp`.
+  - A `RAISE` in the function, or an error in its statements, undoes the whole statement (and the trigger's own changes).
+  - `BEFORE INSERT` runs after the defaults and before generated columns, `CHECK`s and foreign keys, as in PostgreSQL, so a value it sets is checked too.
+  - Statements in a `BEFORE` trigger run in the same transaction as the statement that fired it: both are written, or neither. They see `NEW` as the function has set it so far.
+  - A `BEFORE` trigger's statements may not change **its own table**: `CREATE TRIGGER` refuses a function that names it, and a change that reaches it another way (another table's trigger, a procedure, a foreign key) stops the statement with "changes its own table". Set `NEW.col` instead, or change the table in an `AFTER` trigger. PostgreSQL allows some of this and fails other cases at run time; KarelaDB takes the safe rule.
+  - Statements in a `BEFORE` trigger see the table as it was before the statement: its other rows are written together at its end.
+  - A `BEFORE UPDATE` that returns `NULL` for a row a foreign key's `ON UPDATE` / `ON DELETE` action must change stops the statement (the row would still point at the old key).
+  - Not supported yet: `DECLARE` (local variables) and loops in the function, `UPDATE OF columns`, `FOR EACH STATEMENT` with a function. For work once per statement, write a [KarelaDB trigger](#create-trigger).
+
+**Example: Audit every change of a table, one row per changed row**
+
+Setup:
+
+```sql
+CREATE TABLE acct (id LONG PRIMARY KEY, owner STRING, bal LONG);
+CREATE TABLE audit (op STRING, id LONG, old_bal LONG, new_bal LONG);
+CREATE FUNCTION log_acct() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO audit VALUES (TG_OP, OLD.id, OLD.bal, NULL);
+  ELSIF TG_OP = 'UPDATE' THEN
+    INSERT INTO audit VALUES (TG_OP, NEW.id, OLD.bal, NEW.bal);
+  ELSE
+    INSERT INTO audit VALUES (TG_OP, NEW.id, NULL, NEW.bal);
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER acct_audit AFTER INSERT OR UPDATE OR DELETE ON acct FOR EACH ROW EXECUTE FUNCTION log_acct();
+```
+
+```sql
+INSERT INTO acct VALUES (1, 'Ram', 100), (2, 'Sita', 200);
+UPDATE acct SET bal = bal + 5;
+DELETE FROM acct WHERE id = 1;
+SELECT * FROM audit ORDER BY op, id;
+```
+
+Result:
+
+`INSERT INTO acct VALUES (1, 'Ram', 100), (2, 'Sita', 200)`
+
+```text
+2 row(s) inserted
+```
+
+`UPDATE acct SET bal = bal + 5`
+
+```text
+2 row(s) updated
+```
+
+`DELETE FROM acct WHERE id = 1`
+
+```text
+1 row(s) deleted
+```
+
+`SELECT * FROM audit ORDER BY op, id`
+
+| op (STRING) | id (LONG) | old_bal (LONG) | new_bal (LONG) |
+|---|---|---|---|
+| DELETE | 1 | 105 | NULL |
+| INSERT | 1 | NULL | 100 |
+| INSERT | 2 | NULL | 200 |
+| UPDATE | 1 | 100 | 105 |
+| UPDATE | 2 | 200 | 205 |
+
+(5 rows)
+
+**Example: Keep price changes only, and refuse a price below zero**
+
+Setup:
+
+```sql
+CREATE TABLE px (symbol STRING PRIMARY KEY, last DOUBLE);
+CREATE TABLE px_moves (symbol STRING, was DOUBLE, now DOUBLE);
+CREATE FUNCTION note_move() RETURNS trigger AS $$
+BEGIN
+  IF NEW.last < 0 THEN
+    RAISE EXCEPTION 'price of % below zero', NEW.symbol;
+  END IF;
+  INSERT INTO px_moves VALUES (NEW.symbol, OLD.last, NEW.last);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER px_note AFTER UPDATE ON px FOR EACH ROW
+  WHEN (OLD.last IS DISTINCT FROM NEW.last) EXECUTE FUNCTION note_move();
+INSERT INTO px VALUES ('ACME', 10), ('CITY', 20);
+```
+
+```sql
+UPDATE px SET last = CASE WHEN symbol = 'ACME' THEN 11 ELSE last END;
+SELECT * FROM px_moves;
+```
+
+Result:
+
+`UPDATE px SET last = CASE WHEN symbol = 'ACME' THEN 11 ELSE last END`
+
+```text
+2 row(s) updated
+```
+
+`SELECT * FROM px_moves`
+
+| symbol (STRING) | was (DOUBLE) | now (DOUBLE) |
+|---|---|---|
+| ACME | 10 | 11 |
+
+(1 row)
+
+**Example: BEFORE INSERT: fill a column, leave some rows out**
+
+Setup:
+
+```sql
+CREATE TABLE products (id LONG PRIMARY KEY, name STRING, slug STRING);
+CREATE FUNCTION make_slug() RETURNS trigger AS $$
+BEGIN
+  IF NEW.name = 'test' THEN
+    RETURN NULL;
+  END IF;
+  NEW.slug := lower(replace(NEW.name, ' ', '-'));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER products_slug BEFORE INSERT ON products FOR EACH ROW EXECUTE FUNCTION make_slug();
+```
+
+```sql
+INSERT INTO products (id, name) VALUES (1, 'Red Shoe'), (2, 'test'), (3, 'Blue Hat');
+SELECT * FROM products ORDER BY id;
+```
+
+Result:
+
+`INSERT INTO products (id, name) VALUES (1, 'Red Shoe'), (2, 'test'), (3, 'Blue Hat')`
+
+```text
+2 row(s) inserted, 1 left out by rules (ON FAIL SKIP)
+```
+
+`SELECT * FROM products ORDER BY id`
+
+| id (LONG) | name (STRING) | slug (STRING) |
+|---|---|---|
+| 1 | Red Shoe | red-shoe |
+| 3 | Blue Hat | blue-hat |
+
+(2 rows)
+
+**Example: BEFORE UPDATE: skip locked rows, undo bad ones, log the rest**
+
+Setup:
+
+```sql
+CREATE TABLE acct (id LONG PRIMARY KEY, bal LONG, frozen BOOLEAN);
+CREATE TABLE acct_log (id LONG, was LONG, now LONG);
+CREATE FUNCTION guard_acct() RETURNS trigger AS $$
+BEGIN
+  IF OLD.frozen THEN
+    RETURN NULL;
+  END IF;
+  IF NEW.bal < 0 THEN
+    RETURN OLD;
+  END IF;
+  INSERT INTO acct_log VALUES (NEW.id, OLD.bal, NEW.bal);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER acct_guard BEFORE UPDATE ON acct FOR EACH ROW EXECUTE FUNCTION guard_acct();
+INSERT INTO acct VALUES (1, 100, false), (2, 200, true), (3, 10, false);
+```
+
+```sql
+UPDATE acct SET bal = bal - 20;
+SELECT * FROM acct ORDER BY id;
+SELECT * FROM acct_log;
+```
+
+Result:
+
+`UPDATE acct SET bal = bal - 20`
+
+```text
+2 row(s) updated
+```
+
+`SELECT * FROM acct ORDER BY id`
+
+| id (LONG) | bal (LONG) | frozen (BOOL) |
+|---|---|---|
+| 1 | 80 | false |
+| 2 | 200 | true |
+| 3 | 10 | false |
+
+(3 rows)
+
+`SELECT * FROM acct_log`
+
+| id (LONG) | was (LONG) | now (LONG) |
+|---|---|---|
+| 1 | 100 | 80 |
+
+(1 row)
+
+**Example: One BEFORE function for every event, with TG_OP**
+
+Setup:
+
+```sql
+CREATE TABLE notes (id LONG PRIMARY KEY, body STRING, changed STRING);
+CREATE TABLE trail (op STRING, id LONG);
+CREATE SEQUENCE note_events;
+CREATE FUNCTION note_trail() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO trail VALUES (TG_OP, coalesce(NEW.id, OLD.id));
+  PERFORM nextval('note_events');
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  NEW.changed := TG_OP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER note_trail BEFORE INSERT OR UPDATE OR DELETE ON notes FOR EACH ROW EXECUTE FUNCTION note_trail();
+```
+
+```sql
+INSERT INTO notes (id, body) VALUES (1, 'a'), (2, 'b');
+UPDATE notes SET body = 'c' WHERE id = 2;
+DELETE FROM notes WHERE id = 1;
+SELECT * FROM notes;
+SELECT * FROM trail ORDER BY op, id;
+SELECT nextval('note_events');
+```
+
+Result:
+
+`INSERT INTO notes (id, body) VALUES (1, 'a'), (2, 'b')`
+
+```text
+2 row(s) inserted
+```
+
+`UPDATE notes SET body = 'c' WHERE id = 2`
+
+```text
+1 row(s) updated
+```
+
+`DELETE FROM notes WHERE id = 1`
+
+```text
+1 row(s) deleted
+```
+
+`SELECT * FROM notes`
+
+| id (LONG) | body (STRING) | changed (STRING) |
+|---|---|---|
+| 2 | c | UPDATE |
+
+(1 row)
+
+`SELECT * FROM trail ORDER BY op, id`
+
+| op (STRING) | id (LONG) |
+|---|---|
+| DELETE | 1 |
+| INSERT | 1 |
+| INSERT | 2 |
+| UPDATE | 2 |
+
+(4 rows)
+
+`SELECT nextval('note_events')`
+
+| nextval('note_events') (LONG) |
+|---|
+| 5 |
+
+(1 row)
+
+**Example: A BEFORE trigger may not change its own table** (shows an error)
+
+```sql
+CREATE TABLE t (id LONG PRIMARY KEY);
+CREATE FUNCTION copy_row() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO t VALUES (NEW.id + 1);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER t_copy BEFORE INSERT ON t FOR EACH ROW EXECUTE FUNCTION copy_row();
+```
+
+Result:
+
+`CREATE TABLE t (`
+
+```text
+table 't' created
+```
+
+`CREATE FUNCTION copy_row() RETURNS trigger AS $kdbpl$`
+
+```text
+trigger function 'copy_row' created (plpgsql, run by KarelaDB for every row of the FOR EACH ROW triggers that name it)
+```
+
+Error: `trigger function 'copy_row' changes table 't' while a BEFORE ... FOR EACH ROW trigger of 't' runs; KarelaDB refuses a BEFORE row trigger that changes its own table (the statement's rows are not written yet). Set NEW.<column> instead, or change the table in an AFTER ... FOR EACH ROW trigger`
+
+**Example: A RAISE in an AFTER row trigger undoes the statement** (shows an error)
+
+Setup:
+
+```sql
+CREATE TABLE px (symbol STRING PRIMARY KEY, last DOUBLE);
+CREATE FUNCTION no_negative() RETURNS trigger AS $$
+BEGIN
+  IF NEW.last < 0 THEN RAISE EXCEPTION 'price of % below zero', NEW.symbol; END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER px_check AFTER INSERT ON px FOR EACH ROW EXECUTE FUNCTION no_negative();
+```
+
+```sql
+INSERT INTO px VALUES ('ACME', 10), ('CITY', -1);
+```
+
+Result:
+
+Error: `trigger 'px_check' on table 'px' stopped the change: price of CITY below zero`
 
 <a id="once-per-statement"></a>
 

@@ -12,6 +12,7 @@ You write the formula once. Then every query can use it, like `round` or `concat
 - KarelaDB keeps the function in the database. It is still there after a restart and in a backup.
 - A call costs nothing extra: when the query starts, KarelaDB puts the body in the place of the call.
 - Only **one expression**. For many steps, variables or loops, use a [stored procedure](procedures.md).
+- A function that gives **rows** or **several values** is a [plpgsql function](procedure-language.md#plpgsql-functions): `OUT` parameters, `RETURNS TABLE (...)` or `RETURNS SETOF ...`, called as `SELECT * FROM f(...)`.
 
 **Example: The change of each share today, in percent** (sample data: sample)
 
@@ -528,7 +529,7 @@ Lists the saved functions of the database, in name order.
 |---|---|
 | `name` | the function name |
 | `arguments` | the parameters and their types |
-| `returns` | the `RETURNS` type, or `NULL` when there is none |
+| `returns` | the `RETURNS` type, or `NULL` when there is none. A plpgsql function shows `trigger`, the type of its one `OUT` parameter (`dbl(x INT, OUT y INT)` shows `INT`), `record` (several `OUT` parameters), `TABLE (...)` or `SETOF ...` |
 | `definition` | the whole `CREATE FUNCTION` statement |
 
 - **Notes:** built-in functions are not listed. The text table of `kareladb sql` cuts long text after 48 characters; use `--format csv` or `--format json` to see the whole definition.

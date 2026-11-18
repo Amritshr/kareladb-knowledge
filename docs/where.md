@@ -502,7 +502,7 @@ A text after `IN` (without `( )`) means **the whole period** that the text names
 
 - **Returns:** `true` or `false`. `NOT IN` gives the opposite.
 - **NULL:** a `NULL` time gives `NULL`.
-- **Notes:** without a zone, the period is in **UTC**. The whole trading day of the sample data (05:15 to 09:15 UTC) is inside one UTC day, so `time IN '2026-09-10'` is fine for market data. For a Nepal calendar day (daily bars stored at Nepal midnight) add `TIME ZONE 'Asia/Kathmandu'`, or `+05:45` in the text. Not both: text with its own offset and TIME ZONE is an error.
+- **Notes:** without a zone, the period is in **UTC**. The whole trading day of the sample data (05:15 to 09:15 UTC) is inside one UTC day, so `time IN '2026-09-10'` is fine for market data. For a Nepal calendar day (daily bars stored at Nepal midnight) add `TIME ZONE 'Asia/Kathmandu'`, or `+05:45` in the text. Not both: text with its own offset and TIME ZONE is an error. A zone with summer time works too: `TIME ZONE 'Europe/London'` makes the day the clocks change 23 or 25 hours long.
 - `TIME ZONE` takes the same [zone names](time-and-time-zones.md#time-zone-names) as SAMPLE BY. On a `DATE` column it changes nothing: a date is already a calendar day.
 - On the time column of a time-series table, KarelaDB reads only the partitions of that period.
 - The left side must be a `TIMESTAMP` or `DATE`.

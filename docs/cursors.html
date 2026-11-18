@@ -14,7 +14,7 @@
 <main>
 <h1 id="cursors">Cursors</h1>
 <blockquote><p>Run a query once, keep its rows, and read them a few at a time.</p></blockquote>
-<ul><li>Category: Cursors</li><li>Keywords: cursor, CURSOR, DECLARE CURSOR, NEXT, ALL, paging, page by page, read in parts, big result, snapshot, FETCH NEXT, FETCH ALL, too many open cursors, is not open</li><li>See also: <a href="http-sessions-and-cursors.html">Sessions and cursors over HTTP</a>, <a href="procedure-language.html#local-cursors">The procedure language (local-cursors)</a>, <a href="transactions.html">Transactions</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
+<ul><li>Category: Cursors</li><li>Keywords: cursor, CURSOR, DECLARE CURSOR, NEXT, ALL, paging, page by page, read in parts, big result, snapshot, spill, temporary file, cursor_memory_bytes, FETCH NEXT, FETCH ALL, too many open cursors, is not open</li><li>See also: <a href="http-sessions-and-cursors.html">Sessions and cursors over HTTP</a>, <a href="procedure-language.html#local-cursors">The procedure language (local-cursors)</a>, <a href="transactions.html">Transactions</a>, <a href="order-by-limit.html">ORDER BY, LIMIT, OFFSET</a>, <a href="../tutorial/13-functions-procedures-triggers.html">13. Functions, procedures and triggers</a></li></ul>
 <p>A <strong>cursor</strong> runs a <code>SELECT</code> once and keeps its rows. Then you read the rows a part at a time with <code>FETCH</code>, and end with <code>CLOSE</code>.
 Use it when a result is too big to read at once, for example to send a long trade log to an app page by page.</p>
 <ul><li>The rows are a <strong>snapshot</strong> (a copy made at <code>DECLARE</code>): changes to the table after that do not change what <code>FETCH</code> returns.</li><li>A cursor lives until <code>CLOSE</code>, or until the end of the text or session (see <a href="cursors.html#lifetime">where a cursor lives</a>).</li><li>Over HTTP, <code>POST /cursor</code> does the same job (see <a href="cursors.html#http">cursors over HTTP</a>).</li><li>Inside a procedure, a cursor reads one row at a time into variables: see <a href="procedure-language.html#local-cursors">cursors in a body</a>.</li></ul>
@@ -41,10 +41,10 @@ CLOSE trades;</code></pre>
 <h2 id="declare-cursor">DECLARE CURSOR</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">DECLARE name CURSOR FOR SELECT ...</code></pre>
-<p>Runs the query at once and keeps all its rows under a name.</p>
+<p>Runs the query at once and keeps all its rows under a name: the first ones in memory, the rest in a temporary file on disk.</p>
 <div class="table-wrap"><table><thead><tr><th>Part</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td>the cursor name. Upper and lower case are the same.</td></tr><tr><td><code>SELECT ...</code></td><td>one query. Not <code>SHOW</code>, not <code>EXPLAIN</code>. Use <code>ORDER BY</code> when the order of the parts matters.</td></tr></tbody></table></div>
 <ul><li><strong>Returns:</strong> <code>cursor &#39;name&#39; declared: N row(s)</code>.</li><li><strong>Notes:</strong>
-<ul><li>The query runs <strong>once</strong>, now. Its rows stay in memory until the cursor is closed.</li><li>A name that is already open in the same text or session is an error: <code>CLOSE</code> it first.</li><li><code>DECLARE name TYPE</code> (a variable) works only inside a procedure or trigger body.</li><li>At most 16 open cursors per database, and at most 10 million rows per cursor (see <a href="cursors.html#limits">limits</a>).</li><li><code>DECLARE ... CURSOR</code> works inside <code>BEGIN ... COMMIT</code>, and then it sees the changes of the transaction.</li></ul></li></ul>
+<ul><li>The query runs <strong>once</strong>, now. Its rows stay until the cursor is closed: a small result in memory, a big one mostly in a temporary file (see <a href="cursors.html#limits">memory and disk</a>).</li><li>A name that is already open in the same text or session is an error: <code>CLOSE</code> it first.</li><li><code>DECLARE name TYPE</code> (a variable) works only inside a procedure or trigger body.</li><li>At most 16 open cursors per database. There is no row limit per cursor (see <a href="cursors.html#limits">limits</a>).</li><li><code>DECLARE ... CURSOR</code> works inside <code>BEGIN ... COMMIT</code>, and then it sees the changes of the transaction.</li></ul></li></ul>
 <p><strong>Example: A snapshot: rows deleted after DECLARE are still fetched</strong> (sample data: sample)</p>
 <pre><code class="language-sql">DECLARE s CURSOR FOR SELECT symbol, sector FROM securities ORDER BY symbol;
 DELETE FROM securities WHERE sector = &#39;Banking&#39;;
@@ -147,7 +147,7 @@ FETCH 0 FROM c;</code></pre>
 <h2 id="close">CLOSE</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">CLOSE name</code></pre>
-<p>Closes the cursor and frees the memory of its rows.</p>
+<p>Closes the cursor and frees its rows: their memory, and the temporary file if it had one.</p>
 <ul><li><strong>Returns:</strong> <code>cursor &#39;name&#39; closed</code>.</li><li><strong>Notes:</strong> closing a cursor that is not open is an error. Cursors also close by themselves at the end of the text, the end of the session, and after 10 minutes without <code>FETCH</code>. Still, close them when you are done: only 16 can be open.</li></ul>
 <p><strong>Example</strong> (sample data: sample)</p>
 <pre><code class="language-sql">DECLARE b CURSOR FOR SELECT id, name FROM brokers ORDER BY id;
@@ -241,7 +241,7 @@ DELETE /session/{{session}}</code></pre>
 <p>Response:</p>
 <p><code>POST /session</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;81a9d62a6e093ebca035ee104ee87800&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;e937adcd6259f579a54ae2ed00bb0ec9&quot;, &quot;idle_timeout_ms&quot;: 600000}</code></pre>
 <p><code>POST /exec</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
@@ -255,13 +255,13 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;cursor &#39;b&#39; declared: 5 row(s)&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 33, &quot;execute_us&quot;: 196}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 356}
     }
   ],
   &quot;columns&quot;: [],
   &quot;dataset&quot;: [],
   &quot;count&quot;: 0,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 33, &quot;execute_us&quot;: 196}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 36, &quot;execute_us&quot;: 356}
 }</code></pre>
 <p><code>POST /exec</code></p>
 <p>HTTP 200 (application/json)</p>
@@ -283,7 +283,7 @@ DELETE /session/{{session}}</code></pre>
       &quot;truncated&quot;: false,
       &quot;rows_affected&quot;: 0,
       &quot;message&quot;: &quot;3 row(s) fetched, 2 left&quot;,
-      &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 10}
+      &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 12}
     }
   ],
   &quot;columns&quot;: [
@@ -296,11 +296,11 @@ DELETE /session/{{session}}</code></pre>
     [45, &quot;Imperial Securities&quot;]
   ],
   &quot;count&quot;: 3,
-  &quot;timings&quot;: {&quot;parse_us&quot;: 12, &quot;execute_us&quot;: 10}
+  &quot;timings&quot;: {&quot;parse_us&quot;: 23, &quot;execute_us&quot;: 12}
 }</code></pre>
 <p><code>DELETE /session/{{session}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;session&quot;: &quot;81a9d62a6e093ebca035ee104ee87800&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;session&quot;: &quot;e937adcd6259f579a54ae2ed00bb0ec9&quot;, &quot;closed&quot;: true}</code></pre>
 <h2 id="http">Cursors over HTTP: POST /cursor</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">POST   /cursor                 body: one SELECT     -&gt; {&quot;cursor&quot;: &quot;&lt;id&gt;&quot;, &quot;columns&quot;: [...], &quot;rows&quot;: N}
@@ -326,7 +326,7 @@ GET /cursor/{{cursor}}?fetch=3</code></pre>
 <p><code>POST /cursor</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;144c141f7f848b30&quot;,
+  &quot;cursor&quot;: &quot;c28b729b81b9cda8&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;transaction_id&quot;, &quot;type&quot;: &quot;LONG&quot;},
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
@@ -338,7 +338,7 @@ GET /cursor/{{cursor}}?fetch=3</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;144c141f7f848b30&quot;,
+  &quot;cursor&quot;: &quot;c28b729b81b9cda8&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;transaction_id&quot;, &quot;type&quot;: &quot;LONG&quot;},
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
@@ -356,7 +356,7 @@ GET /cursor/{{cursor}}?fetch=3</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
 <p>HTTP 200 (application/json)</p>
 <pre><code class="language-text">{
-  &quot;cursor&quot;: &quot;144c141f7f848b30&quot;,
+  &quot;cursor&quot;: &quot;c28b729b81b9cda8&quot;,
   &quot;columns&quot;: [
     {&quot;name&quot;: &quot;transaction_id&quot;, &quot;type&quot;: &quot;LONG&quot;},
     {&quot;name&quot;: &quot;symbol&quot;, &quot;type&quot;: &quot;SYMBOL&quot;},
@@ -373,14 +373,16 @@ GET /cursor/{{cursor}}?fetch=3</code></pre>
 }</code></pre>
 <p><code>DELETE /cursor/{{cursor}}</code></p>
 <p>HTTP 200 (application/json)</p>
-<pre><code class="language-text">{&quot;cursor&quot;: &quot;144c141f7f848b30&quot;, &quot;closed&quot;: true}</code></pre>
+<pre><code class="language-text">{&quot;cursor&quot;: &quot;c28b729b81b9cda8&quot;, &quot;closed&quot;: true}</code></pre>
 <p><code>GET /cursor/{{cursor}}?fetch=3</code></p>
 <p>HTTP 404 (application/json)</p>
-<pre><code class="language-text">{&quot;error&quot;: &quot;cursor &#39;144c141f7f848b30&#39; does not exist (an unused cursor closes after 10 minutes)&quot;}</code></pre>
+<pre><code class="language-text">{&quot;error&quot;: &quot;cursor &#39;c28b729b81b9cda8&#39; does not exist (an unused cursor closes after 10 minutes)&quot;}</code></pre>
 <h2 id="limits">Limits of cursors</h2>
 <p>Syntax:</p>
 <pre><code class="language-sql">DECLARE c17 CURSOR FOR SELECT ...   -- error when 16 cursors are open in the database</code></pre>
-<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Open cursors in one database (SQL and HTTP together)</td><td>16 (<code>DatabaseOptions::max_cursors</code>)</td></tr><tr><td>A cursor without <code>FETCH</code> closes after</td><td>10 minutes (<code>DatabaseOptions::cursor_idle_ms</code>)</td></tr><tr><td>Rows in one cursor</td><td>10 million. A bigger query is refused: narrow it with <code>WHERE</code>.</td></tr><tr><td>Rows of one <code>FETCH</code></td><td>the row limit of the request (for example <code>/exec</code> returns at most 1,000,000 rows)</td></tr><tr><td>Memory</td><td>all rows of an open cursor are kept in memory until it closes</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Value</th></tr></thead><tbody><tr><td>Open cursors in one database (SQL and HTTP together)</td><td>16 (<code>DatabaseOptions::max_cursors</code>)</td></tr><tr><td>A cursor without <code>FETCH</code> closes after</td><td>10 minutes (<code>DatabaseOptions::cursor_idle_ms</code>)</td></tr><tr><td>Rows in one cursor</td><td>no fixed limit (until 2026-10-25: 10 million). Only the disk limit below.</td></tr><tr><td>Memory of one cursor</td><td>its first rows, up to a 128th of the server&#39;s memory limit (between 1 MB and 64 MB, and at most half of <code>max-result-memory</code>; <code>DatabaseOptions::cursor_memory_bytes</code> sets it). The rest wait in a temporary file.</td></tr><tr><td>Disk of one cursor</td><td>its temporary file grows to at most <code>max_spill_bytes</code> (16 GB). Past it <code>DECLARE</code> is refused: <code>the cursor needs more than ... MB of temporary files</code>.</td></tr><tr><td>Rows of one <code>FETCH</code></td><td>the row limit of the request (for example <code>/exec</code> returns at most 1,000,000 rows), and the statement&#39;s <code>max-result-memory</code>: a bigger <code>FETCH</code> is refused and the cursor stays where it was, so a smaller <code>FETCH</code> can follow</td></tr></tbody></table></div>
+<p>How the rows are kept:</p>
+<ul><li><strong>A plain read</strong> (no <code>ORDER BY</code>, <code>DISTINCT</code>, <code>OFFSET</code> or <code>GROUP BY</code>) is written to the file while it is read, so <code>DECLARE</code> never holds more than the cursor&#39;s memory share, however many rows there are.</li><li><strong>Any other query</strong> (with <code>ORDER BY</code>, a <code>GROUP BY</code>, ...) makes its whole result first, within <code>max-result-memory</code>, as a plain <code>SELECT</code> does. Then the rows past the memory share go to the file, so the open cursor holds little memory between <code>FETCH</code>es.</li><li>The file is in the database folder&#39;s <code>_tmp/</code> (encrypted when the database is). It is removed at <code>CLOSE</code>, at the end of the text or session, when an unused cursor closes after 10 minutes, when an HTTP cursor has given its last row, and when the database closes. A file a crash left behind is removed when the database opens.</li><li>A read-only database has no place for the file: there all rows stay in memory, within <code>max-result-memory</code>.</li></ul>
 <p><strong>Example: The 17th open cursor</strong> (shows an error)</p>
 <pre><code class="language-sql">DECLARE c1 CURSOR FOR SELECT 1 AS x;
 DECLARE c2 CURSOR FOR SELECT 2 AS x;

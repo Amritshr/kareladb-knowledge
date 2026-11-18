@@ -1,9 +1,9 @@
 # UPDATE and DELETE
 
-> Change rows with UPDATE, remove rows with DELETE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.
+> Change rows with UPDATE, remove rows with DELETE, do both and INSERT in one statement with MERGE, empty tables with TRUNCATE, get the changed rows back with RETURNING, and fix wrong data safely.
 
 - Category: Writing data
-- Keywords: update, change rows, modify, SET, delete, remove rows, delete rows, WHERE, all rows, RETURNING, fix bad data, wrong data, correct data, undo, rollback, TRUNCATE, TRUNCATE TABLE, RESTART IDENTITY, CONTINUE IDENTITY, empty a table, delete all rows, the update would create a second row, row(s) updated, row(s) deleted, safe workflow, UPDATE FROM, FROM other table, update from another table, DELETE USING
+- Keywords: update, change rows, modify, SET, delete, remove rows, delete rows, WHERE, all rows, RETURNING, fix bad data, wrong data, correct data, undo, rollback, TRUNCATE, TRUNCATE TABLE, RESTART IDENTITY, CONTINUE IDENTITY, empty a table, delete all rows, the update would create a second row, row(s) updated, row(s) deleted, safe workflow, UPDATE FROM, FROM other table, update from another table, DELETE USING, MERGE, MERGE INTO, upsert, WHEN MATCHED, WHEN NOT MATCHED, sync a table, apply changes from a staging table
 - See also: [INSERT](insert.md), [Transactions](transactions.md), [ALTER, RENAME and DROP TABLE](alter-table.md), [Constraints](constraints.md), [Backup, check, repair and restore](backup-and-safety.md), [WHERE](where.md)
 
 `UPDATE` changes values in rows that are already there. `DELETE` removes rows. Both take a `WHERE` condition that says **which** rows. Like `INSERT`, one statement is all or nothing, and it is saved as soon as KarelaDB says `updated` or `deleted`.
@@ -73,7 +73,7 @@ Takes the new values from **another table** or from a subquery (PostgreSQL style
   - The `WHERE` must join the rows: `WHERE trade_log.id = fix.id`. Without it, **every** row of the table is updated.
   - When a column name is in both tables, write `table.column` (or `alias.column`), also on the right side of `SET`. Otherwise: `column 'price' is in more than one table`.
   - The table being updated can have an alias too: `UPDATE trade_log t SET ... WHERE t.id = f.id`.
-  - `RETURNING` works. For `DELETE` the same idea is written `DELETE FROM table USING other_table WHERE ...`.
+  - `RETURNING` works, also with the other table's columns: `RETURNING trade_log.id, f.price`. For `DELETE` the same idea is written `DELETE FROM table USING other_table WHERE ...`.
 
 **Example: Copy corrected prices from another table**
 
@@ -590,6 +590,180 @@ transaction started
 ```
 
 Error: `TRUNCATE cannot be used inside a transaction or a procedure: KarelaDB cannot undo it. COMMIT or ROLLBACK first, or use DELETE FROM table, which ROLLBACK undoes (the transaction was rolled back)`
+
+<a id="merge"></a>
+
+## MERGE
+
+Syntax:
+
+```sql
+MERGE INTO table [[AS] alias] USING source [[AS] alias] ON condition
+  WHEN MATCHED [AND condition] THEN UPDATE SET column = value, ... | DELETE | DO NOTHING
+  WHEN NOT MATCHED [BY TARGET] [AND condition] THEN INSERT [(columns)] VALUES (...) | INSERT DEFAULT VALUES | DO NOTHING
+  WHEN NOT MATCHED BY SOURCE [AND condition] THEN UPDATE SET ... | DELETE | DO NOTHING
+  [RETURNING expression [[AS] alias], ... | *]
+```
+
+Updates, deletes and inserts rows of a table by how they match the rows of a **source** (a table or `(SELECT ...) AS name`). One statement does what an `UPDATE`, a `DELETE` and an `INSERT` would do together, as in PostgreSQL 15 and later.
+
+| Clause | Its rows |
+|---|---|
+| `WHEN MATCHED` | a row of the table with a source row that meets `ON` |
+| `WHEN NOT MATCHED` (or `BY TARGET`) | a source row with no row in the table: `INSERT` it |
+| `WHEN NOT MATCHED BY SOURCE` | a row of the table that no source row matches |
+
+- **Returns:** the number of rows inserted, updated and deleted (PostgreSQL's tag `MERGE n`). With `RETURNING`, also one row per changed row (see below).
+- **Notes:**
+  - For each row, the **first** clause of its kind whose `AND` condition holds runs. A row no clause takes stays as it is.
+  - Every clause sees the rows **as they were before** the statement: an update does not make a later `DELETE` clause take the row.
+  - When two source rows match one row of the table, the statement fails (`MERGE command cannot affect row a second time`, 21000) and changes nothing. Make `ON` match at most one source row.
+  - All or nothing, also inside `BEGIN ... COMMIT`. Triggers run for each part: `DELETE`, `UPDATE`, then `INSERT`.
+  - It needs the `INSERT`, `UPDATE` and `DELETE` rights its clauses use, `SELECT` on the table and on the source.
+  - Not supported yet: a table with [row-level security](table-rights.md#row-rights) policies for the user.
+
+**Example: Apply a day's stock changes: add, remove what reaches zero, insert new items**
+
+Setup:
+
+```sql
+CREATE TABLE stock (item STRING PRIMARY KEY, qty LONG);
+CREATE TABLE changes (item STRING, delta LONG);
+INSERT INTO stock VALUES ('bolt', 40), ('nut', 5), ('washer', 12);
+INSERT INTO changes VALUES ('bolt', 10), ('nut', -5), ('screw', 25);
+```
+
+```sql
+MERGE INTO stock s USING changes c ON s.item = c.item
+WHEN MATCHED AND s.qty + c.delta <= 0 THEN DELETE
+WHEN MATCHED THEN UPDATE SET qty = s.qty + c.delta
+WHEN NOT MATCHED THEN INSERT (item, qty) VALUES (c.item, c.delta);
+SELECT * FROM stock ORDER BY item;
+```
+
+Result:
+
+`MERGE INTO stock AS s USING changes AS c ON s.item = c.item WHEN MATCHED AND s.qty + c.delta <= 0 TH`
+
+```text
+merged into 'stock': 1 row(s) inserted, 1 updated, 1 deleted
+```
+
+`SELECT * FROM stock ORDER BY item`
+
+| item (STRING) | qty (LONG) |
+|---|---|
+| bolt | 50 |
+| screw | 25 |
+| washer | 12 |
+
+(3 rows)
+
+**Example: Make a table the same as a fresh copy (BY SOURCE removes the rest)**
+
+Setup:
+
+```sql
+CREATE TABLE symbols (symbol STRING PRIMARY KEY, name STRING);
+CREATE TABLE symbols_new (symbol STRING, name STRING);
+INSERT INTO symbols VALUES ('ACME', 'Acme old'), ('GONE', 'Delisted');
+INSERT INTO symbols_new VALUES ('ACME', 'Acme Ltd'), ('CITY', 'City Bank');
+```
+
+```sql
+MERGE INTO symbols t USING symbols_new n ON t.symbol = n.symbol
+WHEN MATCHED AND t.name <> n.name THEN UPDATE SET name = n.name
+WHEN NOT MATCHED THEN INSERT VALUES (n.symbol, n.name)
+WHEN NOT MATCHED BY SOURCE THEN DELETE;
+SELECT * FROM symbols ORDER BY symbol;
+```
+
+Result:
+
+`MERGE INTO symbols AS t USING symbols_new AS n ON t.symbol = n.symbol WHEN MATCHED AND t.name != n.n`
+
+```text
+merged into 'symbols': 1 row(s) inserted, 1 updated, 1 deleted
+```
+
+`SELECT * FROM symbols ORDER BY symbol`
+
+| symbol (STRING) | name (STRING) |
+|---|---|
+| ACME | Acme Ltd |
+| CITY | City Bank |
+
+(2 rows)
+
+**Example: Two source rows for one row** (shows an error)
+
+Setup:
+
+```sql
+CREATE TABLE stock (item STRING PRIMARY KEY, qty LONG);
+CREATE TABLE changes (item STRING, delta LONG);
+INSERT INTO stock VALUES ('bolt', 40);
+INSERT INTO changes VALUES ('bolt', 1), ('bolt', 2);
+```
+
+```sql
+MERGE INTO stock s USING changes c ON s.item = c.item WHEN MATCHED THEN UPDATE SET qty = s.qty + c.delta;
+```
+
+Result:
+
+Error: `MERGE command cannot affect row a second time (more than one source row matches one row of 'stock'; make the ON condition match at most one source row)`
+
+<a id="merge-returning"></a>
+
+### MERGE ... RETURNING
+
+As in PostgreSQL 17, `RETURNING` after `MERGE` gives one row for each row it inserted, updated or deleted.
+
+| In `RETURNING` | Gives |
+|---|---|
+| `merge_action()` | `'INSERT'`, `'UPDATE'` or `'DELETE'` |
+| the table's columns (`s.qty`, `s.*`) | the new values; for a deleted row, its old values |
+| the source's columns (`c.delta`, `c.*`) | the source row that made the change; `NULL` for a `BY SOURCE` row |
+| `*` | the table's columns, then the source's |
+
+- The rows come in the order the statement went through them, as in PostgreSQL: add your own `ORDER BY` in the app if the order matters.
+- A column name both have needs its table (`s.item`), or it fails (`column 'item' is in more than one table`).
+- If the `RETURNING` list has an error, nothing is changed.
+- A `BEFORE ... FOR EACH ROW` trigger that leaves rows out (`RETURN NULL`): the source's columns cannot be returned then (0A000); the table's columns and `merge_action()` can.
+
+**Example: Apply stock changes and see what each row did**
+
+Setup:
+
+```sql
+CREATE TABLE stock (item STRING PRIMARY KEY, qty LONG);
+CREATE TABLE changes (item STRING, delta LONG);
+INSERT INTO stock VALUES ('bolt', 40), ('nut', 5);
+INSERT INTO changes VALUES ('bolt', 10), ('nut', -5), ('screw', 25);
+```
+
+```sql
+MERGE INTO stock s USING changes c ON s.item = c.item
+WHEN MATCHED AND s.qty + c.delta <= 0 THEN DELETE
+WHEN MATCHED THEN UPDATE SET qty = s.qty + c.delta
+WHEN NOT MATCHED THEN INSERT (item, qty) VALUES (c.item, c.delta)
+RETURNING merge_action() AS action, s.item, s.qty, c.delta;
+```
+
+Result:
+
+| action (STRING) | item (STRING) | qty (LONG) | delta (LONG) |
+|---|---|---|---|
+| UPDATE | bolt | 50 | 10 |
+| DELETE | nut | 5 | -5 |
+| INSERT | screw | 25 | 25 |
+
+(3 rows)
+
+```text
+merged into 'stock': 1 row(s) inserted, 1 updated, 1 deleted
+```
 
 <a id="returning"></a>
 

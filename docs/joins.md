@@ -3,7 +3,7 @@
 > Put rows of two or more tables side by side: JOIN, LEFT / RIGHT / FULL JOIN, USING, CROSS JOIN, and ASOF / LT / SPLICE JOIN for time series.
 
 - Category: Querying
-- Keywords: join, JOIN, hash join, join speed, key lookup, index lookup, index nested loop join, KARELADB\_NO\_COLUMN\_JOIN, engine: column (hash join), GROUP BY over a join, join another database, INNER JOIN, INNER, ON, LEFT JOIN, LEFT OUTER JOIN, LEFT, OUTER, CROSS JOIN, CROSS, ASOF JOIN, ASOF, as of, time join, table alias, self join, join subquery, RIGHT JOIN, RIGHT OUTER JOIN, FULL JOIN, FULL OUTER JOIN, USING, JOIN USING, LT JOIN, SPLICE JOIN, RIGHT, FULL, LT, SPLICE, comma join, ambiguous column, join, left join, asof, cross join
+- Keywords: join, JOIN, hash join, join speed, key lookup, index lookup, index nested loop join, KARELADB\_NO\_COLUMN\_JOIN, engine: column (hash join), GROUP BY over a join, join another database, INNER JOIN, INNER, ON, LEFT JOIN, LEFT OUTER JOIN, LEFT, OUTER, CROSS JOIN, CROSS, ASOF JOIN, ASOF, as of, time join, table alias, self join, join subquery, RIGHT JOIN, RIGHT OUTER JOIN, FULL JOIN, FULL OUTER JOIN, USING, JOIN USING, LT JOIN, SPLICE JOIN, RIGHT, FULL, LT, SPLICE, comma join, ambiguous column, join, left join, asof, cross join, NATURAL JOIN, NATURAL, natural join, join spill, join bigger than memory, grace hash join, spills to disk
 - See also: [SELECT (from)](select.md#from), [WHERE](where.md), [GROUP BY and HAVING](group-by.md), [UNION and subqueries (correlated)](union-subqueries.md#correlated), [LATEST ON](latest-on.md), [EXPLAIN](explain.md)
 
 A **join** puts rows of two tables side by side. For example, a trade in `trade_log` has only the broker number (`buyer = 58`); a join with `brokers` adds the broker's name.
@@ -225,6 +225,76 @@ It is used when all of these hold:
 - `EXPLAIN` then ends with `engine: column (hash join)`; otherwise `engine: row (...)` says why not.
 - A first table with a filter, joined to a big table (over 65,536 rows) that it can look up by key or index, stays on the row engine: a few lookups are cheaper than reading the whole joined table.
 - The answers are the same on both engines, in the same order. `KARELADB_NO_COLUMN_JOIN=1` sends every join back to the row engine, for comparing.
+
+<a id="join-spill"></a>
+
+### A join bigger than memory
+
+Since 2026-10-25 a hash join whose joined table does not fit in the query's memory goes to disk instead of filling the server. It works like a big [GROUP BY](group-by.md#big-group-by):
+
+| Situation | What happens |
+|---|---|
+| The joined table fits in the statement's working memory (`--max-result-memory`, at most a quarter of `--memory-limit`): up to **three quarters** of it for a plain `JOIN` / `LEFT JOIN` (about 64 bytes a row), up to **half** for a `RIGHT` / `FULL JOIN` or a table with computed columns (whole rows are copied); or in `SET work_mem` when it is set | The join runs in memory, as always. Nothing is written. |
+| It does not fit | Both tables are cut into parts (4 to 256) by the join key and written to temporary files in `_tmp/` of the database folder. Then each part is joined on its own: only one part of the joined table is in memory at a time. A `JOIN` or `RIGHT JOIN` does not write the rows of the first table whose part has no row of the joined table (none of them could match). |
+| Both tables together would need more than **16 GB** of files (`max_spill_bytes`, counted from the row counts before the query runs) | The join runs in memory, as before this feature. |
+| The files still pass 16 GB part way (texts much longer than about 20 characters) | The query stops: `the join needs more than 16384 MB of temporary files (max_spill_bytes)`. |
+
+- **The answers are the same**, only slower: `JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `FULL JOIN`, keys with `NULL`, several `a = b` in `ON`, other `ON` conditions, a `WHERE`, more joins after the first.
+- **Without `ORDER BY` the rows come in another order** (part by part). Add an `ORDER BY` when the order matters; `first()` and `last()` over a table with a time column still follow the time.
+- `EXPLAIN` shows it: `join (hash on 1 key(s), spills to disk in 64 parts) table ...`.
+- The files are removed when the query ends, fails or is cancelled, and when the database opens after a crash. A read-only database never writes them.
+- **Stays in memory:** a `LIMIT` without `ORDER BY` (it may stop after a few rows), a key or index lookup, the second and later joins of a query, a joined subquery or view (its rows are in memory already), `ASOF` / `LT` / `SPLICE JOIN`, and a [GROUP BY on the column engine](#join-column-engine).
+- One join key with a very large number of rows still needs all of them in memory at once (they are always in the same part).
+
+**Example: A join past work_mem: EXPLAIN shows the parts on disk** (sample data: sample)
+
+```sql
+CREATE TABLE big_orders AS
+SELECT x AS id, CASE x % 5 WHEN 0 THEN 1 WHEN 1 THEN 34 WHEN 2 THEN 45 WHEN 3 THEN 49 ELSE 58 END AS broker
+FROM generate_series(1, 5000) AS g(x);
+SET work_mem = '64kB';
+EXPLAIN SELECT b.name, o.id FROM brokers b JOIN big_orders o ON o.broker = b.id ORDER BY o.id;
+SELECT b.name, count(*) AS orders, sum(o.id % 7) AS check_sum
+FROM brokers b JOIN big_orders o ON o.broker = b.id
+GROUP BY b.name ORDER BY b.name;
+```
+
+Result:
+
+`CREATE TABLE big_orders AS SELECT x AS id, CASE x % 5 WHEN 0 THEN 1 WHEN 1 THEN 34 WHEN 2 THEN 45 WH`
+
+```text
+table 'big_orders' created with 5000 row(s)
+```
+
+`SET work_mem = '64kB'`
+
+```text
+work_mem is 64kB for this session
+```
+
+`EXPLAIN SELECT b.name, o.id FROM brokers AS b JOIN big_orders AS o ON o.broker = b.id ORDER BY o.id`
+
+| plan (STRING) |
+|---|
+| scan table brokers (1 of 1 partitions, about 5 rows) |
+| join (hash on 1 key(s), spills to disk in 15 parts) table big_orders (1 of 1 partitions, about 5000 rows) |
+| sort by 1 key(s) |
+| engine: row (a join) |
+
+(4 rows)
+
+`SELECT b.name, count(*) AS orders, sum(o.id % 7) AS check_sum FROM brokers AS b JOIN big_orders AS o`
+
+| name (STRING) | orders (LONG) | check_sum (LONG) |
+|---|---|---|
+| Imperial Securities | 1000 | 2999 |
+| Keystone Securities | 1000 | 3003 |
+| Northgate Securities | 1000 | 2997 |
+| Online Securities | 1000 | 2998 |
+| Vision Securities | 1000 | 3000 |
+
+(5 rows)
 
 <a id="left-join"></a>
 
@@ -503,6 +573,40 @@ Result:
 
 Error: `line 1, column 28: column 'symbol' in USING is not in the right table 'b'`
 
+<a id="natural-join"></a>
+
+## NATURAL JOIN
+
+Syntax:
+
+```sql
+FROM a NATURAL [INNER | LEFT | RIGHT | FULL] JOIN b
+```
+
+A join on every column name both sides have: the same as `JOIN b USING (those columns)`, so `SELECT *` shows each of them once. When the two sides have no name in common it is a `CROSS JOIN`, as in PostgreSQL. Views and subqueries work as tables do.
+
+- **Notes:** a new column with the same name in one table changes what a NATURAL JOIN joins on; in programs, `USING (...)` says it once and for all.
+- **Errors:** `ON` or `USING` after it.
+
+**Example** (sample data: sample)
+
+```sql
+SELECT symbol, name, close
+FROM securities NATURAL JOIN ochl_day
+ORDER BY time DESC, symbol
+LIMIT 3;
+```
+
+Result:
+
+| symbol (SYMBOL) | name (STRING) | close (DOUBLE) |
+|---|---|---|
+| CITY | City Bank Limited | 504.9 |
+| COAST | Coastal Bank Limited | 376.1 |
+| VOLT | Volt River Hydropower Limited | 191.2 |
+
+(3 rows)
+
 <a id="cross-join"></a>
 
 ## CROSS JOIN
@@ -577,7 +681,7 @@ Syntax:
 
 ```sql
 FROM left_table [[AS] alias]
-ASOF JOIN right_table [[AS] alias] [ON condition]
+ASOF JOIN right_table [[AS] alias] [ON condition] [TOLERANCE interval]
 ```
 
 A join by **time**. For each row of the left table, KarelaDB takes the **last row of the right table whose time is at or before the left row's time**. With `ON`, the right row must also match the `ON` condition (usually the same symbol).
@@ -590,12 +694,34 @@ This answers questions like "what was the last candle when this live price came 
 | `right_table` | a time-series table, or a subquery whose result has a time column |
 | `ON a.symbol = b.symbol` | match only rows of the same symbol; other `AND` conditions are checked too |
 | `ON (symbol)` | QuestDB's short form of the same: the listed columns are equal in both tables |
+| `TOLERANCE 1m` | QuestDB: a right row older than this is no match (units ms, s, m, h, d, w) |
 
 - **Returns:** one row for each left row. When no right row is early enough (or none matches `ON`), the right columns are `NULL`, like a `LEFT JOIN`.
 - **Notes:** both sides must have a time column: a relational table gives the error `ASOF JOIN needs a time column in both tables`.
 - "At or before" includes the same time. For strictly before, use [LT JOIN](#lt-join).
 - Without `ON`, any row of the right table can match, whatever its symbol.
-- QuestDB's `TOLERANCE` is not there yet.
+- `TOLERANCE` works with `LT JOIN` too. A right row exactly that old still matches.
+
+**Example: Only a candle at most 2 minutes old; older ones give NULL** (sample data: sample)
+
+```sql
+SELECT l.timestamp, l.symbol, l.ltp, m.time AS candle_time, m.close AS candle_close
+FROM live_data l
+ASOF JOIN ochl_minutes m ON (symbol) TOLERANCE 2m
+WHERE l.symbol = 'CITY'
+ORDER BY l.timestamp
+LIMIT 5;
+```
+
+Result:
+
+| timestamp (TIMESTAMP) | symbol (SYMBOL) | ltp (DOUBLE) | candle_time (TIMESTAMP) | candle_close (DOUBLE) |
+|---|---|---|---|---|
+| 2026-09-10T05:20:00.000Z | CITY | 513 | 2026-09-10T05:20:00.000Z | 504.6 |
+| 2026-09-10T07:15:00.000Z | CITY | 515.6 | 2026-09-10T07:15:00.000Z | 502.3 |
+| 2026-09-10T09:14:00.000Z | CITY | 527.1 | 2026-09-10T09:14:00.000Z | 504.9 |
+
+(3 rows)
 
 **Example: Live prices with the last minute candle at or before each snapshot** (sample data: sample)
 

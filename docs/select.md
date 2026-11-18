@@ -3,7 +3,7 @@
 > Choose the columns and values that a query gives back, and the table they come from.
 
 - Category: Querying
-- Keywords: query, read rows, columns, \*, table.\*, AS, alias, column name, FROM, DISTINCT, unique rows, SELECT without FROM, calculator, missing comma, select, from, distinct
+- Keywords: query, read rows, columns, \*, table.\*, AS, alias, column name, FROM, DISTINCT, unique rows, SELECT without FROM, calculator, missing comma, select, from, distinct, EXCLUDE, REPLACE, SELECT \* EXCLUDE, SELECT \* REPLACE, all columns but, except columns, TABLESAMPLE, BERNOULLI, USING SAMPLE, random sample, sample rows
 - See also: [WHERE](where.md), [ORDER BY, LIMIT, OFFSET](order-by-limit.md), [GROUP BY and HAVING](group-by.md), [Joins](joins.md), [UNION and subqueries](union-subqueries.md), [Views](views.md)
 
 `SELECT` reads data. You say which values you want (the **select list**), and from which table (`FROM`).
@@ -198,6 +198,56 @@ SELECT *, count(*) FROM brokers;
 Result:
 
 Error: `line 1, column 8: * cannot be combined with aggregates or SAMPLE BY`
+
+<a id="star-exclude"></a>
+
+## * EXCLUDE, * REPLACE
+
+Syntax:
+
+```sql
+SELECT * EXCLUDE (column, ...) FROM table
+SELECT * REPLACE (expression AS column, ...) FROM table
+SELECT alias.* EXCLUDE (column) REPLACE (expression AS column), ... FROM table alias JOIN ...
+```
+
+`EXCLUDE` leaves columns out of the `*`. `REPLACE` gives a column another value, in its place and with its name. Both come from DuckDB; they may follow the same `*`, in either order. One name needs no brackets: `* EXCLUDE note`.
+
+- **Notes:** the `*` is written out as its columns before the query runs, so the query is exactly as fast as one that lists them. A view keeps `EXCLUDE` and gets the table's new columns, as with `*`.
+- **Errors:** a name the `*` does not have (SQLSTATE 42703). After `JOIN ... USING`, write `t.* EXCLUDE (...)` for each table (0A000).
+
+**Example** (sample data: sample)
+
+```sql
+SELECT * EXCLUDE (sector) FROM securities ORDER BY symbol LIMIT 3;
+```
+
+Result:
+
+| symbol (SYMBOL) | name (STRING) |
+|---|---|
+| ACME | Acme Investment Company |
+| CITY | City Bank Limited |
+| COAST | Coastal Bank Limited |
+
+(3 rows)
+
+**Example: Prices rounded, every other column as it is** (sample data: sample)
+
+```sql
+SELECT * EXCLUDE (volume) REPLACE (round(close, 0) AS close) FROM ochl_day
+WHERE symbol = 'CITY' ORDER BY time LIMIT 3;
+```
+
+Result:
+
+| time (TIMESTAMP) | symbol (SYMBOL) | open (DOUBLE) | high (DOUBLE) | low (DOUBLE) | close (DOUBLE) |
+|---|---|---|---|---|---|
+| 2025-12-28T00:00:00.000Z | CITY | 540.3 | 542.5 | 539.2 | 542 |
+| 2025-12-29T00:00:00.000Z | CITY | 540.6 | 542.1 | 538.8 | 540 |
+| 2025-12-30T00:00:00.000Z | CITY | 538.5 | 540.5 | 536.4 | 539 |
+
+(3 rows)
 
 <a id="alias"></a>
 
@@ -422,6 +472,36 @@ SELECT * FROM ochl_days;
 Result:
 
 Error: `line 1, column 15: table or view 'ochl_days' does not exist`
+
+<a id="tablesample"></a>
+
+## TABLESAMPLE, USING SAMPLE
+
+Syntax:
+
+```sql
+FROM table [AS alias] TABLESAMPLE BERNOULLI (percent)   -- also SYSTEM (percent), or percent%
+FROM table USING SAMPLE 10%                               -- or 10 PERCENT, 100 ROWS, 100
+```
+
+A random part of a table, for a quick estimate over a big one: a share of the rows (each row is kept with that chance), or a number of rows. `TABLESAMPLE` is PostgreSQL's, `USING SAMPLE` DuckDB's; a method in brackets after DuckDB's (`(bernoulli)`, `(system)`, `(reservoir)`) is taken.
+
+- **Notes:** every run takes a new sample. `SYSTEM` samples rows too, not blocks. A share reads the whole table and keeps some rows; a count of rows sorts the table at random first, so a share is faster on a big table.
+- **Errors:** `REPEATABLE (seed)`, a seed in DuckDB's brackets, a share outside 0 to 100.
+
+**Example: About a tenth of the bars** (sample data: sample)
+
+```sql
+SELECT count(*) > 0 AS some_rows FROM ochl_day TABLESAMPLE BERNOULLI (10);
+```
+
+Result:
+
+| some_rows (BOOL) |
+|---|
+| true |
+
+(1 row)
 
 <a id="distinct"></a>
 
