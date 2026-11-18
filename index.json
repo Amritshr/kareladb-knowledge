@@ -13635,12 +13635,16 @@
    "id": "benchmark-report",
    "title": "Benchmark report",
    "category": "Quality",
-   "summary": "How fast KarelaDB is against QuestDB and PostgreSQL on the same PC, and what each engine change of 2026-09-23 gave, including where KarelaDB is still slower and what is not measured.",
+   "summary": "How fast KarelaDB is against QuestDB, PostgreSQL, DuckDB and ClickHouse on the same PC, and what each engine change of 2026-09-23 gave, including where KarelaDB is still slower and what is not measured.",
    "path": "docs/benchmark-report.md",
    "parts": [
     {
      "id": "setup",
      "name": "Setup"
+    },
+    {
+     "id": "four-engines",
+     "name": "Four engines side by side: the re-check of 2026-10-30"
     },
     {
      "id": "vs-questdb",
@@ -13695,6 +13699,14 @@
     "how fast",
     "QuestDB",
     "PostgreSQL",
+    "DuckDB",
+    "ClickHouse",
+    "four engines",
+    "tie is a loss",
+    "kbench",
+    "kprog",
+    "KarelaDB vs DuckDB",
+    "KarelaDB vs ClickHouse",
     "KarelaDB vs QuestDB",
     "KarelaDB vs PostgreSQL",
     "rows per second",
@@ -13718,6 +13730,262 @@
     "slow parts",
     "known slow",
     "not measured"
+   ]
+  },
+  {
+   "id": "how-it-works",
+   "title": "How KarelaDB works",
+   "category": "How it works",
+   "summary": "One page on the design of KarelaDB, covering the files on disk, the log and checksums that protect a commit, how a query is run, how writers and readers share the data, and how copies and clusters work.",
+   "path": "docs/how-it-works.md",
+   "parts": [
+    {
+     "id": "pieces",
+     "name": "The pieces"
+    },
+    {
+     "id": "checksums",
+     "name": "Checksums"
+    },
+    {
+     "id": "commit",
+     "name": "A commit, in order"
+    },
+    {
+     "id": "queries",
+     "name": "How a query runs"
+    },
+    {
+     "id": "locks",
+     "name": "Writers and readers"
+    },
+    {
+     "id": "copies",
+     "name": "Copies and clusters"
+    },
+    {
+     "id": "limits",
+     "name": "What the design does not do"
+    }
+   ],
+   "keywords": [
+    "architecture",
+    "system design",
+    "design",
+    "internals",
+    "how it works",
+    "storage engine",
+    "write-ahead log",
+    "WAL",
+    "checkpoint",
+    "manifest",
+    "CRC32C",
+    "checksum",
+    "block file",
+    "partition",
+    "zone map",
+    "column engine",
+    "row engine",
+    "vectorised",
+    "group commit",
+    "table lock",
+    "snapshot reads",
+    "row lock",
+    "MVCC",
+    "standby",
+    "cluster",
+    "witness",
+    "failover",
+    "recovery",
+    "repair",
+    "backup",
+    "encryption",
+    "integrity"
+   ]
+  },
+  {
+   "id": "wal-guarantees",
+   "title": "The log (WAL): what KarelaDB promises",
+   "category": "How it works",
+   "summary": "What a commit guarantees after a kill, a power cut or a full disk, how the log, checksums, checkpoint and recovery work, and the known limits of the promise.",
+   "path": "docs/wal-guarantees.md",
+   "parts": [
+    {
+     "id": "1-in-one-paragraph",
+     "name": "1. In one paragraph"
+    },
+    {
+     "id": "2-the-protocol-step-by-step",
+     "name": "2. The protocol, step by step"
+    },
+    {
+     "id": "3-what-is-guaranteed-in-one-table",
+     "name": "3. What is guaranteed, in one table"
+    },
+    {
+     "id": "4-known-limits-of-the-guarantee",
+     "name": "4. Known limits of the guarantee"
+    }
+   ],
+   "keywords": [
+    "WAL",
+    "write-ahead log",
+    "log",
+    "commit record",
+    "LSN",
+    "CRC",
+    "CRC32C",
+    "checksum",
+    "fsync",
+    "durability",
+    "durable",
+    "crash",
+    "power cut",
+    "torn write",
+    "torn tail",
+    "recovery",
+    "checkpoint",
+    "manifest",
+    "timeline",
+    "group commit",
+    "sync_commits",
+    "synchronous_commit",
+    "torn end",
+    "log cut",
+    "archive",
+    "wal_archive",
+    "repair",
+    "accept-log-loss",
+    "ACID",
+    "atomic",
+    "full disk"
+   ]
+  },
+  {
+   "id": "file-format",
+   "title": "On-disk file format (version 1)",
+   "category": "How it works",
+   "summary": "The byte layout of every KarelaDB file: headers, block files with a CRC per block, the log, the manifest, backups, partition files and indexes, and how each is checked when opened.",
+   "path": "docs/file-format.md",
+   "parts": [
+    {
+     "id": "1-database-folder",
+     "name": "1. Database folder"
+    },
+    {
+     "id": "2-file-header-64-bytes",
+     "name": "2. File header (64 bytes)"
+    },
+    {
+     "id": "3-block-file",
+     "name": "3. Block file"
+    },
+    {
+     "id": "4-write-ahead-log-wal",
+     "name": "4. Write-ahead log (WAL)"
+    },
+    {
+     "id": "5-manifest",
+     "name": "5. Manifest"
+    },
+    {
+     "id": "6-backups",
+     "name": "6. Backups"
+    },
+    {
+     "id": "7-recovery-order-and-the-repair-ladder",
+     "name": "7. Recovery order and the repair ladder"
+    },
+    {
+     "id": "8-table-partition-files",
+     "name": "8. Table partition files"
+    },
+    {
+     "id": "9-table-log-records",
+     "name": "9. Table log records"
+    },
+    {
+     "id": "10-indexes-create-index",
+     "name": "10. Indexes (CREATE INDEX)"
+    },
+    {
+     "id": "11-stored-format-features-versions",
+     "name": "11. Stored-format features (versions)"
+    }
+   ],
+   "keywords": [
+    "file format",
+    "on-disk format",
+    "format version",
+    "CRC32C",
+    "checksum",
+    "block file",
+    "header",
+    "manifest",
+    "WAL record",
+    "segment",
+    "backup format",
+    "partition file",
+    "little-endian",
+    "LSN",
+    "digest",
+    "NeedsNewer",
+    "stored-format features",
+    "corruption",
+    "repair ladder",
+    "torn tail"
+   ]
+  },
+  {
+   "id": "hft-and-low-latency",
+   "title": "HFT and low latency",
+   "category": "How it works",
+   "summary": "What was measured and decided about the usual high-frequency-trading engine ideas (kernel bypass, huge pages, JIT, lock-free ingestion, tiered storage), with the round-trip numbers behind each answer, and what KarelaDB is and is not for.",
+   "path": "docs/hft-and-low-latency.md",
+   "parts": [
+    {
+     "id": "round-trip",
+     "name": "Where a request's time goes"
+    },
+    {
+     "id": "ideas",
+     "name": "The five ideas"
+    },
+    {
+     "id": "offers",
+     "name": "What KarelaDB offers for tick and market data"
+    },
+    {
+     "id": "not",
+     "name": "What it does not offer"
+    }
+   ],
+   "keywords": [
+    "HFT",
+    "high-frequency trading",
+    "low latency",
+    "latency",
+    "io_uring",
+    "DPDK",
+    "kernel bypass",
+    "HugePages",
+    "huge pages",
+    "cache line",
+    "false sharing",
+    "JIT",
+    "query compilation",
+    "lock-free",
+    "zero allocation",
+    "tiered storage",
+    "LSM",
+    "tick data",
+    "nanosecond",
+    "ILP",
+    "round trip",
+    "p50",
+    "microseconds",
+    "market data",
+    "feed handler"
    ]
   },
   {

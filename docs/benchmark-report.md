@@ -1,10 +1,10 @@
 # Benchmark report
 
-> How fast KarelaDB is against QuestDB and PostgreSQL on the same PC, and what each engine change of 2026-09-23 gave, including where KarelaDB is still slower and what is not measured.
+> How fast KarelaDB is against QuestDB, PostgreSQL, DuckDB and ClickHouse on the same PC, and what each engine change of 2026-09-23 gave, including where KarelaDB is still slower and what is not measured.
 
 - Category: Quality
-- Keywords: benchmark report, benchmarks, speed, performance, how fast, QuestDB, PostgreSQL, KarelaDB vs QuestDB, KarelaDB vs PostgreSQL, rows per second, p50, latency, result cache, memory footprint, disk footprint, full-text search speed, news search, floor sheet, keyless, table locks, group commit, zone maps, saved stats, column mask, warm at open, A/B, index speed, slow parts, known slow, not measured
-- See also: [About KarelaDB](about-kareladb.md), [Test report](test-report.md), [Performance tips](performance-tips.md), [Indexes](indexes.md), [Full-text search](full-text-search.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Limits](limits.md)
+- Keywords: benchmark report, benchmarks, speed, performance, how fast, QuestDB, PostgreSQL, DuckDB, ClickHouse, four engines, tie is a loss, kbench, kprog, KarelaDB vs DuckDB, KarelaDB vs ClickHouse, KarelaDB vs QuestDB, KarelaDB vs PostgreSQL, rows per second, p50, latency, result cache, memory footprint, disk footprint, full-text search speed, news search, floor sheet, keyless, table locks, group commit, zone maps, saved stats, column mask, warm at open, A/B, index speed, slow parts, known slow, not measured
+- See also: [How KarelaDB works](how-it-works.md), [HFT and low latency](hft-and-low-latency.md), [About KarelaDB](about-kareladb.md), [Test report](test-report.md), [Performance tips](performance-tips.md), [Indexes](indexes.md), [Full-text search](full-text-search.md), [PostgreSQL protocol (port 8832)](postgres-protocol.md), [Limits](limits.md)
 
 Every number on this page comes from a report or result file in the KarelaDB source folder, named under each section. Nothing is rounded beyond what those files say.
 
@@ -34,6 +34,43 @@ Two kinds of measurement are on this page:
 - **KarelaDB:** 0.2.0-dev, Release build, usually `--sync-commits batch` (QuestDB does not flush every commit either).
 - **Fair rules:** the same client for both databases, every write timed until the rows can be read back, and row counts and checksums compared so both answered the same question. A benchmark checks `"truncated"`: `/exec` answers at most 10,000 rows unless `limit` is passed.
 - **Docker:** on 2026-09-23 the opponents ran in throwaway Docker containers, so every request to them crossed Docker Desktop's network. Their single-request numbers are much lower than on 2026-09-12, when they ran natively. Compare within one day, not across days.
+
+<a id="four-engines"></a>
+
+## Four engines side by side: the re-check of 2026-10-30
+
+The newest head-to-head. KarelaDB ran against **QuestDB, PostgreSQL, DuckDB and ClickHouse** on the same PC, with the same CPU and memory limit for every engine and every commit synced to disk. DuckDB is embedded, so its times have no network in them. The two suites are `kbench` (candles, trades, an orders app, writes) and `kprog` (functions, views, materialized views, procedures, triggers, rules).
+
+**How a row is scored.** Each test is tried at most twice. KarelaDB's better try is compared with the better try of the best other engine. It is a **win** only if it is more than 15% faster. A tie is counted as a loss.
+
+| Profile | Suite | Win | Tie | Loss | Failed |
+|---|---|---|---|---|---|
+| 2 CPUs, 3 GB | kbench (55 rows) | 43 | 7 | 5 | 0 |
+| 2 CPUs, 3 GB | kprog (28 rows) | 14 | 5 | 9 | 0 |
+| 4 CPUs, 6 GB | kbench (55 rows) | 35 | 7 | 13 | 0 |
+| 4 CPUs, 6 GB | kprog (28 rows) | 17 | 4 | 7 | 0 |
+
+So at 2 CPUs and 3 GB, KarelaDB won 57 of 83 rows and had no failures. It did not win the rest, and the open rows are listed below. The 4 CPU run came out worse on `kbench` than the 2 CPU run. The cause is not explained yet (for example, the bulk load of minute candles was 1.77 million rows/s at 2 CPUs and 0.18 million at 4), so read the 4 CPU column as a run that needs a repeat.
+
+**Where KarelaDB did not win (2 CPUs, 3 GB).**
+
+| Area | Rows | Best other engine | What the number says |
+|---|---|---|---|
+| Single-row `INSERT` over the PostgreSQL port (W5) | loss | PostgreSQL, 1,407 rows/s | KarelaDB 1,196 rows/s |
+| `UPDATE` of about 12,000 rows (W6) | loss | DuckDB, 4.9 ms | KarelaDB 31 ms on the second try, 119 ms on the first |
+| Bulk load of trades (W2) | loss | DuckDB, 2.07 million rows/s | KarelaDB 1.54 million rows/s |
+| `NOT EXISTS` (R6), filtered scan (C9) | loss | DuckDB, 4.1 ms and 0.87 ms | KarelaDB 5.5 ms and 1.19 ms |
+| Stored functions over many rows (F1 to F4) | loss | DuckDB | KarelaDB 1.5 to 44 times slower, second try |
+| Materialized view build and refresh (M1, M4) | loss | ClickHouse, under 1 s | KarelaDB 6.6 s and 7.2 s |
+| View of 2 years for one symbol (V2) | loss | ClickHouse, 24.6 ms | KarelaDB 18.6 s on the first try, 36 s on the second |
+| Audit trigger on a 5% pay rise (TR3), end-of-day procedure (P1) | loss | PostgreSQL | KarelaDB 2 to 4 times slower |
+| About a dozen rows within 15% of the best engine | tie | mixed | `count(*)`, two joins, one bulk load, batch `INSERT`, triggers and views |
+
+The first (cold) try is often much slower than the second: for example `GROUP BY` per symbol over the PostgreSQL port took 93.7 ms the first time and 5.1 ms the second, against DuckDB's 13.6 ms. The second try is what the cache gives back, so a workload that never repeats a query sees the first number.
+
+**What this means.** The rows that are still open are mostly stored functions, materialized views, updates of many rows and single-row inserts over the PostgreSQL port. These are tracked, and each change is re-measured against all four engines before it ships. This page lists the open rows only; the wins are counted in the table above, and the full per-row list is kept in the source folder.
+
+Source: the 006 re-check reports of 2026-10-30 (`kbench` and `kprog`, both profiles, one run each).
 
 <a id="vs-questdb"></a>
 

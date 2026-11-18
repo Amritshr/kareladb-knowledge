@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The log (WAL): what KarelaDB promises - KarelaDB (KARELA DataBase) docs</title>
+<meta name="description" content="What a commit guarantees after a kill, a power cut or a full disk, how the log, checksums, checkpoint and recovery work, and the known limits of the promise.">
+<link rel="canonical" href="https://amritshr.github.io/kareladb-knowledge/docs/wal-guarantees.html">
+<link rel="alternate" type="text/markdown" href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/wal-guarantees.md">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header><a class="home" href="../index.html">KarelaDB knowledge</a><nav><a href="../index.html#all-topics">All topics</a><a href="../llms.txt">llms.txt</a><a href="../skills/kareladb/SKILL.md">Skill</a><a href="https://github.com/Amritshr/kareladb-knowledge">GitHub</a></nav></header>
+<main>
+<h1 id="the-log-wal-what-kareladb-promises"><span class="old-id" id="the-log-wal-what-kdb-promises"></span>The log (WAL): what KarelaDB promises</h1>
+<blockquote><p>What a commit guarantees after a kill, a power cut or a full disk, how the log, checksums, checkpoint and recovery work, and the known limits of the promise.</p></blockquote>
+<ul><li>Category: How it works</li><li>Keywords: WAL, write-ahead log, log, commit record, LSN, CRC, CRC32C, checksum, fsync, durability, durable, crash, power cut, torn write, torn tail, recovery, checkpoint, manifest, timeline, group commit, sync_commits, synchronous_commit, torn end, log cut, archive, wal_archive, repair, accept-log-loss, ACID, atomic, full disk</li><li>See also: <a href="how-it-works.html">How KarelaDB works</a>, <a href="file-format.html">On-disk file format (version 1)</a>, <a href="backup-and-safety.html">Backup, check, repair and restore</a>, <a href="performance-tips.html">Performance tips</a>, <a href="cluster.html">Cluster: automatic failover (--cluster-peers, kareladb witness)</a>, <a href="transactions.html">Transactions</a></li></ul>
+<p>Written 2026-10-25 from the code. Byte layouts are in
+<a href="file-format.html">the file format</a> sections 4 to 7; this page says what each rule guarantees. Where
+a sentence says &quot;not checked&quot;, the code was not traced to the end and the statement is open.</p>
+<h2 id="1-in-one-paragraph">1. In one paragraph</h2>
+<p>Every change is first written to the log as records, and the last record of the change is a
+<strong>commit record</strong>. A change is committed when its commit record is on disk, and not before.
+After a crash, recovery reads the log, keeps every change that has a complete commit record and
+drops the rest. The data files are only a faster copy of the log: a <strong>checkpoint</strong> writes them,
+and the <strong>log cut</strong> (moving old segments to <code>wal_archive/</code>) happens only when no file needs
+those records any more.</p>
+<h2 id="2-the-protocol-step-by-step">2. The protocol, step by step</h2>
+<h3 id="2-1-records-and-their-order">2.1 Records and their order</h3>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>What the code does</th><th>What it guarantees</th></tr></thead><tbody><tr><td>Every record has the next LSN</td><td><code>next_lsn_</code> goes up by one per data record and by one for the commit record. A packed record takes as many LSNs as the records it holds.</td><td>The log has no holes: the reader expects exactly <code>previous LSN + 1</code> and treats anything else as damage or a gap.</td></tr><tr><td>A change is: data records, then one commit record</td><td><code>WalWriter::Commit</code> encodes all records and the commit record into <strong>one buffer</strong>. The transaction id is the LSN of its first record.</td><td>A reader sees either the whole change or a change without a commit record, which it does not apply.</td></tr><tr><td>A change never spans two segments</td><td>If <code>offset + size &gt; 64 MB</code> (and the segment is not empty), a new segment is started first.</td><td>The records of one change are always next to each other. (A change bigger than 64 MB gets a segment of its own.)</td></tr><tr><td>The commit record comes last</td><td>The reader counts the data records of a transaction. A commit is <strong>valid</strong> only if <code>commit LSN - txn id</code> equals the number of data records read.</td><td>A commit record can never &quot;complete&quot; a change that lost a record in the middle. This is reported as <code>incomplete transaction</code>, a lost range.</td></tr><tr><td>A very big change is streamed</td><td><code>CommitStream</code> writes the records a few MB at a time and then the commit record. On an error the segment is cut back to where the change began.</td><td>A failed big change leaves the log as it was.</td></tr><tr><td>Commit time never goes back</td><td><code>Store::Commit</code> writes <code>max(now, last commit time)</code>.</td><td>The log&#39;s times are in order, so <code>--until</code> and point-in-time restore are well defined.</td></tr></tbody></table></div>
+<h3 id="2-2-checksums">2.2 Checksums</h3>
+<div class="table-wrap"><table><thead><tr><th>Where</th><th>What is checked</th></tr></thead><tbody><tr><td>Every record</td><td>A CRC32C over the record header (without the CRC field) and the payload. It is checked <strong>last</strong> when the reader looks at a record, so a search through damaged bytes stays fast.</td></tr><tr><td>A record is accepted only if</td><td>type is 1, 2 or 3; <code>0 &lt; txn id &lt;= LSN</code>; a commit record has the length the segment&#39;s format says (8 bytes, or 16 in a batched segment); the length fits in the file and is at most 256 MB; the CRC matches; <strong>and its LSN is exactly the next one expected</strong>. A record that is valid but has the wrong LSN is not taken.</td></tr><tr><td>A record of a type this build does not know</td><td>Accepted if its checksum is good, then refused as &quot;needs a newer KarelaDB&quot;, never as damage.</td></tr><tr><td>Encrypted database</td><td>The CRC covers the encrypted bytes. Each data record is also authenticated (AEAD) with its LSN, transaction id and type, so a record cannot be moved or changed without being noticed. Record headers and commit records stay plain, so recovery finds a torn end the same way.</td></tr><tr><td>Segment header</td><td>64 bytes with its own checksum; the segment&#39;s name must match the first LSN in it, and its owner (timeline) must be one the manifest knows.</td></tr><tr><td>Data files and manifest</td><td>Not part of the log, but the checkpoint depends on them: see 2.5.</td></tr></tbody></table></div>
+<h3 id="2-3-what-committed-means-the-three-sync-modes">2.3 What &quot;committed&quot; means: the three sync modes</h3>
+<p>The log is a file that is written and then flushed (<code>fsync</code>). What a client is told, and when,
+depends on the mode. Statements below are for <code>kareladb serve</code>; the embedded library has the same
+two options (<code>sync_commits</code>, <code>group_commit</code> in <code>StoreOptions</code>; the C API exposes <code>sync_commits</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Mode</th><th>How to get it</th><th>The client is told &quot;committed&quot;</th><th>A crash of the program (kill, out-of-memory kill, <code>docker rm -f</code>)</th><th>A power cut or operating-system crash</th></tr></thead><tbody><tr><td><strong>always</strong> (default)</td><td><code>--sync-commits always</code></td><td>After the log is flushed to the disk. Writers that commit at the same moment share one flush (group commit); each one still waits for its own LSN to be flushed.</td><td>Loses nothing that was confirmed.</td><td>Loses nothing that was confirmed.</td></tr><tr><td><strong>batch</strong></td><td><code>--sync-commits batch</code></td><td>As soon as the record is written to the log file (handed to the operating system). A background thread flushes at most every <code>sync_interval_ms</code> (10 ms).</td><td>Loses nothing confirmed: the bytes are in the operating system&#39;s cache.</td><td>Can lose the commits of the last ~10 ms that were confirmed. The database is <strong>never damaged</strong>: it opens at an older, complete state.</td></tr><tr><td><strong>always, with an early answer</strong></td><td><code>SET synchronous_commit = off</code> (one session or one request), <code>WITH (synchronous_commit = off)</code> on a table, cache tables and the key-value store&#39;s tables</td><td>As soon as the record is in the log buffer; <code>SyncSoon</code> hands it to the file at most once a millisecond and the flusher thread flushes within about 10 ms. A commit that also changes a table that waits is not answered early.</td><td>Can lose the commits of the last few ms (the ones not yet handed to the file, or made while a flush was running).</td><td>Can lose about the last 10 ms.</td></tr></tbody></table></div>
+<p>Facts that hold in every mode:</p>
+<ul><li>The log record is written <strong>before</strong> the change is applied in memory (in the main write path,
+the database code, and in the materialized-view refresh,
+<code>CommitLog</code> comes before <code>ApplyChanges</code>; the flush wait comes later, at the end of the
+writer), so memory never holds a change the log has no record of, unless the flush itself
+fails (next point).</li><li>A <strong>checkpoint, a backup and <code>Close</code> always flush the log first</strong> (<code>Publish</code>, <code>Close</code> and the
+backup snapshot call <code>SyncLog</code>). The manifest therefore never names an LSN that is not on disk.</li><li>If the flush fails for a <strong>full disk</strong>, the writer cuts the segment back to the last durable
+point and keeps working (writes get HTTP 507 / SQLSTATE <code>53100</code> until there is room). In group
+commit the rows are already applied in memory and reach the log once space is back; the answer
+says so, and is not &quot;try again&quot; (a client that sent them again would write them twice).</li><li>For any other write or flush error the writer <strong>stops</strong>: later writes fail until the database is
+reopened, and recovery checks the log. A flush error is never ignored, because after a failed
+<code>fsync</code> the operating system may have dropped the pages.</li><li>A change too big for memory (<code>CommitStream</code>, rows spilled to a temporary file) always waits for
+the disk, whatever <code>synchronous_commit</code> says.</li><li>On a cluster leader with synchronous standbys, &quot;committed&quot; also waits for a standby to hold the
+record (<a href="cluster.html">cluster</a>); if the leader loses its lease while waiting, the
+answer is <code>Unconfirmed</code> (the record is on this node&#39;s disk, but may be lost).</li></ul>
+<p><strong>Open question (not checked):</strong> whether a reader on another session can see a change in the few
+milliseconds between its being applied in memory and the flush, in group-commit mode (the writer
+gives up its table locks before the flush so that the next writer can share it). If a power cut
+comes then, that change is lost even though a reader saw it; the writer was never told it was
+committed.</p>
+<h3 id="2-4-the-log-format-and-the-sync-mode">2.4 The log format and the sync mode</h3>
+<p>A segment written with group commit or <code>batch</code> is in the <strong>batched format</strong> (header flag 1):
+the commit record carries 16 bytes, the commit time and **the highest LSN that was flushed when
+the record was written**. This is what lets recovery tell a torn end from real damage (2.6). A
+store that syncs every commit separately (<code>group_commit = false</code>, tests and tools) writes the
+plain format with 8-byte commit records. A segment is never continued by a store in the other
+mode: a new segment starts.</p>
+<p>A segment is flushed to the disk before the next segment is created, so **only the last segment
+can have a torn end**. The log is written into a file that was filled with zeros ahead of the
+records, so a flush writes data only and does not change the file&#39;s size on every commit; a zero
+byte is never a record type, so a reader stops at the zeros.</p>
+<h3 id="2-5-checkpoint">2.5 Checkpoint</h3>
+<p>A checkpoint writes the changed tables as new data files, then publishes them
+(<code>Store::Publish</code>). The order is the guarantee:</p>
+<ol><li>Each new file is written as a block file with a checksum on every block and a digest over the
+file, and re-read and verified (<code>verify_on_publish</code>, on by default).</li><li>The log is flushed up to the last LSN (<code>SyncLog</code>).</li><li>The folders holding the new files are flushed (<code>SyncDir</code>).</li><li>The manifest is saved. It has two slots (<code>_manifest.a</code>, <code>_manifest.b</code>) and each save
+overwrites the slot with the <strong>lower</strong> sequence number; the slot being written counts as
+invalid, so a crash in the middle leaves the other slot whole. The manifest records
+<code>checkpoint_lsn</code> (every change up to it is in the data files), <code>durable_lsn</code> (the log holds
+everything up to it) and, for every file, the LSN it holds.</li><li>Only after the manifest is durable do the old files move to <code>_trash/</code> (after about an hour
+they are deleted), and old log may be archived.</li></ol>
+<p>A crash between any two steps leaves either the old manifest (old files, all log intact) or the
+new manifest (new files, all verified). Files that no manifest lists are moved to
+<code>_trash/&lt;ms&gt;-unused/</code> at the next open.</p>
+<h3 id="2-6-recovery-what-the-next-open-does">2.6 Recovery (what the next open does)</h3>
+<ol><li>Read both manifest slots and use the valid one with the higher sequence number.</li><li>Load the data files; a damaged one goes down the repair ladder (older version, then backup).</li><li>Replay starts at <code>replay_after = min(checkpoint_lsn, LSN of every current file)</code>. The whole
+log from there is <strong>checked first</strong> and replayed second, so nothing is applied from a log that
+turns out damaged.</li><li>Every transaction with a valid commit record is applied, in LSN order. Data records with no
+commit record at the end are <strong>not committed</strong>; they are cut off.</li><li>Torn end versus damage. A bad record in the <strong>last</strong> segment is a torn end (a power cut wrote
+the pages in any order) unless a later valid record proves otherwise: in a plain segment, a
+record of a <strong>newer transaction</strong>; in a batched segment, a **commit record that says the bad
+record was already flushed**. Only then is it damage. A bad record in an earlier segment is
+always damage, because that segment was flushed completely before the next one was made.</li><li>Damage in a range that is already in the data files is a note only. Damage in records that
+must be replayed is <strong>Corruption</strong>: the open stops with the byte and the LSNs. The ways out
+are a backup (<code>kareladb restore</code>), a repair that fills the range from a backup, or
+<code>kareladb repair --accept-log-loss</code>.</li><li>The log writer then continues the last segment from its last valid byte (and drops the torn
+bytes) if that segment is whole, in the current timeline and in the same sync mode; otherwise
+a new segment starts. The manifest is saved with <code>durable_lsn = last LSN</code> before the writer
+creates anything.</li></ol>
+<h3 id="2-7-the-log-cut">2.7 The log cut</h3>
+<p>There are four different cuts; they are easy to mix up.</p>
+<div class="table-wrap"><table><thead><tr><th>Cut</th><th>When</th><th>What is lost</th></tr></thead><tbody><tr><td><strong>Torn tail</strong></td><td>Every open after a crash.</td><td>Only an unfinished change (no commit record), or in batch mode, changes whose flush had not finished. Never a change that was flushed.</td></tr><tr><td><strong>Archiving</strong></td><td>After a checkpoint. A finished segment moves from <code>wal/</code> to <code>wal_archive/</code> when the next segment&#39;s first LSN minus one is at most <code>min(checkpoint_lsn, LSN of every current file)</code>, and no snapshot (backup, change stream, AS OF read) pins it.</td><td>Nothing: the segment is only moved. Open never needs it again.</td></tr><tr><td><strong>Trimming</strong></td><td><code>wal_archive</code> over its size limit (1 GB per database by default). Oldest archived segments are deleted first, never one the current files need to open.</td><td>The ability to repair from an old previous version or restore to a time before it. Repair then uses a backup.</td></tr><tr><td><strong>Log loss accepted</strong></td><td><code>kareladb repair --accept-log-loss</code>, after unrepairable damage. The log is cut at the damage and every later segment is deleted. A new timeline starts above every file LSN.</td><td>Every change after the damage. The repair names the first and last lost LSN.</td></tr></tbody></table></div>
+<p>A <strong>timeline</strong> is the log&#39;s history. A restore, a repair that cuts the log and a cluster
+leader&#39;s new term each start a new timeline in a new segment. A segment whose owner is not in
+the manifest&#39;s history belongs to another database or to a history that was dropped, and is
+<strong>never replayed</strong>.</p>
+<h2 id="3-what-is-guaranteed-in-one-table">3. What is guaranteed, in one table</h2>
+<div class="table-wrap"><table><thead><tr><th>Promise</th><th>Holds when</th><th>Because</th></tr></thead><tbody><tr><td>A confirmed commit survives a power cut</td><td><code>--sync-commits always</code>, no early answer</td><td>The client waits for the flush of its own LSN.</td></tr><tr><td>A confirmed commit survives a kill of the program</td><td><code>always</code> and <code>batch</code></td><td>The record is in the operating system before the answer. In the early-answer mode: up to a millisecond of commits can be lost.</td></tr><tr><td>A change is applied all or nothing</td><td>Always</td><td>One buffer, one commit record, a record count in the commit check.</td></tr><tr><td>The database is never damaged by a power cut</td><td>All modes</td><td>Only the last segment can be torn; recovery drops an unconfirmed tail; data files are published by a manifest swap.</td></tr><tr><td>Old data files are never deleted before their replacement is durable</td><td>Always</td><td>The manifest is saved before the old files go to <code>_trash</code>.</td></tr><tr><td>A damaged log is never replayed in part and ignored</td><td>Always</td><td>The log is scanned completely before replay; unrepairable damage stops the open.</td></tr><tr><td>A full disk loses nothing that was confirmed</td><td><code>always</code></td><td>The segment is cut back to the last durable point; the writer waits for space.</td></tr><tr><td>Nothing is confirmed after another node may have become leader</td><td>Cluster</td><td>A fenced store refuses commits (<code>SetStandby</code>).</td></tr></tbody></table></div>
+<h2 id="4-known-limits-of-the-guarantee">4. Known limits of the guarantee</h2>
+<ul><li><code>durable_lsn</code> is saved at a checkpoint and at close, not at every commit. After a crash,
+damage to the very last transactions with no newer valid record after them looks exactly like
+an unfinished write and is dropped (<a href="file-format.html">file format</a>, &quot;Known limit&quot;). In <code>always</code> mode those were
+confirmed to clients, so this needs both a crash and damage of the log&#39;s last bytes.</li><li>A disk or file system that does not honor <code>fsync</code> (some virtual disks, write caches without
+power-loss protection) breaks every promise above. KarelaDB cannot detect it.</li><li><code>batch</code> and the early-answer settings trade durability for speed on purpose; the numbers are
+in <a href="performance-tips.html#sync-commits">performance tips</a>.</li><li>The data folder&#39;s own checks (<code>kareladb check</code>, scrub) read the log of older segments only
+when asked (<code>check_all_segments</code>); a normal open does not read segments that every data file
+already covers.</li></ul>
+</main>
+<footer>KarelaDB (KARELA DataBase) by Amrit Shrestha. Copyright (c) 2026. <a href="https://raw.githubusercontent.com/Amritshr/kareladb-knowledge/main/docs/wal-guarantees.md">This page as markdown</a>.</footer>
+</body>
+</html>
